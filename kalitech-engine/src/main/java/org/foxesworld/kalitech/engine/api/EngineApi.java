@@ -7,4 +7,5 @@ public interface EngineApi {
     @HostAccess.Export AssetsApi assets();
     @HostAccess.Export EventsApi events();
     @HostAccess.Export EntityApi entity();
+    @HostAccess.Export String engineVersion();
 }

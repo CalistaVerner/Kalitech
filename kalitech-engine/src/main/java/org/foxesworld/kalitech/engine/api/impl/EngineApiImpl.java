@@ -4,6 +4,7 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.graalvm.polyglot.HostAccess;
 import org.foxesworld.kalitech.engine.api.*;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -41,4 +42,6 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public AssetsApi assets() { return assetsApi; }
     @HostAccess.Export @Override public EventsApi events() { return eventsApi; }
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
+    @HostAccess.Export @Override public String engineVersion() { return ((KalitechApplication) app).getVersion(); }
+
 }

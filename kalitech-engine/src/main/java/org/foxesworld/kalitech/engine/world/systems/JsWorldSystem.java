@@ -51,7 +51,7 @@ public final class JsWorldSystem implements KSystem {
             if (f == null || !f.canExecute()) return;
             f.execute(args);
         } catch (org.graalvm.polyglot.PolyglotException e) {
-            if (e.isCancelled()) return; // normal during shutdown
+            if (e.isCancelled()) return; // норм при shutdown/reload
             throw e;
         }
     }

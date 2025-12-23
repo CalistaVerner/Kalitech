@@ -1,0 +1,35 @@
+[01:46:55.559][INFO][KalitechApplication] KALITECH//CORE 0.1.0-SNAPSHOT
+[01:46:55.561][INFO][KalitechApplication] Java: 17.0.15
+[01:46:55.562][INFO][KalitechApplication] OS: Windows 10 10.0
+[01:46:55.575][INFO][GraalScriptRuntime] Initializing ScriptRuntime...
+[01:46:56.319][INFO][GraalScriptRuntime] GraalJS context created (require enabled)
+[01:46:56.323][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:46:56.324][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
+[01:46:56.324][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\entities
+[01:46:56.324][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\systems
+[01:46:56.325][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:46:56.326][INFO][SystemRegistry] SystemProvider registered: transform
+[01:46:56.327][INFO][SystemRegistry] SystemProvider registered: scriptEntities
+[01:46:56.327][INFO][SystemRegistry] SystemProvider registered: jsSystem
+[01:46:56.329][INFO][RuntimeAppState] RuntimeAppState started: main='Scripts/main.js', watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:46:56.523][DEBUG][SystemRegistry] System created: id=transform provider=org.foxesworld.kalitech.engine.world.systems.providers.TransformSystemProvider
+[01:46:56.523][INFO][WorldBuilder] WorldBuilder: added system id=transform order=10
+[01:46:56.524][DEBUG][SystemRegistry] System created: id=jsSystem provider=org.foxesworld.kalitech.engine.world.systems.providers.JsWorldSystemProvider
+[01:46:56.524][INFO][WorldBuilder] WorldBuilder: added system id=jsSystem order=50
+[01:46:56.525][DEBUG][SystemRegistry] System created: id=jsSystem provider=org.foxesworld.kalitech.engine.world.systems.providers.JsWorldSystemProvider
+[01:46:56.525][INFO][WorldBuilder] WorldBuilder: added system id=jsSystem order=60
+[01:46:56.561][INFO][EngineApiImpl] [spawn] init
+[01:46:56.575][INFO][JsWorldSystem] JsWorldSystem loaded: Scripts/systems/spawn.js
+[01:46:56.575][INFO][EngineApiImpl] [ai] init
+[01:46:56.576][INFO][JsWorldSystem] JsWorldSystem loaded: Scripts/systems/ai.js
+[01:46:56.578][INFO][EngineApiImpl] Bootstrap engine version: 0.1.0-SNAPSHOT
+[01:46:56.579][INFO][EngineApiImpl] [spawn] bootstrap
+[01:46:56.579][INFO][EngineApiImpl] [ai] bootstrap
+[01:46:56.580][INFO][EngineApiImpl] [player] spawn
+[01:46:56.586][INFO][RuntimeAppState] World rebuilt from Scripts/main.js
+[01:46:57.545][DEBUG][EngineApiImpl] [ai] tick frame=60 tpf=0.016497598960995674
+[01:46:58.540][DEBUG][EngineApiImpl] [ai] tick frame=120 tpf=0.016635799780488014
+[01:46:59.540][DEBUG][EngineApiImpl] [ai] tick frame=180 tpf=0.01660589873790741
+[01:46:59.908][INFO][GraalScriptRuntime] Closing GraalScriptRuntime
+[01:46:59.914][INFO][RuntimeAppState] RuntimeAppState stopped
+[01:46:59.918][INFO][WorldAppState] WorldAppState cleaned up

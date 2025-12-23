@@ -60,7 +60,7 @@ public final class GraalScriptRuntime implements Closeable {
     }
 
     public GraalScriptRuntime() {
-        log.info("Initializing GraalScriptRuntime...");
+        log.info("Initializing ScriptRuntime...");
 
         HostAccess hostAccess = HostAccess.newBuilder(HostAccess.NONE)
                 .allowAccessAnnotatedBy(HostAccess.Export.class)

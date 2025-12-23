@@ -13,15 +13,13 @@ module.exports.world = {
         { id: "jsSystem", order: 60, config: { module: "Scripts/systems/ai.js" } }
     ],
 
-    // декларативные сущности (или можно в bootstrap)
     entities: [
         { name: "player", prefab: "Scripts/entities/player.js" }
     ]
 };
 
 module.exports.bootstrap = function(ctx) {
-    // ctx.api — единственный вход
-    ctx.api.log().info("main bootstrap");
+    ctx.api.log().info("Bootstrap engine version: " + ctx.api.engineVersion());
 
     // Можно делегировать “обязанности”:
     spawn.bootstrap?.(ctx);
