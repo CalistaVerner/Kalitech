@@ -12,7 +12,6 @@
             <option value="$PROJECT_DIR$/kalitech-demo" />
             <option value="$PROJECT_DIR$/kalitech-engine" />
             <option value="$PROJECT_DIR$/kalitech-neural" />
-            <option value="$PROJECT_DIR$/kalitech-script" />
           </set>
         </option>
       </GradleProjectSettings>

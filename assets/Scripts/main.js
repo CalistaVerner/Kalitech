@@ -1,15 +1,11 @@
-let angle = 0;
+let t = 0;
 
 ({
     init(kalitech) {
-        kalitech.info("JS init");
+        kalitech.info("JS init (world system)");
 
         kalitech.on("engine.ready", (payload) => {
-            kalitech.info("Got engine.ready: " + payload);
-        });
-
-        kalitech.on("player.jump", (payload) => {
-            kalitech.info("player.jump payload=" + payload);
+            kalitech.info("engine.ready => " + payload);
         });
 
         kalitech.spawnBox("playerCube", 1, 1, 1);
@@ -17,17 +13,16 @@ let angle = 0;
     },
 
     update(kalitech, tpf) {
-        angle += tpf;
+        t += tpf;
         kalitech.rotateY("playerCube", tpf);
 
-        // пример: раз в ~2 секунды шлём событие “jump”
-        if (angle > 2.0) {
-            angle = 0;
+        if (t > 2) {
+            t = 0;
             kalitech.emit("player.jump", { power: 10, time: Date.now() });
         }
     },
 
     destroy(kalitech) {
-        kalitech.info("JS destroy (hot reload / exit)");
+        kalitech.info("JS destroy");
     }
 })

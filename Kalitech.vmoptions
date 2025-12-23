@@ -1,0 +1,10 @@
+# JUL → Log4j2 bridge (ДОЛЖНО быть VM option)
+-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+
+# logging
+-Dlog.level=DEBUG
+-Dlog.dir=.
+
+# memory
+-Xms512m
+-Xmx2g
