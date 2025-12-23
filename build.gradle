@@ -30,7 +30,7 @@ subprojects {
 
 ext {
     jmeVersion   = '3.8.1-stable'
-    log4jVersion = '2.25.2'
+    log4jVersion = '2.25.3'
     graalVersion = '25.0.1'
     junitBom     = '6.0.1'
 }

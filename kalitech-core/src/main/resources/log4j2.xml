@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="logDir">${sys:log.dir}</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="%style{[%d{HH:mm:ss}]}{bold,black} %highlight{[%p]}{FATAL=bg_red, ERROR=red, WARN=yellow, INFO=green, DEBUG=blue, TRACE=cyan} %style{[%c{1}]}{cyan} %style{%X{workerName}{[Name-%X{workerName}]}}{magenta} %style{%m}{black}%n"
+                    disableAnsi="false" />
+        </Console>
+
+        <File name="File" fileName="${logDir}/logs/lastlog.log" append="false">
+            <PatternLayout
+                    pattern="[%d{HH:mm:ss.SSS}][%p][%c{1}]%X{workerName}{[Name-%X{workerName}]} %m%n" />
+        </File>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.jme3" level="off" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <Root level="${sys:log.level}">
+            <AppenderRef ref="Console" />
+            <AppenderRef ref="File" />
+        </Root>
+    </Loggers>
+</Configuration>

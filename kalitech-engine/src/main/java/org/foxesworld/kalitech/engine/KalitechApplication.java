@@ -5,9 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.core.KalitechPlatform;
 import org.foxesworld.kalitech.core.KalitechVersion;
-import org.foxesworld.kalitech.script.GraalScriptService;
-
-import java.util.Map;
+import org.foxesworld.kalitech.engine.script.ScriptAppState;
 
 public class KalitechApplication extends SimpleApplication {
 
@@ -19,11 +17,14 @@ public class KalitechApplication extends SimpleApplication {
         log.info("Java: {}", KalitechPlatform.java());
         log.info("OS: {}", KalitechPlatform.os());
 
-        // Скрипты по дефолту (JS)
-        var scripts = new GraalScriptService();
-        Object out = scripts.eval("js", "var x = 2 + 3; x;", Map.of());
-        log.info("Script bootstrap result: {}", out);
+        // Подцепляем JS-логику как “игру”
+        assetManager.registerLocator("assets", com.jme3.asset.plugins.FileLocator.class);
+        assetManager.registerLoader(org.foxesworld.kalitech.engine.script.asset.ScriptTextLoader.class, "js");
+        stateManager.attach(new ScriptAppState(assetManager, "Scripts/main.js"));
 
-        // TODO: подключим сервис-локатор/DI и загрузку сцен
+
+        // Камера чуть дальше, чтобы куб было видно
+        cam.setLocation(cam.getLocation().add(0, 1.5f, 6f));
+        flyCam.setMoveSpeed(10f);
     }
 }

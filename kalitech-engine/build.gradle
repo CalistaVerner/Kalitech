@@ -1,20 +1,25 @@
 plugins {
+    id 'java'
     id 'application'
+    id 'java-library'
 }
 
 application {
-    mainClass = 'org.foxesworld.kalitech.kalitech-engine.KalitechLauncher'
+    mainClass = 'org.foxesworld.kalitech.engine.KalitechLauncher'
 }
 
 dependencies {
     implementation project(':kalitech-core')
-    implementation project(':kalitech-script')
     implementation project(':kalitech-neural')
 
-    implementation "org.jmonkeyengine:jme3-core:${rootProject.ext.jmeVersion}"
-    implementation "org.jmonkeyengine:jme3-desktop:${rootProject.ext.jmeVersion}"
-    implementation "org.jmonkeyengine:jme3-lwjgl3:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-core:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-desktop:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-lwjgl3:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-jbullet:${rootProject.ext.jmeVersion}"
     implementation "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
-    implementation "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
-    implementation "org.jmonkeyengine:jme3-jbullet:${rootProject.ext.jmeVersion}"
+
+    implementation "org.graalvm.polyglot:polyglot:${rootProject.ext.graalVersion}"
+    implementation "org.graalvm.polyglot:js:${rootProject.ext.graalVersion}"
 }

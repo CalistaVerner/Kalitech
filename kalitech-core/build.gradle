@@ -14,6 +14,7 @@ dependencies {
     api "org.apache.logging.log4j:log4j-api:${rootProject.ext.log4jVersion}"
     api "org.apache.logging.log4j:log4j-core:${rootProject.ext.log4jVersion}"
     api "org.apache.logging.log4j:log4j-slf4j2-impl:${rootProject.ext.log4jVersion}"
+    api "org.apache.logging.log4j:log4j-jul:${rootProject.ext.log4jVersion}"
     api "org.fusesource.jansi:jansi:2.4.0"
 
     testImplementation platform("org.junit:junit-bom:${rootProject.ext.junitBom}")

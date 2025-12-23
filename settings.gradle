@@ -3,7 +3,6 @@ rootProject.name = 'Kalitech'
 include(
         'kalitech-core',
         'kalitech-engine',
-        'kalitech-script',
         'kalitech-neural',
         'kalitech-demo'
 )
