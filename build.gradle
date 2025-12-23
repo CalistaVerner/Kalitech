@@ -1,0 +1,36 @@
+plugins {
+    id 'java'
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    group = 'org.foxesworld.kalitech'
+    version = '0.1.0-SNAPSHOT'
+
+    java {
+        toolchain { languageVersion = JavaLanguageVersion.of(17) }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release.set(17)
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+ext {
+    jmeVersion   = '3.8.1-stable'
+    log4jVersion = '2.25.2'
+    graalVersion = '25.0.1'
+    junitBom     = '6.0.1'
+}

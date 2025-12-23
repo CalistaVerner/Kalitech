@@ -1,0 +1,11 @@
+plugins {
+    id 'application'
+}
+
+application {
+    mainClass = 'org.foxesworld.kalitech.demo.DemoMain'
+}
+
+dependencies {
+    implementation project(':kalitech-engine')
+}

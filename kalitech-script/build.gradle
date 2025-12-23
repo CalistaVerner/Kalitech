@@ -1,0 +1,21 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.kalitech'
+version = '0.1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':kalitech-core')
+
+    implementation "org.graalvm.polyglot:polyglot:${rootProject.ext.graalVersion}"
+    implementation("org.graalvm.polyglot:js:${rootProject.ext.graalVersion}") { transitive = true }
+}
+
+test {
+    useJUnitPlatform()
+}
