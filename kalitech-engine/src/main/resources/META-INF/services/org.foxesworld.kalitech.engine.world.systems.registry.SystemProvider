@@ -1,0 +1,3 @@
+org.foxesworld.kalitech.engine.world.systems.providers.TransformSystemProvider
+org.foxesworld.kalitech.engine.world.systems.providers.ScriptEntitiesSystemProvider
+org.foxesworld.kalitech.engine.world.systems.providers.JsWorldSystemProvider

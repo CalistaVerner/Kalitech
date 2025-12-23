@@ -5,8 +5,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.core.KalitechPlatform;
 import org.foxesworld.kalitech.core.KalitechVersion;
-import org.foxesworld.kalitech.engine.script.ScriptAppState;
-import org.foxesworld.kalitech.engine.world.WorldAppState;
 
 public class KalitechApplication extends SimpleApplication {
 
@@ -18,26 +16,18 @@ public class KalitechApplication extends SimpleApplication {
         log.info("Java: {}", KalitechPlatform.java());
         log.info("OS: {}", KalitechPlatform.os());
 
-        // Подцепляем JS-логику как “игру”
         assetManager.registerLocator("assets", com.jme3.asset.plugins.FileLocator.class);
         assetManager.registerLoader(org.foxesworld.kalitech.engine.script.asset.ScriptTextLoader.class, "js");
 
+        var ecs = new org.foxesworld.kalitech.engine.ecs.EcsWorld();
+        var bus = new org.foxesworld.kalitech.engine.script.events.ScriptEventBus();
 
-        WorldAppState worldState = new WorldAppState();
-        stateManager.attach(worldState);
-
-        // Собираем мир из систем
-        var world = new org.foxesworld.kalitech.engine.world.KWorld("main");
-        world.addSystem(new org.foxesworld.kalitech.engine.world.systems.ScriptSystem("Scripts/main.js", true));
-
-        // позже сюда добавим RenderSystem / InputSystem / PhysicsSystem и т.д.
-        worldState.setWorld(world);
-
-        stateManager.attach(new ScriptAppState(assetManager, "Scripts/main.js"));
-
-
-        // Камера чуть дальше, чтобы куб было видно
-        cam.setLocation(cam.getLocation().add(0, 1.5f, 6f));
-        flyCam.setMoveSpeed(10f);
+        stateManager.attach(new org.foxesworld.kalitech.engine.app.RuntimeAppState(
+                "Scripts/main.js",
+                java.nio.file.Path.of("assets"),
+                0.25f,
+                ecs,
+                bus
+        ));
     }
 }

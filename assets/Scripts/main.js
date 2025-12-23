@@ -1,28 +1,32 @@
-let t = 0;
+const spawn = require("./systems/spawn.js");
+const ai = require("./systems/ai.js");
+const player = require("./entities/player.js");
 
-({
-    init(kalitech) {
-        kalitech.info("JS init (world system)");
+module.exports.world = {
+    name: "main",
+    systems: [
+        // чисто Java системы
+        { id: "transform", order: 10 },
 
-        kalitech.on("engine.ready", (payload) => {
-            kalitech.info("engine.ready => " + payload);
-        });
+        // один универсальный JS-раннер, модуль задаётся данными
+        { id: "jsSystem", order: 50, config: { module: "Scripts/systems/spawn.js" } },
+        { id: "jsSystem", order: 60, config: { module: "Scripts/systems/ai.js" } }
+    ],
 
-        kalitech.spawnBox("playerCube", 1, 1, 1);
-        kalitech.setLocalTranslation("playerCube", 0, 0.5, 0);
-    },
+    // декларативные сущности (или можно в bootstrap)
+    entities: [
+        { name: "player", prefab: "Scripts/entities/player.js" }
+    ]
+};
 
-    update(kalitech, tpf) {
-        t += tpf;
-        kalitech.rotateY("playerCube", tpf);
+module.exports.bootstrap = function(ctx) {
+    // ctx.api — единственный вход
+    ctx.api.log().info("main bootstrap");
 
-        if (t > 2) {
-            t = 0;
-            kalitech.emit("player.jump", { power: 10, time: Date.now() });
-        }
-    },
+    // Можно делегировать “обязанности”:
+    spawn.bootstrap?.(ctx);
+    ai.bootstrap?.(ctx);
 
-    destroy(kalitech) {
-        kalitech.info("JS destroy");
-    }
-})
+    // Можно создавать сущности программно:
+    player.spawn?.(ctx);
+};
