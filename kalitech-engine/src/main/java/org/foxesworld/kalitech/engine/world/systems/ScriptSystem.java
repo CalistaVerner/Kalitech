@@ -78,6 +78,7 @@ public final class ScriptSystem implements KSystem {
         if (runtime == null) return;
 
         // 1) hot reload -> invalidate changed modules in runtime cache
+        //    IMPORTANT: use the "reason" API to get dispose(reason) isolation on reload.
         if (hotReload && watcher != null) {
             cooldown -= tpf;
             if (cooldown <= 0f) {
@@ -85,13 +86,33 @@ public final class ScriptSystem implements KSystem {
                 if (!changed.isEmpty()) {
                     cooldown = cooldownSec;
 
-                    int removed = runtime.invalidateMany(changed);
+                    int removed;
+                    try {
+                        // new method added in GraalScriptRuntime "LAST UPDATE (ADD-ONLY)"
+                        removed = runtime.invalidateManyWithReason(changed, "hotReload");
+                    } catch (NoSuchMethodError e) {
+                        // backward-compat if runtime not yet updated
+                        removed = runtime.invalidateMany(changed);
+                    }
+
                     log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
 
                     // Optional: allow JS to react (safe/no hard dependency)
                     try { bus.emit("hotreload:changed", changed); } catch (Throwable ignored) {}
                 }
             }
+        }
+
+        // 1.1) Rebind globals after invalidation (optional but recommended)
+        //      If runtime has the flag (consumeRebindRequested), do it.
+        try {
+            if (runtime.consumeRebindRequested()) {
+                runtime.bindGlobals(context, context.api);
+            }
+        } catch (NoSuchMethodError ignored) {
+            // runtime version without rebind flag
+        } catch (Throwable t) {
+            log.debug("ScriptSystem: rebind failed", t);
         }
 
         // 2) lifecycle for ScriptComponent
@@ -110,15 +131,27 @@ public final class ScriptSystem implements KSystem {
     }
 
     @Override
-    public void onStop(SystemContext context) {
-        // destroy all instances deterministically
+    public void onStop(SystemContext systemContext) {
         try {
-            Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
+            var scripts = ecs.components().view(ScriptComponent.class);
             for (var e : scripts.entrySet()) {
-                destroyInstance(e.getKey(), e.getValue());
-                if (e.getValue() != null) {
-                    e.getValue().instance = null;
-                    e.getValue().moduleHash = null;
+                ScriptComponent sc = e.getValue();
+                if (sc == null || sc.instance == null) continue;
+
+                try {
+                    // destroy
+                    if (sc.instance.hasMember("destroy") && sc.instance.getMember("destroy").canExecute()) {
+                        sc.instance.getMember("destroy").execute();
+                    }
+                } catch (org.graalvm.polyglot.PolyglotException pe) {
+                    // ignore cancelled context on shutdown
+                } catch (Throwable t) {
+                    log.warn("Script destroy failed for entity {}", e.getKey(), t);
+                } finally {
+                    sc.instance = null;
+                    // FIX: ScriptComponent.moduleHash is long (not nullable) in the corrected component.
+                    // Keep component small and deterministic:
+                    sc.moduleVersion = 0L;
                 }
             }
         } catch (Throwable t) {
@@ -133,19 +166,23 @@ public final class ScriptSystem implements KSystem {
         app = null;
         bus = null;
         runtime = null;
-
         log.info("ScriptSystem stopped");
     }
 
     // -------------------- lifecycle internals --------------------
 
     private void ensureStarted(int entityId, ScriptComponent sc) {
-        String moduleId = normalize(sc.assetPath);
+        // FIX: module id is already normalized & cached on ScriptComponent
+        // (avoid per-frame string work)
+        String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
+                ? sc.moduleId
+                : normalize(sc.assetPath);
 
         long v = runtime.moduleVersion(moduleId);
-        String vStr = Long.toString(v);
 
-        boolean needsStart = (sc.instance == null) || (sc.moduleHash == null) || (!sc.moduleHash.equals(vStr));
+        // FIX: remove broken sc.moduleHash usage (it is long, not String, and not a version token)
+        // Correct contract: sc.moduleVersion tracks last applied runtime version for this module id.
+        boolean needsStart = (sc.instance == null) || (sc.moduleVersion != v);
         if (!needsStart) return;
 
         // If exists but outdated -> destroy first
@@ -158,7 +195,7 @@ public final class ScriptSystem implements KSystem {
         Value instance = createInstance(exports);
 
         sc.instance = instance;
-        sc.moduleHash = vStr;
+        sc.moduleVersion = v;
 
         EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, bus);
         callIfExists(sc.instance, "init", api);

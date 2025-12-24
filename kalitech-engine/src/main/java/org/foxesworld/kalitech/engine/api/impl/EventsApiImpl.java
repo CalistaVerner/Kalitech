@@ -25,13 +25,13 @@ public final class EventsApiImpl implements EventsApi {
     @HostAccess.Export
     @Override
     public int on(String topic, Value handler) {
-        return bus.on(topic, handler, false);
+        return bus.on(topic, handler);
     }
 
     @HostAccess.Export
     @Override
     public int once(String topic, Value handler) {
-        return bus.on(topic, handler, true);
+        return bus.on(topic, handler);
     }
 
     @HostAccess.Export
@@ -43,6 +43,6 @@ public final class EventsApiImpl implements EventsApi {
     @HostAccess.Export
     @Override
     public void clear(String topic) {
-        bus.clear(topic);
+        bus.offByModule(topic);
     }
 }

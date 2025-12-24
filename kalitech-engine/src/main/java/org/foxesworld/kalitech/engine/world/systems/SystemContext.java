@@ -63,6 +63,16 @@ public final class SystemContext {
     public EcsWorld ecs() { return ecs; }
     GraalScriptRuntime runtime() { return runtime; }
 
+    /**
+     * Diamond layer bridge:
+     * Expose job queue to scripts (optional). This does NOT allow running jobs from JS;
+     * jobs are executed when Java drains runtime.drainJobs(...) on owner thread.
+     */
+    @HostAccess.Export
+    public GraalScriptRuntime.ScriptJobQueue jobs() {
+        return runtime.jobs();
+    }
+
     // ------------------------------
     // Domains (small, stable, JS-safe)
     // ------------------------------

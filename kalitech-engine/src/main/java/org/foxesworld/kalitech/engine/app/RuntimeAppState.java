@@ -265,23 +265,35 @@ public final class RuntimeAppState extends BaseAppState {
 
     @Override
     protected void cleanup(Application app) {
+        // 1) STOP WORLD FIRST (before closing runtime)
         if (worldState != null) {
+            try {
+                worldState.setEnabled(false);
+            } catch (Exception ignored) {}
+
             try { getStateManager().detach(worldState); } catch (Exception ignored) {}
             worldState = null;
         }
+
+        // 2) stop watcher
         if (watcher != null) {
-            watcher.close();
+            try { watcher.close(); } catch (Exception ignored) {}
             watcher = null;
         }
+
+        // 3) close runtime LAST
         if (runtime != null) {
-            runtime.close();
+            try { runtime.close(); } catch (Exception ignored) {}
             runtime = null;
         }
+
         registry = null;
         worldBuilder = null;
         lastHash = null;
+
         log.info("RuntimeAppState stopped");
     }
+
 
     public EngineApiImpl getEngineApi() {
         return engineApi;

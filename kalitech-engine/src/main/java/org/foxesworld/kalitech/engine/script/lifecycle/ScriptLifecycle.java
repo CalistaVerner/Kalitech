@@ -1,3 +1,4 @@
+// FILE: ScriptLifecycle.java
 package org.foxesworld.kalitech.engine.script.lifecycle;
 
 import com.jme3.app.SimpleApplication;
@@ -10,15 +11,16 @@ import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
- * Small, deterministic script lifecycle:
+ * ScriptLifecycle:
  * - ensure instance exists and is fresh (by moduleVersion)
  * - call init/update/destroy if present
  * - destroy on reset + onEntityRemoved
  * - hot reload: invalidate modules and restart only affected entities
+ *
+ * <p>Hot path is allocation-free: uses ComponentStore.forEach() instead of view().
  */
 public final class ScriptLifecycle {
 
@@ -36,90 +38,61 @@ public final class ScriptLifecycle {
         this.runtime = runtime;
     }
 
-    /**
-     * Call every frame from your ScriptSystem / WorldSystem.
-     */
+    /** Call every frame from your ScriptSystem / WorldSystem. */
     public void update(float tpf) {
-        // Compatibility: your ComponentStore currently has view(Class)
-        Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
-        if (scripts.isEmpty()) return;
-
-        for (var e : scripts.entrySet()) {
-            int entityId = e.getKey();
-            ScriptComponent sc = e.getValue();
-            if (sc == null) continue;
-
+        ecs.components().forEach(ScriptComponent.class, (entityId, sc) -> {
+            if (sc == null) return;
             ensureStarted(entityId, sc);
-            callIfExists(sc.instance, "update", tpf);
-        }
+            safeCall(sc.instance, "update", tpf);
+        });
     }
 
-    /**
-     * Call when entity is destroyed (or before ecs.destroyEntity()).
-     * Safe to call multiple times.
-     */
+    /** Call when entity is destroyed (or before ecs.destroyEntity()). Safe to call multiple times. */
     public void onEntityRemoved(int entityId) {
         ScriptComponent sc = ecs.components().get(entityId, ScriptComponent.class);
         if (sc == null) return;
-        destroyInstance(entityId, sc);
+        destroyInstance(entityId, sc, true);
         sc.instance = null;
-        sc.moduleHash = null;
+        sc.moduleVersion = 0L;
     }
 
-    /**
-     * Destroy all script instances (used on world rebuild / reload).
-     */
+    /** Destroy all script instances (used on world rebuild / reload). */
     public void reset() {
-        Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
-        for (var e : scripts.entrySet()) {
-            destroyInstance(e.getKey(), e.getValue());
-            e.getValue().instance = null;
-            e.getValue().moduleHash = null;
-        }
+        ecs.components().forEach(ScriptComponent.class, (entityId, sc) -> {
+            if (sc == null) return;
+            destroyInstance(entityId, sc, true);
+            sc.instance = null;
+            sc.moduleVersion = 0L;
+        });
     }
 
-    /**
-     * Hot reload: invalidate changed module ids in runtime cache,
-     * and restart only entities whose ScriptComponent.assetPath is in changed ids.
-     */
+    /** Hot reload: invalidate modules and restart only affected entities. */
     public void onHotReloadChanged(Set<String> changedModuleIds) {
         if (changedModuleIds == null || changedModuleIds.isEmpty()) return;
 
-        // 1) runtime cache invalidation + version bump
         int removed = runtime.invalidateMany(changedModuleIds);
         log.info("HotReload: invalidated {} modules (removed from cache={})", changedModuleIds.size(), removed);
 
-        // 2) restart only affected entities
-        Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
-        for (var e : scripts.entrySet()) {
-            int entityId = e.getKey();
-            ScriptComponent sc = e.getValue();
-            if (sc == null || sc.assetPath == null) continue;
+        ecs.components().forEach(ScriptComponent.class, (entityId, sc) -> {
+            if (sc == null) return;
+            if (!changedModuleIds.contains(sc.moduleId)) return;
 
-            String id = normalize(sc.assetPath);
-            if (!changedModuleIds.contains(id)) continue;
-
-            // kill and mark for re-init next update
-            destroyInstance(entityId, sc);
+            destroyInstance(entityId, sc, true);
             sc.instance = null;
-            sc.moduleHash = null;
-        }
+            sc.moduleVersion = 0L;
+        });
     }
 
-    // -------------------- internals --------------------
+    // ---------------- internals ----------------
 
     private void ensureStarted(int entityId, ScriptComponent sc) {
-        String moduleId = normalize(sc.assetPath);
-        long v = runtime.moduleVersion(moduleId);
-        String vStr = Long.toString(v);
+        final String moduleId = sc.moduleId;
+        final long v = runtime.moduleVersion(moduleId);
 
-        boolean needsStart = (sc.instance == null) || (sc.moduleHash == null) || (!sc.moduleHash.equals(vStr));
+        if (sc.instance != null && sc.moduleVersion == v) return;
 
-        if (!needsStart) return;
-
-        // if exists but outdated — destroy first
         if (sc.instance != null) {
-            destroyInstance(entityId, sc);
+            destroyInstance(entityId, sc, true);
             sc.instance = null;
         }
 
@@ -127,46 +100,51 @@ public final class ScriptLifecycle {
         Value instance = createInstance(exports);
 
         sc.instance = instance;
-        sc.moduleHash = vStr;
+        sc.moduleVersion = v;
 
         EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, events);
-        callIfExists(sc.instance, "init", api);
+        safeCall(sc.instance, "init", api);
     }
 
-    /**
-     * Supported module shapes:
-     * 1) module.exports = { init, update, destroy }
-     * 2) module.exports = function() { return { init, update, destroy } }
-     * 3) module.exports = { create: () => ({...}) }
-     */
     private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) {
-            throw new IllegalStateException("Script module exports is null");
-        }
+        if (exports == null || exports.isNull()) throw new IllegalStateException("Script module exports is null");
 
-        // exports is a factory function
-        if (exports.canExecute()) {
-            return exports.execute();
-        }
+        // Common pattern: module exports a factory function
+        if (exports.canExecute()) return exports.execute();
 
-        // exports.create() factory
+        // Alternative: exports.create()
         if (exports.hasMember("create")) {
             Value c = exports.getMember("create");
-            if (c != null && c.canExecute()) {
-                return c.execute();
-            }
+            if (c != null && c.canExecute()) return c.execute();
         }
 
-        // exports is already an instance-like object
+        // Otherwise treat exports as an instance
         return exports;
     }
 
-    private static void destroyInstance(int entityId, ScriptComponent sc) {
-        if (sc == null || sc.instance == null) return;
+    private void destroyInstance(int entityId, ScriptComponent sc, boolean cleanupOwner) {
+        if (sc == null) return;
+
+        // Critical: unsubscribe JS handlers captured as Value (prevents leaks + zombie calls)
+        if (cleanupOwner) {
+            events.offOwner(entityId);
+        }
+
+        if (sc.instance == null || sc.instance.isNull()) return;
+
         try {
-            callIfExists(sc.instance, "destroy");
-        } catch (Exception ex) {
-            log.warn("Script destroy failed for entity {}", entityId, ex);
+            safeCall(sc.instance, "destroy");
+        } catch (Throwable t) {
+            log.warn("Script destroy failed for entity {}", entityId, t);
+        }
+    }
+
+    private void safeCall(Value obj, String member, Object... args) {
+        try {
+            callIfExists(obj, member, args);
+        } catch (Throwable t) {
+            // fail-soft: script errors must not crash engine
+            log.error("Script call failed: {}()", member, t);
         }
     }
 
@@ -176,12 +154,5 @@ public final class ScriptLifecycle {
         Value fn = obj.getMember(member);
         if (fn == null || fn.isNull() || !fn.canExecute()) return;
         fn.execute(args);
-    }
-
-    private static String normalize(String id) {
-        if (id == null) return "";
-        String s = id.trim().replace('\\', '/');
-        while (s.startsWith("./")) s = s.substring(2);
-        return s;
     }
 }
