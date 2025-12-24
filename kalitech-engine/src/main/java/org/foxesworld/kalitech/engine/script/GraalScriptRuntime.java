@@ -344,6 +344,53 @@ public final class GraalScriptRuntime implements Closeable {
     }
 
     /**
+     * Bind stable globals for scripts:
+     * - ctx     : SystemContext
+     * - engine  : EngineApi
+     * - render  : EngineApi.render()
+     * - world   : EngineApi.entity() (temporary facade)
+     *
+     * Safe to call on every rebuild; overwrites previous bindings.
+     */
+    public void bindGlobals(Object systemContext, Object engineApi) {
+        // "systemContext" is passed as Object to avoid cyclic deps from script package to world package.
+        // HostAccess.Export is still required for members to be visible.
+        var b = ctx.getBindings("js");
+
+        if (systemContext != null) b.putMember("ctx", systemContext);
+        if (engineApi != null) {
+            b.putMember("engine", engineApi);
+
+            // Resolve render/world via reflection so script module doesn't depend on api interfaces at compile-time
+            try {
+                Object render = engineApi.getClass().getMethod("render").invoke(engineApi);
+                if (render != null) b.putMember("render", render);
+            } catch (Exception ignored) {}
+
+            try {
+                Object world = engineApi.getClass().getMethod("world").invoke(engineApi);
+                if (world != null) b.putMember("world", world);
+            } catch (Exception ignored) {}
+
+            try {
+                Object entity = engineApi.getClass().getMethod("entity").invoke(engineApi);
+                if (entity != null) b.putMember("entity", entity);
+            } catch (Exception ignored) {}
+
+        }
+    }
+
+    /** Optional: remove globals (not strictly required). */
+    public void clearGlobals() {
+        var b = ctx.getBindings("js");
+        try { b.removeMember("ctx"); } catch (Exception ignored) {}
+        try { b.removeMember("engine"); } catch (Exception ignored) {}
+        try { b.removeMember("render"); } catch (Exception ignored) {}
+        try { b.removeMember("world"); } catch (Exception ignored) {}
+    }
+
+
+    /**
      * Invalidate all cached modules under prefix (e.g. "Scripts/").
      */
     public void invalidatePrefix(String prefix) {

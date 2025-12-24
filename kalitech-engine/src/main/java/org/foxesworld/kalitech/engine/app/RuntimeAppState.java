@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
@@ -44,7 +45,8 @@ public final class RuntimeAppState extends BaseAppState {
     private float cooldown = 0f;
     private boolean dirty = true;
     private String lastHash = null;
-    EngineApiImpl engineApi;
+
+    private EngineApiImpl engineApi;
 
     public RuntimeAppState(String mainAssetPath, Path watchRoot, float reloadCooldownSec, EcsWorld ecs, ScriptEventBus bus) {
         this.mainAssetPath = Objects.requireNonNull(mainAssetPath, "mainAssetPath");
@@ -86,7 +88,9 @@ public final class RuntimeAppState extends BaseAppState {
     @Override
     public void update(float tpf) {
         if (!isEnabled()) return;
+
         engineApi.__updateTime(tpf);
+
         // пока WorldAppState не готов — просто ждём
         if (worldState == null || worldState.getContextForJs() == null) return;
 
@@ -100,6 +104,7 @@ public final class RuntimeAppState extends BaseAppState {
             dirty = false;
             reloadMainAndRebuildWorld();
         }
+
         engineApi.__endFrameInput();
     }
 
@@ -107,13 +112,14 @@ public final class RuntimeAppState extends BaseAppState {
         // ВАЖНО: WorldAppState может быть ещё не initialized -> ctx == null
         SystemContext ctx = (worldState != null) ? worldState.getContextForJs() : null;
         if (ctx == null) {
-            // Это НОРМАЛЬНО на старте: просто отложим на следующий тик
             dirty = true;
             return;
         }
 
         SimpleApplication app = (SimpleApplication) getApplication();
         try {
+            // main.js source (invalidate asset cache on dirty rebuild)
+            app.getAssetManager().deleteFromCache(new AssetKey<>(mainAssetPath));
             String code = app.getAssetManager().loadAsset(new AssetKey<>(mainAssetPath));
 
             String hash = sha1(code);
@@ -128,11 +134,20 @@ public final class RuntimeAppState extends BaseAppState {
                 return;
             }
 
-            // 1) build world
+            // 0) editor-mode by descriptor (optional, soft)
+            applyMode(worldDesc);
+
+            // 1) HARD reset ECS so rebuild does not accumulate entities/components
+            ecs.reset();
+
+            // 2) build world systems
             KWorld newWorld = worldBuilder.buildFromWorldDesc(ctx, worldDesc);
             worldState.setWorld(newWorld);
 
-            // 2) optional bootstrap AFTER world created
+            // 3) declarative entities spawn BEFORE bootstrap
+            applyEntitiesFromWorldDesc(worldDesc);
+
+            // 4) optional bootstrap AFTER world created + entities spawned
             callIfExists(main, "bootstrap", ctx);
 
             log.info("World rebuilt from {}", mainAssetPath);
@@ -142,16 +157,93 @@ public final class RuntimeAppState extends BaseAppState {
         }
     }
 
-    private static Value extractWorldDescriptor(Value module) {
-        if (module == null || module.isNull()) return null;
+    private void applyMode(Value worldDesc) {
+        try {
+            if (!worldDesc.hasMember("mode")) return;
+            Value m = worldDesc.getMember("mode");
+            if (m == null || m.isNull() || !m.isString()) return;
 
-        if (module.hasMember("exports")) {
-            Value ex = module.getMember("exports");
+            String mode = m.asString();
+            boolean editor = "editor".equalsIgnoreCase(mode);
+
+            // EngineApiImpl supports __setEditorMode (мы это добавляли)
+            engineApi.__setEditorMode(editor);
+        } catch (Throwable t) {
+            log.warn("applyMode skipped: {}", t.toString());
+        }
+    }
+
+    private void applyEntitiesFromWorldDesc(Value worldDesc) {
+        if (worldDesc == null || worldDesc.isNull()) return;
+        if (!worldDesc.hasMember("entities")) return;
+
+        Value arr = worldDesc.getMember("entities");
+        if (arr == null || arr.isNull() || !arr.hasArrayElements()) return;
+
+        long n = arr.getArraySize();
+        for (long i = 0; i < n; i++) {
+            Value e = arr.getArrayElement(i);
+            if (e == null || e.isNull()) continue;
+
+            try {
+                engineApi.world().spawn(e); // e already has {name,prefab}
+            } catch (Exception ex) {
+                log.error("Failed to spawn entity from descriptor index={}", i, ex);
+            }
+        }
+    }
+
+
+    /** Small payload class for events (JS will see fields). */
+    public static final class EntitySpawned {
+        public final int id;
+        public final String name;
+        public final String prefab;
+
+        public EntitySpawned(int id, String name, String prefab) {
+            this.id = id;
+            this.name = name;
+            this.prefab = prefab;
+        }
+    }
+
+    private static Value extractWorldDescriptor(Value moduleOrExports) {
+        if (moduleOrExports == null || moduleOrExports.isNull()) return null;
+
+        // CASE 1: loadModuleValue() returns exports object directly (your runtime does)
+        if (moduleOrExports.hasMember("world")) return moduleOrExports.getMember("world");
+
+        // CASE 2: legacy: object with exports field
+        if (moduleOrExports.hasMember("exports")) {
+            Value ex = moduleOrExports.getMember("exports");
             if (ex != null && !ex.isNull() && ex.hasMember("world")) return ex.getMember("world");
         }
-        if (module.hasMember("world")) return module.getMember("world");
+
         return null;
     }
+
+    private static void callIfExistsExports(Value moduleOrExports, String fn, Object... args) {
+        if (moduleOrExports == null || moduleOrExports.isNull()) return;
+
+        // exports object directly
+        if (moduleOrExports.hasMember(fn)) {
+            Value f = moduleOrExports.getMember(fn);
+            if (f != null && f.canExecute()) {
+                f.execute(args);
+                return;
+            }
+        }
+
+        // legacy: module.exports.fn
+        if (moduleOrExports.hasMember("exports")) {
+            Value ex = moduleOrExports.getMember("exports");
+            if (ex != null && !ex.isNull() && ex.hasMember(fn)) {
+                Value f = ex.getMember(fn);
+                if (f != null && f.canExecute()) f.execute(args);
+            }
+        }
+    }
+
 
     private static void callIfExists(Value module, String fn, Object... args) {
         if (module == null || module.isNull()) return;

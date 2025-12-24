@@ -32,6 +32,9 @@ public interface EngineApi {
 
 
     @HostAccess.Export
+    WorldApi world();
+
+    @HostAccess.Export
     EditorApi editor();
 
     /**

@@ -21,4 +21,10 @@ public final class EntityManager {
     public void destroy(int id) {
         if (id > 0) alive.clear(id);
     }
+
+    /** Full reset for hot-reload rebuilds. */
+    public void reset() {
+        alive.clear();
+        nextId.set(1);
+    }
 }

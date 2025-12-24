@@ -41,8 +41,13 @@ public final class WorldAppState extends BaseAppState {
     protected void initialize(Application app) {
         SimpleApplication sa = (SimpleApplication) app;
         this.ctx = new SystemContext(sa, sa.getAssetManager(), bus, ecs, runtime, api);
+
+        // JS-first globals
+        runtime.bindGlobals(this.ctx, this.api);
+
         tryStartWorld();
     }
+
 
     public void setWorld(KWorld newWorld) {
         if (this.world == newWorld) return;

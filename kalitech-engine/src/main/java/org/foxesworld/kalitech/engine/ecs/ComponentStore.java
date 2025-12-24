@@ -66,4 +66,10 @@ public final class ComponentStore {
         Map<Integer, Object> map = byName.get(type);
         return map != null ? map : Map.of();
     }
+
+    /** Full reset for hot-reload rebuilds. */
+    public void reset() {
+        data.clear();
+        byName.clear();
+    }
 }

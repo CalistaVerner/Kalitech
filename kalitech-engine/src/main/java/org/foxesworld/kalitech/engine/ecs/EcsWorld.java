@@ -10,4 +10,10 @@ public final class EcsWorld {
 
     public int createEntity() { return entities.create(); }
     public void destroyEntity(int id) { entities.destroy(id); }
+
+    /** Full reset for hot-reload rebuilds. */
+    public void reset() {
+        entities.reset();
+        components.reset();
+    }
 }

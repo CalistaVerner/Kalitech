@@ -1,9 +1,14 @@
 package org.foxesworld.kalitech.engine;
 
+import com.jme3.system.AppSettings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.core.ICOParser;
+import org.foxesworld.kalitech.core.KalitechVersion;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -27,19 +32,42 @@ public final class KalitechLauncher {
             }
         }
 
-        // 2) Тут мы уже во "взрослой" JVM (опции применены при старте процесса)
-
-        System.setProperty("java.util.logging.manager", "org.apache.logging.log4j.jul.LogManager");
-        System.setProperty("log.dir", System.getProperty("user.dir"));
-
-        // В log4j2.xml у тебя дефолт уже есть, но пусть будет:
-        System.setProperty("log.level", "DEBUG");
-
-        // Глушим JUL хендлеры (теперь оно будет моститься в log4j2 через log4j-jul)
-        java.util.logging.LogManager.getLogManager().reset();
-
         KalitechApplication app = new KalitechApplication();
+        AppSettings settings = KalitechWindowSettings.build(KalitechLauncher.class.getClassLoader());
+        var screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+        settings.setResolution((int)(screen.width * 0.85), (int)(screen.height * 0.85)
+        );
+        app.setShowSettings(true);
+        app.setSettings(settings);
+
         app.start();
+    }
+
+    static final class KalitechWindowSettings {
+
+        private KalitechWindowSettings() {}
+
+        static AppSettings build(ClassLoader cl) {
+            AppSettings s = new AppSettings(true);
+            s.setTitle(KalitechVersion.NAME + " " + KalitechVersion.VERSION);
+            s.setResizable(true);
+            s.setVSync(true);
+            s.setGammaCorrection(true);
+
+            try {
+                ICOParser ico = new ICOParser();
+                var icons = ico.loadAppIcons(
+                        "theme/icon/engineLogo.ico",
+                        Path.of(KalitechVersion.ASSETSDIR),
+                        cl
+                );
+                s.setIcons(icons);
+            } catch (Exception e) {
+                System.out.println("Window icon not set (no ico/png found).");
+            }
+
+            return s;
+        }
     }
 
     private static Path resolveVmOptionsPath() {

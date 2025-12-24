@@ -31,6 +31,7 @@ public final class EngineApiImpl implements EngineApi {
     private final CameraApi cameraApi;
     private final TimeApiImpl timeApi;
     private final InputApiImpl inputApi;
+    private final WorldApi worldApi;
 
     private final EditorApi editorApi;
 
@@ -48,6 +49,7 @@ public final class EngineApiImpl implements EngineApi {
         this.cameraApi = new CameraApiImpl(app);
         this.timeApi = new TimeApiImpl();
         this.inputApi = new InputApiImpl(app.getInputManager());
+        this.worldApi = new WorldApiImpl(ecs, bus);
 
         this.editorApi = new EditorApiImpl(app);
     }
@@ -61,6 +63,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public String engineVersion() { return ((KalitechApplication) app).getVersion(); }
     @HostAccess.Export @Override public TimeApi time() { return timeApi; }
     @HostAccess.Export @Override public InputApi input() { return inputApi; }
+    @HostAccess.Export @Override public WorldApi world() { return worldApi; }
     @HostAccess.Export @Override public EditorApi editor() { return editorApi; }
 
     // internal hooks
