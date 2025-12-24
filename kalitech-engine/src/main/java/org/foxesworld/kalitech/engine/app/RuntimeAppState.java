@@ -22,6 +22,7 @@ import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.Set;
 import java.util.Objects;
 
 public final class RuntimeAppState extends BaseAppState {
@@ -95,9 +96,25 @@ public final class RuntimeAppState extends BaseAppState {
         if (worldState == null || worldState.getContextForJs() == null) return;
 
         cooldown -= tpf;
-        if (cooldown <= 0f && watcher != null && watcher.pollDirty()) {
-            cooldown = reloadCooldownSec;
-            dirty = true;
+        if (cooldown <= 0f && watcher != null) {
+            Set<String> changed = watcher.pollChanged();
+            if (!changed.isEmpty()) {
+                cooldown = reloadCooldownSec;
+
+                // 1) Invalidate changed modules so require() reloads them.
+                //    Systems (ScriptSystem / JsWorldSystem) will pick changes by moduleVersion().
+                if (runtime != null) {
+                    runtime.invalidateMany(changed);
+                }
+
+                // 2) Notify scripts (optional): allow JS to react.
+                bus.emit("hotreload:changed", changed);
+
+                // 3) Rebuild world ONLY if main descriptor changed.
+                if (changed.contains(mainAssetPath.replace('\\', '/'))) {
+                    dirty = true;
+                }
+            }
         }
 
         if (dirty) {
@@ -123,10 +140,15 @@ public final class RuntimeAppState extends BaseAppState {
             String code = app.getAssetManager().loadAsset(new AssetKey<>(mainAssetPath));
 
             String hash = sha1(code);
-            if (hash.equals(lastHash)) return;
+            if (hash.equals(lastHash)) {
+                // main descriptor not changed; keep current world.
+                return;
+            }
             lastHash = hash;
 
-            Value main = runtime.loadModuleValue(mainAssetPath, code);
+            // Ensure main module is re-evaluated on rebuild (even if it was required before)
+            runtime.invalidate(mainAssetPath);
+            Value main = runtime.require(mainAssetPath);
 
             Value worldDesc = extractWorldDescriptor(main);
             if (worldDesc == null || worldDesc.isNull()) {
@@ -166,7 +188,7 @@ public final class RuntimeAppState extends BaseAppState {
             String mode = m.asString();
             boolean editor = "editor".equalsIgnoreCase(mode);
 
-            // EngineApiImpl supports __setEditorMode (мы это добавляли)
+            // EngineApiImpl supports __setEditorMode
             engineApi.__setEditorMode(editor);
         } catch (Throwable t) {
             log.warn("applyMode skipped: {}", t.toString());
@@ -193,7 +215,6 @@ public final class RuntimeAppState extends BaseAppState {
         }
     }
 
-
     /** Small payload class for events (JS will see fields). */
     public static final class EntitySpawned {
         public final int id;
@@ -210,7 +231,7 @@ public final class RuntimeAppState extends BaseAppState {
     private static Value extractWorldDescriptor(Value moduleOrExports) {
         if (moduleOrExports == null || moduleOrExports.isNull()) return null;
 
-        // CASE 1: loadModuleValue() returns exports object directly (your runtime does)
+        // CASE 1: exports object directly
         if (moduleOrExports.hasMember("world")) return moduleOrExports.getMember("world");
 
         // CASE 2: legacy: object with exports field
@@ -221,29 +242,6 @@ public final class RuntimeAppState extends BaseAppState {
 
         return null;
     }
-
-    private static void callIfExistsExports(Value moduleOrExports, String fn, Object... args) {
-        if (moduleOrExports == null || moduleOrExports.isNull()) return;
-
-        // exports object directly
-        if (moduleOrExports.hasMember(fn)) {
-            Value f = moduleOrExports.getMember(fn);
-            if (f != null && f.canExecute()) {
-                f.execute(args);
-                return;
-            }
-        }
-
-        // legacy: module.exports.fn
-        if (moduleOrExports.hasMember("exports")) {
-            Value ex = moduleOrExports.getMember("exports");
-            if (ex != null && !ex.isNull() && ex.hasMember(fn)) {
-                Value f = ex.getMember(fn);
-                if (f != null && f.canExecute()) f.execute(args);
-            }
-        }
-    }
-
 
     private static void callIfExists(Value module, String fn, Object... args) {
         if (module == null || module.isNull()) return;

@@ -12,6 +12,7 @@ import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * JS-first World facade.
@@ -26,6 +27,7 @@ public final class WorldApiImpl implements WorldApi {
     private final ScriptEventBus bus;
 
     public WorldApiImpl(EngineApiImpl engineApi) {
+        Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = engineApi.getEcs();
         this.bus = engineApi.getBus();
     }
@@ -49,9 +51,7 @@ public final class WorldApiImpl implements WorldApi {
         ecs.components().put(id, ScriptComponent.class, new ScriptComponent(a.prefab));
 
         // emit event (optional)
-        try {
-            bus.emit("entity.spawned", new EntitySpawned(id, a.name, a.prefab));
-        } catch (Exception ignored) {}
+        try { bus.emit("entity.spawned", new EntitySpawned(id, a.name, a.prefab)); } catch (Exception ignored) {}
 
         log.debug("world.spawn -> id={} name='{}' prefab={}", id, a.name, a.prefab);
         return id;
@@ -61,11 +61,16 @@ public final class WorldApiImpl implements WorldApi {
     @Override
     public int findByName(String name) {
         if (name == null || name.isBlank()) return 0;
-        Map<Integer, Object> names = ecs.components().viewByName("Name");
-        for (var e : names.entrySet()) {
-            if (name.equals(e.getValue())) return e.getKey();
-        }
-        return 0;
+
+        AtomicInteger found = new AtomicInteger(0);
+
+        // Fast iteration: no Map snapshot, no boxing, no allocations
+        ecs.components().forEachByName("Name", (id, v) -> {
+            if (found.get() != 0) return;
+            if (name.equals(String.valueOf(v))) found.set(id);
+        });
+
+        return found.get();
     }
 
     @HostAccess.Export

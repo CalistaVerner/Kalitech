@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.world.systems;
 
-import com.jme3.asset.AssetKey;
+import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
@@ -8,254 +8,206 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.*;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
+/**
+ * ScriptSystem (entities scripts)
+ *
+ * Contract (required by your provider):
+ * new ScriptSystem(ctx.ecs(), hotReload, cooldownSec, watchRoot)
+ *
+ * Features:
+ * - Per-entity lifecycle: init/update/destroy on ScriptComponent.instance
+ * - HotReloadWatcher (optional):
+ *    pollChanged() -> runtime.invalidateMany(changed)
+ *    entity instances restart automatically via moduleVersion() change
+ */
 public final class ScriptSystem implements KSystem {
 
     private static final Logger log = LogManager.getLogger(ScriptSystem.class);
 
     private final EcsWorld ecs;
-
-    // config
     private final boolean hotReload;
-    private final float reloadCooldownSec;
+    private final float cooldownSec;
     private final Path watchRoot;
 
+    private SimpleApplication app;
+    private ScriptEventBus bus;
     private GraalScriptRuntime runtime;
+
     private HotReloadWatcher watcher;
-
     private float cooldown = 0f;
-    private boolean dirty = true;
 
-    // entityId -> stable API wrapper (avoid per-frame allocations)
-    private final Map<Integer, EntityScriptAPI> apiCache = new HashMap<>();
-
-    // moduleId(assetPath) -> module record
-    private final Map<String, ModuleRec> modules = new HashMap<>();
-
-    public ScriptSystem(EcsWorld ecs, boolean hotReload, float reloadCooldownSec, Path watchRoot) {
+    public ScriptSystem(EcsWorld ecs, boolean hotReload, float cooldownSec, Path watchRoot) {
         this.ecs = Objects.requireNonNull(ecs, "ecs");
         this.hotReload = hotReload;
-        this.reloadCooldownSec = reloadCooldownSec <= 0 ? 0.25f : reloadCooldownSec;
+        this.cooldownSec = cooldownSec <= 0 ? 0.25f : cooldownSec;
         this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
-    }
-
-    public ScriptSystem(EcsWorld ecs) {
-        this(ecs, false, 0.35f, Path.of("assets"));
     }
 
     @Override
     public void onStart(SystemContext ctx) {
-        // IMPORTANT: use shared runtime from ctx (one runtime policy)
-        // If you want per-system runtime, replace with new GraalScriptRuntime().
-        this.runtime = ctx.runtime();
+        this.app = Objects.requireNonNull(ctx.app(), "ctx.app");
+        this.bus = Objects.requireNonNull(ctx.events(), "ctx.bus");
+        this.runtime = Objects.requireNonNull(ctx.runtime(), "ctx.runtime");
 
         if (hotReload) {
-            watcher = new HotReloadWatcher(watchRoot);
-            log.info("ScriptSystem started hotReload=true root={}", watchRoot.toAbsolutePath());
+            try {
+                this.watcher = new HotReloadWatcher(watchRoot);
+                log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)", watchRoot.toAbsolutePath(), cooldownSec);
+            } catch (Throwable t) {
+                log.warn("ScriptSystem hotReload failed to start watcher at {}", watchRoot.toAbsolutePath(), t);
+                this.watcher = null;
+            }
         } else {
-            log.info("ScriptSystem started hotReload=false");
+            log.info("ScriptSystem hotReload disabled");
         }
 
-        dirty = true;
+        this.cooldown = 0f;
+        log.info("ScriptSystem started");
     }
 
     @Override
-    public void onUpdate(SystemContext ctx, float tpf) {
-        // hot reload trigger
-        if (watcher != null) {
+    public void onUpdate(SystemContext context, float tpf) {
+        if (runtime == null) return;
+
+        // 1) hot reload -> invalidate changed modules in runtime cache
+        if (hotReload && watcher != null) {
             cooldown -= tpf;
-            if (cooldown <= 0f && watcher.pollDirty()) {
-                cooldown = reloadCooldownSec;
-                dirty = true;
+            if (cooldown <= 0f) {
+                Set<String> changed = watcher.pollChanged();
+                if (!changed.isEmpty()) {
+                    cooldown = cooldownSec;
+
+                    int removed = runtime.invalidateMany(changed);
+                    log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
+
+                    // Optional: allow JS to react (safe/no hard dependency)
+                    try { bus.emit("hotreload:changed", changed); } catch (Throwable ignored) {}
+                }
             }
         }
 
-        // 1) If dirty - invalidate module cache in runtime and local module hashes will be rechecked
-        if (dirty) {
-            // We do NOT blindly clear everything; we re-hash per module on demand.
-            log.debug("ScriptSystem: dirty -> rehash modules on demand");
-        }
+        // 2) lifecycle for ScriptComponent
+        // NOTE: view() creates a snapshot map. If this becomes hot, switch ComponentStore to forEach().
+        Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
+        if (scripts.isEmpty()) return;
 
-        // 2) Iterate entities with ScriptComponent
-        for (var entry : ecs.components().view(ScriptComponent.class).entrySet()) {
-            int entityId = entry.getKey();
-            ScriptComponent sc = entry.getValue();
+        for (var e : scripts.entrySet()) {
+            int entityId = e.getKey();
+            ScriptComponent sc = e.getValue();
+            if (sc == null || sc.assetPath == null) continue;
 
-            ModuleRec mod = ensureModuleLoaded(ctx, sc.assetPath);
-            if (mod == null) continue;
-
-            // if entity has no instance OR module changed -> recreate instance
-            if (sc.instance == null || !Objects.equals(sc.moduleHash, mod.hash)) {
-                recreateInstance(ctx, entityId, sc, mod);
-            }
-
-            // tick
+            ensureStarted(entityId, sc);
             callIfExists(sc.instance, "update", tpf);
         }
-
-        dirty = false;
     }
 
     @Override
-    public void onStop(SystemContext ctx) {
-        // destroy instances
-        for (var entry : ecs.components().view(ScriptComponent.class).entrySet()) {
-            int entityId = entry.getKey();
-            ScriptComponent sc = entry.getValue();
-            safeDestroyInstance(entityId, sc);
+    public void onStop(SystemContext context) {
+        // destroy all instances deterministically
+        try {
+            Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
+            for (var e : scripts.entrySet()) {
+                destroyInstance(e.getKey(), e.getValue());
+                if (e.getValue() != null) {
+                    e.getValue().instance = null;
+                    e.getValue().moduleHash = null;
+                }
+            }
+        } catch (Throwable t) {
+            log.warn("ScriptSystem stop encountered errors", t);
         }
 
-        apiCache.clear();
-        modules.clear();
-
         if (watcher != null) {
-            watcher.close();
+            try { watcher.close(); } catch (Throwable ignored) {}
             watcher = null;
         }
 
-        // runtime is shared (ctx.runtime()), do NOT close it here
+        app = null;
+        bus = null;
         runtime = null;
 
         log.info("ScriptSystem stopped");
     }
 
-    private ModuleRec ensureModuleLoaded(SystemContext ctx, String assetPath) {
-        ModuleRec rec = modules.get(assetPath);
+    // -------------------- lifecycle internals --------------------
 
-        // fast path: not dirty and already loaded
-        if (rec != null && !dirty) return rec;
+    private void ensureStarted(int entityId, ScriptComponent sc) {
+        String moduleId = normalize(sc.assetPath);
 
-        String code = loadTextAsset(ctx, assetPath, dirty);
-        String hash = sha1(code);
+        long v = runtime.moduleVersion(moduleId);
+        String vStr = Long.toString(v);
 
-        // unchanged
-        if (rec != null && Objects.equals(rec.hash, hash)) return rec;
+        boolean needsStart = (sc.instance == null) || (sc.moduleHash == null) || (!sc.moduleHash.equals(vStr));
+        if (!needsStart) return;
 
-        // changed/new -> (re)load module exports
-        try {
-            // invalidate runtime cache for this module so require() gets fresh deps (important)
-            runtimeInvalidate(assetPath);
-
-            Value exports = runtime.loadModuleValue(assetPath, code);
-
-            Value factory = pickFactory(exports);
-            if (factory == null) {
-                log.error("Script '{}' must export create(api) function", assetPath);
-                return null;
-            }
-
-            ModuleRec nrec = new ModuleRec(assetPath, hash, exports, factory);
-            modules.put(assetPath, nrec);
-
-            log.info("Script module loaded: {} (hash={})", assetPath, hash);
-            return nrec;
-
-        } catch (Exception e) {
-            log.error("Failed to load script module '{}'", assetPath, e);
-            return null;
-        }
-    }
-
-    private void recreateInstance(SystemContext ctx, int entityId, ScriptComponent sc, ModuleRec mod) {
-        // destroy old
-        safeDestroyInstance(entityId, sc);
-
-        try {
-            EntityScriptAPI api = apiCache.computeIfAbsent(entityId, id -> new EntityScriptAPI(
-                    id, ecs, ctx.app(), ctx.events()
-            ));
-
-            // create new instance via factory
-            Value instance = mod.factory.execute(api);
-            sc.instance = instance;
-            sc.moduleHash = mod.hash;
-
-            callIfExists(sc.instance, "init");
-            log.debug("Script instance created: entity={} module={}", entityId, mod.moduleId);
-
-        } catch (Exception e) {
-            log.error("Failed to create script instance: entity={} module={}", entityId, mod.moduleId, e);
+        // If exists but outdated -> destroy first
+        if (sc.instance != null) {
+            destroyInstance(entityId, sc);
             sc.instance = null;
-            sc.moduleHash = null;
         }
+
+        Value exports = runtime.require(moduleId);
+        Value instance = createInstance(exports);
+
+        sc.instance = instance;
+        sc.moduleHash = vStr;
+
+        EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, bus);
+        callIfExists(sc.instance, "init", api);
     }
 
-    private void safeDestroyInstance(int entityId, ScriptComponent sc) {
+    /**
+     * Supported module shapes:
+     * 1) module.exports = { init, update, destroy }
+     * 2) module.exports = function() { return { init, update, destroy } }
+     * 3) module.exports = { create: () => ({...}) }
+     */
+    private static Value createInstance(Value exports) {
+        if (exports == null || exports.isNull()) {
+            throw new IllegalStateException("Script module exports is null");
+        }
+
+        if (exports.canExecute()) {
+            return exports.execute();
+        }
+
+        if (exports.hasMember("create")) {
+            Value c = exports.getMember("create");
+            if (c != null && c.canExecute()) return c.execute();
+        }
+
+        return exports;
+    }
+
+    private static void destroyInstance(int entityId, ScriptComponent sc) {
         if (sc == null || sc.instance == null) return;
         try {
             callIfExists(sc.instance, "destroy");
-        } catch (Exception e) {
-            log.error("destroy() failed: entity={} module={}", entityId, sc.assetPath, e);
-        } finally {
-            sc.instance = null;
-            sc.moduleHash = null;
+        } catch (Throwable ex) {
+            log.warn("Script destroy failed for entity {}", entityId, ex);
         }
     }
 
-    private static Value pickFactory(Value exports) {
-        if (exports == null || exports.isNull()) return null;
-
-        // CommonJS case: module.exports = { create(){} }
-        if (exports.hasMember("create")) {
-            Value f = exports.getMember("create");
-            if (f != null && f.canExecute()) return f;
-        }
-
-        // legacy: module itself is executable (rare)
-        if (exports.canExecute()) return exports;
-
-        return null;
-    }
-
-    private static void callIfExists(Value obj, String fn, Object... args) {
+    private static void callIfExists(Value obj, String member, Object... args) {
         if (obj == null || obj.isNull()) return;
-        if (!obj.hasMember(fn)) return;
-        Value f = obj.getMember(fn);
-        if (f == null || !f.canExecute()) return;
-        f.execute(args);
+        if (!obj.hasMember(member)) return;
+        Value fn = obj.getMember(member);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return;
+        fn.execute(args);
     }
 
-    private static String loadTextAsset(SystemContext ctx, String assetPath, boolean flushCache) {
-        if (flushCache) ctx.assets().deleteFromCache(new AssetKey<>(assetPath));
-        return (String) ctx.assets().loadAsset(new AssetKey<>(assetPath));
-    }
-
-    private void runtimeInvalidate(String moduleId) {
-        // optional method (below we will add it to GraalScriptRuntime). If not present, ignore.
-        try {
-            runtime.getClass().getMethod("invalidate", String.class).invoke(runtime, moduleId);
-        } catch (Exception ignored) {}
-    }
-
-    private static String sha1(String s) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-1");
-            byte[] d = md.digest(s.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(d.length * 2);
-            for (byte b : d) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception e) {
-            return Integer.toHexString(s.hashCode());
-        }
-    }
-
-    private static final class ModuleRec {
-        final String moduleId;
-        final String hash;
-        final Value exports;
-        final Value factory;
-
-        ModuleRec(String moduleId, String hash, Value exports, Value factory) {
-            this.moduleId = moduleId;
-            this.hash = hash;
-            this.exports = exports;
-            this.factory = factory;
-        }
+    private static String normalize(String id) {
+        if (id == null) return "";
+        String s = id.trim().replace('\\', '/');
+        while (s.startsWith("./")) s = s.substring(2);
+        return s;
     }
 }

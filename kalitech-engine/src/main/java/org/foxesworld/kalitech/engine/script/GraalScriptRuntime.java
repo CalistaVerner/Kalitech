@@ -10,20 +10,21 @@ import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 
 import java.io.Closeable;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * GraalScriptRuntime (patched)
- * <p>
- * Adds a minimal CommonJS-like "require()" with:
- * - module.exports / exports
- * - cache
- * - relative path resolution (./ ../)
+ * GraalScriptRuntime (enterprise-hardened)
+ *
+ * - CommonJS-like require() with cache
  * - cycle-safe partial exports during LOADING
- * <p>
+ * - Hot reload invalidation (exact, many, prefix) + per-module version counter
+ * - bindGlobals(): no per-call reflection (cached MethodHandles per engine API class)
+ *
  * IMPORTANT:
  * This runtime does NOT access files by itself. You must provide a ModuleSourceProvider
  * that returns JS source text by module id (asset path).
@@ -41,14 +42,14 @@ public final class GraalScriptRuntime implements Closeable {
     }
 
     private final Context ctx;
-
-    // Optional loader (set by director / appstate)
     private volatile ModuleSourceProvider loader;
 
-    // CommonJS cache + cycle support
     private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
 
-    private enum State {LOADING, LOADED}
+    // Hot-reload versions: moduleId -> incrementing version
+    private final Map<String, AtomicLong> moduleVersions = new ConcurrentHashMap<>();
+
+    private enum State { LOADING, LOADED }
 
     private static final class ModuleRecord {
         final Value moduleObj;   // { exports: ... }
@@ -60,6 +61,74 @@ public final class GraalScriptRuntime implements Closeable {
             this.exportsObj = exportsObj;
         }
     }
+
+    // -----------------------------
+    // bindGlobals() fast accessors (cached per API class)
+    // -----------------------------
+
+    private static final class ApiAccessors {
+        final MethodHandle render0;
+        final MethodHandle world0;
+        final MethodHandle entity0;
+
+        ApiAccessors(MethodHandle render0, MethodHandle world0, MethodHandle entity0) {
+            this.render0 = render0;
+            this.world0 = world0;
+            this.entity0 = entity0;
+        }
+    }
+
+    private static final Map<Class<?>, ApiAccessors> ACCESSORS = new ConcurrentHashMap<>();
+
+    private static ApiAccessors accessorsFor(Class<?> apiClass) {
+        return ACCESSORS.computeIfAbsent(apiClass, GraalScriptRuntime::buildAccessors);
+    }
+
+    private static ApiAccessors buildAccessors(Class<?> apiClass) {
+        MethodHandle render = null;
+        MethodHandle world  = null;
+        MethodHandle entity = null;
+
+        // We allow ANY return type; we resolve method once via reflection,
+        // then unreflect into MethodHandle for fast calls later.
+        MethodHandles.Lookup lookup = MethodHandles.publicLookup();
+
+        render = unreflectNoArgIfExists(lookup, apiClass, "render");
+        world  = unreflectNoArgIfExists(lookup, apiClass, "world");
+        entity = unreflectNoArgIfExists(lookup, apiClass, "entity");
+
+        return new ApiAccessors(render, world, entity);
+    }
+
+    private static MethodHandle unreflectNoArgIfExists(MethodHandles.Lookup lookup, Class<?> cls, String name) {
+        try {
+            var m = cls.getMethod(name); // public, 0-arg
+            if (m.getParameterCount() != 0) return null;
+            return lookup.unreflect(m);
+        } catch (NoSuchMethodException e) {
+            return null;
+        } catch (IllegalAccessException e) {
+            log.debug("bindGlobals: cannot access {}.{}(): {}", cls.getName(), name, e.toString());
+            return null;
+        } catch (Throwable t) {
+            log.debug("bindGlobals: failed to resolve {}.{}(): {}", cls.getName(), name, t.toString());
+            return null;
+        }
+    }
+
+    private static Object safeInvoke(MethodHandle mh, Object target, String nameForLog) {
+        if (mh == null || target == null) return null;
+        try {
+            return mh.invoke(target);
+        } catch (Throwable t) {
+            log.warn("bindGlobals: {}() invoke failed on {}", nameForLog, target.getClass().getName(), t);
+            return null;
+        }
+    }
+
+    // -----------------------------
+    // Runtime
+    // -----------------------------
 
     public GraalScriptRuntime() {
         log.info("Initializing ScriptRuntime...");
@@ -77,7 +146,6 @@ public final class GraalScriptRuntime implements Closeable {
 
         // Expose host require entrypoint to JS
         ctx.getBindings("js").putMember("__kt_require", (ProxyExecutable) args -> {
-            // args: [parentId, request]
             if (args.length < 2) throw new IllegalArgumentException("__kt_require(parentId, request) expected");
             String parentId = args[0].isNull() ? "" : args[0].asString();
             String request = args[1].asString();
@@ -87,64 +155,26 @@ public final class GraalScriptRuntime implements Closeable {
         log.info("GraalJS context created (require enabled)");
     }
 
-    /**
-     * Set/replace the module source provider used by require().
-     * Call this once from your director/appstate (AssetManager-backed).
-     */
     public void setModuleSourceProvider(ModuleSourceProvider provider) {
         this.loader = Objects.requireNonNull(provider, "provider");
     }
 
     /**
-     * Loads a JS module that returns an object (legacy behavior).
-     * NOTE: This does NOT automatically enable CommonJS exports unless your code uses it.
+     * Public host-side require:
+     * - uses CommonJS cache
+     * - moduleId is resolved as absolute id (no parent)
      */
-    public ScriptModule loadModule(String name, String code) {
-        log.info("Loading JS module: {}", name);
-
-        try {
-            Source src = Source.newBuilder("js", code, name).build();
-            log.debug("JS source built ({} chars)", code.length());
-
-            Value obj = ctx.eval(src);
-            log.debug("JS source evaluated");
-
-            if (obj == null || obj.isNull()) {
-                log.error("JS module returned null: {}", name);
-                throw new IllegalStateException("JS module returned null: " + name);
-            }
-
-            if (!obj.hasMembers()) {
-                log.error("JS module has no members: {}", name);
-                throw new IllegalStateException("JS module must return an object with init/update/destroy: " + name);
-            }
-
-            log.info("JS module loaded successfully: {}", name);
-            return new GraalScriptModule(obj);
-
-        } catch (Exception e) {
-            log.error("Failed to load JS module: {}", name, e);
-            throw new RuntimeException("Failed to load JS module: " + name, e);
-        }
+    public Value require(String moduleId) {
+        return requireFrom("", normalizeId(moduleId));
     }
 
     /**
-     * Loads a module as Value with CommonJS wrapper.
-     * <p>
-     * Behavior:
-     * - executes code as if it's a CommonJS file
-     * - returns module.exports (Value)
-     * - supports require() inside
-     * <p>
-     * "name" is used as moduleId for relative resolution and caching.
+     * Current hot-reload version for module id.
+     * Increases each time invalidate()/invalidateMany()/invalidatePrefix() touches it.
      */
-    public Value loadModuleValue(String name, String code) {
-        try {
-            // register/execute as CommonJS
-            return evalCommonJsModule(name, code);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load JS module: " + name, e);
-        }
+    public long moduleVersion(String moduleId) {
+        AtomicLong v = moduleVersions.get(normalizeId(moduleId));
+        return v == null ? 0L : v.get();
     }
 
     // -----------------------------
@@ -154,29 +184,26 @@ public final class GraalScriptRuntime implements Closeable {
     private Value requireFrom(String parentId, String request) {
         final String moduleId = resolveModuleId(parentId, request);
 
-        // cache hit
         ModuleRecord existing = moduleCache.get(moduleId);
         if (existing != null) {
-            // cycle-safe: if LOADING return partial exports
             return existing.moduleObj.getMember("exports");
         }
 
-        // create placeholder record for cycles
+        // Create cycle-safe placeholders
         Value exportsObj = ctx.eval("js", "({})");
-        Value moduleObj = ctx.eval("js", "({})");
+        Value moduleObj  = ctx.eval("js", "({})");
         moduleObj.putMember("exports", exportsObj);
 
         ModuleRecord rec = new ModuleRecord(moduleObj, exportsObj);
         moduleCache.put(moduleId, rec);
 
-        // load and execute
         String code;
         try {
             ModuleSourceProvider l = loader;
             if (l == null) {
                 throw new IllegalStateException(
                         "require() is used but no ModuleSourceProvider is set on GraalScriptRuntime. " +
-                                "Call runtime.setModuleSourceProvider(path -> assetManager.loadAsset(path))");
+                                "Call runtime.setModuleSourceProvider(id -> assetManager.loadAsset(id))");
             }
             code = l.loadText(moduleId);
             if (code == null) throw new IllegalStateException("ModuleSourceProvider returned null for " + moduleId);
@@ -195,31 +222,7 @@ public final class GraalScriptRuntime implements Closeable {
         }
     }
 
-    private Value evalCommonJsModule(String moduleId, String code) throws Exception {
-        // If already loaded via require-cache, return cached exports
-        ModuleRecord rec = moduleCache.get(moduleId);
-        if (rec != null) return rec.moduleObj.getMember("exports");
-
-        // create record
-        Value exportsObj = ctx.eval("js", "({})");
-        Value moduleObj = ctx.eval("js", "({})");
-        moduleObj.putMember("exports", exportsObj);
-
-        ModuleRecord created = new ModuleRecord(moduleObj, exportsObj);
-        moduleCache.put(moduleId, created);
-
-        try {
-            evalCommonJsInto(moduleId, code, created);
-            created.state = State.LOADED;
-            return created.moduleObj.getMember("exports");
-        } catch (Exception e) {
-            moduleCache.remove(moduleId);
-            throw e;
-        }
-    }
-
     private void evalCommonJsInto(String moduleId, String code, ModuleRecord rec) throws Exception {
-        // CommonJS wrapper: (function(module, exports, require, __filename, __dirname){ ... })
         String wrapped =
                 "(function(module, exports, require, __filename, __dirname) {\n" +
                         "  'use strict';\n" +
@@ -234,53 +237,154 @@ public final class GraalScriptRuntime implements Closeable {
 
         String dir = dirnameOf(moduleId);
 
-        // require bound to this module
         ProxyExecutable requireFn = args -> {
             if (args.length < 1) throw new IllegalArgumentException("require(request) expected");
-            String request = args[0].asString();
-            // call host-provided __kt_require(parentId, request) (bound in bindings)
+            String req = args[0].asString();
             Value hostRequire = ctx.getBindings("js").getMember("__kt_require");
-            return hostRequire.execute(moduleId, request);
+            return hostRequire.execute(moduleId, req);
         };
 
-        // execute wrapper
         fn.execute(rec.moduleObj, rec.exportsObj, requireFn, moduleId, dir);
 
-        // Ensure module.exports exists
         Value ex = rec.moduleObj.getMember("exports");
         if (ex == null || ex.isNull()) {
-            // if module replaced exports with null, restore empty object
             rec.moduleObj.putMember("exports", ctx.eval("js", "({})"));
         }
+    }
+
+    // -----------------------------
+    // Hot reload invalidation
+    // -----------------------------
+
+    /**
+     * Hot reload support: invalidate a specific module id from CommonJS cache.
+     * Next require(moduleId) will reload source.
+     *
+     * Also increments moduleVersion(moduleId).
+     */
+    public void invalidate(String moduleId) {
+        String id = normalizeId(moduleId);
+        moduleCache.remove(id);
+        bumpVersion(id);
+    }
+
+    /**
+     * Invalidate many exact ids.
+     * Returns number of modules actually removed from cache (best-effort).
+     */
+    public int invalidateMany(Collection<String> moduleIds) {
+        if (moduleIds == null || moduleIds.isEmpty()) return 0;
+        int removed = 0;
+        for (String raw : moduleIds) {
+            if (raw == null) continue;
+            String id = normalizeId(raw);
+            if (moduleCache.remove(id) != null) removed++;
+            bumpVersion(id);
+        }
+        return removed;
+    }
+
+    /**
+     * Invalidate by prefix: removes all cached modules whose id starts with prefix.
+     * Also bumps versions for removed entries.
+     */
+    public int invalidatePrefix(String prefix) {
+        if (prefix == null || prefix.isBlank()) return 0;
+        String p = normalizeId(prefix);
+        int removed = 0;
+
+        // Snapshot keys to avoid concurrent modification edge-cases
+        for (String k : new ArrayList<>(moduleCache.keySet())) {
+            if (k.startsWith(p)) {
+                if (moduleCache.remove(k) != null) removed++;
+                bumpVersion(k);
+            }
+        }
+        return removed;
+    }
+
+    private void bumpVersion(String moduleId) {
+        moduleVersions.computeIfAbsent(moduleId, k -> new AtomicLong(0L)).incrementAndGet();
+    }
+
+    public int cachedModules() {
+        return moduleCache.size();
+    }
+
+    // -----------------------------
+    // Globals binding (fast + predictable)
+    // -----------------------------
+
+    /**
+     * Bind stable globals for scripts:
+     * - ctx     : SystemContext (or any context object you pass)
+     * - engine  : EngineApi
+     * - render  : engine.render() if present
+     * - world   : engine.world()  if present
+     * - entity  : engine.entity() if present
+     *
+     * Safe to call on every rebuild; overwrites previous bindings.
+     */
+    public void bindGlobals(Object systemContext, Object engineApi) {
+        var b = ctx.getBindings("js");
+
+        if (systemContext != null) b.putMember("ctx", systemContext);
+
+        if (engineApi != null) {
+            b.putMember("engine", engineApi);
+
+            ApiAccessors acc = accessorsFor(engineApi.getClass());
+
+            Object render = safeInvoke(acc.render0, engineApi, "render");
+            if (render != null) b.putMember("render", render);
+
+            Object world = safeInvoke(acc.world0, engineApi, "world");
+            if (world != null) b.putMember("world", world);
+
+            Object entity = safeInvoke(acc.entity0, engineApi, "entity");
+            if (entity != null) b.putMember("entity", entity);
+        }
+    }
+
+    /** Optional: remove globals (not strictly required). */
+    public void clearGlobals() {
+        var b = ctx.getBindings("js");
+        try { b.removeMember("ctx"); } catch (Exception ignored) {}
+        try { b.removeMember("engine"); } catch (Exception ignored) {}
+        try { b.removeMember("render"); } catch (Exception ignored) {}
+        try { b.removeMember("world"); } catch (Exception ignored) {}
+        try { b.removeMember("entity"); } catch (Exception ignored) {}
     }
 
     // -----------------------------
     // Path resolution helpers
     // -----------------------------
 
+    private static String normalizeId(String moduleId) {
+        String s = (moduleId == null) ? "" : moduleId.trim();
+        s = s.replace('\\', '/');
+        while (s.startsWith("./")) s = s.substring(2);
+        return s;
+    }
+
     private static String resolveModuleId(String parentId, String request) {
-        String req = request.replace('\\', '/').trim();
+        String req = normalizeId(request);
         if (req.isEmpty()) throw new IllegalArgumentException("require('') is not allowed");
 
-        // If absolute "Scripts/..." style
         boolean isRelative = req.startsWith("./") || req.startsWith("../");
-
-        String base = isRelative ? dirnameOf(parentId) : "";
+        String base = isRelative ? dirnameOf(normalizeId(parentId)) : "";
         String resolved;
 
         if (isRelative) {
-            // Resolve like paths (not file system, but same rules)
             Path p = Path.of(base.isEmpty() ? "." : base).resolve(req).normalize();
             resolved = p.toString().replace('\\', '/');
         } else {
             resolved = req;
         }
 
-        // Add extension defaults
         if (resolved.endsWith("/")) resolved = resolved + "index.js";
         if (!hasExtension(resolved)) resolved = resolved + ".js";
 
-        // Clean leading "./"
         while (resolved.startsWith("./")) resolved = resolved.substring(2);
 
         return resolved;
@@ -301,116 +405,14 @@ public final class GraalScriptRuntime implements Closeable {
     }
 
     // -----------------------------
-    // Legacy ScriptModule wrapper
+    // Close
     // -----------------------------
-
-    private static final class GraalScriptModule implements ScriptModule {
-        private final Value module;
-
-        private GraalScriptModule(Value module) {
-            this.module = module;
-        }
-
-        @Override
-        public void init(Object api) {
-            callIfExists("init", api);
-        }
-
-        @Override
-        public void update(Object api, float tpf) {
-            callIfExists("update", api, tpf);
-        }
-
-        @Override
-        public void destroy(Object api) {
-            callIfExists("destroy", api);
-        }
-
-        private void callIfExists(String fn, Object... args) {
-            if (!module.hasMember(fn)) return;
-            Value f = module.getMember(fn);
-            if (f == null || !f.canExecute()) return;
-            f.execute(args);
-        }
-    }
-
-    /**
-     * Hot reload support: invalidate a specific module id from CommonJS cache.
-     * Next require(moduleId) will reload source.
-     */
-    public void invalidate(String moduleId) {
-        if (moduleId == null) return;
-        moduleCache.remove(moduleId.replace('\\', '/'));
-    }
-
-    /**
-     * Bind stable globals for scripts:
-     * - ctx     : SystemContext
-     * - engine  : EngineApi
-     * - render  : EngineApi.render()
-     * - world   : EngineApi.entity() (temporary facade)
-     *
-     * Safe to call on every rebuild; overwrites previous bindings.
-     */
-    public void bindGlobals(Object systemContext, Object engineApi) {
-        // "systemContext" is passed as Object to avoid cyclic deps from script package to world package.
-        // HostAccess.Export is still required for members to be visible.
-        var b = ctx.getBindings("js");
-
-        if (systemContext != null) b.putMember("ctx", systemContext);
-        if (engineApi != null) {
-            b.putMember("engine", engineApi);
-
-            // Resolve render/world via reflection so script module doesn't depend on api interfaces at compile-time
-            try {
-                Object render = engineApi.getClass().getMethod("render").invoke(engineApi);
-                if (render != null) b.putMember("render", render);
-            } catch (Exception ignored) {}
-
-            try {
-                Object world = engineApi.getClass().getMethod("world").invoke(engineApi);
-                if (world != null) b.putMember("world", world);
-            } catch (Exception ignored) {}
-
-            try {
-                Object entity = engineApi.getClass().getMethod("entity").invoke(engineApi);
-                if (entity != null) b.putMember("entity", entity);
-            } catch (Exception ignored) {}
-
-        }
-    }
-
-    /** Optional: remove globals (not strictly required). */
-    public void clearGlobals() {
-        var b = ctx.getBindings("js");
-        try { b.removeMember("ctx"); } catch (Exception ignored) {}
-        try { b.removeMember("engine"); } catch (Exception ignored) {}
-        try { b.removeMember("render"); } catch (Exception ignored) {}
-        try { b.removeMember("world"); } catch (Exception ignored) {}
-    }
-
-
-    /**
-     * Invalidate all cached modules under prefix (e.g. "Scripts/").
-     */
-    public void invalidatePrefix(String prefix) {
-        if (prefix == null) return;
-        String p = prefix.replace('\\', '/');
-        moduleCache.keySet().removeIf(k -> k.startsWith(p));
-    }
-
-    /**
-     * Optional diagnostics.
-     */
-    public int cachedModules() {
-        return moduleCache.size();
-    }
-
 
     @Override
     public void close() {
         log.info("Closing GraalScriptRuntime");
         moduleCache.clear();
+        moduleVersions.clear();
         ctx.close(true);
     }
 }

@@ -9,7 +9,11 @@ public final class EcsWorld {
     public ComponentStore components() { return components; }
 
     public int createEntity() { return entities.create(); }
-    public void destroyEntity(int id) { entities.destroy(id); }
+
+    public void destroyEntity(int id) {
+        entities.destroy(id);
+        components.removeAll(id); // IMPORTANT: prevent leaks & stale data
+    }
 
     /** Full reset for hot-reload rebuilds. */
     public void reset() {
