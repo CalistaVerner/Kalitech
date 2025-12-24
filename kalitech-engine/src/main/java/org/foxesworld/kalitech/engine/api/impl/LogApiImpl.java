@@ -1,6 +1,7 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.graalvm.polyglot.HostAccess;
 import org.foxesworld.kalitech.engine.api.interfaces.LogApi;
 
@@ -10,8 +11,8 @@ public final class LogApiImpl implements LogApi {
 
     private final Logger log;
 
-    public LogApiImpl(Logger log) {
-        this.log = Objects.requireNonNull(log, "log");
+    public LogApiImpl(EngineApiImpl engineApi) {
+        this.log = engineApi.getLog();
     }
 
     @HostAccess.Export @Override public void info(String msg)  { log.info("{}", msg); }

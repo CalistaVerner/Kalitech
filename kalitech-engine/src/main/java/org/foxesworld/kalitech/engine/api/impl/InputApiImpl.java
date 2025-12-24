@@ -6,6 +6,7 @@ import com.jme3.input.event.*;
 import com.jme3.input.KeyInput;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
 
 import java.util.Map;
@@ -28,8 +29,8 @@ public final class InputApiImpl implements InputApi {
     private volatile double mdx, mdy;
     private volatile double wheel;
 
-    public InputApiImpl(InputManager input) {
-        this.input = input;
+    public InputApiImpl(EngineApiImpl engineApi) {
+        this.input = engineApi.getApp().getInputManager();
         this.input.addRawInputListener(new Raw());
         log.info("InputApi: raw listener attached");
     }

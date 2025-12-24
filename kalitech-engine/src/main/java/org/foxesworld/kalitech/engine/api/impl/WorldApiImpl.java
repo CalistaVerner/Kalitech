@@ -2,6 +2,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.interfaces.WorldApi;
@@ -24,9 +25,9 @@ public final class WorldApiImpl implements WorldApi {
     private final EcsWorld ecs;
     private final ScriptEventBus bus;
 
-    public WorldApiImpl(EcsWorld ecs, ScriptEventBus bus) {
-        this.ecs = Objects.requireNonNull(ecs, "ecs");
-        this.bus = Objects.requireNonNull(bus, "bus");
+    public WorldApiImpl(EngineApiImpl engineApi) {
+        this.ecs = engineApi.getEcs();
+        this.bus = engineApi.getBus();
     }
 
     @HostAccess.Export

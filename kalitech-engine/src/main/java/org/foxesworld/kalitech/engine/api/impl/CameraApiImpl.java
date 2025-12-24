@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.CameraApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -17,9 +18,9 @@ public final class CameraApiImpl implements CameraApi {
     private final SimpleApplication app; // reserved for future camera ops
     private final CameraState state;
 
-    public CameraApiImpl(SimpleApplication app, CameraState state) {
-        this.app = Objects.requireNonNull(app, "app");
-        this.state = Objects.requireNonNull(state, "state");
+    public CameraApiImpl(EngineApiImpl engineApi) {
+        this.app = engineApi.getApp();
+        this.state = engineApi.getCameraState();
     }
 
     @HostAccess.Export

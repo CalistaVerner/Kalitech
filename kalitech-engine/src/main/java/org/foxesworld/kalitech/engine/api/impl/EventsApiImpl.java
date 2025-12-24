@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EventsApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -11,8 +12,8 @@ public final class EventsApiImpl implements EventsApi {
 
     private final ScriptEventBus bus;
 
-    public EventsApiImpl(ScriptEventBus bus) {
-        this.bus = Objects.requireNonNull(bus, "bus");
+    public EventsApiImpl(EngineApiImpl engineApi) {
+        this.bus = engineApi.getBus();
     }
 
     @HostAccess.Export

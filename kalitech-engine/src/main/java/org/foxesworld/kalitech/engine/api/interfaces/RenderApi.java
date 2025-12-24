@@ -25,8 +25,12 @@ public interface RenderApi {
     // scene visuals
     @HostAccess.Export void skyboxCube(String cubeMapAsset);
     @HostAccess.Export void fogCfg(Value cfg);
-    @HostAccess.Export void terrainCfg(Value cfg);
 
+    // ✅ JS-first
+    @HostAccess.Export void terrain(Value cfg);
+
+    // (optional compat)
+    @HostAccess.Export void terrainCfg(Value cfg);
 
     // terrain splat
     @HostAccess.Export

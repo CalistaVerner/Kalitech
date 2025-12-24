@@ -16,6 +16,9 @@ public interface EngineApi {
     EventsApi events();
 
     @HostAccess.Export
+    MaterialApi material();
+
+    @HostAccess.Export
     EntityApi entity();
 
     @HostAccess.Export

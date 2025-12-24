@@ -1,9 +1,16 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.TimeApi;
+import org.graalvm.polyglot.Engine;
 
 public final class TimeApiImpl implements TimeApi {
+
+    private final EngineApiImpl api;
+    public TimeApiImpl(EngineApiImpl engineApi) {
+        this.api = engineApi;
+    }
 
     private volatile double tpf;
     private final long startNs = System.nanoTime();

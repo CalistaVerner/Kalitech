@@ -5,6 +5,7 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.system.AppSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EditorApi;
 
 import java.util.Objects;
@@ -16,8 +17,8 @@ public final class EditorApiImpl implements EditorApi {
     private final SimpleApplication app;
     private volatile boolean enabled;
 
-    public EditorApiImpl(SimpleApplication app) {
-        this.app = Objects.requireNonNull(app, "app");
+    public EditorApiImpl(EngineApiImpl engineApi) {
+        this.app = engineApi.getApp();
     }
 
     @Override

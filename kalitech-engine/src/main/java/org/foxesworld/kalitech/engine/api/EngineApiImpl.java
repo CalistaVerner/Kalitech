@@ -16,14 +16,14 @@ import java.util.Objects;
 
 public final class EngineApiImpl implements EngineApi {
 
-    private static final Logger log = LogManager.getLogger(EngineApiImpl.class);
+    private final Logger log = LogManager.getLogger(EngineApiImpl.class);
 
     private final SimpleApplication app;
     private final AssetManager assets;
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
 
-    private final org.foxesworld.kalitech.engine.api.impl.CameraState cameraState;
+    private final CameraState cameraState;
     private final LogApi logApi;
     private final AssetsApi assetsApi;
     private final EventsApi eventsApi;
@@ -33,6 +33,8 @@ public final class EngineApiImpl implements EngineApi {
     private final TimeApiImpl timeApi;
     private final InputApiImpl inputApi;
     private final WorldApi worldApi;
+    private final MaterialApi materialApi;
+
 
     private final EditorApi editorApi;
 
@@ -42,23 +44,24 @@ public final class EngineApiImpl implements EngineApi {
         this.bus = Objects.requireNonNull(bus, "bus");
         this.ecs = Objects.requireNonNull(ecs, "ecs");
 
-        this.logApi = new LogApiImpl(log);
-        this.assetsApi = new AssetsApiImpl(assets);
-        this.eventsApi = new EventsApiImpl(bus);
-        this.entityApi = new EntityApiImpl(ecs);
-        this.renderApi = new RenderApiImpl(app, assets);
-        this.cameraState = new org.foxesworld.kalitech.engine.api.impl.CameraState();
-        this.cameraApi = new CameraApiImpl(app, cameraState);
-        this.timeApi = new TimeApiImpl();
-        this.inputApi = new InputApiImpl(app.getInputManager());
-        this.worldApi = new WorldApiImpl(ecs, bus);
-
-        this.editorApi = new EditorApiImpl(app);
+        this.logApi = new LogApiImpl(this);
+        this.assetsApi = new AssetsApiImpl(this);
+        this.eventsApi = new EventsApiImpl(this);
+        this.materialApi = new MaterialApiImpl(this);
+        this.entityApi = new EntityApiImpl(this);
+        this.renderApi = new RenderApiImpl(this);
+        this.cameraState = new CameraState();
+        this.cameraApi = new CameraApiImpl(this);
+        this.timeApi = new TimeApiImpl(this);
+        this.inputApi = new InputApiImpl(this);
+        this.worldApi = new WorldApiImpl(this);
+        this.editorApi = new EditorApiImpl(this);
     }
 
     @HostAccess.Export @Override public LogApi log() { return logApi; }
     @HostAccess.Export @Override public AssetsApi assets() { return assetsApi; }
     @HostAccess.Export @Override public EventsApi events() { return eventsApi; }
+    @HostAccess.Export @Override public MaterialApi material() { return materialApi; }
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
     @HostAccess.Export @Override public RenderApi render() { return renderApi; }
     @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
@@ -101,5 +104,25 @@ public final class EngineApiImpl implements EngineApi {
 
     public CameraState getCameraState() {
         return cameraState;
+    }
+
+    public AssetManager getAssets() {
+        return assets;
+    }
+
+    public SimpleApplication getApp() {
+        return app;
+    }
+
+    public ScriptEventBus getBus() {
+        return bus;
+    }
+
+    public EcsWorld getEcs() {
+        return ecs;
+    }
+
+    public Logger getLog() {
+        return log;
     }
 }

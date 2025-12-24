@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.graalvm.polyglot.HostAccess;
 import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -10,8 +11,8 @@ public final class EntityApiImpl implements EntityApi {
 
     private final EcsWorld ecs;
 
-    public EntityApiImpl(EcsWorld ecs) {
-        this.ecs = Objects.requireNonNull(ecs, "ecs");
+    public EntityApiImpl(EngineApiImpl engineApi) {
+        this.ecs = engineApi.getEcs();
     }
 
     @HostAccess.Export
