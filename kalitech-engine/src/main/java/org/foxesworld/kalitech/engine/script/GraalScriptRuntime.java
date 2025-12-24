@@ -438,10 +438,8 @@ public final class GraalScriptRuntime implements Closeable {
         // dependency edges. It delegates to requireFrom() which will return
         // cached exports or load the module if necessary.
         ProxyExecutable localReq = args -> {
-            String id = args.length > 0 ? args[0].asString() : "";
-            String normalized = normalizeId(id);
-            String resolved = resolveRelative(moduleId, normalized);
-            // Record dependency from current module to resolved module
+            String request = args.length > 0 ? args[0].asString() : "";
+            String resolved = resolveRequest(moduleId, request); // <-- важно: raw request
             recordDependency(moduleId, resolved);
             return requireFrom(moduleId, resolved);
         };
@@ -455,6 +453,65 @@ public final class GraalScriptRuntime implements Closeable {
         // In case the module reassigns module.exports, keep it. The exports
         // object on moduleObj already holds the final value.
     }
+
+    /**
+     * Resolves a CommonJS require() request relative to the parent module id.
+     * IMPORTANT: must see "./" and "../" BEFORE normalizeId() strips "./".
+     *
+     * Examples:
+     *  parent="Scripts/main.js", request="./world/main.world.js" -> "Scripts/world/main.world.js"
+     *  parent="Scripts/systems/scene.system.js", request="../lib/math.js" -> "Scripts/lib/math.js"
+     *  request="Scripts/world/main.world.js" -> "Scripts/world/main.world.js"
+     *  request="/Scripts/world/main.world.js" -> "Scripts/world/main.world.js"
+     */
+    private static String resolveRequest(String parentModuleId, String requestRaw) {
+        if (requestRaw == null) return "";
+        String req = requestRaw.trim().replace('\\', '/');
+
+        // Collapse multiple slashes
+        while (req.contains("//")) req = req.replace("//", "/");
+
+        if (req.isEmpty()) return "";
+
+        // Rooted path: "/foo/bar.js" -> "foo/bar.js"
+        if (req.startsWith("/")) {
+            return normalizeId(req.substring(1));
+        }
+
+        // Non-relative: "Scripts/..." or "world/..." (package-style) -> just normalize
+        // NOTE: if you want "world/..." to resolve against "Scripts/", that's a separate policy.
+        if (!req.startsWith(".")) {
+            return normalizeId(req);
+        }
+
+        // Relative: "./.." resolution against parent directory
+        String parentDir = dirnameOf(parentModuleId);
+
+        Deque<String> parts = new ArrayDeque<>();
+        if (!parentDir.isEmpty()) {
+            for (String p : parentDir.split("/")) {
+                if (!p.isEmpty()) parts.addLast(p);
+            }
+        }
+
+        for (String p : req.split("/")) {
+            if (p.isEmpty() || ".".equals(p)) continue;
+            if ("..".equals(p)) {
+                if (!parts.isEmpty()) parts.removeLast();
+            } else {
+                parts.addLast(p);
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> it = parts.iterator();
+        while (it.hasNext()) {
+            sb.append(it.next());
+            if (it.hasNext()) sb.append('/');
+        }
+        return normalizeId(sb.toString());
+    }
+
 
     // ---------------------------------------------------------------------
     // Hot reload / cache invalidation
@@ -748,59 +805,6 @@ public final class GraalScriptRuntime implements Closeable {
     //
     // Важно: чтобы не править imports, используем fully-qualified имена.
     // =====================================================================
-
-    /**
-     * ScriptJobQueue — минимальная очередь задач, которую можно дергать из любых потоков,
-     * а выполнять (drain) — строго на owner thread (обычно в начале кадра).
-     */
-    public static final class ScriptJobQueue {
-        private final java.util.Queue<java.lang.Runnable> q = new java.util.concurrent.ConcurrentLinkedQueue<>();
-        private final java.util.concurrent.atomic.AtomicLong enqueued = new java.util.concurrent.atomic.AtomicLong();
-        private final java.util.concurrent.atomic.AtomicLong executed = new java.util.concurrent.atomic.AtomicLong();
-
-        /** From any thread. */
-        public void post(java.lang.Runnable job) {
-            if (job == null) return;
-            q.add(job);
-            enqueued.incrementAndGet();
-        }
-
-        /** From any thread. */
-        public <T> java.util.concurrent.CompletableFuture<T> call(java.util.function.Supplier<T> job) {
-            java.util.concurrent.CompletableFuture<T> f = new java.util.concurrent.CompletableFuture<>();
-            post(() -> {
-                try {
-                    f.complete(job.get());
-                } catch (java.lang.Throwable t) {
-                    f.completeExceptionally(t);
-                }
-            });
-            return f;
-        }
-
-        /**
-         * Drain jobs on owner thread, bounded.
-         * @return executed jobs count
-         */
-        public int drain(int maxJobs) {
-            int n = 0;
-            while (n < maxJobs) {
-                java.lang.Runnable r = q.poll();
-                if (r == null) break;
-                try {
-                    r.run();
-                } finally {
-                    executed.incrementAndGet();
-                }
-                n++;
-            }
-            return n;
-        }
-
-        public long enqueuedCount() { return enqueued.get(); }
-        public long executedCount() { return executed.get(); }
-        public int pending() { return java.lang.Math.max(0, (int) (enqueued.get() - executed.get())); }
-    }
 
     private final ScriptJobQueue jobQueue = new ScriptJobQueue();
 

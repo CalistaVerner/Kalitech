@@ -1,4 +1,3 @@
-// FILE: ScriptSubsystem.java  (NEW)
 package org.foxesworld.kalitech.engine.script;
 
 import com.jme3.app.SimpleApplication;
@@ -11,21 +10,18 @@ import java.io.Closeable;
 import java.util.Set;
 
 /**
- * ScriptSubsystem — a single, centralized entrypoint for the scripting pipeline.
+ * ScriptSubsystem v2 — единая точка входа. Только orchestration.
  *
- * <p>Order per-frame:
- * <ol>
- *   <li>Poll file changes</li>
- *   <li>Invalidate runtime cache + selective entity restart</li>
- *   <li>Pump queued events</li>
- *   <li>Update script instances</li>
- * </ol>
- *
- * <p>This class is intentionally small: orchestration only.
+ * Per-frame:
+ * 1) drain jobs (from other threads)
+ * 2) poll file changes -> invalidate + restart affected
+ * 3) pump events
+ * 4) update lifecycle
  */
 public final class ScriptSubsystem implements Closeable {
 
     private final GraalScriptRuntime runtime;
+    private final ScriptJobQueue jobs;
     private final ScriptEventBus events;
     private final ScriptLifecycle lifecycle;
     private final HotReloadWatcher watcher;
@@ -34,33 +30,37 @@ public final class ScriptSubsystem implements Closeable {
                            SimpleApplication app,
                            GraalScriptRuntime.ModuleSourceProvider sourceProvider,
                            HotReloadWatcher watcher) {
+
         this.runtime = new GraalScriptRuntime();
         this.runtime.setModuleSourceProvider(sourceProvider);
 
+        this.jobs = new ScriptJobQueue();
         this.events = new ScriptEventBus();
         this.lifecycle = new ScriptLifecycle(ecs, app, events, runtime);
         this.watcher = watcher;
     }
 
     public GraalScriptRuntime runtime() { return runtime; }
+    public ScriptJobQueue jobs() { return jobs; }
     public ScriptEventBus events() { return events; }
     public ScriptLifecycle lifecycle() { return lifecycle; }
 
-    /** Central update call (call once per frame in the main thread). */
     public void update(float tpf) {
+        // 1) run jobs posted from other threads (limit to avoid stalls)
+        jobs.drain(10_000);
+
+        // 2) hot reload
         Set<String> changed = (watcher != null) ? watcher.pollChanged() : Set.of();
-        if (!changed.isEmpty()) {
-            lifecycle.onHotReloadChanged(changed);
-        }
+        if (!changed.isEmpty()) lifecycle.onHotReloadChanged(changed);
+
+        // 3) events then 4) scripts
         events.pump();
         lifecycle.update(tpf);
     }
 
-    /** For world rebuilds. */
     public void reset() {
         lifecycle.reset();
-        events.clearAll();
-        // optional convenience: clear all cached scripts under Scripts/
+        jobs.clear();
         runtime.invalidatePrefix("Scripts/");
     }
 
@@ -69,6 +69,7 @@ public final class ScriptSubsystem implements Closeable {
         try { if (watcher != null) watcher.close(); } catch (Exception ignored) {}
         try { lifecycle.reset(); } catch (Exception ignored) {}
         try { events.clearAll(); } catch (Exception ignored) {}
+        jobs.clear();
         runtime.close();
     }
 }

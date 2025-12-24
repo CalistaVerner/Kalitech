@@ -2,6 +2,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
+import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
 import org.graalvm.polyglot.HostAccess;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -83,7 +84,7 @@ public final class SystemContext {
      * jobs are executed when Java drains runtime.drainJobs(...) on owner thread.
      */
     @HostAccess.Export
-    public GraalScriptRuntime.ScriptJobQueue jobs() {
+    public ScriptJobQueue jobs() {
         return runtime.jobs();
     }
 

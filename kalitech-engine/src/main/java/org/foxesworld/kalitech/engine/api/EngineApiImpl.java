@@ -36,7 +36,7 @@ public final class EngineApiImpl implements EngineApi {
     private final WorldApi worldApi;
     private final MaterialApi materialApi;
     private final EditorApi editorApi;
-    private final UiApiImpl ui;
+    //private final UiApiImpl ui;
 
     // ✅ new: unified surface registry + apis
     private final SurfaceRegistry surfaceRegistry;
@@ -55,7 +55,7 @@ public final class EngineApiImpl implements EngineApi {
         this.eventsApi = new EventsApiImpl(this);
         this.materialApi = new MaterialApiImpl(this);
         this.jmeThread = Thread.currentThread();
-        this.ui = new UiApiImpl();
+        //this.ui = new UiApiImpl();
 
         // ✅ registry must be created early
         this.surfaceRegistry = new SurfaceRegistry(this.app);
@@ -141,10 +141,7 @@ public final class EngineApiImpl implements EngineApi {
         });
     }
 
-    @HostAccess.Export
-    public UiApiImpl ui() {
-        return ui;
-    }
+    //@HostAccess.Export public UiApiImpl ui() {return ui;}
     public CameraState getCameraState() { return cameraState; }
     public AssetManager getAssets() { return assets; }
     public SimpleApplication getApp() { return app; }
