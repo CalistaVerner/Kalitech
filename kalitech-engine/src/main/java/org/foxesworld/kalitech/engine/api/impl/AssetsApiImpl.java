@@ -3,7 +3,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetManager;
 import org.graalvm.polyglot.HostAccess;
-import org.foxesworld.kalitech.engine.api.AssetsApi;
+import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 
 import java.util.Objects;
 

@@ -17,13 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * GraalScriptRuntime (patched)
- *
+ * <p>
  * Adds a minimal CommonJS-like "require()" with:
  * - module.exports / exports
  * - cache
  * - relative path resolution (./ ../)
  * - cycle-safe partial exports during LOADING
- *
+ * <p>
  * IMPORTANT:
  * This runtime does NOT access files by itself. You must provide a ModuleSourceProvider
  * that returns JS source text by module id (asset path).
@@ -32,7 +32,9 @@ public final class GraalScriptRuntime implements Closeable {
 
     private static final Logger log = LogManager.getLogger(GraalScriptRuntime.class);
 
-    /** Provides source text for a module id like "Scripts/systems/ai.js". */
+    /**
+     * Provides source text for a module id like "Scripts/systems/ai.js".
+     */
     @FunctionalInterface
     public interface ModuleSourceProvider {
         String loadText(String moduleId) throws Exception;
@@ -46,7 +48,7 @@ public final class GraalScriptRuntime implements Closeable {
     // CommonJS cache + cycle support
     private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
 
-    private enum State { LOADING, LOADED }
+    private enum State {LOADING, LOADED}
 
     private static final class ModuleRecord {
         final Value moduleObj;   // { exports: ... }
@@ -128,12 +130,12 @@ public final class GraalScriptRuntime implements Closeable {
 
     /**
      * Loads a module as Value with CommonJS wrapper.
-     *
+     * <p>
      * Behavior:
      * - executes code as if it's a CommonJS file
      * - returns module.exports (Value)
      * - supports require() inside
-     *
+     * <p>
      * "name" is used as moduleId for relative resolution and caching.
      */
     public Value loadModuleValue(String name, String code) {
@@ -331,6 +333,32 @@ public final class GraalScriptRuntime implements Closeable {
             f.execute(args);
         }
     }
+
+    /**
+     * Hot reload support: invalidate a specific module id from CommonJS cache.
+     * Next require(moduleId) will reload source.
+     */
+    public void invalidate(String moduleId) {
+        if (moduleId == null) return;
+        moduleCache.remove(moduleId.replace('\\', '/'));
+    }
+
+    /**
+     * Invalidate all cached modules under prefix (e.g. "Scripts/").
+     */
+    public void invalidatePrefix(String prefix) {
+        if (prefix == null) return;
+        String p = prefix.replace('\\', '/');
+        moduleCache.keySet().removeIf(k -> k.startsWith(p));
+    }
+
+    /**
+     * Optional diagnostics.
+     */
+    public int cachedModules() {
+        return moduleCache.size();
+    }
+
 
     @Override
     public void close() {

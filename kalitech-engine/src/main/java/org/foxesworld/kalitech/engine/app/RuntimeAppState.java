@@ -7,7 +7,7 @@ import com.jme3.asset.AssetKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
-import org.foxesworld.kalitech.engine.api.impl.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -44,6 +44,7 @@ public final class RuntimeAppState extends BaseAppState {
     private float cooldown = 0f;
     private boolean dirty = true;
     private String lastHash = null;
+    EngineApiImpl engineApi;
 
     public RuntimeAppState(String mainAssetPath, Path watchRoot, float reloadCooldownSec, EcsWorld ecs, ScriptEventBus bus) {
         this.mainAssetPath = Objects.requireNonNull(mainAssetPath, "mainAssetPath");
@@ -69,10 +70,10 @@ public final class RuntimeAppState extends BaseAppState {
         registry = new SystemRegistry();
 
         // 4) stable API for JS
-        var api = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
+        engineApi = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
 
         // 5) world runner (keeps SystemContext)
-        worldState = new WorldAppState(bus, ecs, runtime, api);
+        worldState = new WorldAppState(bus, ecs, runtime, engineApi);
         getStateManager().attach(worldState);
 
         // 6) builder uses registry
@@ -85,7 +86,7 @@ public final class RuntimeAppState extends BaseAppState {
     @Override
     public void update(float tpf) {
         if (!isEnabled()) return;
-
+        engineApi.__updateTime(tpf);
         // пока WorldAppState не готов — просто ждём
         if (worldState == null || worldState.getContextForJs() == null) return;
 
@@ -99,6 +100,7 @@ public final class RuntimeAppState extends BaseAppState {
             dirty = false;
             reloadMainAndRebuildWorld();
         }
+        engineApi.__endFrameInput();
     }
 
     private void reloadMainAndRebuildWorld() {

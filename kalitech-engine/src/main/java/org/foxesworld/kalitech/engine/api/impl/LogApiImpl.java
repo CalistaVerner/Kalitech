@@ -2,7 +2,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.HostAccess;
-import org.foxesworld.kalitech.engine.api.LogApi;
+import org.foxesworld.kalitech.engine.api.interfaces.LogApi;
 
 import java.util.Objects;
 

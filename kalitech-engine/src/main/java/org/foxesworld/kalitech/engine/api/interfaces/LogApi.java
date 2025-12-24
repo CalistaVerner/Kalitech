@@ -1,4 +1,4 @@
-package org.foxesworld.kalitech.engine.api;
+package org.foxesworld.kalitech.engine.api.interfaces;
 
 import org.graalvm.polyglot.HostAccess;
 

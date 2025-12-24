@@ -13,8 +13,7 @@ import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public final class ScriptSystem implements KSystem {
 
@@ -29,34 +28,41 @@ public final class ScriptSystem implements KSystem {
 
     private GraalScriptRuntime runtime;
     private HotReloadWatcher watcher;
-    private float cooldown = 0f;
-    private boolean dirty = true; // first tick load
 
-    // cache: assetPath -> lastHash (avoid reload when dirty but unchanged)
-    private final Map<String, String> hashCache = new HashMap<>();
+    private float cooldown = 0f;
+    private boolean dirty = true;
+
+    // entityId -> stable API wrapper (avoid per-frame allocations)
+    private final Map<Integer, EntityScriptAPI> apiCache = new HashMap<>();
+
+    // moduleId(assetPath) -> module record
+    private final Map<String, ModuleRec> modules = new HashMap<>();
 
     public ScriptSystem(EcsWorld ecs, boolean hotReload, float reloadCooldownSec, Path watchRoot) {
-        this.ecs = ecs;
+        this.ecs = Objects.requireNonNull(ecs, "ecs");
         this.hotReload = hotReload;
-        this.reloadCooldownSec = reloadCooldownSec;
-        this.watchRoot = watchRoot;
+        this.reloadCooldownSec = reloadCooldownSec <= 0 ? 0.25f : reloadCooldownSec;
+        this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
     }
 
-    // backward compatible ctor
     public ScriptSystem(EcsWorld ecs) {
         this(ecs, false, 0.35f, Path.of("assets"));
     }
 
     @Override
     public void onStart(SystemContext ctx) {
-        runtime = new GraalScriptRuntime();
+        // IMPORTANT: use shared runtime from ctx (one runtime policy)
+        // If you want per-system runtime, replace with new GraalScriptRuntime().
+        this.runtime = ctx.runtime();
 
         if (hotReload) {
             watcher = new HotReloadWatcher(watchRoot);
-            log.info("ScriptSystem started (per-entity scripts) hotReload=true root={}", watchRoot.toAbsolutePath());
+            log.info("ScriptSystem started hotReload=true root={}", watchRoot.toAbsolutePath());
         } else {
-            log.info("ScriptSystem started (per-entity scripts) hotReload=false");
+            log.info("ScriptSystem started hotReload=false");
         }
+
+        dirty = true;
     }
 
     @Override
@@ -67,122 +73,164 @@ public final class ScriptSystem implements KSystem {
             if (cooldown <= 0f && watcher.pollDirty()) {
                 cooldown = reloadCooldownSec;
                 dirty = true;
-                log.debug("ScriptSystem: assets dirty -> reload check");
             }
         }
 
+        // 1) If dirty - invalidate module cache in runtime and local module hashes will be rechecked
+        if (dirty) {
+            // We do NOT blindly clear everything; we re-hash per module on demand.
+            log.debug("ScriptSystem: dirty -> rehash modules on demand");
+        }
+
+        // 2) Iterate entities with ScriptComponent
         for (var entry : ecs.components().view(ScriptComponent.class).entrySet()) {
             int entityId = entry.getKey();
             ScriptComponent sc = entry.getValue();
 
-            ensureLoadedIfNeeded(ctx, entityId, sc);
-            callIfExists(sc.moduleObject, "update", makeApi(ctx, entityId), tpf);
+            ModuleRec mod = ensureModuleLoaded(ctx, sc.assetPath);
+            if (mod == null) continue;
+
+            // if entity has no instance OR module changed -> recreate instance
+            if (sc.instance == null || !Objects.equals(sc.moduleHash, mod.hash)) {
+                recreateInstance(ctx, entityId, sc, mod);
+            }
+
+            // tick
+            callIfExists(sc.instance, "update", tpf);
         }
 
-        // once processed, clear dirty flag (we only reload check on next watcher ping)
         dirty = false;
     }
 
     @Override
     public void onStop(SystemContext ctx) {
+        // destroy instances
         for (var entry : ecs.components().view(ScriptComponent.class).entrySet()) {
             int entityId = entry.getKey();
             ScriptComponent sc = entry.getValue();
-            safeDestroy(ctx, entityId, sc);
+            safeDestroyInstance(entityId, sc);
         }
+
+        apiCache.clear();
+        modules.clear();
 
         if (watcher != null) {
             watcher.close();
             watcher = null;
         }
 
-        if (runtime != null) {
-            runtime.close();
-            runtime = null;
-        }
+        // runtime is shared (ctx.runtime()), do NOT close it here
+        runtime = null;
 
-        hashCache.clear();
         log.info("ScriptSystem stopped");
     }
 
-    private void safeDestroy(SystemContext ctx, int entityId, ScriptComponent sc) {
-        if (sc.moduleObject == null) return;
-        try {
-            callIfExists(sc.moduleObject, "destroy", makeApi(ctx, entityId));
-        } catch (Exception ex) {
-            log.error("destroy() failed for entity {} script {}", entityId, sc.assetPath, ex);
-        } finally {
-            sc.moduleObject = null;
-            sc.lastLoadedCodeHash = null;
-        }
-    }
+    private ModuleRec ensureModuleLoaded(SystemContext ctx, String assetPath) {
+        ModuleRec rec = modules.get(assetPath);
 
-    private EntityScriptAPI makeApi(SystemContext ctx, int entityId) {
-        return new EntityScriptAPI(entityId, ecs, ctx.app(), ctx.events());
-    }
+        // fast path: not dirty and already loaded
+        if (rec != null && !dirty) return rec;
 
-    private void ensureLoadedIfNeeded(SystemContext ctx, int entityId, ScriptComponent sc) {
-        // first load always
-        if (sc.moduleObject == null) {
-            reload(ctx, entityId, sc);
-            return;
-        }
-
-        // if not dirty — skip any I/O work
-        if (!dirty) return;
-
-        // dirty: check hash, but do it once per assetPath
-        String assetPath = sc.assetPath;
-        String code = loadTextAsset(ctx, assetPath);
+        String code = loadTextAsset(ctx, assetPath, dirty);
         String hash = sha1(code);
 
-        String prev = hashCache.get(assetPath);
-        if (prev != null && prev.equals(hash)) {
-            // unchanged: do nothing
-            return;
-        }
+        // unchanged
+        if (rec != null && Objects.equals(rec.hash, hash)) return rec;
 
-        // changed: reload THIS entity module
-        reloadWithCode(ctx, entityId, sc, code, hash);
-        hashCache.put(assetPath, hash);
-    }
-
-    private void reload(SystemContext ctx, int entityId, ScriptComponent sc) {
-        String code = loadTextAsset(ctx, sc.assetPath);
-        String hash = sha1(code);
-        reloadWithCode(ctx, entityId, sc, code, hash);
-        hashCache.put(sc.assetPath, hash);
-    }
-
-    private void reloadWithCode(SystemContext ctx, int entityId, ScriptComponent sc, String code, String hash) {
+        // changed/new -> (re)load module exports
         try {
-            // destroy old (hot swap)
-            callIfExists(sc.moduleObject, "destroy", makeApi(ctx, entityId));
+            // invalidate runtime cache for this module so require() gets fresh deps (important)
+            runtimeInvalidate(assetPath);
 
-            Value moduleValue = runtime.loadModuleValue(sc.assetPath, code);
+            Value exports = runtime.loadModuleValue(assetPath, code);
 
-            sc.moduleObject = moduleValue;
-            sc.lastLoadedCodeHash = hash;
+            Value factory = pickFactory(exports);
+            if (factory == null) {
+                log.error("Script '{}' must export create(api) function", assetPath);
+                return null;
+            }
 
-            callIfExists(sc.moduleObject, "init", makeApi(ctx, entityId));
-            log.info("Loaded script '{}' for entity {}", sc.assetPath, entityId);
+            ModuleRec nrec = new ModuleRec(assetPath, hash, exports, factory);
+            modules.put(assetPath, nrec);
+
+            log.info("Script module loaded: {} (hash={})", assetPath, hash);
+            return nrec;
 
         } catch (Exception e) {
-            log.error("Failed to load script '{}' for entity {}", sc.assetPath, entityId, e);
+            log.error("Failed to load script module '{}'", assetPath, e);
+            return null;
         }
     }
 
-    private String loadTextAsset(SystemContext ctx, String assetPath) {
-        // IMPORTANT: do not delete cache every frame. only when dirty.
-        if (dirty) ctx.assets().deleteFromCache(new AssetKey<>(assetPath));
+    private void recreateInstance(SystemContext ctx, int entityId, ScriptComponent sc, ModuleRec mod) {
+        // destroy old
+        safeDestroyInstance(entityId, sc);
+
+        try {
+            EntityScriptAPI api = apiCache.computeIfAbsent(entityId, id -> new EntityScriptAPI(
+                    id, ecs, ctx.app(), ctx.events()
+            ));
+
+            // create new instance via factory
+            Value instance = mod.factory.execute(api);
+            sc.instance = instance;
+            sc.moduleHash = mod.hash;
+
+            callIfExists(sc.instance, "init");
+            log.debug("Script instance created: entity={} module={}", entityId, mod.moduleId);
+
+        } catch (Exception e) {
+            log.error("Failed to create script instance: entity={} module={}", entityId, mod.moduleId, e);
+            sc.instance = null;
+            sc.moduleHash = null;
+        }
+    }
+
+    private void safeDestroyInstance(int entityId, ScriptComponent sc) {
+        if (sc == null || sc.instance == null) return;
+        try {
+            callIfExists(sc.instance, "destroy");
+        } catch (Exception e) {
+            log.error("destroy() failed: entity={} module={}", entityId, sc.assetPath, e);
+        } finally {
+            sc.instance = null;
+            sc.moduleHash = null;
+        }
+    }
+
+    private static Value pickFactory(Value exports) {
+        if (exports == null || exports.isNull()) return null;
+
+        // CommonJS case: module.exports = { create(){} }
+        if (exports.hasMember("create")) {
+            Value f = exports.getMember("create");
+            if (f != null && f.canExecute()) return f;
+        }
+
+        // legacy: module itself is executable (rare)
+        if (exports.canExecute()) return exports;
+
+        return null;
+    }
+
+    private static void callIfExists(Value obj, String fn, Object... args) {
+        if (obj == null || obj.isNull()) return;
+        if (!obj.hasMember(fn)) return;
+        Value f = obj.getMember(fn);
+        if (f == null || !f.canExecute()) return;
+        f.execute(args);
+    }
+
+    private static String loadTextAsset(SystemContext ctx, String assetPath, boolean flushCache) {
+        if (flushCache) ctx.assets().deleteFromCache(new AssetKey<>(assetPath));
         return (String) ctx.assets().loadAsset(new AssetKey<>(assetPath));
     }
 
-    private static void callIfExists(Value module, String fn, Object... args) {
-        if (module == null || !module.hasMember(fn)) return;
-        Value f = module.getMember(fn);
-        if (f == null || !f.canExecute()) return;
-        f.execute(args);
+    private void runtimeInvalidate(String moduleId) {
+        // optional method (below we will add it to GraalScriptRuntime). If not present, ignore.
+        try {
+            runtime.getClass().getMethod("invalidate", String.class).invoke(runtime, moduleId);
+        } catch (Exception ignored) {}
     }
 
     private static String sha1(String s) {
@@ -194,6 +242,20 @@ public final class ScriptSystem implements KSystem {
             return sb.toString();
         } catch (Exception e) {
             return Integer.toHexString(s.hashCode());
+        }
+    }
+
+    private static final class ModuleRec {
+        final String moduleId;
+        final String hash;
+        final Value exports;
+        final Value factory;
+
+        ModuleRec(String moduleId, String hash, Value exports, Value factory) {
+            this.moduleId = moduleId;
+            this.hash = hash;
+            this.exports = exports;
+            this.factory = factory;
         }
     }
 }

@@ -1,7 +1,7 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.graalvm.polyglot.HostAccess;
-import org.foxesworld.kalitech.engine.api.EntityApi;
+import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 
 import java.util.Objects;
