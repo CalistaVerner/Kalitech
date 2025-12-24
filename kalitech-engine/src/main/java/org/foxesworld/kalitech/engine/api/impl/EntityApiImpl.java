@@ -9,9 +9,11 @@ import java.util.Objects;
 
 public final class EntityApiImpl implements EntityApi {
 
+    private final EngineApiImpl engine;
     private final EcsWorld ecs;
 
     public EntityApiImpl(EngineApiImpl engineApi) {
+        this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = engineApi.getEcs();
     }
 
@@ -28,6 +30,11 @@ public final class EntityApiImpl implements EntityApi {
     @HostAccess.Export
     @Override
     public void destroy(int id) {
+        // ✅ surface cleanup BEFORE ecs entity is gone
+        try {
+            engine.__surfaceCleanupOnEntityDestroy(id);
+        } catch (Throwable ignored) {}
+
         ecs.destroyEntity(id);
     }
 

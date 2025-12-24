@@ -126,11 +126,18 @@ public final class GraalScriptRuntime implements Closeable {
         final MethodHandle render0;
         final MethodHandle world0;
         final MethodHandle entity0;
+        final MethodHandle ui0; // >>> UI ADDITION
 
-        ApiAccessors(MethodHandle render0, MethodHandle world0, MethodHandle entity0) {
+        ApiAccessors(
+                MethodHandle render0,
+                MethodHandle world0,
+                MethodHandle entity0,
+                MethodHandle ui0 // >>> UI ADDITION
+        ) {
             this.render0 = render0;
             this.world0 = world0;
             this.entity0 = entity0;
+            this.ui0 = ui0;
         }
     }
 
@@ -151,14 +158,17 @@ public final class GraalScriptRuntime implements Closeable {
         return accessorCache.computeIfAbsent(apiClass, GraalScriptRuntime::resolveAccessors);
     }
 
+
     private static ApiAccessors resolveAccessors(Class<?> apiClass) {
         MethodHandles.Lookup lookup = MethodHandles.publicLookup();
+
         MethodHandle render = unreflectNoArgIfExists(lookup, apiClass, "render");
         MethodHandle world  = unreflectNoArgIfExists(lookup, apiClass, "world");
         MethodHandle entity = unreflectNoArgIfExists(lookup, apiClass, "entity");
-        return new ApiAccessors(render, world, entity);
-    }
+        MethodHandle ui     = unreflectNoArgIfExists(lookup, apiClass, "ui"); // >>> UI ADDITION
 
+        return new ApiAccessors(render, world, entity, ui);
+    }
     private static MethodHandle unreflectNoArgIfExists(MethodHandles.Lookup lookup, Class<?> cls, String name) {
         try {
             var m = cls.getMethod(name);
@@ -603,6 +613,9 @@ public final class GraalScriptRuntime implements Closeable {
             if (world != null) b.putMember("world", world);
             Object entity = safeInvoke(acc.entity0, engineApi, "entity");
             if (entity != null) b.putMember("entity", entity);
+
+            Object ui = safeInvoke(acc.ui0, engineApi, "ui");
+            if (ui != null) b.putMember("ui", ui);
         }
     }
 

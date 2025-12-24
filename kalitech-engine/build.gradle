@@ -12,6 +12,10 @@ dependencies {
     implementation project(':kalitech-core')
     implementation project(':kalitech-neural')
 
+    implementation "me.friwi:jcefmaven:116.0.19"
+    runtimeOnly "me.friwi:jcef-natives-windows-amd64:jcef-37f25dc+cef-116.0.19+gc6a20bc+chromium-116.0.5845.141"
+
+
     api "org.jmonkeyengine:jme3-core:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-desktop:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-lwjgl3:${rootProject.ext.jmeVersion}"

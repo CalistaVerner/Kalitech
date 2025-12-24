@@ -22,6 +22,7 @@ public final class EngineApiImpl implements EngineApi {
     private final AssetManager assets;
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
+    private final Thread jmeThread;
 
     private final CameraState cameraState;
     private final LogApi logApi;
@@ -34,9 +35,14 @@ public final class EngineApiImpl implements EngineApi {
     private final InputApiImpl inputApi;
     private final WorldApi worldApi;
     private final MaterialApi materialApi;
-
-
     private final EditorApi editorApi;
+    private final UiApiImpl ui;
+
+    // ✅ new: unified surface registry + apis
+    private final SurfaceRegistry surfaceRegistry;
+    private final SurfaceApi surfaceApi;
+    private final TerrainApi terrainApi;
+    private final TerrainSplatApi terrainSplatApi;
 
     public EngineApiImpl(SimpleApplication app, AssetManager assets, ScriptEventBus bus, EcsWorld ecs) {
         this.app = Objects.requireNonNull(app, "app");
@@ -48,10 +54,21 @@ public final class EngineApiImpl implements EngineApi {
         this.assetsApi = new AssetsApiImpl(this);
         this.eventsApi = new EventsApiImpl(this);
         this.materialApi = new MaterialApiImpl(this);
+        this.jmeThread = Thread.currentThread();
+        this.ui = new UiApiImpl();
+
+        // ✅ registry must be created early
+        this.surfaceRegistry = new SurfaceRegistry(this.app);
+        this.surfaceApi = new SurfaceApiImpl(this, surfaceRegistry);
+        this.terrainApi = new TerrainApiImpl(this, surfaceRegistry);
+        this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
+
         this.entityApi = new EntityApiImpl(this);
         this.renderApi = new RenderApiImpl(this);
+
         this.cameraState = new CameraState();
         this.cameraApi = new CameraApiImpl(this);
+
         this.timeApi = new TimeApiImpl(this);
         this.inputApi = new InputApiImpl(this);
         this.worldApi = new WorldApiImpl(this);
@@ -65,11 +82,19 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
     @HostAccess.Export @Override public RenderApi render() { return renderApi; }
     @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
+
+    @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
+    @HostAccess.Export @Override public TerrainApi terrain() { return terrainApi; }
+    @HostAccess.Export @Override public TerrainSplatApi terrainSplat() { return terrainSplatApi; }
+
     @HostAccess.Export @Override public String engineVersion() { return ((KalitechApplication) app).getVersion(); }
     @HostAccess.Export @Override public TimeApi time() { return timeApi; }
     @HostAccess.Export @Override public InputApi input() { return inputApi; }
     @HostAccess.Export @Override public WorldApi world() { return worldApi; }
     @HostAccess.Export @Override public EditorApi editor() { return editorApi; }
+    @HostAccess.Export
+    @Override public boolean isJmeThread() {        return Thread.currentThread() == jmeThread;}
+
 
     // internal hooks
     public void __updateTime(double tpf) { timeApi.update(tpf); }
@@ -81,6 +106,20 @@ public final class EngineApiImpl implements EngineApi {
             editorApi.setEnabled(enabled);
         } catch (Throwable t) {
             log.error("__setEditorMode failed", t);
+        }
+    }
+
+    // ✅ called by EntityApiImpl.destroy before ecs.destroyEntity
+    public void __surfaceCleanupOnEntityDestroy(int entityId) {
+        try {
+            Integer surfaceId = surfaceRegistry.detachEntity(entityId);
+            if (surfaceId != null) {
+                surfaceRegistry.destroy(surfaceId);
+            }
+            // also remove component if present
+            try { ecs.components().removeByName(entityId, "Surface"); } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            log.warn("__surfaceCleanupOnEntityDestroy failed entityId={}", entityId, t);
         }
     }
 
@@ -102,27 +141,14 @@ public final class EngineApiImpl implements EngineApi {
         });
     }
 
-    public CameraState getCameraState() {
-        return cameraState;
+    @HostAccess.Export
+    public UiApiImpl ui() {
+        return ui;
     }
-
-    public AssetManager getAssets() {
-        return assets;
-    }
-
-    public SimpleApplication getApp() {
-        return app;
-    }
-
-    public ScriptEventBus getBus() {
-        return bus;
-    }
-
-    public EcsWorld getEcs() {
-        return ecs;
-    }
-
-    public Logger getLog() {
-        return log;
-    }
+    public CameraState getCameraState() { return cameraState; }
+    public AssetManager getAssets() { return assets; }
+    public SimpleApplication getApp() { return app; }
+    public ScriptEventBus getBus() { return bus; }
+    public EcsWorld getEcs() { return ecs; }
+    public Logger getLog() { return log; }
 }

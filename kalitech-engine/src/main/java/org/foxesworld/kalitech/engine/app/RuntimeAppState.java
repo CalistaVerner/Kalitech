@@ -91,7 +91,7 @@ public final class RuntimeAppState extends BaseAppState {
         if (!isEnabled()) return;
 
         engineApi.__updateTime(tpf);
-
+        engineApi.ui().tick();
         // пока WorldAppState не готов — просто ждём
         if (worldState == null || worldState.getContextForJs() == null) return;
 
@@ -116,7 +116,6 @@ public final class RuntimeAppState extends BaseAppState {
                 }
             }
         }
-
         if (dirty) {
             dirty = false;
             reloadMainAndRebuildWorld();

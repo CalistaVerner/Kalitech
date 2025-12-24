@@ -1,3 +1,4 @@
+// FILE: RenderApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -6,10 +7,12 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.FogFilter;
 import com.jme3.renderer.queue.RenderQueue;
+import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.terrain.geomipmap.TerrainQuad;
@@ -25,9 +28,11 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.intClampR;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.numClamp;
@@ -36,14 +41,23 @@ public final class RenderApiImpl implements RenderApi {
 
     private static final Logger log = LogManager.getLogger(RenderApiImpl.class);
 
+    // Fog state cache (prevents spam + avoids redundant updates)
+    private double _fogBaseR = 0.70;
+    private double _fogBaseG = 0.78;
+    private double _fogBaseB = 0.90;
+    private double _fogDensity = 1.2;
+    private double _fogDistance = 250.0;
+
     private final Set<String> missingMatParamsLogged =
             java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    private final EngineApiImpl engineApi;
     private final SimpleApplication app;
     private final AssetManager assets;
+    @SuppressWarnings("unused")
     private final EcsWorld ecs;
 
-    private boolean sceneReady = false;
+    private volatile boolean sceneReady = false;
 
     private TerrainQuad terrain;
     private AmbientLight ambient;
@@ -54,11 +68,69 @@ public final class RenderApiImpl implements RenderApi {
     private FilterPostProcessor fpp;
     private FogFilter fog;
 
+    // ---------------------------
+    // Spatial handles (JS-facing)
+    // ---------------------------
+
+    public static final class SpatialHandle {
+        private final int id;
+        private SpatialHandle(int id) { this.id = id; }
+        @HostAccess.Export public int id() { return id; }
+        @Override public String toString() { return "SpatialHandle(" + id + ")"; }
+    }
+
+    private final AtomicInteger spatialIds = new AtomicInteger(1);
+    private final ConcurrentHashMap<Integer, Spatial> spatials = new ConcurrentHashMap<>();
+
+    // ✅ stable root handle (no leaking new handles on every root() call)
+    private final SpatialHandle rootHandle;
+
     public RenderApiImpl(EngineApiImpl engineApi) {
+        this.engineApi = engineApi;
         this.app = engineApi.getApp();
         this.assets = engineApi.getAssets();
         this.ecs = engineApi.getEcs();
+
+        // register root once
+        this.rootHandle = registerSpatial(app.getRootNode());
     }
+
+    private void onJme(Runnable r) {
+        if (engineApi.isJmeThread()) {
+            r.run();
+        } else {
+            app.enqueue(() -> { r.run(); return null; });
+        }
+    }
+
+    private SpatialHandle registerSpatial(Spatial s) {
+        int id = spatialIds.getAndIncrement();
+        spatials.put(id, s);
+        return new SpatialHandle(id);
+    }
+
+    private Spatial requireSpatial(Object handle, String where) {
+        if (handle == null) throw new IllegalArgumentException(where + ": handle is null");
+
+        final int id;
+        if (handle instanceof SpatialHandle sh) id = sh.id;
+        else if (handle instanceof Number n) id = n.intValue();
+        else throw new IllegalArgumentException(where + ": invalid handle type: " + handle.getClass().getName());
+
+        Spatial s = spatials.get(id);
+        if (s == null) throw new IllegalArgumentException(where + ": spatial not found id=" + id);
+        return s;
+    }
+
+    private int handleId(Object handle, String where) {
+        if (handle instanceof SpatialHandle sh) return sh.id;
+        if (handle instanceof Number n) return n.intValue();
+        throw new IllegalArgumentException(where + ": invalid handle type: " + handle.getClass().getName());
+    }
+
+    // ------------------------------------------------------------
+    // Core lifecycle
+    // ------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -68,46 +140,24 @@ public final class RenderApiImpl implements RenderApi {
         log.info("RenderApi: scene ready");
     }
 
-    // ------------------------------------------------------------
-    // Terrain base
-    // ------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void terrainFromHeightmap(
-            String heightmapAsset,
-            double patchSizeD,
-            double sizeD,
-            double heightScaleD,
-            double xzScaleD
-    ) {
-        ensureScene();
-
-        int patchSize = Math.max(17, (int) Math.round(patchSizeD));
-
-        if (terrain != null) {
-            terrain.removeFromParent();
-            terrain = null;
+    private void ensureSunExists() {
+        // must be called on JME thread
+        if (sun == null) {
+            sun = new DirectionalLight();
+            app.getRootNode().addLight(sun);
         }
+        // IMPORTANT: keep shadows bound to THE SAME light instance
+        if (sunShadow != null) {
+            sunShadow.setLight(sun);
+        }
+    }
 
-        Texture tex = assets.loadTexture(heightmapAsset);
-        AbstractHeightMap hm = new ImageBasedHeightMap(tex.getImage(), (float) heightScaleD);
-        hm.load();
-
-        int size = Math.max(33, (int) Math.round(sizeD));
-
-        terrain = new TerrainQuad("terrain", patchSize, size, hm.getHeightMap());
-        terrain.setLocalScale((float) xzScaleD, 1f, (float) xzScaleD);
-        terrain.setShadowMode(RenderQueue.ShadowMode.Receive);
-
-        Material mat = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", new ColorRGBA(0.25f, 0.7f, 0.3f, 1f));
-        terrain.setMaterial(mat);
-
-        app.getRootNode().attachChild(terrain);
-
-        log.info("RenderApi: terrain created ({}, size={}, scale={})",
-                heightmapAsset, size, xzScaleD);
+    private void ensureAmbientExists() {
+        // must be called on JME thread
+        if (ambient == null) {
+            ambient = new AmbientLight();
+            app.getRootNode().addLight(ambient);
+        }
     }
 
     // ------------------------------------------------------------
@@ -118,12 +168,11 @@ public final class RenderApiImpl implements RenderApi {
     @Override
     public void ambient(double r, double g, double b, double intensity) {
         ensureScene();
-        if (ambient == null) {
-            ambient = new AmbientLight();
-            app.getRootNode().addLight(ambient);
-        }
-        ambient.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
-                .mult((float) Math.max(0.0, intensity)));
+        onJme(() -> {
+            ensureAmbientExists();
+            ambient.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
+                    .mult((float) Math.max(0.0, intensity)));
+        });
     }
 
     @HostAccess.Export
@@ -132,43 +181,51 @@ public final class RenderApiImpl implements RenderApi {
                     double r, double g, double b,
                     double intensity) {
         ensureScene();
-        if (sun == null) {
-            sun = new DirectionalLight();
-            app.getRootNode().addLight(sun);
-        }
+        onJme(() -> {
+            ensureSunExists();
 
-        Vector3f dir = new Vector3f((float) dx, (float) dy, (float) dz);
-        if (dir.lengthSquared() < 1e-6f) dir.set(-1, -1, -1);
-        dir.normalizeLocal();
+            Vector3f dir = new Vector3f((float) dx, (float) dy, (float) dz);
+            if (dir.lengthSquared() < 1e-6f) dir.set(-1, -1, -1);
+            dir.normalizeLocal();
 
-        sun.setDirection(dir);
-        sun.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
-                .mult((float) Math.max(0.0, intensity)));
+            // DirectionalLight in jME points *towards* the scene along direction vector.
+            sun.setDirection(dir);
+            sun.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
+                    .mult((float) Math.max(0.0, intensity)));
 
-        if (terrain != null) terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
+            // if terrain exists, allow it to both cast & receive (helps show motion)
+            if (terrain != null) terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
+
+            // CRITICAL: keep shadows bound to the same sun instance
+            if (sunShadow != null) {
+                sunShadow.setLight(sun);
+            }
+        });
     }
 
     @HostAccess.Export
     @Override
     public void sunShadows(double mapSizeD, double splitsD, double lambdaD) {
         ensureScene();
+        onJme(() -> {
+            ensureSunExists();
 
-        if (sun == null) sun(-1, -1, -1, 1, 1, 1, 1);
+            int ms = clamp((int) Math.round(mapSizeD), 256, 8192);
+            int sp = clamp((int) Math.round(splitsD), 1, 4);
+            float lambda = (float) clamp(lambdaD, 0.0, 1.0);
 
-        int ms = clamp((int) Math.round(mapSizeD), 256, 8192);
-        int sp = clamp((int) Math.round(splitsD), 1, 4);
-        float lambda = (float) clamp(lambdaD, 0.0, 1.0);
+            if (sunShadow != null) {
+                try { app.getViewPort().removeProcessor(sunShadow); } catch (Exception ignored) {}
+                sunShadow = null;
+            }
 
-        if (sunShadow != null) {
-            app.getViewPort().removeProcessor(sunShadow);
-        }
+            sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
+            sunShadow.setLight(sun);              // ✅ bind to the SAME sun instance
+            sunShadow.setLambda(lambda);
+            app.getViewPort().addProcessor(sunShadow);
 
-        sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
-        sunShadow.setLight(sun);
-        sunShadow.setLambda(lambda);
-        app.getViewPort().addProcessor(sunShadow);
-
-        log.info("RenderApi: sun shadows enabled ({}px, splits={}, λ={})", ms, sp, lambda);
+            log.info("RenderApi: sun shadows enabled ({}px, splits={}, lambda={})", ms, sp, lambda);
+        });
     }
 
     @HostAccess.Export
@@ -212,99 +269,89 @@ public final class RenderApiImpl implements RenderApi {
     @Override
     public void skyboxCube(String cubeMapAsset) {
         ensureScene();
-
-        if (sky != null) {
-            sky.removeFromParent();
-            sky = null;
+        if (cubeMapAsset == null || cubeMapAsset.isBlank()) {
+            throw new IllegalArgumentException("skyboxCube: cubeMapAsset is empty");
         }
+        onJme(() -> {
+            if (sky != null) {
+                sky.removeFromParent();
+                sky = null;
+            }
 
-        sky = SkyFactory.createSky(assets, cubeMapAsset, SkyFactory.EnvMapType.CubeMap);
-        app.getRootNode().attachChild(sky);
+            sky = SkyFactory.createSky(assets, cubeMapAsset.trim(), SkyFactory.EnvMapType.CubeMap);
+            app.getRootNode().attachChild(sky);
 
-        log.info("RenderApi: skybox set {}", cubeMapAsset);
+            log.info("RenderApi: skybox set {}", cubeMapAsset);
+        });
     }
 
     @HostAccess.Export
     @Override
     public void fogCfg(Value cfg) {
         ensureScene();
+        onJme(() -> {
+            double r = num(cfg, "r", numPath(cfg, "color", "r", _fogBaseR));
+            double g = num(cfg, "g", numPath(cfg, "color", "g", _fogBaseG));
+            double b = num(cfg, "b", numPath(cfg, "color", "b", _fogBaseB));
 
-        double r = num(cfg, "r", numPath(cfg, "color", "r", 0.7));
-        double g = num(cfg, "g", numPath(cfg, "color", "g", 0.75));
-        double b = num(cfg, "b", numPath(cfg, "color", "b", 0.85));
+            double density = num(cfg, "density", _fogDensity);
+            double distance = num(cfg, "distance", _fogDistance);
 
-        double density = num(cfg, "density", 1.2);
-        double distance = num(cfg, "distance", 300.0);
+            // lazy init processors once
+            if (fpp == null) {
+                fpp = new FilterPostProcessor(assets);
+                app.getViewPort().addProcessor(fpp);
+            }
+            if (fog == null) {
+                fog = new FogFilter();
+                fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
+                fog.setFogDensity((float) density);
+                fog.setFogDistance((float) distance);
+                fpp.addFilter(fog);
 
-        if (fpp == null) {
-            fpp = new FilterPostProcessor(assets);
-            app.getViewPort().addProcessor(fpp);
-        }
+                _fogBaseR = r; _fogBaseG = g; _fogBaseB = b;
+                _fogDensity = density;
+                _fogDistance = distance;
 
-        if (fog != null) {
-            fpp.removeFilter(fog);
-        }
+                log.info("RenderApi: fog enabled (density={}, distance={})", density, distance);
+                return;
+            }
 
-        fog = new FogFilter();
-        fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
-        fog.setFogDensity((float) density);
-        fog.setFogDistance((float) distance);
+            // update only if changed enough
+            boolean changed = false;
 
-        fpp.addFilter(fog);
+            if (Math.abs(r - _fogBaseR) > 1e-4 || Math.abs(g - _fogBaseG) > 1e-4 || Math.abs(b - _fogBaseB) > 1e-4) {
+                fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
+                _fogBaseR = r; _fogBaseG = g; _fogBaseB = b;
+                changed = true;
+            }
+            if (Math.abs(density - _fogDensity) > 1e-4) {
+                fog.setFogDensity((float) density);
+                _fogDensity = density;
+                changed = true;
+            }
+            if (Math.abs(distance - _fogDistance) > 1e-3) {
+                fog.setFogDistance((float) distance);
+                _fogDistance = distance;
+                changed = true;
+            }
 
-        log.info("RenderApi: fog enabled (density={}, distance={})", density, distance);
-    }
-
-    // ------------------------------------------------------------
-    // Terrain splat (compat)
-    // ------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void terrainSplat3(
-            String alphaMapAsset,
-            String tex1, double scale1,
-            String tex2, double scale2,
-            String tex3, double scale3
-    ) {
-        ensureScene();
-
-        if (terrain == null) throw new IllegalStateException("terrainSplat3: terrain not created");
-
-        Material mat = new Material(assets, "Common/MatDefs/Terrain/TerrainLighting.j3md");
-
-        Texture alpha = assets.loadTexture(alphaMapAsset);
-        alpha.setWrap(Texture.WrapMode.Clamp);
-        mat.setTexture("AlphaMap", alpha);
-
-        Texture t1 = assets.loadTexture(tex1);
-        Texture t2 = assets.loadTexture(tex2);
-        Texture t3 = assets.loadTexture(tex3);
-
-        t1.setWrap(Texture.WrapMode.Repeat);
-        t2.setWrap(Texture.WrapMode.Repeat);
-        t3.setWrap(Texture.WrapMode.Repeat);
-
-        setLayer(mat, 0, t1, (float) scale1);
-        setLayer(mat, 1, t2, (float) scale2);
-        setLayer(mat, 2, t3, (float) scale3);
-
-        terrain.setMaterial(mat);
-        terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
-
-        log.info("RenderApi: terrain splat applied (alpha={}, {}, {}, {})",
-                alphaMapAsset, tex1, tex2, tex3);
+            // log at DEBUG only (and only if changed)
+            if (changed && log.isDebugEnabled()) {
+                log.debug("RenderApi: fog updated (density={}, distance={})", _fogDensity, _fogDistance);
+            }
+        });
     }
 
     private void setLayer(Material mat, int layerIndex, Texture tex, float scale) {
+        // texture param names across jME versions / matdefs
         String texParamA = (layerIndex == 0) ? "DiffuseMap" : ("DiffuseMap_" + layerIndex);
         String texParamB = "Tex" + (layerIndex + 1);
 
         boolean texOk = trySetTexture(mat, texParamA, tex) || trySetTexture(mat, texParamB, tex);
-        if (!texOk) {
-            warnMissingOnce(mat, "layerTexture#" + layerIndex + " (" + texParamA + " / " + texParamB + ")");
-        }
+        if (!texOk) warnMissingOnce(mat, "layerTexture#" + layerIndex + " (" + texParamA + " / " + texParamB + ")");
 
+        // scale param names across matdefs
         String scaleA = "DiffuseMap_" + layerIndex + "_scale";
         String scaleB = "Tex" + (layerIndex + 1) + "Scale";
         String scaleC = "Tex" + (layerIndex + 1) + "_Scale";
@@ -349,65 +396,9 @@ public final class RenderApiImpl implements RenderApi {
         }
     }
 
-    @HostAccess.Export
-    @Override
-    public void terrain(Value cfg) {
-        terrainCfg(cfg);
-    }
-
-
     // ------------------------------------------------------------
-    // JS-first terrain(cfg): now supports cfg.material handle
+    // Terrain cfg (compat + JS-first)
     // ------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void terrainCfg(Value cfg) {
-        ensureScene();
-        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("render.terrain(cfg): cfg is null");
-
-        String heightmap = str(cfg, "heightmap", null);
-        if (heightmap == null || heightmap.isBlank()) {
-            throw new IllegalArgumentException("render.terrain({heightmap}) heightmap is required");
-        }
-
-        int patchSize = intClampR(cfg, "patchSize", 65, 17, 257);
-        int size = intClampR(cfg, "size", 513, 33, 8193);
-        double heightScale = num(cfg, "heightScale", 2.0);
-        double xzScale = num(cfg, "xzScale", 2.0);
-
-        terrainFromHeightmap(heightmap, patchSize, size, heightScale, xzScale);
-
-        // 1) Preferred: cfg.material (MaterialHandle)
-        boolean materialApplied = applyTerrainMaterialHandle(cfg);
-
-        // 2) Compat: alpha + layers (only if material not provided)
-        String alpha = str(cfg, "alpha", null);
-        Value layers = member(cfg, "layers");
-        if (!materialApplied && alpha != null && !alpha.isBlank() && layers != null && layers.hasArrayElements()) {
-            Layer L0 = readLayer(layers, 0);
-            Layer L1 = readLayer(layers, 1);
-            Layer L2 = readLayer(layers, 2);
-
-            if (L0.tex == null) throw new IllegalArgumentException("render.terrain: layers[0].tex is required");
-            if (L1.tex == null) L1 = L0;
-            if (L2.tex == null) L2 = L1;
-
-            terrainSplat3(alpha, L0.tex, L0.scale, L1.tex, L1.scale, L2.tex, L2.scale);
-        }
-
-        boolean shadows = bool(cfg, "shadows", true);
-        if (terrain != null) {
-            terrain.setShadowMode(shadows ? RenderQueue.ShadowMode.CastAndReceive : RenderQueue.ShadowMode.Receive);
-        }
-
-        log.info("RenderApi: terrain(cfg) applied heightmap={} material={} alpha={} layers={}",
-                heightmap,
-                materialApplied ? "yes" : "no",
-                alpha,
-                (layers != null && layers.hasArrayElements()) ? layers.getArraySize() : 0
-        );
-    }
 
     private boolean applyTerrainMaterialHandle(Value cfg) {
         if (terrain == null) return false;
@@ -420,8 +411,10 @@ public final class RenderApiImpl implements RenderApi {
             if (m.isHostObject()) host = m.asHostObject();
 
             if (host instanceof MaterialApiImpl.MaterialHandle mh && mh.__material() != null) {
-                terrain.setMaterial(mh.__material());
-                terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
+                onJme(() -> {
+                    terrain.setMaterial(mh.__material());
+                    terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
+                });
                 return true;
             }
             return false;
@@ -506,13 +499,6 @@ public final class RenderApiImpl implements RenderApi {
             return def;
         }
     }
-
-    public RenderApiImpl(SimpleApplication app, AssetManager assets, EcsWorld ecs) {
-        this.app = Objects.requireNonNull(app, "app");
-        this.assets = Objects.requireNonNull(assets, "assets");
-        this.ecs = Objects.requireNonNull(ecs, "ecs");
-    }
-
 
     private static float vec3x(Value v, float def) {
         try {

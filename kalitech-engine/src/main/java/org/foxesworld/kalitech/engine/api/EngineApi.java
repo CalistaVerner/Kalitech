@@ -6,45 +6,35 @@ import org.graalvm.polyglot.Value;
 
 @SuppressWarnings("unused")
 public interface EngineApi {
-    @HostAccess.Export
-    LogApi log();
+    @HostAccess.Export LogApi log();
+    @HostAccess.Export AssetsApi assets();
+    @HostAccess.Export EventsApi events();
+    @HostAccess.Export MaterialApi material();
+    @HostAccess.Export EntityApi entity();
+    @HostAccess.Export RenderApi render();
+    @HostAccess.Export CameraApi camera();
 
-    @HostAccess.Export
-    AssetsApi assets();
+    // ✅ new unified surface layer
+    @HostAccess.Export SurfaceApi surface();
 
-    @HostAccess.Export
-    EventsApi events();
+    // ✅ new terrain builder
+    @HostAccess.Export TerrainApi terrain();
 
-    @HostAccess.Export
-    MaterialApi material();
+    @HostAccess.Export boolean isJmeThread();
 
-    @HostAccess.Export
-    EntityApi entity();
 
-    @HostAccess.Export
-    RenderApi render();
+    // ✅ new terrain splat layer (separate from builder)
+    @HostAccess.Export TerrainSplatApi terrainSplat();
 
-    @HostAccess.Export
-    CameraApi camera();
-
-    @HostAccess.Export
-    String engineVersion();
+    @HostAccess.Export String engineVersion();
 
     @HostAccess.Export TimeApi time();
     @HostAccess.Export InputApi input();
-
-
-    @HostAccess.Export
-    WorldApi world();
-
-    @HostAccess.Export
-    EditorApi editor();
+    @HostAccess.Export WorldApi world();
+    @HostAccess.Export EditorApi editor();
 
     /**
      * Execute a callback on JME main thread via Application#enqueue.
-     *
-     * <p>Use this when you call APIs that touch the scene graph, viewport processors,
-     * camera, physics, etc.
      */
     @HostAccess.Export
     void runOnMainThread(Value fn);
