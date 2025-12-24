@@ -1,11 +1,15 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 public interface CameraApi {
-    @HostAccess.Export void setLocation(double x, double y, double z);
-    @HostAccess.Export void lookAt(double x, double y, double z, double upX, double upY, double upZ);
 
-    @HostAccess.Export void setFlyEnabled(boolean enabled);
-    @HostAccess.Export void setFlySpeed(double speed);
+    @HostAccess.Export void mode(String mode);
+    @HostAccess.Export String mode();
+
+    @HostAccess.Export void enabled(boolean on);
+    @HostAccess.Export boolean enabled();
+
+    @HostAccess.Export void fly(Value cfg);
 }

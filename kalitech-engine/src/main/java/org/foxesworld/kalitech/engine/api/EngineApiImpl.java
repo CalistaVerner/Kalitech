@@ -23,6 +23,7 @@ public final class EngineApiImpl implements EngineApi {
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
 
+    private final org.foxesworld.kalitech.engine.api.impl.CameraState cameraState;
     private final LogApi logApi;
     private final AssetsApi assetsApi;
     private final EventsApi eventsApi;
@@ -46,7 +47,8 @@ public final class EngineApiImpl implements EngineApi {
         this.eventsApi = new EventsApiImpl(bus);
         this.entityApi = new EntityApiImpl(ecs);
         this.renderApi = new RenderApiImpl(app, assets);
-        this.cameraApi = new CameraApiImpl(app);
+        this.cameraState = new org.foxesworld.kalitech.engine.api.impl.CameraState();
+        this.cameraApi = new CameraApiImpl(app, cameraState);
         this.timeApi = new TimeApiImpl();
         this.inputApi = new InputApiImpl(app.getInputManager());
         this.worldApi = new WorldApiImpl(ecs, bus);
@@ -95,5 +97,9 @@ public final class EngineApiImpl implements EngineApi {
             }
             return null;
         });
+    }
+
+    public CameraState getCameraState() {
+        return cameraState;
     }
 }

@@ -285,6 +285,10 @@ public final class RuntimeAppState extends BaseAppState {
         log.info("RuntimeAppState stopped");
     }
 
+    public EngineApiImpl getEngineApi() {
+        return engineApi;
+    }
+
     @Override protected void onEnable() {}
     @Override protected void onDisable() {}
 }
