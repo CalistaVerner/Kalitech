@@ -2,6 +2,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 
@@ -12,11 +13,8 @@ import java.util.Objects;
  *
  * Runs a JS "world system" module.
  *
- * Supported module shapes:
- * 1) module.exports = { start(ctx), update(ctx,tpf), stop(ctx) }
- * 2) module.exports = { init(ctx), update(ctx,tpf), destroy(ctx) }  (legacy names)
- * 3) module.exports = function() { return { ... } }
- * 4) module.exports = { create: () => ({ ... }) }
+ * Shutdown-safe:
+ * - If Graal context is closing/cancelled, stop() becomes no-op (no WARN spam).
  */
 public final class JsWorldSystem implements KSystem {
 
@@ -45,103 +43,159 @@ public final class JsWorldSystem implements KSystem {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.runtime = Objects.requireNonNull(ctx.runtime(), "ctx.runtime");
 
-        // Create initial instance
         restartIfNeeded(true);
 
         log.info("JsWorldSystem started: {} (hotReload={})", moduleId, hotReload);
     }
 
     @Override
-    public void onUpdate(SystemContext context, float tpf) {
+    public void onUpdate(SystemContext systemContext, float tpf) {
         if (runtime == null) return;
 
         if (hotReload) {
             restartIfNeeded(false);
         }
 
-        if (instance != null && hasFn(instance, "update")) {
-            instance.getMember("update").execute(ctx, tpf);
+        // update(ctx,tpf)
+        try {
+            if (safeHasFn(instance, "update")) {
+                instance.getMember("update").execute(ctx, tpf);
+            }
+        } catch (PolyglotException pe) {
+            // During shutdown/cancel, treat as normal.
+            if (!isContextCancelled(pe)) {
+                log.warn("JsWorldSystem update failed: {}", moduleId, pe);
+            }
+        } catch (Throwable t) {
+            log.warn("JsWorldSystem update failed: {}", moduleId, t);
         }
     }
 
     @Override
-    public void onStop(SystemContext context) {
+    public void onStop(SystemContext systemContext) {
+        // IMPORTANT: During shutdown Graal context may already be cancelled/closing.
+        // Any Value.* call can throw PolyglotException. Treat it as normal and do not warn.
         try {
-            if (instance != null) {
-                // stop(ctx) preferred
-                if (hasFn(instance, "stop")) instance.getMember("stop").execute(ctx);
-                else if (hasFn(instance, "destroy")) instance.getMember("destroy").execute(ctx);
-            }
-        } catch (Throwable t) {
-            log.warn("JsWorldSystem stop failed: {}", moduleId, t);
+            safeStopInstance();
         } finally {
             instance = null;
             appliedVersion = null;
             runtime = null;
             ctx = null;
+            log.info("JsWorldSystem stopped: {}", moduleId);
         }
-
-        log.info("JsWorldSystem stopped: {}", moduleId);
     }
 
     // ---------------- internals ----------------
 
+    private void safeStopInstance() {
+        if (instance == null) return;
+
+        try {
+            // stop(ctx) preferred
+            if (safeHasFn(instance, "stop")) {
+                instance.getMember("stop").execute(ctx);
+                return;
+            }
+            // legacy alias
+            if (safeHasFn(instance, "destroy")) {
+                instance.getMember("destroy").execute(ctx);
+            }
+        } catch (PolyglotException pe) {
+            if (!isContextCancelled(pe)) {
+                log.warn("JsWorldSystem stop failed: {}", moduleId, pe);
+            }
+            // cancelled -> swallow
+        } catch (Throwable t) {
+            log.warn("JsWorldSystem stop failed: {}", moduleId, t);
+        }
+    }
+
     private void restartIfNeeded(boolean force) {
         String id = normalize(moduleId);
-        String vStr = Long.toString(runtime.moduleVersion(id));
+        String vStr = "0";
+        try {
+            vStr = Long.toString(runtime.moduleVersion(id));
+        } catch (PolyglotException pe) {
+            // runtime closing -> just keep current instance
+            if (isContextCancelled(pe)) return;
+            throw pe;
+        }
 
         if (!force && appliedVersion != null && appliedVersion.equals(vStr) && instance != null) {
             return;
         }
 
-        // destroy old
+        // destroy old (safe)
         if (instance != null) {
-            try {
-                if (hasFn(instance, "stop")) instance.getMember("stop").execute(ctx);
-                else if (hasFn(instance, "destroy")) instance.getMember("destroy").execute(ctx);
-            } catch (Throwable t) {
-                log.warn("JsWorldSystem destroy failed: {}", moduleId, t);
-            }
+            safeStopInstance();
             instance = null;
         }
 
         // load new
-        Value exports = runtime.require(id);
-        instance = createInstance(exports);
-        appliedVersion = vStr;
-
-        // start/init
         try {
-            if (hasFn(instance, "start")) instance.getMember("start").execute(ctx);
-            else if (hasFn(instance, "init")) instance.getMember("init").execute(ctx);
+            Value exports = runtime.require(id);
+            instance = createInstance(exports);
+            appliedVersion = vStr;
+
+            // start/init
+            if (safeHasFn(instance, "start")) instance.getMember("start").execute(ctx);
+            else if (safeHasFn(instance, "init")) instance.getMember("init").execute(ctx);
+
+        } catch (PolyglotException pe) {
+            if (!isContextCancelled(pe)) {
+                log.error("JsWorldSystem start failed: {}", moduleId, pe);
+            }
+            // cancelled -> swallow; engine is shutting down
         } catch (Throwable t) {
             log.error("JsWorldSystem start failed: {}", moduleId, t);
         }
     }
 
     private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) {
-            throw new IllegalStateException("JS module exports is null");
-        }
+        if (exports == null) return null;
 
-        if (exports.canExecute()) {
-            return exports.execute();
-        }
+        try {
+            if (exports.isNull()) return null;
 
-        if (exports.hasMember("create")) {
-            Value c = exports.getMember("create");
-            if (c != null && c.canExecute()) return c.execute();
-        }
+            if (exports.canExecute()) return exports.execute();
 
-        return exports;
+            if (exports.hasMember("create")) {
+                Value c = exports.getMember("create");
+                if (c != null && !c.isNull() && c.canExecute()) return c.execute();
+            }
+
+            return exports;
+        } catch (PolyglotException pe) {
+            if (isContextCancelled(pe)) return null;
+            throw pe;
+        }
     }
 
-    private static boolean hasFn(Value obj, String name) {
-        return obj != null
-                && !obj.isNull()
-                && obj.hasMember(name)
-                && obj.getMember(name) != null
-                && obj.getMember(name).canExecute();
+    /**
+     * Absolutely must be shutdown-safe: ANY Value.* may throw when context is cancelled.
+     */
+    private static boolean safeHasFn(Value obj, String name) {
+        if (obj == null) return false;
+        try {
+            if (obj.isNull()) return false;
+            if (!obj.hasMember(name)) return false;
+            Value m = obj.getMember(name);
+            return m != null && !m.isNull() && m.canExecute();
+        } catch (PolyglotException pe) {
+            return !isContextCancelled(pe) ? false : false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean isContextCancelled(PolyglotException pe) {
+        // Graal uses "Context execution was cancelled." and similar on shutdown.
+        // Also treat "closed" as normal shutdown.
+        String msg = pe.getMessage();
+        if (msg == null) return false;
+        String m = msg.toLowerCase();
+        return m.contains("cancel") || m.contains("closed");
     }
 
     private static String normalize(String id) {
