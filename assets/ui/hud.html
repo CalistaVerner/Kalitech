@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>KALITECH HUD</title>
+    <link rel="stylesheet" href="hud.css" />
+</head>
+<body>
+<div id="hud">
+    <div class="topbar">
+        <div class="brand">
+            <div class="dot"></div>
+            <div class="title">KALITECH</div>
+            <div class="subtitle">HUD / Dev Overlay</div>
+        </div>
+
+        <div class="status">
+            <span class="pill" id="conn">UI: boot</span>
+            <span class="pill" id="time">--:--:--</span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="cardTitle">World</div>
+            <div class="kv">
+                <div class="k">name</div><div class="v" id="worldName">main</div>
+                <div class="k">mode</div><div class="v" id="worldMode">game</div>
+                <div class="k">fps</div><div class="v" id="fps">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="cardTitle">Controls</div>
+            <div class="btnRow">
+                <button id="btnPing" class="btn">Ping Engine</button>
+                <button id="btnToast" class="btn btnAlt">Toast</button>
+            </div>
+            <div class="log" id="log"></div>
+        </div>
+
+        <div class="card">
+            <div class="cardTitle">Debug</div>
+            <div class="kv">
+                <div class="k">surface</div><div class="v" id="surfaceId">surface-1</div>
+                <div class="k">url</div><div class="v mono" id="url">ui/hud.html</div>
+                <div class="k">last msg</div><div class="v mono" id="lastMsg">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="hint">Hot reload: edit <span class="mono">assets/ui/hud.*</span></div>
+        <div class="hint">Bridge: engine → UI via ui.send(handle, msg)</div>
+    </div>
+</div>
+
+<script src="hud.js"></script>
+</body>
+</html>
