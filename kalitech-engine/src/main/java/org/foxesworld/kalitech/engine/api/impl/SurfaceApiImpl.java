@@ -213,6 +213,11 @@ public final class SurfaceApiImpl implements SurfaceApi {
             sy = (float) engine.input().mouseY();
         }
 
+        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
+        if (flipY) {
+            sy = cam.getHeight() - sy;
+        }
+
         float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
         int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
         boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
@@ -265,6 +270,62 @@ public final class SurfaceApiImpl implements SurfaceApi {
         @HostAccess.Export public final String kind;
         public SurfaceComponent(int surfaceId, String kind) { this.surfaceId = surfaceId; this.kind = kind; }
     }
+
+    // ------------------------------
+    // ✅ pickUnderCursor (WORLD/root)
+    // ------------------------------
+
+    @HostAccess.Export
+    @Override
+    public Hit[] pickUnderCursor() {
+        return pickUnderCursorCfg((Value) null);
+    }
+
+    @HostAccess.Export
+    @Override
+    public Hit[] pickUnderCursorCfg(Value cfg) {
+        Spatial s = engine.getApp().getRootNode();
+        if (s == null) return new Hit[0];
+
+        Camera cam = engine.getApp().getCamera();
+        if (cam == null) return new Hit[0];
+
+        float sx;
+        float sy;
+
+        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenX") && cfg.getMember("screenX").isNumber()) {
+            sx = (float) cfg.getMember("screenX").asDouble();
+        } else {
+            sx = (float) engine.input().mouseX();
+        }
+
+        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenY") && cfg.getMember("screenY").isNumber()) {
+            sy = (float) cfg.getMember("screenY").asDouble();
+        } else {
+            sy = (float) engine.input().mouseY();
+        }
+
+        // Many input systems report Y from top-left; JME camera coords expect bottom-left.
+        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
+        if (flipY) {
+            sy = cam.getHeight() - sy;
+        }
+
+        float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
+        int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
+        boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
+
+        Vector2f screen = new Vector2f(sx, sy);
+        Vector3f origin = cam.getWorldCoordinates(screen, 0f);
+        Vector3f far = cam.getWorldCoordinates(screen, 1f);
+        Vector3f dir = far.subtract(origin).normalizeLocal();
+
+        Ray ray = new Ray(origin, dir);
+        ray.setLimit(max);
+
+        return collide(s, ray, onlyClosest, limit);
+    }
+
 
     // --------------------------
     // Helpers

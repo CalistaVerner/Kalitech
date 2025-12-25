@@ -6,18 +6,17 @@ import com.jme3.asset.AssetManager;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
+import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.FogFilter;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
+import com.jme3.scene.debug.Grid;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.terrain.geomipmap.TerrainQuad;
-import com.jme3.terrain.heightmap.AbstractHeightMap;
-import com.jme3.terrain.heightmap.ImageBasedHeightMap;
 import com.jme3.texture.Texture;
 import com.jme3.util.SkyFactory;
 import org.apache.logging.log4j.LogManager;
@@ -28,8 +27,6 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,8 +45,10 @@ public final class RenderApiImpl implements RenderApi {
     private double _fogDensity = 1.2;
     private double _fogDistance = 250.0;
 
-    private final Set<String> missingMatParamsLogged =
-            java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<String> missingMatParamsLogged = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
+    // Editor debug nodes (grid, gizmos, etc.)
+    private final ConcurrentHashMap<Integer, Spatial> editorDebugSpatials = new ConcurrentHashMap<>();
+
 
     private final EngineApiImpl engineApi;
     private final SimpleApplication app;
@@ -453,6 +452,112 @@ public final class RenderApiImpl implements RenderApi {
             return new Layer(null, 32.0);
         }
     }
+
+    // ------------------------------------------------------------
+// Editor Debug: Grid Plane
+// ------------------------------------------------------------
+
+    @HostAccess.Export
+    public SpatialHandle createGridPlane(Value cfg) {
+        ensureScene();
+
+        // Read cfg with safe defaults
+        final double sizeD = num(cfg, "size", 200.0);
+        final double stepD = num(cfg, "step", 1.0);
+        final double yD = num(cfg, "y", 0.01);
+        final double opacityD = num(cfg, "opacity", 0.35);
+
+        // "majorStep" is currently not used by jME Grid directly (it draws uniform).
+        // We'll keep it for contract compatibility.
+        final double majorStepD = num(cfg, "majorStep", 10.0);
+
+        final float size = (float) clamp(sizeD, 1.0, 100_000.0);
+        final float step = (float) clamp(stepD, 0.01, 10_000.0);
+        final float y = (float) clamp(yD, -100_000.0, 100_000.0);
+        final float opacity = (float) clamp(opacityD, 0.0, 1.0);
+
+        // Convert to line count: jME Grid takes "size" in number of lines from center.
+        // We'll interpret cfg.size as "half-extent in world units", and derive line count by step.
+        int halfLines = (int) Math.max(1, Math.round(size / step));
+        // Safety cap so you don't accidentally create 200k lines
+        halfLines = clamp(halfLines, 1, 4096);
+
+        // World size actually represented:
+        final float worldHalfExtent = halfLines * step;
+
+        SpatialHandle[] out = new SpatialHandle[1];
+
+        int finalHalfLines = halfLines;
+        onJme(() -> {
+            // Create geometry
+            Grid grid = new Grid(finalHalfLines * 2, finalHalfLines * 2, step); // (xLines, zLines, spacing)
+            Geometry g = new Geometry("editor.grid", grid);
+
+            Material m = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
+            // Slightly bluish/gray fog-friendly grid
+            m.setColor("Color", new ColorRGBA(1f, 1f, 1f, opacity));
+            m.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+            m.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
+            m.getAdditionalRenderState().setDepthWrite(false); // reduce z-fighting on flat planes
+            m.getAdditionalRenderState().setWireframe(true);
+
+            g.setQueueBucket(RenderQueue.Bucket.Transparent);
+            g.setMaterial(m);
+
+            // Position at y, center at origin
+            g.setLocalTranslation(0f, y, 0f);
+
+            // Attach to root (or you can make a dedicated editor node later)
+            app.getRootNode().attachChild(g);
+
+            SpatialHandle h = registerSpatial(g);
+            editorDebugSpatials.put(h.id(), g);
+            out[0] = h;
+
+            if (log.isInfoEnabled()) {
+                log.info("RenderApi: grid created (handle={}, halfExtent={}, step={}, majorStep={})",
+                        h.id(), worldHalfExtent, step, majorStepD);
+            }
+        });
+
+        // Wait: our onJme is async when not on JME thread, but createGridPlane is called from JS on JME thread usually.
+        // If it's not, handle may be null; to keep it simple for now we ensure we are on JME thread by enqueue and return later is not possible.
+        // In Kalitech, scripts are typically ticked from JME thread, so this returns valid handle.
+        if (out[0] == null) {
+            // Fallback: create a handle to root (won't crash JS), but log warning.
+            log.warn("RenderApi: createGridPlane called off JME thread; returned root handle. Ensure scripts run on JME thread.");
+            return rootHandle;
+        }
+        return out[0];
+    }
+
+    @HostAccess.Export
+    public void destroyGridPlane(Object handle) {
+        if (handle == null) return;
+
+        onJme(() -> {
+            Spatial s;
+            try {
+                s = requireSpatial(handle, "destroyGridPlane");
+            } catch (Exception e) {
+                return;
+            }
+
+            // remove from scene + maps
+            try { s.removeFromParent(); } catch (Exception ignored) {}
+
+            int id;
+            try { id = handleId(handle, "destroyGridPlane"); } catch (Exception e) { return; }
+
+            editorDebugSpatials.remove(id);
+            spatials.remove(id);
+
+            if (log.isInfoEnabled()) {
+                log.info("RenderApi: grid destroyed (handle={})", id);
+            }
+        });
+    }
+
 
     // ------------------------------------------------------------
     // Helpers

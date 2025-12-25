@@ -1,5 +1,6 @@
 // FILE: UiApiImpl.java
 // Author: Calista Verner
+/*
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.LogManager;
@@ -38,7 +39,7 @@ public final class UiApiImpl implements UiApi {
         return "ui:ok";
     }
 
-    /** Pump Chromium in custom engine loops (call each frame or 30-60Hz). */
+    /** Pump Chromium in custom engine loops (call each frame or 30-60Hz).
     @Override
     @HostAccess.Export
     public void tick() {
@@ -98,7 +99,7 @@ public final class UiApiImpl implements UiApi {
     // NAVIGATE overloads (JS-friendly arity)
     // ------------------------------------------------------------
 
-    /** Primary: explicit handle. */
+    /** Primary: explicit handle.
     @Override
     @HostAccess.Export
     public void navigate(int handle, String url) {
@@ -127,7 +128,7 @@ public final class UiApiImpl implements UiApi {
     }
 
 
-    /** Convenience: navigate active surface (JS can call ui.navigate("...")). */
+    /** Convenience: navigate active surface (JS can call ui.navigate("...")).
     @HostAccess.Export
     public void navigate(String url) {
         int h = resolveActiveHandleOrSingle();
@@ -151,7 +152,7 @@ public final class UiApiImpl implements UiApi {
      * Detail is:
      *  - if msg is object/array/primitive -> JSON
      *  - if msg is string -> that string
-     */
+
     @Override
     @HostAccess.Export
     public void send(int handle, Object msg) {
@@ -173,7 +174,7 @@ public final class UiApiImpl implements UiApi {
         }
     }
 
-    /** Convenience: send to active surface (JS can call ui.send({...})). */
+    /** Convenience: send to active surface (JS can call ui.send({...})).
     @HostAccess.Export
     public void send(Object msg) {
         int h = resolveActiveHandleOrSingle();
@@ -201,7 +202,7 @@ public final class UiApiImpl implements UiApi {
         }
     }
 
-    /** FULL shutdown (only on application exit). */
+    /** FULL shutdown (only on application exit).
     @HostAccess.Export
     public void shutdown() {
         for (Integer h : new ArrayList<>(surfaces.keySet())) {
@@ -312,7 +313,7 @@ public final class UiApiImpl implements UiApi {
                 + "try{"
                 + "var ev=new CustomEvent(\"" + UI_EVENT + "\",{detail:" + detailExpr + "});"
                 + "window.dispatchEvent(ev);"
-                + "}catch(e){/*silence*/}"
+                + "}catch(e){/*silence}"
                 + "})();";
     }
 
@@ -343,7 +344,7 @@ public final class UiApiImpl implements UiApi {
     /**
      * Minimal JSON serializer for Graal Value (objects/arrays/primitives).
      * No external deps; safe for UI message passing.
-     */
+
     private static String toJson(Value v) {
         try {
             if (v == null || v.isNull()) return "null";
@@ -390,4 +391,4 @@ public final class UiApiImpl implements UiApi {
             return "null";
         }
     }
-}
+} */

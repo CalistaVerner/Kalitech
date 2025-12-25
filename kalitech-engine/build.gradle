@@ -12,9 +12,7 @@ dependencies {
     implementation project(':kalitech-core')
     implementation project(':kalitech-neural')
 
-    implementation "me.friwi:jcefmaven:116.0.19"
-    runtimeOnly "me.friwi:jcef-natives-windows-amd64:jcef-37f25dc+cef-116.0.19+gc6a20bc+chromium-116.0.5845.141"
-
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
 
     api "org.jmonkeyengine:jme3-core:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-desktop:${rootProject.ext.jmeVersion}"
@@ -23,6 +21,7 @@ dependencies {
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-jbullet:${rootProject.ext.jmeVersion}"
     implementation "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
+    implementation 'com.github.stephengold:Minie:9.0.1'
 
     implementation "org.graalvm.polyglot:polyglot:${rootProject.ext.graalVersion}"
     implementation "org.graalvm.polyglot:js:${rootProject.ext.graalVersion}"

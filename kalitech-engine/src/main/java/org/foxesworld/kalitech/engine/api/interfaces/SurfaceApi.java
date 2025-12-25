@@ -83,6 +83,31 @@ public interface SurfaceApi {
     @HostAccess.Export
     Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg);
 
+    /**
+     * ✅ Editor/gameplay helper:
+     * Ray from active camera through current mouse cursor and collide with WORLD (rootNode).
+     *
+     * Returns array of hits (0 or 1 hit by default).
+     */
+    @HostAccess.Export
+    Hit[] pickUnderCursor();
+
+    /**
+     * Same as pickUnderCursor(), but configurable.
+     * cfg:
+     *  {
+     *    max: 1000.0,        // optional
+     *    limit: 16,          // optional (used if onlyClosest=false)
+     *    onlyClosest: true,  // optional (default true)
+     *    screenX: 123,       // optional override (pixels)
+     *    screenY: 456,       // optional override (pixels)
+     *    flipY: true|false   // optional (default true) invert screenY for JME
+     *  }
+     */
+    @HostAccess.Export
+    Hit[] pickUnderCursorCfg(Value cfg);
+
+
     // -------------------------
     // Host-safe DTOs for JS
     // -------------------------

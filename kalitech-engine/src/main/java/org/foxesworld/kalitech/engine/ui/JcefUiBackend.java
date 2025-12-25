@@ -1,7 +1,7 @@
 // FILE: JcefUiBackend.java
 // Author: Calista Verner
 // UI-only hardened JCEF backend for Kalitech Engine
-
+/*
 package org.foxesworld.kalitech.engine.ui;
 
 import me.friwi.jcefmaven.CefAppBuilder;
@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * Notes:
  *  - For engine integration, offscreen (windowless) rendering is usually the safest.
- */
+
 public final class JcefUiBackend implements AutoCloseable {
 
     private static final Logger log = LogManager.getLogger(JcefUiBackend.class);
@@ -202,7 +202,7 @@ public final class JcefUiBackend implements AutoCloseable {
 
     /**
      * Engine pump (call every frame).
-     */
+
     public void tick() {
         CefApp a = app;
         if (a == null) return;
@@ -537,4 +537,4 @@ public final class JcefUiBackend implements AutoCloseable {
         T value;
         Throwable error;
     }
-}
+} */
