@@ -1,32 +1,67 @@
+// FILE: Scripts/systems/scene.system.js
 // Author: Calista Verner
-function createGridMaterial(engine) {
-    try {
-        return engine.material().create({
-            def: "Common/MatDefs/Misc/Unshaded.j3md",
-            params: { Color: { r: 0.85, g: 0.85, b: 0.85, a: 0.35 } },
-            states: { Wireframe: true, BlendMode: "Alpha" }
+"use strict";
+
+class SceneSystem {
+
+    constructor() {
+        this.KEY_GROUND = "scene:ground";
+        this.KEY_GROUND_PHYS = "scene:ground:phys";
+    }
+
+    init(ctx) {
+        engine.log().info("[scene] init");
+
+        const st = ctx.state();
+
+        render.ensureScene();
+
+        // --- ground plane ---
+        const ground = engine.terrain().plane({
+            w: 100,
+            h: 100
         });
-    } catch (_) {
-        return null;
+
+        engine.surface().setMaterial(
+            ground,
+            M.getMaterial("unshaded.grass")
+        );
+
+        const groundBody = engine.physics().body({
+            surface: ground,
+            mass: 0,
+            kinematic: true,
+            collider: { type: "box" },
+            friction: 1.0,
+            restitution: 0.0
+        });
+
+        // сохраняем в state
+        st.set(this.KEY_GROUND, ground);
+        st.set(this.KEY_GROUND_PHYS, groundBody);
+    }
+
+    destroy(ctx) {
+        const st = ctx.state();
+
+        // physics first
+        const phys = st.get(this.KEY_GROUND_PHYS);
+        if (phys) {
+            try {
+                engine.physics().remove(phys);
+            } catch (_) {}
+        }
+        st.remove(this.KEY_GROUND_PHYS);
+
+        // surface
+        const ground = st.get(this.KEY_GROUND);
+        if (ground) {
+            try {
+                engine.surface().destroy(ground);
+            } catch (_) {}
+        }
+        st.remove(this.KEY_GROUND);
     }
 }
 
-module.exports.init = function (ctx) {
-    engine.log().info("[scene] init");
-    render.ensureScene();
-    const M = require("@core/materials/index");
-    const p = engine.terrain().plane({ w: 100, h: 100 });
-    engine.surface().setMaterial(p, M.getMaterial("unshaded.grass"));
-};
-
-module.exports.destroy = function (ctx) {
-    const st = ctx.state();
-
-    const grid = st.get("scene:grid");
-    if (grid) { try { engine.surface().destroy(grid); } catch (_) {} }
-    st.remove("scene:grid");
-
-    const ground = st.get("scene:ground");
-    if (ground) { try { engine.surface().destroy(ground); } catch (_) {} }
-    st.remove("scene:ground");
-};
+module.exports = new SceneSystem();

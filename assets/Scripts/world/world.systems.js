@@ -54,9 +54,9 @@ const worldSystems = [
     {
         id: "jsSystem",
         order: 50,
-        stableId: "sys.spawn",
+        stableId: "player",
         config: {
-            module: "Scripts/systems/spawn.system.js"
+            module: "Scripts/systems/player.system.js"
         }
     },
 
