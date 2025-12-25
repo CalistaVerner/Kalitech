@@ -14,36 +14,9 @@ function createGridMaterial(engine) {
 module.exports.init = function (ctx) {
     engine.log().info("[scene] init");
     render.ensureScene();
-
-    const groundMat = require("@core/materials/terrainLit.mat").create(engine);
-
-    const ground = engine.terrain().plane({
-        name: "groundPlane",
-        w: 512, h: 512,
-        pos: { x: -256, y: 0, z: -256 },
-        material: groundMat,
-        shadows: true,
-        attach: true
-    });
-
-    const gridMat = createGridMaterial(engine);
-    let grid = null;
-
-    if (gridMat) {
-        grid = engine.terrain().plane({
-            name: "gridOverlay",
-            w: 512, h: 512,
-            pos: { x: -256, y: 0.02, z: -256 },
-            material: gridMat,
-            shadows: false,
-            attach: true
-        });
-        try { engine.surface().setShadowMode(grid, "Off"); } catch (_) {}
-    }
-
-    const st = ctx.state();
-    st.set("scene:ground", ground);
-    st.set("scene:grid", grid);
+    const M = require("@core/materials/index");
+    const p = engine.terrain().plane({ w: 100, h: 100 });
+    engine.surface().setMaterial(p, M.getMaterial("unshaded.grass"));
 };
 
 module.exports.destroy = function (ctx) {
