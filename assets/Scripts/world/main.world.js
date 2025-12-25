@@ -44,7 +44,6 @@ function validateWorld(world) {
     for (const s of (world.systems || [])) {
         if (!s || typeof s !== "object") { errors.push("system entry must be object"); continue; }
 
-        // platform key: stableId (recommended), fallback id+module
         const stableId = String(s.stableId ?? "").trim();
         if (!stableId) errors.push("system.stableId is required (string) for platform-grade hot reload");
 
@@ -54,14 +53,9 @@ function validateWorld(world) {
         }
 
         if (typeof s.order !== "number") errors.push(`system.order must be number (stableId=${stableId || "?"})`);
-
-        // engine-side system id
         if (!s.id || typeof s.id !== "string") errors.push(`system.id must be string (stableId=${stableId || "?"})`);
-
-        // config
         if (s.config != null && typeof s.config !== "object") errors.push(`system.config must be object (stableId=${stableId || "?"})`);
 
-        // jsSystem requires module
         if (s.id === "jsSystem") {
             const mod = s.config?.module;
             if (!mod || typeof mod !== "string") errors.push(`jsSystem requires config.module string (stableId=${stableId || "?"})`);
@@ -90,7 +84,7 @@ const baseSky = {
     order: 18,
     stableId: "sys.sky",
     config: {
-        module: "Scripts/systems/sky.js",
+        module: "@core/sky",
         dayLengthSec: 10,
         skybox: "Textures/Sky/skyBox.dds",
         azimuthDeg: 35,
@@ -125,6 +119,36 @@ const baseAI = {
     config: { module: "Scripts/systems/ai.system.js" }
 };
 
+// --- Editor-only systems ---
+const editorGrid = {
+    id: "jsSystem",
+    order: 12,
+    stableId: "sys.editor.grid",
+    config: {
+        module: "@core/editor/editor.grid.system",
+        enabled: true,
+        size: 200,
+        step: 1.0,
+        majorStep: 10,
+        y: 0.01,
+        opacity: 0.35
+    }
+};
+
+const editorPick = {
+    id: "jsSystem",
+    order: 13,
+    stableId: "sys.editor.pick",
+    config: {
+        module: "@core/editor/editor.pick.system",
+        enabled: true,
+        mode: "click",      // "click" | "hover"
+        button: "LMB",
+        maxDistance: 10000,
+        debugLog: true
+    }
+};
+
 // --- Presets: game vs editor (future growth, no copy-paste) ---
 const presets = {
     game() {
@@ -146,25 +170,13 @@ const presets = {
     },
 
     editor() {
-        // Future: editor-only systems (grid, picker, UI overlay)
-        // Keep same stableIds where possible to preserve hot-reload state between modes.
         const w = presets.game();
         w.mode = "editor";
         w.name = "main_editor";
 
-        // Example stubs (enable later when modules exist):
-        // w.systems.push({
-        //   id: "jsSystem",
-        //   order: 12,
-        //   stableId: "sys.editor.grid",
-        //   config: { module: "Scripts/systems/editor.grid.system.js" }
-        // });
-        // w.systems.push({
-        //   id: "jsSystem",
-        //   order: 13,
-        //   stableId: "sys.editor.pick",
-        //   config: { module: "Scripts/systems/editor.pick.system.js" }
-        // });
+        // Editor systems first (before camera/scene)
+        w.systems.unshift(editorPick);
+        w.systems.unshift(editorGrid);
 
         return w;
     }
@@ -175,13 +187,10 @@ function buildWorld(mode) {
     const m = (mode === "editor") ? "editor" : "game";
     const w = presets[m]();
 
-    // Ensure we don't accidentally mutate base blocks later
     const frozen = deepFreeze(clone(w));
 
-    // Validate once (dev-friendly). In prod you can disable by env flag later.
     const errs = validateWorld(frozen);
     if (errs.length) {
-        // Throwing here is ok: world descriptor is invalid; fail fast with clear errors.
         throw new Error("[world] Invalid world descriptor:\n- " + errs.join("\n- "));
     }
 
@@ -189,7 +198,7 @@ function buildWorld(mode) {
 }
 
 // Legacy export used by Scripts/main.js currently
-exports.world = buildWorld("game");
+exports.world = buildWorld("editor");
 
 // New preferred API: exports.create({mode}) -> returns descriptor
 exports.create = function (opts) {

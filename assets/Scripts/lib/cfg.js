@@ -4,7 +4,7 @@
 // Safe config reader utilities.
 // No engine access. No side effects.
 
-const M = require("./math.js");
+const M = require("@core/math");
 
 function isNum(v) {
     return typeof v === "number" && !Number.isNaN(v) && Number.isFinite(v);

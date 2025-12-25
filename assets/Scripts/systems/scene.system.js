@@ -15,7 +15,7 @@ module.exports.init = function (ctx) {
     engine.log().info("[scene] init");
     render.ensureScene();
 
-    const groundMat = require("../materials/terrainLit.mat.js").create(engine);
+    const groundMat = require("@core/materials/terrainLit.mat").create(engine);
 
     const ground = engine.terrain().plane({
         name: "groundPlane",

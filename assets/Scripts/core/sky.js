@@ -4,7 +4,7 @@
 // Sky + Sun + Shadows + Skybox + Fog controller
 // jsSystem: { module:"Scripts/systems/sky.js", ...config }
 
-const M = require("../lib/math.js");
+const M = require("@core/math");
 
 let _t = 0.0;
 let _enabled = true;

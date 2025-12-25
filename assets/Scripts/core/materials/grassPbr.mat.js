@@ -8,7 +8,7 @@
 //
 // No scene logic here. Material only.
 
-const C = require("../lib/cfg.js");
+const C = require("../../lib/cfg.js");
 
 module.exports.create = function (engine, cfg = {}) {
     const textures = C.obj(cfg, "textures", {});
