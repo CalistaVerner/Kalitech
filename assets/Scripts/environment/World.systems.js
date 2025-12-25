@@ -1,12 +1,10 @@
-// FILE: Scripts/world/world.systems.js
+// FILE: Scripts/world/World.systems.js
 // Author: Calista Verner
 
 "use strict";
 
-// Single authoritative array of world systems
 const worldSystems = [
 
-    // --- Camera ---
     {
         id: "camera",
         order: 15,
@@ -19,14 +17,12 @@ const worldSystems = [
             smoothing: 0.15
         }
     },
-
-    // --- Sky ---
     {
         id: "jsSystem",
         order: 18,
         stableId: "sys.sky",
         config: {
-            module: "@core/sky",
+            module: "@env/sky",
             dayLengthSec: 10,
             skybox: "Textures/Sky/skyBox.dds",
             azimuthDeg: 35,
@@ -39,34 +35,20 @@ const worldSystems = [
             }
         }
     },
-
-    // --- Scene ---
     {
         id: "jsSystem",
         order: 20,
         stableId: "sys.scene",
         config: {
-            module: "Scripts/systems/scene.system.js"
+            module: "@env/world"
         }
     },
-
-    // --- Spawn ---
     {
         id: "jsSystem",
         order: 50,
         stableId: "player",
         config: {
-            module: "Scripts/systems/player.system.js"
-        }
-    },
-
-    // --- AI ---
-    {
-        id: "jsSystem",
-        order: 60,
-        stableId: "sys.ai",
-        config: {
-            module: "Scripts/systems/ai.system.js"
+            module: "Scripts/player"
         }
     }
 ];

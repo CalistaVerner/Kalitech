@@ -5,13 +5,12 @@ class CrosshairWidget {
     constructor(ctx) {
         this.ctx = ctx;
         this.root = null;
-        this.h = null;
-        this.v = null;
+        this.img = null;
 
         this.style = {
-            size: 22,
-            thickness: 2,
-            color: { r: 1.0, g: 0.2, b: 0.2, a: 1.0 } // ярко-красный для теста
+            size: 256,                         // размер изображения
+            texture: "Textures/ui/crosshair.png",
+            color: { r: 1, g: 1, b: 1, a: 1 }
         };
     }
 
@@ -20,7 +19,8 @@ class CrosshairWidget {
 
         const hud = engine.hud();
 
-        // root в центре экрана
+        // Корень в центре экрана
+// root-группа (центр)
         this.root = hud.create({
             kind: "group",
             anchor: "center",
@@ -28,25 +28,22 @@ class CrosshairWidget {
             visible: true
         });
 
-        // ДЕТИ: anchor должен давать (0,0) у родителя.
-        // В вашем HudLayout anchorY(topLeft)=vh => улетает вверх.
-        // bottomLeft => (0,0) как надо.
-        this.h = hud.create({
-            kind: "rect",
+        // Сам прицел — ОДНО изображение
+        this.img = hud.create({
+            kind: "image",
             parent: this.root,
-            anchor: "bottomLeft",
-            pivot: "center",
-            size: { w: this.style.size, h: this.style.thickness },
-            color: this.style.color
-        });
 
-        this.v = hud.create({
-            kind: "rect",
-            parent: this.root,
-            anchor: "bottomLeft",
+            anchor: "center",
             pivot: "center",
-            size: { w: this.style.thickness, h: this.style.size },
-            color: this.style.color
+
+            image: this.style.texture,
+
+            size: {
+                w: this.style.size,
+                h: this.style.size
+            },
+
+            color: this.style.color   // опционально (white = без искажения)
         });
 
         return this;
@@ -55,7 +52,7 @@ class CrosshairWidget {
     destroy() {
         if (!this.root) return;
         try { engine.hud().destroy(this.root); } catch (_) {}
-        this.root = this.h = this.v = null;
+        this.root = this.img = null;
     }
 }
 

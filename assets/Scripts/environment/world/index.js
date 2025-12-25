@@ -1,8 +1,8 @@
-// FILE: Scripts/systems/scene.system.js
+// FILE: Scripts/systems/index.js
 // Author: Calista Verner
 "use strict";
 
-class SceneSystem {
+class Index {
 
     constructor() {
         this.KEY_GROUND = "scene:ground";
@@ -18,8 +18,8 @@ class SceneSystem {
 
         // --- ground plane ---
         const ground = engine.terrain().plane({
-            w: 100,
-            h: 100
+            w: 1000,
+            h: 1000
         });
 
         engine.surface().setMaterial(
@@ -64,4 +64,4 @@ class SceneSystem {
     }
 }
 
-module.exports = new SceneSystem();
+module.exports = new Index();

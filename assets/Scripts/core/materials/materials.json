@@ -1,9 +1,0 @@
-{
-  "terrain.lit": {
-    "def": "Common/MatDefs/Terrain/TerrainLighting.j3md",
-    "params": {}
-  },
-  "grass.pbr": {"def": "Common/MatDefs/Light/PBRLighting.j3md", "params": {"BaseColorMap": "Textures/grass.jpg|Repeat", "UseSpecGloss": false, "UseSpecularAA": false, "Metallic": 0.0, "Roughness": 0.8}, "scales": { "BaseColorMap": 4.0, "RoughnessMap": 4.0, "MetallicMap": 4.0, "AmbientOcclusionMap": 4.0}},
-  "unshaded.basic": {"def": "Common/MatDefs/Misc/Unshaded.j3md", "params": {"Color": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0 }}},
-  "unshaded.grass": {"def": "Common/MatDefs/Misc/Unshaded.j3md", "params": {"ColorMap": "Textures/grass.jpg|Repeat"}}
-}

@@ -8,8 +8,8 @@
 
 const WORLD_SCHEMA_VERSION = 1;
 
-// FIX: world.systems.js now exports `worldSystems`
-const baseSystems = require("./world.systems.js").worldSystems;
+// FIX: World.systems.js now exports `worldSystems`
+const baseSystems = require("./World.systems.js").worldSystems;
 
 // --- Official module contract meta ---
 exports.meta = {

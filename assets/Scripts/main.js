@@ -2,9 +2,7 @@
 // Author: Calista Verner
 "use strict";
 
-const worldMod = require("./world/main.world.js");
-const bootMod = require("./world/main.bootstrap.js");
-
+const worldMod = require("./environment");
 exports.meta = {
     id: "kalitech.world.main",
     version: "1.1.0",
@@ -13,12 +11,11 @@ exports.meta = {
 };
 
 exports.world = worldMod.world;
-exports.bootstrap = bootMod.bootstrap;
+//exports.bootstrap = bootMod.bootstrap;
 
 class MainWorldEntrypoint {
-    constructor(worldModule, bootModule) {
+    constructor(worldModule) {
         this.world = this._instantiate(worldModule, "world");
-        this.boot = this._instantiate(bootModule, "bootstrap");
         this.state = { started: false };
     }
 
@@ -46,45 +43,26 @@ class MainWorldEntrypoint {
     }
 
     init(apiOrCtx) {
-        this._call(this.boot, "init", apiOrCtx, "boot.init");
         this.state.started = true;
     }
 
     update(tpfOrCtx) {
-        this._call(this.boot, "update", tpfOrCtx, "boot.update");
     }
 
     destroy(reason) {
-        try {
-            const fn = this.boot && this.boot.destroy;
-            if (fn) fn.call(this.boot, reason);
-        } catch (e) {
-            engine.log().error("[main] boot.destroy failed: " + e);
-        }
+
     }
 
     serialize() {
-        let bootState = null;
         let worldState = null;
 
-        try {
-            if (this.boot && this.boot.serialize) bootState = this.boot.serialize();
-        } catch (_) {}
 
-        try {
-            if (this.world && this.world.serialize) worldState = this.world.serialize();
-        } catch (_) {}
-
-        return { started: this.state.started, boot: bootState, world: worldState };
+        return { started: this.state.started, world: worldState };
     }
 
     deserialize(restored) {
         if (restored && typeof restored === "object") {
             this.state = deepMerge(this.state, restored);
-
-            try {
-                if (this.boot && this.boot.deserialize) this.boot.deserialize(restored.boot);
-            } catch (_) {}
 
             try {
                 if (this.world && this.world.deserialize) this.world.deserialize(restored.world);
@@ -94,5 +72,5 @@ class MainWorldEntrypoint {
 }
 
 exports.create = function () {
-    return new MainWorldEntrypoint(worldMod, bootMod);
+    return new MainWorldEntrypoint(worldMod);
 };
