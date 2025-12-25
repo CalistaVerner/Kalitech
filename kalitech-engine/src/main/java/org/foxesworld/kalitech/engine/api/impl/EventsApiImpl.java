@@ -42,6 +42,7 @@ public final class EventsApiImpl implements EventsApi {
     @HostAccess.Export
     @Override
     public void clear(String topic) {
-        bus.offByModule(topic);
+        //INCORRECT
+        bus.emit(topic);
     }
 }

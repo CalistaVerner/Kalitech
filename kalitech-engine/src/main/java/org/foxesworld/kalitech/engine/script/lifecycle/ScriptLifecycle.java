@@ -10,63 +10,78 @@ import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.foxesworld.kalitech.engine.script.profiler.ScriptProfiler;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
-/**
- * ScriptLifecycle:
- * - ensure instance exists and is fresh (by moduleVersion)
- * - call init/update/destroy if present
- * - destroy on reset + onEntityRemoved
- * - hot reload: invalidate modules and restart only affected entities
- *
- * <p>Hot path is allocation-free: uses ComponentStore.forEach() instead of view().
- */
 public final class ScriptLifecycle {
 
     private static final Logger log = LogManager.getLogger(ScriptLifecycle.class);
+
+    private static final int MAX_CRASH_STREAK = 3;
+    private static final long DISABLE_FOR_NANOS = 5_000_000_000L; // 5s
+    private static final long MIN_LOG_INTERVAL_NANOS = 1_000_000_000L; // 1s
 
     private final EcsWorld ecs;
     private final SimpleApplication app;
     private final ScriptEventBus events;
     private final GraalScriptRuntime runtime;
+    private final ScriptProfiler profiler;
 
-    public ScriptLifecycle(EcsWorld ecs, SimpleApplication app, ScriptEventBus events, GraalScriptRuntime runtime) {
+    private final Map<Integer, Breaker> breaker = new HashMap<>();
+    private final Map<Integer, Value> pendingRestore = new HashMap<>();
+
+    private static final class Breaker {
+        int crashStreak;
+        long disabledUntilNanos;
+        long lastLogNanos;
+    }
+
+    public ScriptLifecycle(EcsWorld ecs,
+                           SimpleApplication app,
+                           ScriptEventBus events,
+                           GraalScriptRuntime runtime,
+                           ScriptProfiler profiler) {
         this.ecs = ecs;
         this.app = app;
         this.events = events;
         this.runtime = runtime;
+        this.profiler = profiler;
     }
 
-    /** Call every frame from your ScriptSystem / WorldSystem. */
     public void update(float tpf) {
+        final long now = System.nanoTime();
+
         ecs.components().forEach(ScriptComponent.class, (entityId, sc) -> {
             if (sc == null) return;
-            ensureStarted(entityId, sc);
-            safeCall(sc.instance, "update", tpf);
+
+            Breaker b = breaker.computeIfAbsent(entityId, k -> new Breaker());
+            if (b.disabledUntilNanos > now) return;
+
+            if (!ensureStarted(entityId, sc, b, now)) return;
+
+            long t0 = profiler != null ? profiler.begin() : 0L;
+            boolean ok = safeCall(entityId, sc, b, now, "update", tpf);
+            if (profiler != null && t0 != 0L) profiler.endModule(sc.moduleId, ScriptProfiler.Phase.UPDATE, t0, ok);
+
+            if (ok) b.crashStreak = 0;
+            else onCrash(entityId, sc, b, now);
         });
     }
 
-    /** Call when entity is destroyed (or before ecs.destroyEntity()). Safe to call multiple times. */
-    public void onEntityRemoved(int entityId) {
-        ScriptComponent sc = ecs.components().get(entityId, ScriptComponent.class);
-        if (sc == null) return;
-        destroyInstance(entityId, sc, true);
-        sc.instance = null;
-        sc.moduleVersion = 0L;
-    }
-
-    /** Destroy all script instances (used on world rebuild / reload). */
     public void reset() {
         ecs.components().forEach(ScriptComponent.class, (entityId, sc) -> {
             if (sc == null) return;
-            destroyInstance(entityId, sc, true);
+            destroyInstance(entityId, sc, "reset", false);
             sc.instance = null;
             sc.moduleVersion = 0L;
         });
+        breaker.clear();
+        pendingRestore.clear();
     }
 
-    /** Hot reload: invalidate modules and restart only affected entities. */
     public void onHotReloadChanged(Set<String> changedModuleIds) {
         if (changedModuleIds == null || changedModuleIds.isEmpty()) return;
 
@@ -77,82 +92,140 @@ public final class ScriptLifecycle {
             if (sc == null) return;
             if (!changedModuleIds.contains(sc.moduleId)) return;
 
-            destroyInstance(entityId, sc, true);
+            Value state = destroyInstance(entityId, sc, "hotReload", true);
+            if (state != null && !state.isNull()) pendingRestore.put(entityId, state);
+
             sc.instance = null;
             sc.moduleVersion = 0L;
         });
     }
 
-    // ---------------- internals ----------------
-
-    private void ensureStarted(int entityId, ScriptComponent sc) {
+    private boolean ensureStarted(int entityId, ScriptComponent sc, Breaker b, long nowNanos) {
         final String moduleId = sc.moduleId;
         final long v = runtime.moduleVersion(moduleId);
 
-        if (sc.instance != null && sc.moduleVersion == v) return;
+        if (sc.instance != null && sc.moduleVersion == v) return true;
+
+        Value restore = pendingRestore.remove(entityId);
 
         if (sc.instance != null) {
-            destroyInstance(entityId, sc, true);
+            Value state = destroyInstance(entityId, sc, "rebind", true);
+            if ((restore == null || restore.isNull()) && state != null && !state.isNull()) restore = state;
             sc.instance = null;
         }
 
-        Value exports = runtime.require(moduleId);
-        Value instance = createInstance(exports);
+        try {
+            Value exports = runtime.require(moduleId);
+            Value instance = createInstance(exports);
 
-        sc.instance = instance;
-        sc.moduleVersion = v;
+            sc.instance = instance;
+            sc.moduleVersion = v;
 
-        EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, events);
-        safeCall(sc.instance, "init", api);
+            EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, events);
+
+            long t0 = profiler != null ? profiler.begin() : 0L;
+            boolean okInit = safeCall(entityId, sc, b, nowNanos, "init", api);
+            if (profiler != null && t0 != 0L) profiler.endModule(sc.moduleId, ScriptProfiler.Phase.INIT, t0, okInit);
+
+            if (restore != null && !restore.isNull()) {
+                safeCall(entityId, sc, b, nowNanos, "deserialize", restore);
+            }
+
+            return true;
+
+        } catch (Throwable t) {
+            rateLimitedError(entityId, sc, b, nowNanos, "Script start failed: " + moduleId, t);
+            onCrash(entityId, sc, b, nowNanos);
+            return false;
+        }
+    }
+
+    private Value destroyInstance(int entityId, ScriptComponent sc, String reason, boolean allowSerialize) {
+        Value inst = sc.instance;
+        if (inst == null || inst.isNull()) return null;
+
+        Value state = null;
+
+        if (allowSerialize) {
+            try {
+                long t0 = profiler != null ? profiler.begin() : 0L;
+                state = callIfExistsReturn(inst, "serialize");
+                if (profiler != null && t0 != 0L) profiler.endModule(sc.moduleId, ScriptProfiler.Phase.SERIALIZE, t0, true);
+            } catch (Throwable t) {
+                log.debug("serialize() failed for entity={} module={}", entityId, sc.moduleId, t);
+            }
+        }
+
+        try {
+            if (inst.hasMember("destroy")) {
+                Value fn = inst.getMember("destroy");
+                if (fn != null && fn.canExecute()) {
+                    long t0 = profiler != null ? profiler.begin() : 0L;
+                    fn.execute(reason);
+                    if (profiler != null && t0 != 0L) profiler.endModule(sc.moduleId, ScriptProfiler.Phase.DESTROY, t0, true);
+                }
+            }
+        } catch (Throwable t) {
+            log.debug("destroy() failed for entity={} module={}", entityId, sc.moduleId, t);
+        }
+
+        return state;
     }
 
     private static Value createInstance(Value exports) {
         if (exports == null || exports.isNull()) throw new IllegalStateException("Script module exports is null");
-
-        // Common pattern: module exports a factory function
         if (exports.canExecute()) return exports.execute();
-
-        // Alternative: exports.create()
         if (exports.hasMember("create")) {
             Value c = exports.getMember("create");
             if (c != null && c.canExecute()) return c.execute();
         }
-
-        // Otherwise treat exports as an instance
         return exports;
     }
 
-    private void destroyInstance(int entityId, ScriptComponent sc, boolean cleanupOwner) {
-        if (sc == null) return;
-
-        // Critical: unsubscribe JS handlers captured as Value (prevents leaks + zombie calls)
-        if (cleanupOwner) {
-            events.offOwner(entityId);
-        }
-
-        if (sc.instance == null || sc.instance.isNull()) return;
-
-        try {
-            safeCall(sc.instance, "destroy");
-        } catch (Throwable t) {
-            log.warn("Script destroy failed for entity {}", entityId, t);
+    private void onCrash(int entityId, ScriptComponent sc, Breaker b, long nowNanos) {
+        b.crashStreak++;
+        if (b.crashStreak >= MAX_CRASH_STREAK) {
+            b.disabledUntilNanos = nowNanos + DISABLE_FOR_NANOS;
+            b.crashStreak = 0;
+            rateLimitedError(entityId, sc, b, nowNanos,
+                    "Script disabled for " + (DISABLE_FOR_NANOS / 1_000_000_000L) + "s due to repeated crashes: " + sc.moduleId,
+                    null);
         }
     }
 
-    private void safeCall(Value obj, String member, Object... args) {
+    private boolean safeCall(int entityId, ScriptComponent sc, Breaker b, long nowNanos, String member, Object... args) {
         try {
-            callIfExists(obj, member, args);
+            Value inst = sc.instance;
+            if (inst == null || inst.isNull()) return true;
+            if (!inst.hasMember(member)) return true;
+
+            Value fn = inst.getMember(member);
+            if (fn == null || fn.isNull() || !fn.canExecute()) return true;
+
+            fn.execute(args);
+            return true;
+
         } catch (Throwable t) {
-            // fail-soft: script errors must not crash engine
-            log.error("Script call failed: {}()", member, t);
+            rateLimitedError(entityId, sc, b, nowNanos, "Script call failed: " + member + "()", t);
+            if (profiler != null) profiler.endModule(sc.moduleId, ScriptProfiler.Phase.UPDATE, profiler.begin(), false); // lightweight marker
+            return false;
         }
     }
 
-    private static void callIfExists(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) return;
-        if (!obj.hasMember(member)) return;
+    private static Value callIfExistsReturn(Value obj, String member, Object... args) {
+        if (obj == null || obj.isNull()) return null;
+        if (!obj.hasMember(member)) return null;
         Value fn = obj.getMember(member);
-        if (fn == null || fn.isNull() || !fn.canExecute()) return;
-        fn.execute(args);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return null;
+        Value v = fn.execute(args);
+        return (v == null || v.isNull()) ? null : v;
+    }
+
+    private void rateLimitedError(int entityId, ScriptComponent sc, Breaker b, long nowNanos, String msg, Throwable t) {
+        if (nowNanos - b.lastLogNanos < MIN_LOG_INTERVAL_NANOS) return;
+        b.lastLogNanos = nowNanos;
+
+        if (t != null) log.error("{} (entity={}, module={})", msg, entityId, sc.moduleId, t);
+        else log.warn("{} (entity={}, module={})", msg, entityId, sc.moduleId);
     }
 }

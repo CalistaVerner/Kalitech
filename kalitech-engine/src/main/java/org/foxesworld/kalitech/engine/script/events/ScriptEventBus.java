@@ -12,199 +12,173 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * ScriptEventBus — engine-side event queue + JS handler registry.
- *
- * <p>Design goals:
- * <ul>
- *   <li>Hot path (pump) is allocation-free and lock-free: reads use snapshot arrays.</li>
- *   <li>Mutations (on/off) are synchronized per-event list and are relatively rare.</li>
- *   <li>Supports owner/module-based cleanup to prevent Value leaks on entity destroy/hot-reload.</li>
- * </ul>
- */
 public final class ScriptEventBus {
 
     private static final Logger log = LogManager.getLogger(ScriptEventBus.class);
 
-    public record Event(String name, Object payload) {}
+    public static final int DEFAULT_MAX_EVENTS_PER_FRAME = 4096;
+    public static final long DEFAULT_TIME_BUDGET_NANOS = 2_000_000L; // 2ms
 
-    private final Map<String, HandlerList> handlers = new ConcurrentHashMap<>();
-    private final Queue<Event> queue = new ConcurrentLinkedQueue<>();
-    private final AtomicInteger nextId = new AtomicInteger(1);
+    private record Event(String name, Object payload) {}
 
-    private static final class Subscription {
+    // inside ScriptEventBus
+
+    private static final class Sub {
         final int id;
-        final boolean once;
-        final long owner;        // entityId or 0
-        final String moduleId;   // optional
         final Value fn;
+        final boolean once;
 
-        Subscription(int id, boolean once, long owner, String moduleId, Value fn) {
+        Sub(int id, Value fn, boolean once) {
             this.id = id;
-            this.once = once;
-            this.owner = owner;
-            this.moduleId = moduleId;
             this.fn = fn;
+            this.once = once;
         }
     }
 
     /**
-     * Per-event list with snapshot array for lock-free reads in pump().
+     * Small, allocation-light subscription list.
+     * Not thread-safe by itself; ScriptEventBus controls access patterns.
      */
-    private static final class HandlerList {
-        private volatile Subscription[] snapshot = new Subscription[0];
+    private static final class SubList {
 
-        int add(Subscription s) {
-            synchronized (this) {
-                Subscription[] cur = snapshot;
-                Subscription[] next = Arrays.copyOf(cur, cur.length + 1);
-                next[cur.length] = s;
-                snapshot = next;
-                return s.id;
+        private Sub[] arr = new Sub[8];
+        private int size = 0;
+
+        int add(Sub s) {
+            if (s == null) return 0;
+            if (size >= arr.length) {
+                arr = Arrays.copyOf(arr, arr.length << 1);
             }
-        }
-
-        boolean removeById(int id) {
-            synchronized (this) {
-                Subscription[] cur = snapshot;
-                for (int i = 0; i < cur.length; i++) {
-                    if (cur[i].id == id) {
-                        Subscription[] next = new Subscription[cur.length - 1];
-                        System.arraycopy(cur, 0, next, 0, i);
-                        System.arraycopy(cur, i + 1, next, i, cur.length - i - 1);
-                        snapshot = next;
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        int removeIf(java.util.function.Predicate<Subscription> pred) {
-            synchronized (this) {
-                Subscription[] cur = snapshot;
-                if (cur.length == 0) return 0;
-
-                int keep = 0;
-                for (Subscription s : cur) if (!pred.test(s)) keep++;
-
-                if (keep == cur.length) return 0;
-                Subscription[] next = new Subscription[keep];
-                int j = 0;
-                for (Subscription s : cur) if (!pred.test(s)) next[j++] = s;
-                snapshot = next;
-                return cur.length - keep;
-            }
-        }
-
-        Subscription[] snapshot() {
-            return snapshot;
+            arr[size++] = s;
+            return s.id;
         }
 
         boolean isEmpty() {
-            return snapshot.length == 0;
+            return size == 0;
+        }
+
+        int size() {
+            return size;
+        }
+
+        Sub get(int i) {
+            // caller guarantees bounds
+            return arr[i];
+        }
+
+        /** @return true if removed */
+        boolean removeById(int id) {
+            for (int i = 0; i < size; i++) {
+                Sub s = arr[i];
+                if (s != null && s.id == id) {
+                    int last = size - 1;
+                    arr[i] = arr[last];
+                    arr[last] = null;
+                    size = last;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Optional: clear all subs (useful for reset). */
+        void clear() {
+            Arrays.fill(arr, 0, size, null);
+            size = 0;
         }
     }
 
-    // --------- API ---------
+    private final AtomicInteger nextSubId = new AtomicInteger(1);
+    private final Map<String, SubList> handlers = new ConcurrentHashMap<>();
+    private final Queue<Event> queue = new ConcurrentLinkedQueue<>();
 
-    /** Register a JS handler. Returns a token used for off(). */
-    public int on(String eventName, Value handler) {
-        return on(eventName, handler, false, 0L, null);
+    public void emit(String name, Object payload) {
+        if (name == null || name.isBlank()) return;
+        queue.add(new Event(name.trim(), payload));
     }
 
-    /** Register a one-shot JS handler. */
-    public int once(String eventName, Value handler) {
-        return on(eventName, handler, true, 0L, null);
-    }
+    public void emit(String name) { emit(name, null); }
 
-    /**
-     * Register a handler bound to an owner (entityId) and optional moduleId.
-     * Use offOwner/offByModule for cleanup on destroy/hot-reload.
-     */
-    public int onOwned(String eventName, Value handler, boolean once, long owner, String moduleId) {
-        return on(eventName, handler, once, owner, moduleId);
-    }
+    public int on(String name, Value fn) { return on(name, fn, false); }
+    public int once(String name, Value fn) { return on(name, fn, true); }
 
-    private int on(String eventName, Value handler, boolean once, long owner, String moduleId) {
-        if (eventName == null || eventName.isBlank()) throw new IllegalArgumentException("eventName is blank");
-        if (handler == null || handler.isNull() || !handler.canExecute()) {
-            throw new IllegalArgumentException("handler must be an executable JS function");
-        }
-        int id = nextId.getAndIncrement();
-        HandlerList list = handlers.computeIfAbsent(eventName, k -> new HandlerList());
-        list.add(new Subscription(id, once, owner, moduleId, handler));
+    private int on(String name, Value fn, boolean once) {
+        if (name == null || name.isBlank()) return 0;
+        if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
+
+        String key = name.trim();
+        SubList list = handlers.computeIfAbsent(key, k -> new SubList());
+        int id = nextSubId.getAndIncrement();
+        list.add(new Sub(id, fn, once));
         return id;
     }
 
-    public boolean off(String eventName, int token) {
-        HandlerList list = handlers.get(eventName);
+    public boolean off(String name, int subId) {
+        if (subId <= 0) return false;
+        if (name == null) return false;
+
+        String key = name.trim();
+        if (key.isEmpty()) return false;
+
+        SubList list = handlers.get(key);
         if (list == null) return false;
-        boolean ok = list.removeById(token);
-        if (ok && list.isEmpty()) handlers.remove(eventName, list);
-        return ok;
-    }
 
-    /** Remove all handlers belonging to an owner (typically entityId). */
-    public int offOwner(long owner) {
-        if (owner == 0L) return 0;
-        int removed = 0;
-        for (var e : handlers.entrySet()) {
-            HandlerList list = e.getValue();
-            removed += list.removeIf(s -> s.owner == owner);
-            if (list.isEmpty()) handlers.remove(e.getKey(), list);
+        boolean removed = list.removeById(subId);
+        if (removed && list.isEmpty()) {
+            handlers.remove(key, list); // remove only if same instance still mapped
         }
         return removed;
     }
 
-    /** Remove all handlers registered from a specific module (hot-reload cleanup). */
-    public int offByModule(String moduleId) {
-        if (moduleId == null || moduleId.isBlank()) return 0;
-        int removed = 0;
-        for (var e : handlers.entrySet()) {
-            HandlerList list = e.getValue();
-            removed += list.removeIf(s -> moduleId.equals(s.moduleId));
-            if (list.isEmpty()) handlers.remove(e.getKey(), list);
+
+
+    /** Pump with defaults and return processed count. */
+    public int pump() {
+        return pump(DEFAULT_MAX_EVENTS_PER_FRAME, DEFAULT_TIME_BUDGET_NANOS);
+    }
+
+    public int pump(int maxEventsPerFrame, long timeBudgetNanos) {
+        int limit = Math.max(0, maxEventsPerFrame);
+        long deadline = (timeBudgetNanos > 0L) ? (System.nanoTime() + timeBudgetNanos) : Long.MAX_VALUE;
+
+        int processed = 0;
+        int checkMask = 0x3F;
+
+        while (processed < limit) {
+            Event e = queue.poll();
+            if (e == null) break;
+
+            processed++;
+            dispatch(e);
+
+            if ((processed & checkMask) == 0 && System.nanoTime() >= deadline) break;
         }
-        return removed;
+        return processed;
     }
 
-    /** Enqueue an event (safe to call from any thread). */
-    public void emit(String eventName, Object payload) {
-        if (eventName == null || eventName.isBlank()) return;
-        queue.add(new Event(eventName, payload));
-    }
+    private void dispatch(Event e) {
+        SubList list = handlers.get(e.name());
+        if (list == null || list.isEmpty()) return;
 
-    /**
-     * Pump queued events and execute handlers.
-     *
-     * <p>Call this strictly from the game/main thread (together with script execution).
-     */
-    public void pump() {
-        Event e;
-        while ((e = queue.poll()) != null) {
-            HandlerList list = handlers.get(e.name());
-            if (list == null) continue;
+        int n = list.size();
+        for (int i = 0; i < n; i++) {
+            Sub s = list.get(i);
+            if (s == null) continue;
 
-            Subscription[] snap = list.snapshot();
-            if (snap.length == 0) continue;
-
-            for (Subscription s : snap) {
-                try {
-                    if (s.fn != null && s.fn.canExecute()) {
-                        if (e.payload() == null) s.fn.executeVoid();
-                        else s.fn.executeVoid(e.payload());
-                    }
-                } catch (Throwable ex) {
-                    log.error("EventBus handler error for '{}' (handler#{})", e.name(), s.id, ex);
-                } finally {
-                    if (s.once) list.removeById(s.id);
-                }
+            try {
+                if (e.payload() == null) s.fn.execute();
+                else s.fn.execute(e.payload());
+            } catch (Throwable t) {
+                log.error("Event handler failed: {} (subId={})", e.name(), s.id, t);
+            } finally {
+                if (s.once) list.removeById(s.id);
             }
-
-            if (list.isEmpty()) handlers.remove(e.name(), list);
         }
+
+        if (list.isEmpty()) handlers.remove(e.name(), list);
     }
+
+    public int queuedEventsApprox() { return queue.size(); }
 
     public void clearAll() {
         handlers.clear();
