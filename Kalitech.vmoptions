@@ -10,5 +10,5 @@
 -Dlog.dir=.
 
 # memory
--Xms512m
--Xmx2g
+-Xms4096m
+-Xmx8g
