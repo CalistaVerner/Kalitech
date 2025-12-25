@@ -4,6 +4,7 @@ import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.asset.AssetKey;
+import com.jme3.asset.AssetManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
@@ -19,6 +20,7 @@ import org.foxesworld.kalitech.engine.world.WorldBuilder;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -64,6 +66,22 @@ public final class RuntimeAppState extends BaseAppState {
 
         // 1) shared runtime
         runtime = new GraalScriptRuntime();
+        runtime.setModuleStreamProvider(moduleId -> {
+            String id = moduleId;
+            if (!id.endsWith(".js")) id += ".js";
+
+            AssetManager am = app.getAssetManager();
+            try {
+                InputStream in = am.locateAsset(new AssetKey<>(id)).openStream();
+                return in;
+            } catch (Exception e) {
+                return null;
+            }
+        });
+
+        // 2) ЯВНО инициализируем built-ins
+        runtime.initBuiltIns();
+
         runtime.setModuleSourceProvider(path -> sa.getAssetManager().loadAsset(new AssetKey<>(path)));
 
         // 2) dev hot reload watcher

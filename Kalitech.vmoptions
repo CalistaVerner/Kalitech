@@ -1,5 +1,9 @@
 # JUL → Log4j2 bridge (ДОЛЖНО быть VM option)
 -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+-Dkalitech.jcef.userdata=cache/jcef-userdata
+-Dkalitech.hotreload.ignore.dirs=Default,Cache,Code Cache,GPUCache,BrowserMetrics,Dictionaries,Safe Browsing,GCM Store,segmentation_platform,component_crx_cache,extensions_crx_cache,Variations,Local Storage,Network,blob_storage,Download Service,Crashpad,GrShaderCache,ShaderCache,ClientCertificates,chrome_cart_db,shared_proto_db,optimization_guide_hint_cache_store,AutofillAiModelCache,AutofillStrikeDatabase,BudgetDatabase,BrowsingTopicsSiteData,BrowsingTopicsState,DIPS,Network Action Predictor,BookmarkMergedSurfaceOrdering,Top Sites
+-Dkalitech.hotreload.ignore.files=Local State,Last Browser,lockfile,Preferences,Secure Preferences,First Run
+-Dkalitech.hotreload.extensions=.js,.json,.glsl,.html,.css
 
 # logging
 -Dlog.level=DEBUG
