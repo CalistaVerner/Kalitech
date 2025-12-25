@@ -3,8 +3,13 @@
 //
 // Sky + Sun + Shadows + Skybox + Fog controller
 // jsSystem: { module:"Scripts/systems/sky.js", ...config }
+//
+// NOTE:
+// - builtins are loaded before scripts
+// - no typeof/function checks
+// - use: Number.isFinite / boolean strict checks / try-catch for optional fields
 
-const M = require("@core/math");
+"use strict";
 
 let _t = 0.0;
 let _enabled = true;
@@ -59,77 +64,113 @@ function dirFromAltAz(alt, az) {
     return { x: x / len, y: y / len, z: z / len };
 }
 
-// robust config reader (supports different ctx shapes)
+// config reader (no typeof; assume ctx shapes are stable)
 function readCfg(ctx) {
     if (!ctx) return null;
-    if (ctx.config && typeof ctx.config === "object") return ctx.config;
-    if (ctx.cfg && typeof ctx.cfg === "object") return ctx.cfg;
-    if (ctx.system && ctx.system.config && typeof ctx.system.config === "object") return ctx.system.config;
-
-    try {
-        if (typeof ctx.getConfig === "function") {
-            const c = ctx.getConfig();
-            if (c && typeof c === "object") return c;
-        }
-    } catch (_) {}
+    if (ctx.config) return ctx.config;
+    if (ctx.cfg) return ctx.cfg;
+    if (ctx.system && ctx.system.config) return ctx.system.config;
     return null;
 }
 
-// robust tpf getter (update(ctx,tpf) or update(ctx))
+// robust tpf getter (no typeof/function checks)
 function getTpf(ctx, maybeTpf) {
-    if (typeof maybeTpf === "number" && isFinite(maybeTpf) && maybeTpf > 0) return maybeTpf;
+    // 1) explicit param
+    const p = +maybeTpf;
+    if (Number.isFinite(p) && p > 0) return p;
 
-    if (ctx && typeof ctx.tpf === "number" && isFinite(ctx.tpf) && ctx.tpf > 0) return ctx.tpf;
-
+    // 2) ctx.tpf
     try {
-        const t = ctx && ctx.time;
-        if (t && typeof t.tpf === "number" && isFinite(t.tpf) && t.tpf > 0) return t.tpf;
+        const c = +ctx.tpf;
+        if (Number.isFinite(c) && c > 0) return c;
     } catch (_) {}
 
+    // 3) ctx.time.tpf (value)
     try {
-        const timeApi = engine && engine.time && engine.time();
-        if (timeApi && typeof timeApi.tpf === "function") {
-            const v = timeApi.tpf();
-            if (typeof v === "number" && isFinite(v) && v > 0) return v;
-        }
+        const t = +ctx.time.tpf;
+        if (Number.isFinite(t) && t > 0) return t;
+    } catch (_) {}
+
+    // 4) engine.time().tpf() (call without checking)
+    try {
+        const v = +engine.time().tpf();
+        if (Number.isFinite(v) && v > 0) return v;
     } catch (_) {}
 
     return 1.0 / 60.0;
 }
 
 function applyConfig(cfg) {
-    if (!cfg || typeof cfg !== "object") return;
+    if (!cfg) return;
 
-    if (typeof cfg.enabled === "boolean") _enabled = cfg.enabled;
+    // booleans: only accept strict true/false (no typeof)
+    if (cfg.enabled === true) _enabled = true;
+    if (cfg.enabled === false) _enabled = false;
 
-    if (typeof cfg.dayLengthSec === "number" && cfg.dayLengthSec > 1) _dayLengthSec = cfg.dayLengthSec;
-    if (typeof cfg.azimuthDeg === "number") _azimuthDeg = cfg.azimuthDeg;
+    // numbers: coerce + validate via Number.isFinite
+    const dls = +cfg.dayLengthSec;
+    if (Number.isFinite(dls) && dls > 1) _dayLengthSec = dls;
 
-    if (typeof cfg.nightIntensity === "number") _nightIntensity = cfg.nightIntensity;
-    if (typeof cfg.dayIntensity === "number") _dayIntensity = cfg.dayIntensity;
+    const az = +cfg.azimuthDeg;
+    if (Number.isFinite(az)) _azimuthDeg = az;
 
-    if (typeof cfg.sunsetWarmth === "number") _sunsetWarmth = cfg.sunsetWarmth;
+    const ni = +cfg.nightIntensity;
+    if (Number.isFinite(ni)) _nightIntensity = ni;
 
-    if (typeof cfg.skybox === "string") _skyboxAsset = cfg.skybox;
+    const di = +cfg.dayIntensity;
+    if (Number.isFinite(di)) _dayIntensity = di;
 
-    if (cfg.fog && typeof cfg.fog === "object") {
-        if (cfg.fog.color && typeof cfg.fog.color === "object") {
-            _fogBase = { ..._fogBase, ...cfg.fog.color };
+    const sw = +cfg.sunsetWarmth;
+    if (Number.isFinite(sw)) _sunsetWarmth = sw;
+
+    // string: coerce if present (no typeof)
+    if (cfg.skybox != null) _skyboxAsset = String(cfg.skybox);
+
+    // fog block (assume objects when present)
+    if (cfg.fog) {
+        const fc = cfg.fog.color;
+        if (fc) {
+            // keep defaults; override only present keys
+            if (fc.r != null) _fogBase.r = +fc.r;
+            if (fc.g != null) _fogBase.g = +fc.g;
+            if (fc.b != null) _fogBase.b = +fc.b;
         }
-        if (typeof cfg.fog.distance === "number") _fogDistance = cfg.fog.distance;
-        if (typeof cfg.fog.densityDay === "number") _fogDensityDay = cfg.fog.densityDay;
-        if (typeof cfg.fog.densityNight === "number") _fogDensityNight = cfg.fog.densityNight;
+
+        const fd = +cfg.fog.distance;
+        if (Number.isFinite(fd)) _fogDistance = fd;
+
+        const fdd = +cfg.fog.densityDay;
+        if (Number.isFinite(fdd)) _fogDensityDay = fdd;
+
+        const fdn = +cfg.fog.densityNight;
+        if (Number.isFinite(fdn)) _fogDensityNight = fdn;
     }
 
-    if (cfg.ambientDay && typeof cfg.ambientDay === "object") _ambientDay = { ..._ambientDay, ...cfg.ambientDay };
-    if (cfg.ambientNight && typeof cfg.ambientNight === "object") _ambientNight = { ..._ambientNight, ...cfg.ambientNight };
+    if (cfg.ambientDay) {
+        const a = cfg.ambientDay;
+        if (a.r != null) _ambientDay.r = +a.r;
+        if (a.g != null) _ambientDay.g = +a.g;
+        if (a.b != null) _ambientDay.b = +a.b;
+        if (a.intensity != null) _ambientDay.intensity = +a.intensity;
+    }
 
-    if (cfg.shadows && typeof cfg.shadows === "object") {
-        _shadowsCfg = {
-            mapSize: cfg.shadows.mapSize ?? _shadowsCfg.mapSize,
-            splits: cfg.shadows.splits ?? _shadowsCfg.splits,
-            lambda: cfg.shadows.lambda ?? _shadowsCfg.lambda
-        };
+    if (cfg.ambientNight) {
+        const a = cfg.ambientNight;
+        if (a.r != null) _ambientNight.r = +a.r;
+        if (a.g != null) _ambientNight.g = +a.g;
+        if (a.b != null) _ambientNight.b = +a.b;
+        if (a.intensity != null) _ambientNight.intensity = +a.intensity;
+    }
+
+    if (cfg.shadows) {
+        const s = cfg.shadows;
+        const ms = +s.mapSize;
+        const sp = +s.splits;
+        const lm = +s.lambda;
+
+        if (Number.isFinite(ms)) _shadowsCfg.mapSize = ms;
+        if (Number.isFinite(sp)) _shadowsCfg.splits = sp;
+        if (Number.isFinite(lm)) _shadowsCfg.lambda = lm;
     }
 }
 
@@ -153,12 +194,10 @@ function applyStaticOnce() {
     if (_skyboxAsset) render.skyboxCube(_skyboxAsset);
 
     // enforce ints for mapSize/splits
-    if (_shadowsCfg) {
-        const ms = M.clamp((Math.round(Number(_shadowsCfg.mapSize) || 2048) | 0), 256, 8192);
-        const sp = M.clamp((Math.round(Number(_shadowsCfg.splits) || 3) | 0), 1, 4);
-        const lm = Number(_shadowsCfg.lambda);
-        render.sunShadowsCfg({ mapSize: ms, splits: sp, lambda: isFinite(lm) ? lm : 0.65 });
-    }
+    const ms = math.clamp((Math.round(Number(_shadowsCfg.mapSize) || 2048) | 0), 256, 8192);
+    const sp = math.clamp((Math.round(Number(_shadowsCfg.splits) || 3) | 0), 1, 4);
+    const lm = Number(_shadowsCfg.lambda);
+    render.sunShadowsCfg({ mapSize: ms, splits: sp, lambda: Number.isFinite(lm) ? lm : 0.65 });
 
     render.fogCfg({
         color: [_fogBase.r, _fogBase.g, _fogBase.b],
@@ -172,30 +211,30 @@ function applyStaticOnce() {
 }
 
 function applyAtTime01(time01) {
-    const phase = M.wrap(time01, 0, 1);
+    const phase = math.wrap(time01, 0, 1);
 
     const alt = Math.sin((phase * Math.PI * 2.0) - Math.PI * 0.5); // -1..1
     const altitude =
-        M.lerp(-0.25, 1.05, (alt + 1.0) * 0.5) * (Math.PI / 2.0) -
+        math.lerp(-0.25, 1.05, (alt + 1.0) * 0.5) * (Math.PI / 2.0) -
         (Math.PI / 2.0) * 0.15;
 
-    const azimuth = (phase * Math.PI * 2.0) + M.degToRad(_azimuthDeg);
+    const azimuth = (phase * Math.PI * 2.0) + math.degToRad(_azimuthDeg);
 
     const d = dirFromAltAz(altitude, azimuth);
 
-    const above = M.clamp((d.y + 0.02) / 0.45, 0, 1);
-    const dayFactor = M.smoothstep(0.02, 0.25, above);
+    const above = math.clamp((d.y + 0.02) / 0.45, 0, 1);
+    const dayFactor = math.smoothstep(0.02, 0.25, above);
 
-    const noonBoost = M.smoothstep(0.25, 1.0, above);
-    const intensity = M.lerp(_nightIntensity, _dayIntensity, dayFactor) * M.lerp(0.55, 1.0, noonBoost);
+    const noonBoost = math.smoothstep(0.25, 1.0, above);
+    const intensity = math.lerp(_nightIntensity, _dayIntensity, dayFactor) * math.lerp(0.55, 1.0, noonBoost);
 
-    const horizonWarm = M.smoothstep(0.0, 0.18, 1.0 - above) * dayFactor;
+    const horizonWarm = math.smoothstep(0.0, 0.18, 1.0 - above) * dayFactor;
     const warm = _sunsetWarmth * horizonWarm;
 
     const baseR = 1.0, baseG = 0.98, baseB = 0.90;
-    const r = M.lerp(baseR, 1.15, warm);
-    const g = M.lerp(baseG, 0.92, warm);
-    const b = M.lerp(baseB, 0.65, warm);
+    const r = math.lerp(baseR, 1.15, warm);
+    const g = math.lerp(baseG, 0.92, warm);
+    const b = math.lerp(baseB, 0.65, warm);
 
     render.sunCfg({
         dir: [d.x, d.y, d.z],
@@ -203,10 +242,10 @@ function applyAtTime01(time01) {
         intensity: intensity
     });
 
-    const ambR = M.lerp(_ambientNight.r, _ambientDay.r, dayFactor);
-    const ambG = M.lerp(_ambientNight.g, _ambientDay.g, dayFactor);
-    const ambB = M.lerp(_ambientNight.b, _ambientDay.b, dayFactor);
-    const ambI = M.lerp(_ambientNight.intensity, _ambientDay.intensity, dayFactor);
+    const ambR = math.lerp(_ambientNight.r, _ambientDay.r, dayFactor);
+    const ambG = math.lerp(_ambientNight.g, _ambientDay.g, dayFactor);
+    const ambB = math.lerp(_ambientNight.b, _ambientDay.b, dayFactor);
+    const ambI = math.lerp(_ambientNight.intensity, _ambientDay.intensity, dayFactor);
 
     render.ambientCfg({
         color: [ambR, ambG, ambB],
@@ -214,7 +253,7 @@ function applyAtTime01(time01) {
     });
 
     // fog throttling
-    const fogD = M.lerp(_fogDensityNight, _fogDensityDay, dayFactor);
+    const fogD = math.lerp(_fogDensityNight, _fogDensityDay, dayFactor);
     const key = fogKeyRGB(_fogBase.r, _fogBase.g, _fogBase.b);
 
     if (
@@ -238,29 +277,36 @@ function wireEventsOnce() {
     _wiredEvents = true;
 
     try {
-        const events = engine.events();
+        const ev = engine.events();
 
-        events.on("sky:setTime", function (p) {
+        ev.on("sky:setTime", function (p) {
             if (!p) return;
 
-            if (typeof p.dayLengthSec === "number" && p.dayLengthSec > 1) _dayLengthSec = p.dayLengthSec;
+            const dls = +p.dayLengthSec;
+            if (Number.isFinite(dls) && dls > 1) _dayLengthSec = dls;
 
-            if (typeof p.time01 === "number") {
-                _t = _dayLengthSec * M.wrap(p.time01, 0, 1);
-            } else if (typeof p.timeSec === "number") {
-                _t = p.timeSec;
+            // prefer time01 if provided
+            const t01 = +p.time01;
+            if (Number.isFinite(t01)) {
+                _t = _dayLengthSec * math.wrap(t01, 0, 1);
+            } else {
+                const ts = +p.timeSec;
+                if (Number.isFinite(ts)) _t = ts;
             }
+
             applyAtTime01(_t / _dayLengthSec);
         });
 
-        events.on("sky:setSpeed", function (p) {
+        ev.on("sky:setSpeed", function (p) {
             if (!p) return;
-            if (typeof p.dayLengthSec === "number" && p.dayLengthSec > 1) _dayLengthSec = p.dayLengthSec;
+            const dls = +p.dayLengthSec;
+            if (Number.isFinite(dls) && dls > 1) _dayLengthSec = dls;
         });
 
-        events.on("sky:setEnabled", function (p) {
+        ev.on("sky:setEnabled", function (p) {
             if (!p) return;
-            if (typeof p.enabled === "boolean") _enabled = p.enabled;
+            if (p.enabled === true) _enabled = true;
+            if (p.enabled === false) _enabled = false;
         });
     } catch (e) {
         engine.log().warn("[sky] events wiring skipped: " + e);

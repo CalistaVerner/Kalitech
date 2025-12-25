@@ -1,73 +1,69 @@
 // FILE: Scripts/main.js
 // Author: Calista Verner
-//
-// World entrypoint (compatibility shim + contract).
-// Keeps engine configuration stable while internal structure evolves.
-//
-// Actual content lives in:
-//   - Scripts/world/main.world.js
-//   - Scripts/world/main.bootstrap.js
+"use strict";
 
 const worldMod = require("./world/main.world.js");
 const bootMod  = require("./world/main.bootstrap.js");
 
-// --- Official contract meta (platform-ready) ---
 exports.meta = {
     id: "kalitech.world.main",
-    version: "1.0.0",
+    version: "1.1.0",
     apiMin: "0.1.0",
     name: "Main World Entrypoint"
 };
 
-// Keep legacy exports for compatibility with existing Java glue:
+// legacy
 exports.world = worldMod.world;
 exports.bootstrap = bootMod.bootstrap;
 
-// New preferred entrypoint for platform-style loading:
 exports.create = function () {
-    // If world/bootstrap modules support their own create(), prefer it.
-    const world = (typeof worldMod.create === "function") ? worldMod.create() : (worldMod.world || {});
-    const boot  = (typeof bootMod.create === "function")  ? bootMod.create()  : (bootMod.bootstrap || {});
+    // no typeof checks — contract: modules provide either .create() or plain object
+    var world = worldMod.create ? worldMod.create() : (worldMod.world || {});
+    var boot  = bootMod.create  ? bootMod.create()  : (bootMod.bootstrap || {});
 
-    // Shim state: store only JSON-serializable data here
-    let state = {
-        // could include selected world preset, seed, etc.
-        started: false
-    };
+    var state = { started: false };
 
     return {
-        init(api) {
-            // If bootstrap exposes init(api), call it. Otherwise keep compatibility.
-            if (boot && typeof boot.init === "function") boot.init(api);
+        init: function (apiOrCtx) {
+            // rely on assert if you want hard guarantees
+            // assert(apiOrCtx, "[main] init requires ctx/api");
+
+            try { if (boot.init) boot.init(apiOrCtx); } catch (e) {
+                engine.log().error("[main] boot.init failed: " + e);
+                throw e;
+            }
             state.started = true;
         },
 
-        update(tpf) {
-            if (boot && typeof boot.update === "function") boot.update(tpf);
+        update: function (tpfOrCtx) {
+            try { if (boot.update) boot.update(tpfOrCtx); } catch (e) {
+                engine.log().error("[main] boot.update failed: " + e);
+                throw e;
+            }
         },
 
-        destroy(reason) {
-            if (boot && typeof boot.destroy === "function") boot.destroy(reason);
+        destroy: function (reason) {
+            try { if (boot.destroy) boot.destroy(reason); } catch (e) {
+                engine.log().error("[main] boot.destroy failed: " + e);
+            }
         },
 
-        serialize() {
-            // If bootstrap/world can serialize, merge. Keep it JSON-only.
-            const bootState = (boot && typeof boot.serialize === "function") ? boot.serialize() : null;
-            const worldState = (world && typeof world.serialize === "function") ? world.serialize() : null;
+        serialize: function () {
+            var bootState = null;
+            var worldState = null;
 
-            return {
-                ...state,
-                boot: bootState,
-                world: worldState
-            };
+            try { if (boot.serialize) bootState = boot.serialize(); } catch (_) {}
+            try { if (world.serialize) worldState = world.serialize(); } catch (_) {}
+
+            return { started: state.started, boot: bootState, world: worldState };
         },
 
-        deserialize(restored) {
+        deserialize: function (restored) {
+            // deepMerge is builtin
             if (restored && typeof restored === "object") {
-                state = { ...state, ...restored, started: restored.started ?? state.started };
-
-                if (boot && typeof boot.deserialize === "function") boot.deserialize(restored.boot);
-                if (world && typeof world.deserialize === "function") world.deserialize(restored.world);
+                state = deepMerge(state, restored);
+                try { if (boot.deserialize) boot.deserialize(restored.boot); } catch (_) {}
+                try { if (world.deserialize) world.deserialize(restored.world); } catch (_) {}
             }
         }
     };
