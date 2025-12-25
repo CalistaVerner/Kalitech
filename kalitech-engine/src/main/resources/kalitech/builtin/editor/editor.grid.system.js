@@ -9,196 +9,188 @@ exports.meta = {
     name: "Editor Grid Plane"
 };
 
-exports.create = function () {
-    var state = {
-        enabled: true,
+class EditorGridSystem {
+    constructor() {
+        this.state = {
+            enabled: true,
+            halfExtent: 200,
+            size: 200,
+            step: 1.0,
+            majorStep: 10,
+            y: 0.02,
+            opacity: 0.85,
+            minorColor: { r: 0.05, g: 0.06, b: 0.08 },
+            majorColor: { r: 0.10, g: 0.12, b: 0.16 },
+            minorThickness: 0.02,
+            majorThickness: 0.06
+        };
 
-        // size semantics:
-        // - halfExtent: half size in world units (recommended)
-        // - size: legacy alias for halfExtent
-        halfExtent: 200,
-        size: 200,
+        this.created = false;
+        this.handle = null;
+        this.warned = false;
+        this.lastKey = "";
+    }
 
-        step: 1.0,
-        majorStep: 10,
-        y: 0.02,
-        opacity: 0.85,
+    norm01(v) {
+        return clamp(Number(v) || 0, 0.0, 1.0);
+    }
 
-        // dark, readable defaults
-        minorColor: { r: 0.05, g: 0.06, b: 0.08 },
-        majorColor: { r: 0.10, g: 0.12, b: 0.16 },
+    sanitize() {
+        let he = Number(this.state.halfExtent || this.state.size || 200);
+        he = clamp(he, 10, 500000);
 
-        // thickness in WORLD UNITS (stable "editor look")
-        minorThickness: 0.02,
-        majorThickness: 0.06
-    };
+        this.state.halfExtent = he;
+        this.state.size = he;
 
-    var created = false;
-    var handle = null;
-    var warned = false;
+        this.state.step = clamp(Number(this.state.step) || 1.0, 0.01, 100000);
+        this.state.majorStep = clamp((Math.round(Number(this.state.majorStep) || 10) | 0), 1, 1000000);
+        this.state.y = clamp(Number(this.state.y) || 0.02, -500000, 500000);
+        this.state.opacity = clamp(Number(this.state.opacity) || 0.85, 0.0, 1.0);
 
-    // last applied snapshot to detect config change
-    var lastKey = "";
+        if (!this.state.minorColor) this.state.minorColor = { r: 0.05, g: 0.06, b: 0.08 };
+        if (!this.state.majorColor) this.state.majorColor = { r: 0.10, g: 0.12, b: 0.16 };
 
-    function norm01(v) { return clamp(Number(v) || 0, 0.0, 1.0); }
+        this.state.minorColor = {
+            r: this.norm01(this.state.minorColor.r),
+            g: this.norm01(this.state.minorColor.g),
+            b: this.norm01(this.state.minorColor.b)
+        };
 
-    function makeKey() {
-        // cheap stringify key for "did config change?"
-        // safeJson is not guaranteed global, so just build primitive key
-        var he = Number(state.halfExtent || state.size || 200);
+        this.state.majorColor = {
+            r: this.norm01(this.state.majorColor.r),
+            g: this.norm01(this.state.majorColor.g),
+            b: this.norm01(this.state.majorColor.b)
+        };
+
+        this.state.minorThickness = clamp(Number(this.state.minorThickness) || 0.02, 0.0005, 10.0);
+        this.state.majorThickness = clamp(Number(this.state.majorThickness) || 0.06, 0.0005, 10.0);
+    }
+
+    key() {
+        const s = this.state;
+        const he = Number(s.halfExtent || s.size || 200);
         return [
-            state.enabled ? 1 : 0,
+            s.enabled ? 1 : 0,
             he,
-            Number(state.step),
-            Number(state.majorStep),
-            Number(state.y),
-            Number(state.opacity),
-            norm01(state.minorColor.r), norm01(state.minorColor.g), norm01(state.minorColor.b),
-            norm01(state.majorColor.r), norm01(state.majorColor.g), norm01(state.majorColor.b),
-            Number(state.minorThickness),
-            Number(state.majorThickness)
+            Number(s.step),
+            Number(s.majorStep),
+            Number(s.y),
+            Number(s.opacity),
+            this.norm01(s.minorColor.r), this.norm01(s.minorColor.g), this.norm01(s.minorColor.b),
+            this.norm01(s.majorColor.r), this.norm01(s.majorColor.g), this.norm01(s.majorColor.b),
+            Number(s.minorThickness),
+            Number(s.majorThickness)
         ].join("|");
     }
 
-    function sanitizeState() {
-        // accept legacy "size" as alias
-        var he = Number(state.halfExtent || state.size || 200);
-        he = clamp(he, 10, 500000);
-
-        state.halfExtent = he;
-        state.size = he;
-
-        state.step = clamp(Number(state.step) || 1.0, 0.01, 100000);
-        state.majorStep = clamp((Math.round(Number(state.majorStep) || 10) | 0), 1, 1000000);
-        state.y = clamp(Number(state.y) || 0.02, -500000, 500000);
-        state.opacity = clamp(Number(state.opacity) || 0.85, 0.0, 1.0);
-
-        if (!state.minorColor) state.minorColor = { r: 0.05, g: 0.06, b: 0.08 };
-        if (!state.majorColor) state.majorColor = { r: 0.10, g: 0.12, b: 0.16 };
-
-        state.minorColor = {
-            r: norm01(state.minorColor.r),
-            g: norm01(state.minorColor.g),
-            b: norm01(state.minorColor.b)
-        };
-        state.majorColor = {
-            r: norm01(state.majorColor.r),
-            g: norm01(state.majorColor.g),
-            b: norm01(state.majorColor.b)
-        };
-
-        state.minorThickness = clamp(Number(state.minorThickness) || 0.02, 0.0005, 10.0);
-        state.majorThickness = clamp(Number(state.majorThickness) || 0.06, 0.0005, 10.0);
-    }
-
-    function buildCfg() {
+    buildCfg() {
+        const s = this.state;
         return {
-            halfExtent: state.halfExtent,
-            step: state.step,
-            majorStep: state.majorStep,
-            y: state.y,
-            opacity: state.opacity,
-
-            minorColor: {
-                r: state.minorColor.r,
-                g: state.minorColor.g,
-                b: state.minorColor.b
-            },
-            majorColor: {
-                r: state.majorColor.r,
-                g: state.majorColor.g,
-                b: state.majorColor.b
-            },
-
-            minorThickness: state.minorThickness,
-            majorThickness: state.majorThickness
+            halfExtent: s.halfExtent,
+            step: s.step,
+            majorStep: s.majorStep,
+            y: s.y,
+            opacity: s.opacity,
+            minorColor: { r: s.minorColor.r, g: s.minorColor.g, b: s.minorColor.b },
+            majorColor: { r: s.majorColor.r, g: s.majorColor.g, b: s.majorColor.b },
+            minorThickness: s.minorThickness,
+            majorThickness: s.majorThickness
         };
     }
 
-    function tryCreate(log) {
-        if (created) return true;
+    editorLines() {
+        try { return engine.editorLines(); } catch (_) { return null; }
+    }
 
-        var editorLines = null;
-        try { editorLines = engine.editorLines(); } catch (_) {}
+    tryCreate(log) {
+        if (this.created) return true;
+
+        const el = this.editorLines();
+        if (!el) {
+            if (!this.warned) {
+                this.warned = true;
+                log.warn("[editor.grid] editorLines backend not available yet");
+            }
+            return false;
+        }
 
         try {
-            handle = editorLines.createGridPlane(buildCfg());
-            created = true;
-            lastKey = makeKey();
-            log.info("[editor.grid] created via engine.editorLines handle=" + String(handle));
+            this.handle = el.createGridPlane(this.buildCfg());
+            this.created = true;
+            this.lastKey = this.key();
+            log.info("[editor.grid] created handle=" + String(this.handle));
             return true;
         } catch (e) {
-            if (!warned) {
-                warned = true;
+            if (!this.warned) {
+                this.warned = true;
                 log.warn("[editor.grid] editorLines backend not available yet: " + String(e));
             }
             return false;
         }
     }
 
-    function tryDestroy(log, reason) {
-        if (!created) return;
+    tryDestroy(log, reason) {
+        if (!this.created) return;
 
-        var editorLines = null;
-        try { editorLines = engine.editorLines(); } catch (_) {}
-
-        try { editorLines.destroy(handle); } catch (_) {}
+        const el = this.editorLines();
+        if (el) {
+            try { el.destroy(this.handle); } catch (_) {}
+        }
 
         log.info("[editor.grid] destroyed reason=" + String(reason || "unknown"));
-        created = false;
-        handle = null;
+        this.created = false;
+        this.handle = null;
     }
 
-    function recreateIfChanged(log) {
-        var k = makeKey();
-        if (k === lastKey) return;
-        if (!created) return;
+    recreateIfChanged(log) {
+        const k = this.key();
+        if (!this.created) return;
+        if (k === this.lastKey) return;
 
-        tryDestroy(log, "reconfigure");
-        tryCreate(log);
+        this.tryDestroy(log, "reconfigure");
+        this.tryCreate(log);
     }
 
-    return {
-        init: function (ctx) {
-            var log = engine.log();
+    init(ctx) {
+        const log = engine.log();
+        try {
+            const cfg = (ctx && ctx.config) ? ctx.config : ctx;
+            if (cfg) this.state = deepMerge(this.state, cfg);
+        } catch (_) {}
 
-            try {
-                var cfg = (ctx && ctx.config) ? ctx.config : ctx;
-                if (cfg) state = deepMerge(state, cfg);
-            } catch (_) {}
+        this.sanitize();
+        if (this.state.enabled) this.tryCreate(log);
+    }
 
-            sanitizeState();
+    update() {
+        if (!this.state.enabled) return;
 
-            if (state.enabled) tryCreate(log);
-        },
+        const log = engine.log();
 
-        update: function (tpf) {
-            if (!state.enabled) return;
-
-            var log = engine.log();
-
-            if (!created) {
-                tryCreate(log);
-                return;
-            }
-
-            // allow live-tuning via editor / hot reload / deserialize()
-            recreateIfChanged(log);
-        },
-
-        destroy: function (reason) {
-            tryDestroy(engine.log(), reason);
-        },
-
-        serialize: function () { return state; },
-
-        deserialize: function (s) {
-            if (!s) return;
-            state = deepMerge(state, s);
-            sanitizeState();
-
-            // force recreate next tick if already created
-            lastKey = "";
+        if (!this.created) {
+            this.tryCreate(log);
+            return;
         }
-    };
+
+        this.recreateIfChanged(log);
+    }
+
+    destroy(reason) {
+        this.tryDestroy(engine.log(), reason);
+    }
+
+    serialize() {
+        return this.state;
+    }
+
+    deserialize(s) {
+        if (!s) return;
+        this.state = deepMerge(this.state, s);
+        this.sanitize();
+        this.lastKey = "";
+    }
+}
+
+exports.create = function () {
+    return new EditorGridSystem();
 };
