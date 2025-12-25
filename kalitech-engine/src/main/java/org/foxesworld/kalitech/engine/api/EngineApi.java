@@ -7,39 +7,70 @@ import org.graalvm.polyglot.Value;
 
 @SuppressWarnings("unused")
 public interface EngineApi {
-    @HostAccess.Export LogApi log();
-    @HostAccess.Export AssetsApi assets();
-    @HostAccess.Export EventsApi events();
-    @HostAccess.Export MaterialApi material();
-    @HostAccess.Export EntityApi entity();
-    @HostAccess.Export RenderApi render();
-    @HostAccess.Export CameraApi camera();
+    @HostAccess.Export
+    LogApi log();
+
+    @HostAccess.Export
+    AssetsApi assets();
+
+    @HostAccess.Export
+    EventsApi events();
+
+    @HostAccess.Export
+    MaterialApi material();
+
+    @HostAccess.Export
+    EntityApi entity();
+
+    @HostAccess.Export
+    RenderApi render();
+
+    @HostAccess.Export
+    CameraApi camera();
+
     // ✅ NEW
-    @HostAccess.Export PhysicsApi physics();
+    @HostAccess.Export
+    PhysicsApi physics();
 
     // ✅ new unified surface layer
-    @HostAccess.Export SurfaceApi surface();
+    @HostAccess.Export
+    SurfaceApi surface();
 
     // ✅ new terrain builder
-    @HostAccess.Export TerrainApi terrain();
+    @HostAccess.Export
+    TerrainApi terrain();
 
-    @HostAccess.Export boolean isJmeThread();
+    @HostAccess.Export
+    boolean isJmeThread();
 
 
     // ✅ new terrain splat layer (separate from builder)
-    @HostAccess.Export TerrainSplatApi terrainSplat();
+    @HostAccess.Export
+    TerrainSplatApi terrainSplat();
 
     @HostAccess.Export
     EditorLinesApi editorLines();
 
-    @HostAccess.Export HudApi hud();
+    @HostAccess.Export
+    MeshApi mesh();
 
-    @HostAccess.Export String engineVersion();
+    @HostAccess.Export
+    HudApi hud();
 
-    @HostAccess.Export TimeApi time();
-    @HostAccess.Export InputApi input();
-    @HostAccess.Export WorldApi world();
-    @HostAccess.Export EditorApi editor();
+    @HostAccess.Export
+    String engineVersion();
+
+    @HostAccess.Export
+    TimeApi time();
+
+    @HostAccess.Export
+    InputApi input();
+
+    @HostAccess.Export
+    WorldApi world();
+
+    @HostAccess.Export
+    EditorApi editor();
 
     /**
      * Execute a callback on JME main thread via Application#enqueue.

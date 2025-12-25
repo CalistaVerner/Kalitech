@@ -31,46 +31,33 @@ public final class HudApiImpl implements HudApi {
     private final EngineApiImpl engine;
     private final SimpleApplication app;
 
-    /**
-     * Root node attached to guiNode. All HUD elements are children of this node.
-     */
+    /** HUD root is rendered in its own viewport (NOT guiNode) */
     private final Node hudRoot = new Node("kalitech:hudRoot");
+
+    private ViewPort hudVP;
+    private Camera hudCam;
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, HudElement> byId = new ConcurrentHashMap<>();
 
-    /**
-     * Track last viewport to detect resize and relayout.
-     */
     private volatile int lastW = -1;
     private volatile int lastH = -1;
-
-    // internal: once-only test quad
-    private volatile boolean guiSelfTestCreated = false;
 
     public HudApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = Objects.requireNonNull(engine.getApp(), "app");
 
         onJme(() -> {
-            ensureGuiConfigured("ctor");
-            attachHudRootIfNeeded("ctor");
+            hudRoot.setQueueBucket(RenderQueue.Bucket.Gui);
+            hudRoot.setCullHint(Spatial.CullHint.Never);
 
-            lastW = app.getCamera().getWidth();
-            lastH = app.getCamera().getHeight();
+            int w = app.getCamera().getWidth();
+            int h = app.getCamera().getHeight();
+            lastW = w;
+            lastH = h;
 
-            // ✅ НЕ ломаем frustum вручную. Только гарантируем parallel+resize.
-            configureGuiCameraSoft(lastW, lastH, "ctor");
+            ensureHudViewport(w, h, "ctor");
             relayoutAll();
-            dbg("init hudRootParent={} guiChildren={} guiVP.enabled={} guiVP.scenes={} guiCam.parallel={} guiCam={}x{}",
-                    hudRoot.getParent() != null,
-                    app.getGuiNode().getQuantity(),
-                    safeGuiEnabled(),
-                    safeGuiScenesCount(),
-                    safeGuiCamParallel(),
-                    safeGuiCamW(),
-                    safeGuiCamH()
-            );
         });
     }
 
@@ -90,46 +77,36 @@ public final class HudApiImpl implements HudApi {
         final HudHandle handle = new HudHandle(id);
 
         onJme(() -> {
-            ensureGuiConfigured("create");
-            attachHudRootIfNeeded("create");
+            ensureHudViewport(lastW, lastH, "create");
 
             HudElement parent = resolveParent(cfg);
 
-            HudElement el;
+            final HudElement el;
             switch (kind) {
                 case "group" -> el = new HudGroup(id);
-                case "rect" -> el = new HudRect(id);
+                case "rect"  -> el = new HudRect(id);
+                case "image" -> el = new HudImage(id);
                 default -> throw new IllegalArgumentException("hud.create: unknown kind='" + kind + "'");
             }
 
             applyCommon(el, cfg);
 
-            // attach
             if (parent != null) parent.attach(el);
             else hudRoot.attachChild(el.node);
 
-            // make sure gui profile is applied to subtree
             forceGui(el.node);
-
             byId.put(id, el);
 
-            // kind-specific init
-            if (el instanceof HudRect r) applyRectProps(r, cfg);
-
-            dbg("create id={} kind={} parent={} visible={} size={}x{} off=({}, {}) anchor={} pivot={}",
-                    id, kind,
-                    parent == null ? "ROOT" : String.valueOf(parent.id),
-                    el.visible, el.w, el.h,
-                    el.offsetX, el.offsetY,
-                    el.anchor, el.pivot
-            );
+            if (el instanceof HudRect r)  applyRectProps(r, cfg);
+            if (el instanceof HudImage i) applyImageProps(i, cfg);
 
             relayoutAll();
 
-            dbg("create.afterLayout id={} local={} parentLocal={}",
-                    id,
-                    el.node.getLocalTranslation(),
-                    el.parent == null ? "(root)" : el.parent.node.getLocalTranslation()
+            dbg("create id={} kind={} parent={} visible={} size={}x{} anchor={} pivot={}",
+                    id, kind,
+                    parent == null ? "ROOT" : String.valueOf(parent.id),
+                    el.visible, el.w, el.h,
+                    el.anchor, el.pivot
             );
         });
 
@@ -142,8 +119,7 @@ public final class HudApiImpl implements HudApi {
         if (handleOrId == null || cfg == null) return;
 
         onJme(() -> {
-            ensureGuiConfigured("set");
-            attachHudRootIfNeeded("set");
+            ensureHudViewport(lastW, lastH, "set");
 
             HudElement el = require(handleOrId, "hud.set");
             applyCommon(el, cfg);
@@ -152,10 +128,10 @@ public final class HudApiImpl implements HudApi {
             if (parentObj != null) {
                 HudElement newParent = resolveParent(cfg);
                 reparent(el, newParent);
-                dbg("set.reparent id={} newParent={}", el.id, newParent == null ? "ROOT" : String.valueOf(newParent.id));
             }
 
-            if (el instanceof HudRect r) applyRectProps(r, cfg);
+            if (el instanceof HudRect r)  applyRectProps(r, cfg);
+            if (el instanceof HudImage i) applyImageProps(i, cfg);
 
             forceGui(el.node);
             relayoutAll();
@@ -168,12 +144,7 @@ public final class HudApiImpl implements HudApi {
         if (handleOrId == null) return;
 
         onJme(() -> {
-            ensureGuiConfigured("destroy");
-            attachHudRootIfNeeded("destroy");
-
             HudElement el = require(handleOrId, "hud.destroy");
-            dbg("destroy id={} children={}", el.id, el.children.size());
-
             destroyRecursive(el);
             relayoutAll();
         });
@@ -193,15 +164,88 @@ public final class HudApiImpl implements HudApi {
         int h = app.getCamera().getHeight();
 
         if (w != lastW || h != lastH) {
-            dbg("resize {}x{} -> {}x{}", lastW, lastH, w, h);
             lastW = w;
             lastH = h;
             onJme(() -> {
-                ensureGuiConfigured("resize");
-                attachHudRootIfNeeded("resize");
-                configureGuiCameraSoft(w, h, "resize");
+                ensureHudViewport(w, h, "resize");
                 relayoutAll();
             });
+        } else {
+            // if someone disabled our viewport, re-enable softly
+            onJme(() -> {
+                if (hudVP != null && !hudVP.isEnabled()) {
+                    hudVP.setEnabled(true);
+                    dbg("tick: hudVP was disabled -> enabled");
+                }
+            });
+        }
+    }
+
+    // ------------------------
+    // AAA viewport pipeline
+    // ------------------------
+
+    /**
+     * HUD is rendered in a dedicated PostView with its own camera.
+     * Critical: clear DEPTH so world depth never hides GUI.
+     */
+    private void ensureHudViewport(int w, int h, String where) {
+        try {
+            if (hudVP == null || hudCam == null) {
+                hudCam = new Camera(w, h);
+                hudCam.setParallelProjection(true);
+
+                // Orthographic pixel space: x:[0..w], y:[0..h]
+                float near = 1f;
+                float far  = 1000f;
+                hudCam.setFrustum(near, far, 0f, (float) w, (float) h, 0f);
+                hudCam.setLocation(new Vector3f(0f, 0f, 10f));
+                hudCam.lookAtDirection(new Vector3f(0f, 0f, -1f), new Vector3f(0f, 1f, 0f));
+                hudCam.update();
+
+                hudVP = app.getRenderManager().createPostView("kalitech:hudVP", hudCam);
+                // DO NOT clear color (keep scene), DO clear depth (important), DO NOT clear stencil
+                hudVP.setClearFlags(false, true, false);
+                hudVP.setEnabled(true);
+
+                hudVP.attachScene(hudRoot);
+                forceGui(hudRoot);
+
+                dbg("{}: hudVP created postView w={} h={} clearFlags(color={}, depth={}, stencil={})",
+                        where, w, h, false, true, false
+                );
+                return;
+            }
+
+            // Resize / keep frustum stable
+            if (hudCam.getWidth() != w || hudCam.getHeight() != h) {
+                hudCam.resize(w, h, true);
+                hudCam.setParallelProjection(true);
+                hudCam.setFrustum(1f, 1000f, 0f, (float) w, (float) h, 0f);
+                hudCam.update();
+                dbg("{}: hudCam resized {}x{}", where, w, h);
+            }
+
+            if (!hudVP.isEnabled()) {
+                hudVP.setEnabled(true);
+                dbg("{}: hudVP enabled", where);
+            }
+
+            // Make sure scene is still attached
+            boolean hasRoot = false;
+            try {
+                for (Spatial s : hudVP.getScenes()) {
+                    if (s == hudRoot) { hasRoot = true; break; }
+                }
+            } catch (Throwable ignored) {}
+            if (!hasRoot) {
+                hudVP.attachScene(hudRoot);
+                dbg("{}: hudRoot re-attached to hudVP", where);
+            }
+
+            forceGui(hudRoot);
+        } catch (Throwable t) {
+            log.error("[hud] ensureHudViewport failed at {}: {}", where, t.toString(), t);
         }
     }
 
@@ -211,176 +255,25 @@ public final class HudApiImpl implements HudApi {
 
     private void dbg(String fmt, Object... args) {
         if (!DEBUG) return;
-        try {
-            log.info("[hud] " + fmt, args);
-        } catch (Throwable ignored) {
-        }
+        try { log.info("[hud] " + fmt, args); } catch (Throwable ignored) {}
     }
 
     private void onJme(Runnable r) {
         if (engine.isJmeThread()) {
-            try {
-                r.run();
-            } catch (Throwable t) {
-                log.error("[hud] jme task failed", t);
-            }
+            try { r.run(); } catch (Throwable t) { log.error("[hud] jme task failed", t); }
         } else {
             app.enqueue(() -> {
-                try {
-                    r.run();
-                } catch (Throwable t) {
-                    log.error("[hud] jme task failed", t);
-                }
+                try { r.run(); } catch (Throwable t) { log.error("[hud] jme task failed", t); }
                 return null;
             });
         }
     }
 
-    /**
-     * ✅ Self-healing GUI setup.
-     * Make guiVP enabled and GUARANTEE guiNode is attached as the ONLY root scene.
-     */
-    private void ensureGuiConfigured(String where) {
-        try {
-            ViewPort guiVP = app.getGuiViewPort();
-            if (guiVP == null) return;
-
-            if (!guiVP.isEnabled()) {
-                guiVP.setEnabled(true);
-                dbg("{}: guiVP was disabled -> enabled", where);
-            }
-
-            // Hard guarantee: guiVP must render guiNode.
-            boolean hasGuiNode = false;
-            try {
-                for (Spatial s : guiVP.getScenes()) {
-                    if (s == app.getGuiNode()) {
-                        hasGuiNode = true;
-                        break;
-                    }
-                }
-            } catch (Throwable ignored) {
-            }
-
-            if (!hasGuiNode) {
-                // 🔥 самый надёжный путь — пересобрать сцену viewport’а
-                try {
-                    guiVP.clearScenes();
-                } catch (Throwable ignored) {
-                }
-                guiVP.attachScene(app.getGuiNode());
-                dbg("{}: guiVP scenes rebuilt -> guiNode attached", where);
-            }
-
-            Node guiNode = app.getGuiNode();
-            forceGui(guiNode);
-
-        } catch (Throwable t) {
-            dbg("{}: ensureGuiConfigured failed: {}", where, t.toString());
-        }
-    }
-
-    private void attachHudRootIfNeeded(String where) {
-        try {
-            Node guiNode = app.getGuiNode();
-
-            if (hudRoot.getParent() == null) {
-                guiNode.attachChild(hudRoot);
-                dbg("{}: hudRoot attached to guiNode", where);
-            }
-
-            // ensure GUI profile
-            forceGui(hudRoot);
-            // hudRoot should not be offset
-            hudRoot.setLocalTranslation(0f, 0f, 0f);
-
-        } catch (Throwable t) {
-            dbg("{}: attachHudRootIfNeeded failed: {}", where, t.toString());
-        }
-    }
-
-    /**
-     * ✅ Soft GUI camera config: do NOT override frustum.
-     * jME already configures guiCam for pixel space.
-     */
-    private void configureGuiCameraSoft(int w, int h, String where) {
-        try {
-            ViewPort guiVP = app.getGuiViewPort();
-            if (guiVP == null) return;
-            Camera cam = guiVP.getCamera();
-            if (cam == null) return;
-
-            cam.setParallelProjection(true);
-            if (cam.getWidth() != w || cam.getHeight() != h) {
-                cam.resize(w, h, true);
-            }
-
-            // keep conventional orientation (often already correct)
-            cam.setLocation(new Vector3f(0f, 0f, 1f));
-            cam.lookAtDirection(new Vector3f(0f, 0f, -1f), new Vector3f(0f, 1f, 0f));
-            cam.update();
-
-            dbg("{}: guiCam soft-config w={} h={} parallel={} loc={}",
-                    where, w, h, cam.isParallelProjection(), cam.getLocation());
-
-        } catch (Throwable t) {
-            dbg("{}: configureGuiCameraSoft failed: {}", where, t.toString());
-        }
-    }
-
-    /**
-     * 🔒 Apply GUI render profile to whole subtree (Node bucket does NOT reliably propagate to Geometry).
-     */
     private static void forceGui(Spatial s) {
         if (s == null) return;
         s.setQueueBucket(RenderQueue.Bucket.Gui);
         s.setCullHint(Spatial.CullHint.Never);
-
-        if (s instanceof Node n) {
-            for (Spatial c : n.getChildren()) {
-                forceGui(c);
-            }
-        }
-    }
-
-    private boolean safeGuiEnabled() {
-        try {
-            return app.getGuiViewPort() != null && app.getGuiViewPort().isEnabled();
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private int safeGuiScenesCount() {
-        try {
-            return app.getGuiViewPort() == null ? -1 : app.getGuiViewPort().getScenes().size();
-        } catch (Throwable ignored) {
-            return -2;
-        }
-    }
-
-    private boolean safeGuiCamParallel() {
-        try {
-            return app.getGuiViewPort().getCamera() != null && app.getGuiViewPort().getCamera().isParallelProjection();
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private int safeGuiCamW() {
-        try {
-            return app.getGuiViewPort().getCamera() == null ? -1 : app.getGuiViewPort().getCamera().getWidth();
-        } catch (Throwable ignored) {
-            return -1;
-        }
-    }
-
-    private int safeGuiCamH() {
-        try {
-            return app.getGuiViewPort().getCamera() == null ? -1 : app.getGuiViewPort().getCamera().getHeight();
-        } catch (Throwable ignored) {
-            return -1;
-        }
+        if (s instanceof Node n) for (Spatial c : n.getChildren()) forceGui(c);
     }
 
     private HudElement require(Object handleOrId, String where) {
@@ -456,6 +349,8 @@ public final class HudApiImpl implements HudApi {
             el.offsetX = (float) HudValueParsers.asNum(HudValueParsers.member(off, "x"), el.offsetX);
             el.offsetY = (float) HudValueParsers.asNum(HudValueParsers.member(off, "y"), el.offsetY);
         }
+
+        try { el.applyVisibility(); } catch (Throwable ignored) {}
     }
 
     private void applyRectProps(HudRect r, Object cfg) {
@@ -464,7 +359,6 @@ public final class HudApiImpl implements HudApi {
             float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), r.w);
             float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), r.h);
             r.setSize(w, h, engine);
-            dbg("rect.setSize id={} -> {}x{}", r.id, r.w, r.h);
         }
 
         Object col = HudValueParsers.member(cfg, "color");
@@ -474,50 +368,50 @@ public final class HudApiImpl implements HudApi {
             float cb = (float) HudValueParsers.asNum(HudValueParsers.member(col, "b"), r.color.b);
             float ca = (float) HudValueParsers.asNum(HudValueParsers.member(col, "a"), r.color.a);
             r.setColor(new ColorRGBA(cr, cg, cb, ca), engine);
-            dbg("rect.setColor id={} -> rgba({}, {}, {}, {})", r.id, cr, cg, cb, ca);
+        }
+    }
+
+    private void applyImageProps(HudImage img, Object cfg) {
+        // image first
+        Object imgObj = HudValueParsers.member(cfg, "image");
+        if (imgObj == null) imgObj = HudValueParsers.member(cfg, "texture");
+        if (imgObj != null) {
+            String asset = HudValueParsers.asString(imgObj, null);
+            if (asset != null && !asset.isBlank()) img.setImage(asset, engine);
+        }
+
+        // then size (so texture stays visible after resize)
+        Object size = HudValueParsers.member(cfg, "size");
+        if (size != null) {
+            float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), img.w);
+            float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), img.h);
+            img.setSize(w, h, engine);
+        }
+
+        Object col = HudValueParsers.member(cfg, "color");
+        if (col != null) {
+            float cr = (float) HudValueParsers.asNum(HudValueParsers.member(col, "r"), img.color.r);
+            float cg = (float) HudValueParsers.asNum(HudValueParsers.member(col, "g"), img.color.g);
+            float cb = (float) HudValueParsers.asNum(HudValueParsers.member(col, "b"), img.color.b);
+            float ca = (float) HudValueParsers.asNum(HudValueParsers.member(col, "a"), img.color.a);
+            img.setColor(new ColorRGBA(cr, cg, cb, ca), engine);
         }
     }
 
     private void relayoutAll() {
-        ensureGuiConfigured("relayoutAll");
-        attachHudRootIfNeeded("relayoutAll");
+        ensureHudViewport(lastW, lastH, "relayoutAll");
 
-        final int w = app.getCamera().getWidth();
-        final int h = app.getCamera().getHeight();
-
-        dbg("relayoutAll cam={}x{} elements={} guiChildren={} hudRootParent={} guiVP.enabled={} guiVP.scenes={} guiCam.parallel={} guiCam={}x{}",
-                w, h,
-                byId.size(),
-                app.getGuiNode().getQuantity(),
-                hudRoot.getParent() != null,
-                safeGuiEnabled(),
-                safeGuiScenesCount(),
-                safeGuiCamParallel(),
-                safeGuiCamW(),
-                safeGuiCamH()
-        );
+        final int w = lastW;
+        final int h = lastH;
 
         for (HudElement el : byId.values()) {
             if (el == null) continue;
             if (el.parent != null) continue;
 
             HudLayout.layoutRecursive(el, w, h, w, h);
-
-            // ensure subtree stays GUI
             forceGui(el.node);
-
-            dbg("relayout.root id={} pos={} size={}x{} children={}",
-                    el.id,
-                    el.node.getLocalTranslation(),
-                    el.w, el.h,
-                    el.children.size()
-            );
         }
 
-        // help update bounds/state (safe in gui)
-        try {
-            app.getGuiNode().updateGeometricState();
-        } catch (Throwable ignored) {
-        }
+        try { hudRoot.updateGeometricState(); } catch (Throwable ignored) {}
     }
 }

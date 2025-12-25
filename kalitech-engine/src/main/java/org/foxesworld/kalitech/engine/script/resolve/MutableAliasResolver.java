@@ -28,40 +28,27 @@ public final class MutableAliasResolver implements ResolverStrategy {
         Map<String, String> aliases = aliasesRef.get();
         if (aliases.isEmpty()) return Optional.empty();
 
+        String req = request.trim();
+
         for (Map.Entry<String, String> e : aliases.entrySet()) {
             String prefix = e.getKey();
             String base = trimTrailingSlash(e.getValue());
 
             // require("@core")
-            if (request.equals(prefix)) {
-                return Optional.of(base);
+            if (req.equals(prefix)) {
+                return Optional.of(PathNorm.normalizeId(base));
             }
 
             // require("@core/...")
-            if (request.startsWith(prefix + "/")) {
-                String tail = request.substring(prefix.length() + 1);
-
-                // IMPORTANT: dots in module names are allowed (editor.grid.system),
-                // so "extension" must be detected by known suffix, not by any dot.
-                if (!hasKnownExtension(tail)) {
-                    tail = tail + ".js";
-                }
-
-                return Optional.of(base + "/" + tail);
+            if (req.startsWith(prefix + "/")) {
+                String tail = req.substring(prefix.length() + 1);
+                // DO NOT force .js here — runtime will expand candidates:
+                //   base/tail/index.js then base/tail.js
+                return Optional.of(PathNorm.normalizeId(base + "/" + tail));
             }
         }
 
         return Optional.empty();
-    }
-
-    private static boolean hasKnownExtension(String path) {
-        String p = path.toLowerCase();
-
-        // keep this list tight: only real extensions you support
-        return p.endsWith(".js")
-                || p.endsWith(".mjs")
-                || p.endsWith(".cjs")
-                || p.endsWith(".json");
     }
 
     private static String trimTrailingSlash(String s) {

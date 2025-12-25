@@ -1,4 +1,4 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/PhysicsApiImpl.java
+// FILE: org/foxesworld/kalitech/engine/api/impl/physics/PhysicsApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl.physics;
 
 import com.jme3.app.SimpleApplication;
@@ -33,9 +33,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final SimpleApplication app;
     private final SurfaceRegistry surfaces;
 
-    private BulletAppState bullet;
-    private PhysicsSpace space;
-
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> bodyIdBySurface = new ConcurrentHashMap<>();
@@ -53,6 +50,18 @@ public final class PhysicsApiImpl implements PhysicsApi {
         }
         return s;
     }
+
+    private PhysicsBodyHandle requireHandle(Object handleOrId, String where) {
+        int id = resolveBodyId(handleOrId);
+        if (id <= 0) throw new IllegalArgumentException(where + ": body id/handle required");
+        PhysicsBodyHandle h = byId.get(id);
+        if (h == null) throw new IllegalArgumentException(where + ": unknown bodyId=" + id);
+        return h;
+    }
+
+    // ------------------------------------------------------------
+    // API
+    // ------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -95,6 +104,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
         boolean kinematic = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "kinematic"), false);
         rb.setKinematic(kinematic);
 
+        boolean lockRot = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "lockRotation"), false);
+        if (lockRot) rb.setAngularFactor(0f);
+
         spatial.addControl(rb);
         space.add(rb);
 
@@ -103,10 +115,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
         byId.put(id, handle);
         bodyIdBySurface.put(surfaceId, id);
 
-        log.debug("[physics] body created id={} surfaceId={} mass={} kinematic={}", id, surfaceId, mass, kinematic);
+        log.debug("[physics] body created id={} surfaceId={} mass={} kinematic={} lockRotation={}", id, surfaceId, mass, kinematic, lockRot);
         return handle;
     }
-
 
     @HostAccess.Export
     @Override
@@ -178,11 +189,70 @@ public final class PhysicsApiImpl implements PhysicsApi {
         );
     }
 
+    // ---- controller helpers (NEW) ----
+
+    @HostAccess.Export
+    public Object position(Object handleOrId) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
+        Vector3f p = h.__raw().getPhysicsLocation();
+        return new PhysicsRayHit.Vec3(p.x, p.y, p.z);
+    }
+
+    @HostAccess.Export
+    public void warp(Object handleOrId, Object vec3) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.warp(pos)");
+        Vector3f p = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
+        RigidBodyControl rb = h.__raw();
+        rb.setPhysicsLocation(p);
+        rb.setLinearVelocity(Vector3f.ZERO);
+        rb.setAngularVelocity(Vector3f.ZERO);
+    }
+
+    @HostAccess.Export
+    public Object velocity(Object handleOrId) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity()");
+        Vector3f v = h.__raw().getLinearVelocity();
+        return new PhysicsRayHit.Vec3(v.x, v.y, v.z);
+    }
+
+    @HostAccess.Export
+    public void velocity(Object handleOrId, Object vec3) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity(v)");
+        Vector3f v = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
+        h.__raw().setLinearVelocity(v);
+    }
+
+    @HostAccess.Export
+    public void applyImpulse(Object handleOrId, Object vec3) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.applyImpulse(impulse)");
+        Vector3f imp = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
+        h.__raw().applyImpulse(imp, Vector3f.ZERO);
+    }
+
+    @HostAccess.Export
+    public void lockRotation(Object handleOrId, boolean lock) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.lockRotation(lock)");
+        RigidBodyControl rb = h.__raw();
+        if (lock) {
+            rb.setAngularFactor(0f);
+            rb.setAngularVelocity(Vector3f.ZERO);
+        } else {
+            rb.setAngularFactor(1f);
+        }
+    }
+
+    // ---- debug/gravity ----
+
     @HostAccess.Export
     @Override
     public void debug(boolean enabled) {
-        PhysicsSpace space = space();
-        bullet.setDebugEnabled(enabled);
+        // FIX: bullet field was never bound. Take BulletAppState from AppStateManager.
+        BulletAppState b = app.getStateManager().getState(BulletAppState.class);
+        if (b == null) {
+            log.warn("[physics] debug({}) ignored: BulletAppState not attached", enabled);
+            return;
+        }
+        b.setDebugEnabled(enabled);
     }
 
     @HostAccess.Export
@@ -248,13 +318,19 @@ public final class PhysicsApiImpl implements PhysicsApi {
             }
         }
 
+        // Map {id:...}
+        if (handleOrId instanceof java.util.Map<?, ?> m) {
+            Object id = m.get("id");
+            if (id instanceof Number n) return n.intValue();
+        }
+
         return 0;
     }
 
     /** Clear ALL physics bodies created via this API (used before world rebuild / ecs.reset). */
     public void __clearAll() {
-        // if physics was never started, nothing to clear
-        if (space == null) {
+        PhysicsSpace s = engine.__getPhysicsSpaceOrNull();
+        if (s == null) {
             byId.clear();
             bodyIdBySurface.clear();
             return;
@@ -266,7 +342,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
             int surfaceId = h.surfaceId;
             RigidBodyControl rb = h.__raw();
 
-            try { space.remove(rb); } catch (Throwable ignored) {}
+            try { s.remove(rb); } catch (Throwable ignored) {}
 
             try {
                 Spatial sp = surfaces.get(surfaceId);
@@ -279,5 +355,4 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         log.info("[physics] cleared all bodies");
     }
-
 }

@@ -25,15 +25,10 @@ public final class NamespaceResolver implements ResolverStrategy {
 
         if (ns.isEmpty() || path.isEmpty()) return Optional.empty();
 
-        // allow "kalitech:ui" or "kalitech:ui/menu"
+        // "kalitech:ui" or "kalitech:ui/menu"
         String normalizedPath = PathNorm.normalizeId(path);
         String out = modsRoot + "/" + ns + "/" + normalizedPath;
 
-        // policy: if no extension -> index.js
-        if (!out.endsWith(".js")) {
-            if (out.endsWith("/")) out += "index.js";
-            else out += "/index.js";
-        }
-        return Optional.of(out);
+        return Optional.of(PathNorm.normalizeId(out));
     }
 }

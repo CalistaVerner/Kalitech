@@ -1,4 +1,4 @@
-// FILE: RenderApiImpl.java
+// FILE: org/foxesworld/kalitech/engine/api/impl/RenderApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -10,7 +10,9 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.FogFilter;
+import com.jme3.renderer.ViewPort;
 import com.jme3.renderer.queue.RenderQueue;
+import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.terrain.geomipmap.TerrainQuad;
@@ -124,6 +126,88 @@ public final class RenderApiImpl implements RenderApi {
     }
 
     // ------------------------------------------------------------
+    // AAA viewport hygiene (self-healing contract)
+    // ------------------------------------------------------------
+
+    /** Enforces viewport contract (AAA hygiene). Call on JME thread only. */
+    private void ensureViewportContract(String where) {
+        try {
+            // MAIN viewport must render rootNode
+            ViewPort main = app.getViewPort();
+            if (main != null) {
+                boolean hasRoot = false;
+                for (Spatial s : main.getScenes()) {
+                    if (s == app.getRootNode()) { hasRoot = true; break; }
+                }
+                if (!hasRoot) {
+                    try { main.clearScenes(); } catch (Throwable ignored) {}
+                    main.attachScene(app.getRootNode());
+                    log.warn("RenderApi: {} fixed MAIN viewport scenes -> rootNode attached", where);
+                }
+            }
+
+            // GUI viewport must render guiNode and never clear
+            ViewPort gui = app.getGuiViewPort();
+            if (gui != null) {
+                if (!gui.isEnabled()) {
+                    gui.setEnabled(true);
+                    log.warn("RenderApi: {} GUI viewport was disabled -> enabled", where);
+                }
+
+                boolean hasGui = false;
+                for (Spatial s : gui.getScenes()) {
+                    if (s == app.getGuiNode()) { hasGui = true; break; }
+                }
+                if (!hasGui) {
+                    try { gui.clearScenes(); } catch (Throwable ignored) {}
+                    gui.attachScene(app.getGuiNode());
+                    log.warn("RenderApi: {} fixed GUI viewport scenes -> guiNode attached", where);
+                }
+
+                // GUI draws on top; must not clear buffers
+                gui.setClearFlags(false, false, false);
+
+                // Ensure guiNode is in GUI render path
+                Node guiNode = app.getGuiNode();
+                guiNode.setQueueBucket(RenderQueue.Bucket.Gui);
+                guiNode.setCullHint(Spatial.CullHint.Never);
+            }
+        } catch (Throwable t) {
+            log.warn("RenderApi: ensureViewportContract({}) failed: {}", where, t.toString());
+        }
+    }
+
+    /** Ensures main FPP exists and is attached to MAIN viewport only. Call on JME thread only. */
+    private void ensureMainFpp(String where) {
+        if (fpp != null) return;
+        fpp = new FilterPostProcessor(assets);
+        app.getViewPort().addProcessor(fpp);
+        log.info("RenderApi: {} main FPP created", where);
+    }
+
+    @HostAccess.Export
+    public void debugViewports() {
+        onJme(() -> {
+            try {
+                ViewPort main = app.getViewPort();
+                ViewPort gui  = app.getGuiViewPort();
+
+                log.info("VP MAIN enabled={} scenes={} procs={}",
+                        main != null && main.isEnabled(),
+                        main == null ? -1 : main.getScenes().size(),
+                        main == null ? -1 : main.getProcessors().size());
+
+                log.info("VP GUI  enabled={} scenes={} procs={} clearFlags=(false,false,false expected)",
+                        gui != null && gui.isEnabled(),
+                        gui == null ? -1 : gui.getScenes().size(),
+                        gui == null ? -1 : gui.getProcessors().size());
+            } catch (Throwable t) {
+                log.warn("debugViewports failed: {}", t.toString());
+            }
+        });
+    }
+
+    // ------------------------------------------------------------
     // Core lifecycle
     // ------------------------------------------------------------
 
@@ -132,7 +216,11 @@ public final class RenderApiImpl implements RenderApi {
     public void ensureScene() {
         if (sceneReady) return;
         sceneReady = true;
-        log.info("RenderApi: scene ready");
+
+        onJme(() -> {
+            ensureViewportContract("ensureScene");
+            log.info("RenderApi: scene ready");
+        });
     }
 
     private void ensureSunExists() {
@@ -162,6 +250,7 @@ public final class RenderApiImpl implements RenderApi {
     public void ambient(double r, double g, double b, double intensity) {
         ensureScene();
         onJme(() -> {
+            ensureViewportContract("ambient");
             ensureAmbientExists();
             ambient.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
                     .mult((float) Math.max(0.0, intensity)));
@@ -175,6 +264,7 @@ public final class RenderApiImpl implements RenderApi {
                     double intensity) {
         ensureScene();
         onJme(() -> {
+            ensureViewportContract("sun");
             ensureSunExists();
 
             Vector3f dir = new Vector3f((float) dx, (float) dy, (float) dz);
@@ -196,6 +286,7 @@ public final class RenderApiImpl implements RenderApi {
     public void sunShadows(double mapSizeD, double splitsD, double lambdaD) {
         ensureScene();
         onJme(() -> {
+            ensureViewportContract("sunShadows");
             ensureSunExists();
 
             int ms = clamp((int) Math.round(mapSizeD), 256, 8192);
@@ -261,6 +352,8 @@ public final class RenderApiImpl implements RenderApi {
             throw new IllegalArgumentException("skyboxCube: cubeMapAsset is empty");
         }
         onJme(() -> {
+            ensureViewportContract("skyboxCube");
+
             if (sky != null) {
                 sky.removeFromParent();
                 sky = null;
@@ -277,6 +370,8 @@ public final class RenderApiImpl implements RenderApi {
     public void fogCfg(Value cfg) {
         ensureScene();
         onJme(() -> {
+            ensureViewportContract("fogCfg");
+
             double r = num(cfg, "r", numPath(cfg, "color", "r", _fogBaseR));
             double g = num(cfg, "g", numPath(cfg, "color", "g", _fogBaseG));
             double b = num(cfg, "b", numPath(cfg, "color", "b", _fogBaseB));
@@ -284,10 +379,21 @@ public final class RenderApiImpl implements RenderApi {
             double density = num(cfg, "density", _fogDensity);
             double distance = num(cfg, "distance", _fogDistance);
 
-            if (fpp == null) {
-                fpp = new FilterPostProcessor(assets);
-                app.getViewPort().addProcessor(fpp);
+            // AAA: allow disabling fog by setting density<=0 or distance<=0
+            if (density <= 0.0 || distance <= 0.0) {
+                if (fog != null && fpp != null) {
+                    try { fpp.removeFilter(fog); } catch (Throwable ignored) {}
+                    fog = null;
+                    log.info("RenderApi: fog disabled");
+                }
+                _fogDensity = density;
+                _fogDistance = distance;
+                _fogBaseR = r; _fogBaseG = g; _fogBaseB = b;
+                return;
             }
+
+            ensureMainFpp("fogCfg");
+
             if (fog == null) {
                 fog = new FogFilter();
                 fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
@@ -510,8 +616,9 @@ public final class RenderApiImpl implements RenderApi {
     }
 
     // ------------------------------------------------------------
-// Internal bridge for other APIs (EditorLines, etc.)
-// ------------------------------------------------------------
+    // Internal bridge for other APIs (EditorLines, etc.)
+    // ------------------------------------------------------------
+
     EditorLinesBridge __editorLinesBridge() {
         return new EditorLinesBridge();
     }
@@ -524,5 +631,4 @@ public final class RenderApiImpl implements RenderApi {
         SimpleApplication app() { return app; }
         AssetManager assets() { return assets; }
     }
-
 }

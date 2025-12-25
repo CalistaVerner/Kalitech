@@ -1,10 +1,12 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.CameraApi;
+import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -86,4 +88,22 @@ public final class CameraApiImpl implements CameraApi {
     private static double clamp(double x, double lo, double hi) {
         return Math.max(lo, Math.min(hi, x));
     }
+
+    @HostAccess.Export
+    public Object forward() {
+        Vector3f d = app.getCamera().getDirection();
+        // плоский forward по XZ (без наклона) — удобно для движения
+        Vector3f f = new Vector3f(d.x, 0f, d.z);
+        if (f.lengthSquared() < 1e-6f) f.set(0, 0, 1);
+        f.normalizeLocal();
+        return new PhysicsRayHit.Vec3(f.x, f.y, f.z);
+    }
+
+    @HostAccess.Export
+    public double yaw() {
+        Vector3f d = app.getCamera().getDirection();
+        // yaw вокруг Y: atan2(x, z)
+        return Math.atan2(d.x, d.z);
+    }
+
 }

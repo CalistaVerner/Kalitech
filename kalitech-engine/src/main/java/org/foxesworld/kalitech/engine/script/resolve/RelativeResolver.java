@@ -11,6 +11,7 @@ public final class RelativeResolver implements ResolverStrategy {
     @Override
     public Optional<String> resolve(String parentModuleId, String request) {
         if (request == null) return Optional.empty();
+
         String req = request.trim().replace('\\', '/');
         if (!(req.startsWith("./") || req.startsWith("../"))) return Optional.empty();
 
@@ -38,6 +39,8 @@ public final class RelativeResolver implements ResolverStrategy {
             sb.append(it.next());
             if (it.hasNext()) sb.append('/');
         }
-        return Optional.of(sb.toString());
+
+        String out = PathNorm.normalizeId(sb.toString());
+        return out.isEmpty() ? Optional.empty() : Optional.of(out);
     }
 }

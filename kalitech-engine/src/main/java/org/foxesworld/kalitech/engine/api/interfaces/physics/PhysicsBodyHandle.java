@@ -12,7 +12,7 @@ public final class PhysicsBodyHandle {
     public final int id;
     public final int surfaceId;
 
-    private final RigidBodyControl body;
+    final RigidBodyControl body;
 
     public PhysicsBodyHandle(int id, int surfaceId, RigidBodyControl body) {
         this.id = id;

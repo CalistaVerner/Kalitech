@@ -462,62 +462,76 @@ public final class GraalScriptRuntime implements Closeable {
         final String parent = normalizeId(parentModuleId);
         final String request = (requestRaw == null) ? "" : requestRaw;
 
-        // Final canonical module id (used everywhere: cache, deps, errors).
-        final String moduleId = resolveToModuleId(parent, request);
+        // 1) Resolve base id using your resolver chain (pure, no IO)
+        final String baseId = resolveToModuleId(parent, request);
 
-        // Fast path: already loaded
-        ModuleRecord existing = moduleCache.get(moduleId);
-        if (existing != null) {
-            return existing.exportsObj;
+        // 2) Expand into strict candidates:
+        //    - if baseId is builtin or already has extension -> [baseId]
+        //    - else -> [baseId/index.js, baseId.js]
+        final String[] candidates = expandRequireCandidates(baseId);
+
+        // 3) Fast path: already loaded under any candidate id
+        for (String id : candidates) {
+            ModuleRecord existing = moduleCache.get(id);
+            if (existing != null) {
+                return existing.exportsObj;
+            }
         }
 
-        // Create record BEFORE evaluation for cyclic deps
-        ModuleRecord rec = new ModuleRecord(moduleId, ctx);
-        moduleCache.put(moduleId, rec);
+        // 4) We must pick the first candidate that actually exists (stream != null / code != null)
+        ModuleStreamProvider l = this.streamLoader;
+        if (l == null) {
+            String msg =
+                    "require() called but no ModuleStreamProvider is set. " +
+                            "resolvedBase='" + baseId + "', parent='" + parent + "', request='" + request + "'";
+            log.error("[script] {}", msg);
+            throw new IllegalStateException(msg);
+        }
 
-        // Load source text (via InputStream) with caching
-        String code;
+        String moduleId = null; // final chosen id (candidate)
+        String code = null;
+
         try {
-            ModuleStreamProvider l = this.streamLoader;
-            if (l == null) {
-                moduleCache.remove(moduleId);
-                String msg =
-                        "require() called but no ModuleStreamProvider is set. " +
-                                "resolved='" + moduleId + "', parent='" + parent + "', request='" + request + "'";
-                log.error("[script] {}", msg);
-                throw new IllegalStateException(msg);
-            }
-
-            // Debug-log what exactly we are loading for built-ins
-            if (moduleId.startsWith(BUILTIN_PREFIX)) {
-                log.debug("[script] builtins: require {}", moduleId);
-            }
-
-            code = caches.moduleText().get(moduleId, id -> {
-                try (InputStream in = l.openStream(id)) {
-                    if (in == null) return null;
-                    return readUtf8(in);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+            for (String id : candidates) {
+                // Debug-log what exactly we are loading for built-ins
+                if (id.startsWith(BUILTIN_PREFIX)) {
+                    log.debug("[script] builtins: require {}", id);
                 }
-            });
+
+                // Load source text (via InputStream) with caching
+                // IMPORTANT: cache key is candidate id, not base id
+                String maybe = caches.moduleText().get(id, key -> {
+                    try (InputStream in = l.openStream(key)) {
+                        if (in == null) return null;
+                        return readUtf8(in);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                if (maybe != null) {
+                    moduleId = id;
+                    code = maybe;
+                    break;
+                }
+            }
 
             if (code == null) {
-                moduleCache.remove(moduleId);
                 String msg =
                         "ModuleStreamProvider returned null (module not found). " +
-                                "resolved='" + moduleId + "', parent='" + parent + "', request='" + request + "'";
+                                "tried=" + formatCandidates(candidates) +
+                                " parent='" + parent + "', request='" + request + "', resolvedBase='" + baseId + "'";
                 log.error("[script] {}", msg);
                 throw new IllegalStateException(msg);
             }
 
         } catch (RuntimeException re) {
             Throwable cause = re.getCause();
-            moduleCache.remove(moduleId);
 
             String base =
                     "Failed to load module source. " +
-                            "resolved='" + moduleId + "', parent='" + parent + "', request='" + request + "'";
+                            "tried=" + formatCandidates(candidates) +
+                            " parent='" + parent + "', request='" + request + "', resolvedBase='" + baseId + "'";
 
             if (cause != null) {
                 log.error("[script] {} cause={}", base, cause.toString());
@@ -527,6 +541,11 @@ public final class GraalScriptRuntime implements Closeable {
             log.error("[script] {}", base, re);
             throw re;
         }
+
+        // 5) Now we have a deterministic final moduleId (candidate).
+        //    Create record BEFORE evaluation for cyclic deps
+        ModuleRecord rec = new ModuleRecord(moduleId, ctx);
+        moduleCache.put(moduleId, rec);
 
         try {
             evalCommonJsInto(moduleId, code, rec);
@@ -541,6 +560,51 @@ public final class GraalScriptRuntime implements Closeable {
             throw new RuntimeException(msg, e);
         }
     }
+
+    /**
+     * Strict rule:
+     * - if baseId is builtin or already has extension -> [baseId]
+     * - else -> [baseId + "/index.js", baseId + ".js"]
+     */
+    private String[] expandRequireCandidates(String baseId) {
+        final String base = normalizeId(baseId);
+
+        // builtins: never expand (keep existing semantics)
+        if (base.startsWith(BUILTIN_PREFIX)) {
+            return new String[] { base };
+        }
+
+        // if request already has extension (.js, .json, etc) -> exact only
+        if (hasExtension(base)) {
+            return new String[] { base };
+        }
+
+        // strict directory-first rule:
+        // require("./dir") -> try dir/index.js first (dir module), then dir.js
+        return new String[] { base + "/index.js", base + ".js" };
+    }
+
+    /** Extension exists only if dot is in the last path segment. */
+    private boolean hasExtension(String id) {
+        if (id == null || id.isEmpty()) return false;
+        String s = id.replace('\\', '/');
+        int slash = s.lastIndexOf('/');
+        int dot = s.lastIndexOf('.');
+        return dot > slash;
+    }
+
+    private String formatCandidates(String[] cands) {
+        if (cands == null || cands.length == 0) return "[]";
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        for (int i = 0; i < cands.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append('\'').append(cands[i]).append('\'');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
 
     /**
      * Resolves a request to a final canonical module id:

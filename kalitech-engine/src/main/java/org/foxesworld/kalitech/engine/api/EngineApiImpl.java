@@ -44,7 +44,7 @@ public final class EngineApiImpl implements EngineApi {
     private final EditorLinesApi editorLinesApi;
     private final PhysicsApiImpl physicsApi;
     private final HudApiImpl hudApi;
-    //private final UiApiImpl ui;
+    private final MeshApi mesh;
 
     // ✅ new: unified surface registry + apis
     private final SurfaceRegistry surfaceRegistry;
@@ -72,6 +72,8 @@ public final class EngineApiImpl implements EngineApi {
         this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
         this.editorLinesApi = new EditorLinesApiImpl(this, surfaceRegistry);
         this.physicsApi = new PhysicsApiImpl(this, surfaceRegistry);
+        this.mesh = new MeshApiImpl(this, assets, surfaceRegistry);
+
 
         this.entityApi = new EntityApiImpl(this);
         this.renderApi = new RenderApiImpl(this);
@@ -95,6 +97,8 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
     @HostAccess.Export @Override public PhysicsApi physics() { return physicsApi; }
     @HostAccess.Export @Override public HudApi hud() { return hudApi; }
+    @HostAccess.Export @Override public MeshApi mesh() { return mesh; }
+
 
 
     @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
