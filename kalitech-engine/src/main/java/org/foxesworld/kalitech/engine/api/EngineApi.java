@@ -1,6 +1,7 @@
 package org.foxesworld.kalitech.engine.api;
 
 import org.foxesworld.kalitech.engine.api.interfaces.*;
+import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -13,6 +14,8 @@ public interface EngineApi {
     @HostAccess.Export EntityApi entity();
     @HostAccess.Export RenderApi render();
     @HostAccess.Export CameraApi camera();
+    // ✅ NEW
+    @HostAccess.Export PhysicsApi physics();
 
     // ✅ new unified surface layer
     @HostAccess.Export SurfaceApi surface();
@@ -28,6 +31,8 @@ public interface EngineApi {
 
     @HostAccess.Export
     EditorLinesApi editorLines();
+
+    @HostAccess.Export HudApi hud();
 
     @HostAccess.Export String engineVersion();
 

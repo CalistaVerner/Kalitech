@@ -2,11 +2,15 @@ package org.foxesworld.kalitech.engine.api;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
+import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
+import org.foxesworld.kalitech.engine.api.impl.hud.HudApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
+import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -23,6 +27,7 @@ public final class EngineApiImpl implements EngineApi {
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
     private final Thread jmeThread;
+    private volatile PhysicsSpace physicsSpace;
 
     private final CameraState cameraState;
     private final LogApi logApi;
@@ -37,6 +42,8 @@ public final class EngineApiImpl implements EngineApi {
     private final MaterialApi materialApi;
     private final EditorApi editorApi;
     private final EditorLinesApi editorLinesApi;
+    private final PhysicsApiImpl physicsApi;
+    private final HudApiImpl hudApi;
     //private final UiApiImpl ui;
 
     // ✅ new: unified surface registry + apis
@@ -64,9 +71,11 @@ public final class EngineApiImpl implements EngineApi {
         this.terrainApi = new TerrainApiImpl(this, surfaceRegistry);
         this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
         this.editorLinesApi = new EditorLinesApiImpl(this, surfaceRegistry);
+        this.physicsApi = new PhysicsApiImpl(this, surfaceRegistry);
 
         this.entityApi = new EntityApiImpl(this);
         this.renderApi = new RenderApiImpl(this);
+        this.hudApi = new HudApiImpl(this);
 
         this.cameraState = new CameraState();
         this.cameraApi = new CameraApiImpl(this);
@@ -84,6 +93,9 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
     @HostAccess.Export @Override public RenderApi render() { return renderApi; }
     @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
+    @HostAccess.Export @Override public PhysicsApi physics() { return physicsApi; }
+    @HostAccess.Export @Override public HudApi hud() { return hudApi; }
+
 
     @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
     @HostAccess.Export @Override public TerrainApi terrain() { return terrainApi; }
@@ -101,7 +113,10 @@ public final class EngineApiImpl implements EngineApi {
 
 
     // internal hooks
-    public void __updateTime(double tpf) { timeApi.update(tpf); }
+    public void __updateTime(double tpf) {
+        timeApi.update(tpf);
+        this.hudApi.__tick();
+    }
     public void __endFrameInput() { inputApi.endFrame(); }
 
     /** internal: used by RuntimeAppState / WorldBuilder based on world.mode */
@@ -118,14 +133,17 @@ public final class EngineApiImpl implements EngineApi {
         try {
             Integer surfaceId = surfaceRegistry.detachEntity(entityId);
             if (surfaceId != null) {
+                // ✅ remove physics first (or after) — безопасно
+                try { physicsApi.__cleanupSurface(surfaceId); } catch (Throwable ignored) {}
+
                 surfaceRegistry.destroy(surfaceId);
             }
-            // also remove component if present
             try { ecs.components().removeByName(entityId, "Surface"); } catch (Throwable ignored) {}
         } catch (Throwable t) {
             log.warn("__surfaceCleanupOnEntityDestroy failed entityId={}", entityId, t);
         }
     }
+
 
     @HostAccess.Export
     @Override
@@ -145,7 +163,24 @@ public final class EngineApiImpl implements EngineApi {
         });
     }
 
-    //@HostAccess.Export public UiApiImpl ui() {return ui;}
+    public void __setPhysicsSpace(PhysicsSpace space) {
+        this.physicsSpace = space;
+    }
+
+    public PhysicsSpace __getPhysicsSpaceOrNull() {
+        return physicsSpace;
+    }
+
+    // called before ecs.reset()/world rebuild
+    public void __physicsClearWorld() {
+        try {
+            if (physics() instanceof PhysicsApiImpl p) {
+                p.__clearAll();
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public void __tickHud() { hudApi.__tick(); }
     public CameraState getCameraState() { return cameraState; }
     public AssetManager getAssets() { return assets; }
     public SimpleApplication getApp() { return app; }

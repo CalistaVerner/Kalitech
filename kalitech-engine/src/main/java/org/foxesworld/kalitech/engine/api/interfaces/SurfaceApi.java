@@ -113,7 +113,7 @@ public interface SurfaceApi {
     // -------------------------
 
     final class SurfaceHandle {
-        private final int id;
+        public final int id;
         private final String kind;
 
         public SurfaceHandle(int id, String kind) {

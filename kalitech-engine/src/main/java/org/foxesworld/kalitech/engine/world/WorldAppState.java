@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.world;
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
+import com.jme3.bullet.BulletAppState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
@@ -39,6 +40,7 @@ public final class WorldAppState extends BaseAppState {
 
     private KWorld world;
     private SystemContext ctx;
+    private BulletAppState bullet;
 
     private boolean running = false;
 

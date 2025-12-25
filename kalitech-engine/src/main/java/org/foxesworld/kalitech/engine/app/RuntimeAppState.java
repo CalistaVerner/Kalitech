@@ -5,6 +5,9 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetManager;
+import com.jme3.bullet.BulletAppState;
+import com.jme3.bullet.PhysicsSpace;
+import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
@@ -44,6 +47,7 @@ public final class RuntimeAppState extends BaseAppState {
     private SystemRegistry registry;
     private WorldAppState worldState;
     private WorldBuilder worldBuilder;
+    private BulletAppState bullet;
 
     private float cooldown = 0f;
     private boolean dirty = true;
@@ -64,6 +68,14 @@ public final class RuntimeAppState extends BaseAppState {
     protected void initialize(Application app) {
         SimpleApplication sa = (SimpleApplication) app;
 
+        // --- PHYSICS: one per RuntimeAppState (stable across world rebuilds) ---
+        bullet = new BulletAppState();
+        bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("log.level", "false")));
+        app.getStateManager().attach(bullet);
+
+        PhysicsSpace space = bullet.getPhysicsSpace();
+        space.setGravity(new Vector3f(0, -9.81f, 0));
+
         // 1) shared runtime
         runtime = new GraalScriptRuntime();
         runtime.setModuleStreamProvider(moduleId -> {
@@ -81,6 +93,8 @@ public final class RuntimeAppState extends BaseAppState {
 
         // 4) stable API for JS
         engineApi = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
+        // give PhysicsSpace to EngineApiImpl (so engine.physics() uses this space)
+        engineApi.__setPhysicsSpace(space);
         runtime.initBuiltIns(engineApi);
         // 2) ЯВНО инициализируем built-ins
 
@@ -177,7 +191,8 @@ public final class RuntimeAppState extends BaseAppState {
 
             // 0) editor-mode by descriptor (optional, soft)
             applyMode(worldDesc);
-
+            // Clear physics objects before hard ECS reset / world rebuild
+            try { engineApi.__physicsClearWorld(); } catch (Throwable ignored) {}
             // 1) HARD reset ECS so rebuild does not accumulate entities/components
             ecs.reset();
 
@@ -289,7 +304,8 @@ public final class RuntimeAppState extends BaseAppState {
             try {
                 worldState.setEnabled(false);
             } catch (Exception ignored) {}
-
+            if (bullet != null) {try { getStateManager().detach(bullet); } catch (Exception ignored) {}bullet = null;}
+            engineApi.__setPhysicsSpace(null);
             try { getStateManager().detach(worldState); } catch (Exception ignored) {}
             worldState = null;
         }
