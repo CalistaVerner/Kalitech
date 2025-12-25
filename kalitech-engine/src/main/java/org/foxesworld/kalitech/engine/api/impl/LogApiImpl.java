@@ -19,4 +19,5 @@ public final class LogApiImpl implements LogApi {
     @HostAccess.Export @Override public void warn(String msg)  { log.warn("{}", msg); }
     @HostAccess.Export @Override public void error(String msg) { log.error("{}", msg); }
     @HostAccess.Export @Override public void debug(String msg) { log.debug("{}", msg); }
+    @HostAccess.Export @Override public void unformatted(String msg) { System.out.println(msg);}
 }

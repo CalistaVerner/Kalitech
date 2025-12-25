@@ -45,10 +45,17 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
     @HostAccess.Export
     @Override
-    public void setMaterial(SurfaceHandle target, Object materialHandle) {
+    public void setMaterial(SurfaceHandle target, Object materialHandleOrCfg) {
         Spatial s = requireSpatial(target);
 
-        Material mat = unwrapMaterial(materialHandle);
+        Material mat = unwrapMaterial(materialHandleOrCfg);
+
+        // если это не handle, но пришёл JS object {def, params} — создадим material через engine.material()
+        if (mat == null && materialHandleOrCfg instanceof Value v && v != null && v.hasMembers() && v.hasMember("def")) {
+            MaterialApiImpl.MaterialHandle mh = engine.material().create(v);
+            mat = mh.__material();
+        }
+
         if (mat == null) throw new IllegalArgumentException("surface.setMaterial: materialHandle is invalid");
 
         if (s instanceof TerrainQuad tq) {

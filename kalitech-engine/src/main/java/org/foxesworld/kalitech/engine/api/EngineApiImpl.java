@@ -36,6 +36,7 @@ public final class EngineApiImpl implements EngineApi {
     private final WorldApi worldApi;
     private final MaterialApi materialApi;
     private final EditorApi editorApi;
+    private final EditorLinesApi editorLinesApi;
     //private final UiApiImpl ui;
 
     // ✅ new: unified surface registry + apis
@@ -62,6 +63,7 @@ public final class EngineApiImpl implements EngineApi {
         this.surfaceApi = new SurfaceApiImpl(this, surfaceRegistry);
         this.terrainApi = new TerrainApiImpl(this, surfaceRegistry);
         this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
+        this.editorLinesApi = new EditorLinesApiImpl(this, surfaceRegistry);
 
         this.entityApi = new EntityApiImpl(this);
         this.renderApi = new RenderApiImpl(this);
@@ -86,6 +88,8 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
     @HostAccess.Export @Override public TerrainApi terrain() { return terrainApi; }
     @HostAccess.Export @Override public TerrainSplatApi terrainSplat() { return terrainSplatApi; }
+    @HostAccess.Export @Override public EditorLinesApi editorLines() { return editorLinesApi; }
+
 
     @HostAccess.Export @Override public String engineVersion() { return ((KalitechApplication) app).getVersion(); }
     @HostAccess.Export @Override public TimeApi time() { return timeApi; }

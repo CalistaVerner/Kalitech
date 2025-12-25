@@ -79,8 +79,11 @@ public final class RuntimeAppState extends BaseAppState {
             }
         });
 
+        // 4) stable API for JS
+        engineApi = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
+        runtime.initBuiltIns(engineApi);
         // 2) ЯВНО инициализируем built-ins
-        runtime.initBuiltIns();
+
 
         runtime.setModuleSourceProvider(path -> sa.getAssetManager().loadAsset(new AssetKey<>(path)));
 
@@ -90,8 +93,7 @@ public final class RuntimeAppState extends BaseAppState {
         // 3) providers registry (ServiceLoader)
         registry = new SystemRegistry();
 
-        // 4) stable API for JS
-        engineApi = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
+
 
         // 5) world runner (keeps SystemContext)
         worldState = new WorldAppState(bus, ecs, runtime, engineApi);

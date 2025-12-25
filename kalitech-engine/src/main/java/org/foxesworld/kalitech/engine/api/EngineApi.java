@@ -26,6 +26,9 @@ public interface EngineApi {
     // ✅ new terrain splat layer (separate from builder)
     @HostAccess.Export TerrainSplatApi terrainSplat();
 
+    @HostAccess.Export
+    EditorLinesApi editorLines();
+
     @HostAccess.Export String engineVersion();
 
     @HostAccess.Export TimeApi time();

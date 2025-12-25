@@ -3,6 +3,8 @@ package org.foxesworld.kalitech.engine.script;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApi;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.script.cache.ScriptCaches;
 import org.foxesworld.kalitech.engine.script.resolve.*;
 import org.graalvm.polyglot.Context;
@@ -211,7 +213,7 @@ public final class GraalScriptRuntime implements Closeable {
         }
 
         // For any user-script require, make sure builtins (bootstrap + aliases) are ready.
-        initBuiltIns();
+        //initBuiltIns();
     }
 
     /**
@@ -223,7 +225,7 @@ public final class GraalScriptRuntime implements Closeable {
      *
      * Safe to call multiple times.
      */
-    public void initBuiltIns() {
+    public void initBuiltIns(EngineApi api) {
         assertOwnerThread();
 
         if (builtinsInitialized) return;
@@ -239,6 +241,7 @@ public final class GraalScriptRuntime implements Closeable {
         log.debug("[script] builtins: loading {}", builtinBootstrapId);
         long t0 = System.nanoTime();
         Value boot = require(builtinBootstrapId);
+        boot.invokeMember("attachEngine", api);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         log.debug("[script] builtins: loaded {} ({} ms)", builtinBootstrapId, ms);
 

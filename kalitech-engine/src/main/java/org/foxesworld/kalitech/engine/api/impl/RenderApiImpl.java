@@ -6,15 +6,12 @@ import com.jme3.asset.AssetManager;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
-import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.FogFilter;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
-import com.jme3.scene.debug.Grid;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.texture.Texture;
@@ -45,10 +42,8 @@ public final class RenderApiImpl implements RenderApi {
     private double _fogDensity = 1.2;
     private double _fogDistance = 250.0;
 
-    private final Set<String> missingMatParamsLogged = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
-    // Editor debug nodes (grid, gizmos, etc.)
-    private final ConcurrentHashMap<Integer, Spatial> editorDebugSpatials = new ConcurrentHashMap<>();
-
+    private final Set<String> missingMatParamsLogged =
+            java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final EngineApiImpl engineApi;
     private final SimpleApplication app;
@@ -74,8 +69,12 @@ public final class RenderApiImpl implements RenderApi {
     public static final class SpatialHandle {
         private final int id;
         private SpatialHandle(int id) { this.id = id; }
-        @HostAccess.Export public int id() { return id; }
-        @Override public String toString() { return "SpatialHandle(" + id + ")"; }
+
+        @HostAccess.Export
+        public int id() { return id; }
+
+        @Override
+        public String toString() { return "SpatialHandle(" + id + ")"; }
     }
 
     private final AtomicInteger spatialIds = new AtomicInteger(1);
@@ -95,11 +94,8 @@ public final class RenderApiImpl implements RenderApi {
     }
 
     private void onJme(Runnable r) {
-        if (engineApi.isJmeThread()) {
-            r.run();
-        } else {
-            app.enqueue(() -> { r.run(); return null; });
-        }
+        if (engineApi.isJmeThread()) r.run();
+        else app.enqueue(() -> { r.run(); return null; });
     }
 
     private SpatialHandle registerSpatial(Spatial s) {
@@ -145,10 +141,8 @@ public final class RenderApiImpl implements RenderApi {
             sun = new DirectionalLight();
             app.getRootNode().addLight(sun);
         }
-        // IMPORTANT: keep shadows bound to THE SAME light instance
-        if (sunShadow != null) {
-            sunShadow.setLight(sun);
-        }
+        // keep shadows bound to same light
+        if (sunShadow != null) sunShadow.setLight(sun);
     }
 
     private void ensureAmbientExists() {
@@ -187,18 +181,13 @@ public final class RenderApiImpl implements RenderApi {
             if (dir.lengthSquared() < 1e-6f) dir.set(-1, -1, -1);
             dir.normalizeLocal();
 
-            // DirectionalLight in jME points *towards* the scene along direction vector.
             sun.setDirection(dir);
             sun.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
                     .mult((float) Math.max(0.0, intensity)));
 
-            // if terrain exists, allow it to both cast & receive (helps show motion)
             if (terrain != null) terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
 
-            // CRITICAL: keep shadows bound to the same sun instance
-            if (sunShadow != null) {
-                sunShadow.setLight(sun);
-            }
+            if (sunShadow != null) sunShadow.setLight(sun);
         });
     }
 
@@ -219,7 +208,7 @@ public final class RenderApiImpl implements RenderApi {
             }
 
             sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
-            sunShadow.setLight(sun);              // ✅ bind to the SAME sun instance
+            sunShadow.setLight(sun);
             sunShadow.setLambda(lambda);
             app.getViewPort().addProcessor(sunShadow);
 
@@ -276,7 +265,6 @@ public final class RenderApiImpl implements RenderApi {
                 sky.removeFromParent();
                 sky = null;
             }
-
             sky = SkyFactory.createSky(assets, cubeMapAsset.trim(), SkyFactory.EnvMapType.CubeMap);
             app.getRootNode().attachChild(sky);
 
@@ -296,7 +284,6 @@ public final class RenderApiImpl implements RenderApi {
             double density = num(cfg, "density", _fogDensity);
             double distance = num(cfg, "distance", _fogDistance);
 
-            // lazy init processors once
             if (fpp == null) {
                 fpp = new FilterPostProcessor(assets);
                 app.getViewPort().addProcessor(fpp);
@@ -316,7 +303,6 @@ public final class RenderApiImpl implements RenderApi {
                 return;
             }
 
-            // update only if changed enough
             boolean changed = false;
 
             if (Math.abs(r - _fogBaseR) > 1e-4 || Math.abs(g - _fogBaseG) > 1e-4 || Math.abs(b - _fogBaseB) > 1e-4) {
@@ -335,22 +321,23 @@ public final class RenderApiImpl implements RenderApi {
                 changed = true;
             }
 
-            // log at DEBUG only (and only if changed)
             if (changed && log.isDebugEnabled()) {
                 log.debug("RenderApi: fog updated (density={}, distance={})", _fogDensity, _fogDistance);
             }
         });
     }
 
+    // ------------------------------------------------------------
+    // Material helpers (terrain compatibility)
+    // ------------------------------------------------------------
+
     private void setLayer(Material mat, int layerIndex, Texture tex, float scale) {
-        // texture param names across jME versions / matdefs
         String texParamA = (layerIndex == 0) ? "DiffuseMap" : ("DiffuseMap_" + layerIndex);
         String texParamB = "Tex" + (layerIndex + 1);
 
         boolean texOk = trySetTexture(mat, texParamA, tex) || trySetTexture(mat, texParamB, tex);
         if (!texOk) warnMissingOnce(mat, "layerTexture#" + layerIndex + " (" + texParamA + " / " + texParamB + ")");
 
-        // scale param names across matdefs
         String scaleA = "DiffuseMap_" + layerIndex + "_scale";
         String scaleB = "Tex" + (layerIndex + 1) + "Scale";
         String scaleC = "Tex" + (layerIndex + 1) + "_Scale";
@@ -454,112 +441,6 @@ public final class RenderApiImpl implements RenderApi {
     }
 
     // ------------------------------------------------------------
-// Editor Debug: Grid Plane
-// ------------------------------------------------------------
-
-    @HostAccess.Export
-    public SpatialHandle createGridPlane(Value cfg) {
-        ensureScene();
-
-        // Read cfg with safe defaults
-        final double sizeD = num(cfg, "size", 200.0);
-        final double stepD = num(cfg, "step", 1.0);
-        final double yD = num(cfg, "y", 0.01);
-        final double opacityD = num(cfg, "opacity", 0.35);
-
-        // "majorStep" is currently not used by jME Grid directly (it draws uniform).
-        // We'll keep it for contract compatibility.
-        final double majorStepD = num(cfg, "majorStep", 10.0);
-
-        final float size = (float) clamp(sizeD, 1.0, 100_000.0);
-        final float step = (float) clamp(stepD, 0.01, 10_000.0);
-        final float y = (float) clamp(yD, -100_000.0, 100_000.0);
-        final float opacity = (float) clamp(opacityD, 0.0, 1.0);
-
-        // Convert to line count: jME Grid takes "size" in number of lines from center.
-        // We'll interpret cfg.size as "half-extent in world units", and derive line count by step.
-        int halfLines = (int) Math.max(1, Math.round(size / step));
-        // Safety cap so you don't accidentally create 200k lines
-        halfLines = clamp(halfLines, 1, 4096);
-
-        // World size actually represented:
-        final float worldHalfExtent = halfLines * step;
-
-        SpatialHandle[] out = new SpatialHandle[1];
-
-        int finalHalfLines = halfLines;
-        onJme(() -> {
-            // Create geometry
-            Grid grid = new Grid(finalHalfLines * 2, finalHalfLines * 2, step); // (xLines, zLines, spacing)
-            Geometry g = new Geometry("editor.grid", grid);
-
-            Material m = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
-            // Slightly bluish/gray fog-friendly grid
-            m.setColor("Color", new ColorRGBA(1f, 1f, 1f, opacity));
-            m.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-            m.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
-            m.getAdditionalRenderState().setDepthWrite(false); // reduce z-fighting on flat planes
-            m.getAdditionalRenderState().setWireframe(true);
-
-            g.setQueueBucket(RenderQueue.Bucket.Transparent);
-            g.setMaterial(m);
-
-            // Position at y, center at origin
-            g.setLocalTranslation(0f, y, 0f);
-
-            // Attach to root (or you can make a dedicated editor node later)
-            app.getRootNode().attachChild(g);
-
-            SpatialHandle h = registerSpatial(g);
-            editorDebugSpatials.put(h.id(), g);
-            out[0] = h;
-
-            if (log.isInfoEnabled()) {
-                log.info("RenderApi: grid created (handle={}, halfExtent={}, step={}, majorStep={})",
-                        h.id(), worldHalfExtent, step, majorStepD);
-            }
-        });
-
-        // Wait: our onJme is async when not on JME thread, but createGridPlane is called from JS on JME thread usually.
-        // If it's not, handle may be null; to keep it simple for now we ensure we are on JME thread by enqueue and return later is not possible.
-        // In Kalitech, scripts are typically ticked from JME thread, so this returns valid handle.
-        if (out[0] == null) {
-            // Fallback: create a handle to root (won't crash JS), but log warning.
-            log.warn("RenderApi: createGridPlane called off JME thread; returned root handle. Ensure scripts run on JME thread.");
-            return rootHandle;
-        }
-        return out[0];
-    }
-
-    @HostAccess.Export
-    public void destroyGridPlane(Object handle) {
-        if (handle == null) return;
-
-        onJme(() -> {
-            Spatial s;
-            try {
-                s = requireSpatial(handle, "destroyGridPlane");
-            } catch (Exception e) {
-                return;
-            }
-
-            // remove from scene + maps
-            try { s.removeFromParent(); } catch (Exception ignored) {}
-
-            int id;
-            try { id = handleId(handle, "destroyGridPlane"); } catch (Exception e) { return; }
-
-            editorDebugSpatials.remove(id);
-            spatials.remove(id);
-
-            if (log.isInfoEnabled()) {
-                log.info("RenderApi: grid destroyed (handle={})", id);
-            }
-        });
-    }
-
-
-    // ------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------
 
@@ -571,15 +452,6 @@ public final class RenderApiImpl implements RenderApi {
         try {
             Value m = member(v, k);
             return (m == null || m.isNull()) ? def : m.asString();
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private static boolean bool(Value v, String k, boolean def) {
-        try {
-            Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asBoolean();
         } catch (Exception e) {
             return def;
         }
@@ -636,4 +508,21 @@ public final class RenderApiImpl implements RenderApi {
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }
+
+    // ------------------------------------------------------------
+// Internal bridge for other APIs (EditorLines, etc.)
+// ------------------------------------------------------------
+    EditorLinesBridge __editorLinesBridge() {
+        return new EditorLinesBridge();
+    }
+
+    final class EditorLinesBridge {
+        RenderApiImpl.SpatialHandle register(Spatial s) { return registerSpatial(s); }
+        Spatial require(Object handle, String where) { return requireSpatial(handle, where); }
+        int handleId(Object handle, String where) { return RenderApiImpl.this.handleId(handle, where); }
+        void remove(int id) { spatials.remove(id); }
+        SimpleApplication app() { return app; }
+        AssetManager assets() { return assets; }
+    }
+
 }

@@ -22,32 +22,4 @@ public interface RenderApi {
     // scene visuals
     @HostAccess.Export void skyboxCube(String cubeMapAsset);
     @HostAccess.Export void fogCfg(Value cfg);
-
-    // ------------------------------------------------------------
-    // Editor / Tools (debug visuals)
-    // ------------------------------------------------------------
-
-    /**
-     * Create a visual grid plane for editor mode.
-     * Returns a JS-friendly handle (usually a RenderApiImpl.SpatialHandle host object).
-     *
-     * cfg:
-     *  - size (double): half-extent in world units (default 200)
-     *  - step (double): cell size (default 1)
-     *  - majorStep (double): reserved for future styling (default 10)
-     *  - y (double): height offset to avoid z-fighting (default 0.01)
-     *  - opacity (double): 0..1 (default 0.35)
-     */
-    @HostAccess.Export Object createGridPlane(Value cfg);
-
-    /** Destroy grid plane (or any debug plane created by createGridPlane). */
-    @HostAccess.Export void destroyGridPlane(Object handle);
-
-    /**
-     * Optional helper: toggle visibility of a spatial by handle.
-     * (Nice for editor UI toggles; can be implemented later.)
-     */
-    @HostAccess.Export default void setVisible(Object handle, boolean visible) {
-        // optional, implement in RenderApiImpl when needed
-    }
 }

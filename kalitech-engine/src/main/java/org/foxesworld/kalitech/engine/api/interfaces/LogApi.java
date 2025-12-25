@@ -7,4 +7,5 @@ public interface LogApi {
     @HostAccess.Export void warn(String msg);
     @HostAccess.Export void error(String msg);
     @HostAccess.Export void debug(String msg);
+    @HostAccess.Export void unformatted(String msg);
 }

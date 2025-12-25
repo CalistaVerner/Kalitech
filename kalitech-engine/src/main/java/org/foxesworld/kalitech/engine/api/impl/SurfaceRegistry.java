@@ -4,6 +4,7 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.interfaces.EditorLinesApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 
 import java.util.Objects;
@@ -26,6 +27,7 @@ public final class SurfaceRegistry {
 
     public SurfaceRegistry(SimpleApplication app) {
         this.app = Objects.requireNonNull(app, "app");
+
     }
 
     public SurfaceApi.SurfaceHandle register(Spatial spatial, String kind) {

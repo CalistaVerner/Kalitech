@@ -27,6 +27,7 @@ public class KalitechApplication extends SimpleApplication {
 
         assetManager.registerLocator(assetsDir, com.jme3.asset.plugins.FileLocator.class);
         assetManager.registerLoader(org.foxesworld.kalitech.engine.script.asset.ScriptTextLoader.class, "js");
+        assetManager.registerLoader(org.foxesworld.kalitech.engine.script.asset.ScriptTextLoader.class, "json");
 
         var ecs = new org.foxesworld.kalitech.engine.ecs.EcsWorld();
         var bus = new org.foxesworld.kalitech.engine.script.events.ScriptEventBus();
