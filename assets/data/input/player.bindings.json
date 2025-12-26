@@ -1,0 +1,20 @@
+{
+  "version": 1,
+
+  "actions": {
+    "move_forward": ["W", "Z", "UP"],
+    "move_back":    ["S", "DOWN"],
+    "move_left":    ["A", "Q", "LEFT"],
+    "move_right":   ["D", "RIGHT"],
+
+    "run":  ["SHIFT", "LSHIFT", "RSHIFT"],
+    "jump": ["SPACE"]
+  },
+
+  "tuning": {
+    "speed": 6.0,
+    "runSpeed": 10.0,
+    "airControl": 0.35,
+    "jumpImpulse": 320.0
+  }
+}

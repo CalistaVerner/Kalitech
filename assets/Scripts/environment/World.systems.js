@@ -5,18 +5,7 @@
 
 const worldSystems = [
 
-    {
-        id: "camera",
-        order: 15,
-        stableId: "sys.camera",
-        config: {
-            mode: "fly",
-            speed: 90,
-            accel: 18,
-            drag: 6.5,
-            smoothing: 0.15
-        }
-    },
+
     {
         id: "jsSystem",
         order: 18,

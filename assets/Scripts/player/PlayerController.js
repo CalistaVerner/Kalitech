@@ -1,6 +1,5 @@
+// FILE: Scripts/player/PlayerController.js
 // Author: Calista Verner
-// Centralized physics controller (NO guessing through ctx.entity())
-// Uses: physics.position/velocity/applyImpulse/lockRotation (+ raycast for ground)
 "use strict";
 
 function len2(x, z) { return x * x + z * z; }
@@ -9,24 +8,46 @@ function norm2(x, z) {
     if (l < 1e-6) return { x: 0, z: 0 };
     return { x: x / l, z: z / l };
 }
-function axis(neg, pos) {
-    return (engine.input().keyDown(pos) ? 1 : 0) - (engine.input().keyDown(neg) ? 1 : 0);
-}
 function rotateByYaw(localX, localZ, yaw) {
     const s = Math.sin(yaw), c = Math.cos(yaw);
     return { x: localX * c + localZ * s, z: localZ * c - localX * s };
 }
 
+function num(v, fallback) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fallback || 0);
+}
+function _readMember(v, key, fb) {
+    if (!v) return fb || 0;
+    try {
+        const m = v[key];
+        if (typeof m === "function") return num(m.call(v), fb);
+        if (typeof m === "number") return m;
+        if (typeof m === "string") return num(m, fb);
+    } catch (_) {}
+    return fb || 0;
+}
+function vx(v, fb) { return _readMember(v, "x", fb); }
+function vy(v, fb) { return _readMember(v, "y", fb); }
+function vz(v, fb) { return _readMember(v, "z", fb); }
+
+function anyKeyDown(keys) {
+    for (let i = 0; i < keys.length; i++) {
+        if (engine.input().keyDown(keys[i])) return true;
+    }
+    return false;
+}
+function axisKeys(negKeys, posKeys) {
+    const pos = anyKeyDown(posKeys) ? 1 : 0;
+    const neg = anyKeyDown(negKeys) ? 1 : 0;
+    return pos - neg;
+}
+
 class PlayerController {
     constructor() {
         this.enabled = true;
-
-        // ids are injected by PlayerRuntime/Player
-        this.entityId = 0;
-        this.surfaceId = 0;
         this.bodyId = 0;
 
-        // tuning
         this.speed = 6.0;
         this.runSpeed = 10.0;
         this.airControl = 0.35;
@@ -36,99 +57,164 @@ class PlayerController {
         this.groundEps = 0.08;
         this.maxSlopeDot = 0.55;
 
+        // ✅ support multiple layouts:
+        // - QWERTY/QWERTZ: WASD
+        // - AZERTY: ZQSD
+        // - arrows as fallback
         this.keys = {
-            forward: "W", back: "S", left: "A", right: "D",
-            run: "SHIFT", jump: "SPACE",
-            warp: "R"
+            forward: ["W", "Z", "UP"],
+            back:    ["S", "DOWN"],
+            left:    ["A", "Q", "LEFT"],
+            right:   ["D", "RIGHT"],
+
+            // shift variants (some systems expose LSHIFT/RSHIFT)
+            run:     ["SHIFT", "LSHIFT", "RSHIFT"],
+            jump:    ["SPACE"]
         };
 
         this._jumpLatch = false;
+
+        this.debug = {
+            enabled: true,
+            everyFrames: 60,
+            _f: 0,
+            logGround: false,
+            logKeys: true
+        };
+    }
+
+    _resolveBodyId(any) {
+        const x = any && (any.bodyId !== undefined ? any.bodyId : any);
+        if (typeof x === "number") return x | 0;
+
+        if (x && typeof x === "object") {
+            try {
+                if (typeof x.id === "function") return (x.id() | 0);
+                if (typeof x.getBodyId === "function") return (x.getBodyId() | 0);
+                if (typeof x.bodyId === "number") return (x.bodyId | 0);
+                if (typeof x.id === "number") return (x.id | 0);
+            } catch (_) {}
+        }
+        return 0;
     }
 
     bind(ids) {
-        // ids: { entityId, surfaceId, bodyId }
-        this.entityId = (ids && ids.entityId) | 0;
-        this.surfaceId = (ids && ids.surfaceId) | 0;
-        this.bodyId = (ids && ids.bodyId) | 0;
+        this.bodyId = this._resolveBodyId(ids);
+        try { engine.log().info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
         return this;
     }
 
-    warp(pos) {
-        if (!this.bodyId) return;
-        engine.physics().warp(this.bodyId, pos);
-    }
-
-    warpXYZ(x, y, z) { this.warp({ x, y, z }); }
-
     update(tpf) {
         if (!this.enabled) return;
-        if (!this.bodyId) return; // KEY FIX: never call physics without bodyId
 
-        const bodyId = this.bodyId;
+        const bodyId = this.bodyId | 0;
+        if (!bodyId) return;
 
         // keep upright
-        engine.physics().lockRotation(bodyId, true);
+        try { engine.physics().lockRotation(bodyId, true); } catch (_) {}
 
         const grounded = this._isGrounded(bodyId);
 
-        // move
-        const ix = axis(this.keys.left, this.keys.right);
-        const iz = axis(this.keys.back, this.keys.forward);
-        const n = norm2(ix, iz);
-        const wantMove = len2(n.x, n.z) > 1e-6;
+        let yaw = 0;
+        try { yaw = +engine.camera().yaw() || 0; } catch (_) {}
 
-        const yaw = this._cameraYawRad();
+        const ix = axisKeys(this.keys.left, this.keys.right);
+        const iz = axisKeys(this.keys.back, this.keys.forward);
+
+        const n = norm2(ix, iz);
+        const wantMove = (n.x * n.x + n.z * n.z) > 1e-6;
+
         const dir = rotateByYaw(n.x, n.z, yaw);
 
-        const running = engine.input().keyDown(this.keys.run);
+        const running = anyKeyDown(this.keys.run);
         const spd = running ? this.runSpeed : this.speed;
 
-        const v = engine.physics().velocity(bodyId);
+        let v = null;
+        try { v = engine.physics().velocity(bodyId); } catch (_) {}
+        const vy0 = vy(v, 0);
+
         const control = grounded ? 1.0 : this.airControl;
 
-        engine.physics().velocity(bodyId, {
-            x: (wantMove ? dir.x * spd : 0) * control,
-            y: v.y,
-            z: (wantMove ? dir.z * spd : 0) * control
-        });
+        try {
+            engine.physics().velocity(bodyId, {
+                x: (wantMove ? dir.x * spd : 0) * control,
+                y: vy0,
+                z: (wantMove ? dir.z * spd : 0) * control
+            });
+        } catch (_) {}
 
-        // jump edge-trigger
-        const jumpDown = engine.input().keyDown(this.keys.jump);
+        const jumpDown = anyKeyDown(this.keys.jump);
         if (jumpDown && !this._jumpLatch && grounded) {
-            engine.physics().applyImpulse(bodyId, { x: 0, y: this.jumpImpulse, z: 0 });
+            try { engine.physics().applyImpulse(bodyId, { x: 0, y: this.jumpImpulse, z: 0 }); } catch (_) {}
         }
         this._jumpLatch = jumpDown;
 
-        // warp test
-        if (engine.input().keyDown(this.keys.warp)) {
-            this.warpXYZ(0, 3, 0);
+        // debug
+        if (this.debug.enabled) {
+            this.debug._f++;
+            if ((this.debug._f % this.debug.everyFrames) === 0) {
+                let p = null, vel = null;
+                try { p = engine.physics().position(bodyId); } catch (_) {}
+                try { vel = engine.physics().velocity(bodyId); } catch (_) {}
+
+                let msg =
+                    "[player][dbg] bodyId=" + bodyId +
+                    " grounded=" + grounded +
+                    " yaw=" + yaw.toFixed(3) +
+                    " pos=" + (p ? (vx(p, 0).toFixed(2) + "," + vy(p, 0).toFixed(2) + "," + vz(p, 0).toFixed(2)) : "null") +
+                    " vel=" + (vel ? (vx(vel, 0).toFixed(2) + "," + vy(vel, 0).toFixed(2) + "," + vz(vel, 0).toFixed(2)) : "null") +
+                    " axis(ix,iz)=(" + ix + "," + iz + ")" +
+                    " spd=" + spd.toFixed(2) +
+                    " ctl=" + control.toFixed(2);
+
+                if (this.debug.logKeys) {
+                    // show both layouts quickly
+                    msg +=
+                        " keyW=" + (engine.input().keyDown("W") ? 1 : 0) +
+                        " keyZ=" + (engine.input().keyDown("Z") ? 1 : 0) +
+                        " keyA=" + (engine.input().keyDown("A") ? 1 : 0) +
+                        " keyQ=" + (engine.input().keyDown("Q") ? 1 : 0) +
+                        " keyS=" + (engine.input().keyDown("S") ? 1 : 0) +
+                        " keyD=" + (engine.input().keyDown("D") ? 1 : 0) +
+                        " SHIFT=" + (anyKeyDown(this.keys.run) ? 1 : 0) +
+                        " SPACE=" + (jumpDown ? 1 : 0);
+                }
+
+                try { engine.log().info(msg); } catch (_) {}
+            }
         }
     }
 
-    _cameraYawRad() {
-        try {
-            const y = engine.camera().yaw();
-            if (typeof y === "number" && isFinite(y)) return y;
-        } catch (_) {}
-        try {
-            const f = engine.camera().forward();
-            return Math.atan2(f.x || 0, f.z || 1);
-        } catch (_) {}
-        return 0.0;
-    }
-
     _isGrounded(bodyId) {
-        const p = engine.physics().position(bodyId);
-        const from = { x: p.x, y: p.y, z: p.z };
-        const to   = { x: p.x, y: p.y - this.groundRay, z: p.z };
-        const hit = engine.physics().raycast({ from, to });
+        let p = null;
+        try { p = engine.physics().position(bodyId); } catch (_) { p = null; }
+        if (!p) return false;
+
+        const px = vx(p, 0), py0 = vy(p, 0), pz = vz(p, 0);
+
+        const from = { x: px, y: py0, z: pz };
+        const to   = { x: px, y: py0 - this.groundRay, z: pz };
+
+        let hit = null;
+        try { hit = engine.physics().raycast({ from, to }); } catch (_) { hit = null; }
         if (!hit || !hit.hit) return false;
 
         const n = hit.normal || { x: 0, y: 1, z: 0 };
-        if ((n.y || 0) < this.maxSlopeDot) return false;
+        const ny = _readMember(n, "y", 1);
 
-        return hit.distance <= (this.groundRay - this.groundEps);
+        if (ny < this.maxSlopeDot) return false;
+
+        const dist = num(hit.distance, 9999);
+        const ok = dist <= (this.groundRay - this.groundEps);
+
+        if (this.debug.enabled && this.debug.logGround) {
+            try { engine.log().info("[player][ground] dist=" + dist.toFixed(3) + " ny=" + ny.toFixed(3) + " ok=" + (ok ? 1 : 0)); } catch (_) {}
+        }
+
+        return ok;
     }
+
+    getBodyId() { return this.bodyId | 0; }
 }
 
 module.exports = PlayerController;
