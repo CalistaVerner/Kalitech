@@ -18,7 +18,7 @@ class MaterialsRegistry {
 
     dbPath() {
         const c = this.K && this.K.config && this.K.config.materials;
-        return (c && c.dbPath) ? String(c.dbPath) : "Scripts/core/materials/materials.json";
+        return (c && c.dbPath) ? String(c.dbPath) : "data/materials.json";
     }
 
     loadDefs() {

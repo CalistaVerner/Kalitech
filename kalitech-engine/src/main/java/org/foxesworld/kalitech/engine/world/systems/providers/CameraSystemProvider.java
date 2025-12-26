@@ -21,7 +21,8 @@ public final class CameraSystemProvider implements SystemProvider {
         EngineApiImpl api = (EngineApiImpl) ctx.api;
         CameraState state = api.getCameraState();
 
-        CameraSystem sys = new CameraSystem(state);
+        CameraSystem sys = new CameraSystem(state, ctx.getPhysicsSpace());
+        //sys.setBodyPositionProvider((bodyId, out) -> ctx.physicsAccess().getBodyPosition(bodyId, out)).setRaycastProvider((from, to) -> ctx.physicsAccess().rayFraction(from, to));
         sys.applyConfig(config); // optional per-world overrides
         return sys;
     }

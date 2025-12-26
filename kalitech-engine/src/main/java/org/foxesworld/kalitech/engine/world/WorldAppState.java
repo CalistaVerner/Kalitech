@@ -4,9 +4,11 @@ import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.bullet.BulletAppState;
+import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
+import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -31,6 +33,7 @@ public final class WorldAppState extends BaseAppState {
     private final EcsWorld ecs;
     private final GraalScriptRuntime runtime;
     private final EngineApi api;
+    private final PhysicsSpace physicsSpace;
 
     /** Optional watcher (can be null). */
     private HotReloadWatcher hotReload;
@@ -47,11 +50,12 @@ public final class WorldAppState extends BaseAppState {
     /** When hot reload invalidates something, we restart world deterministically next update. */
     private boolean restartRequested = false;
 
-    public WorldAppState(ScriptEventBus bus, EcsWorld ecs, GraalScriptRuntime runtime, EngineApi api) {
-        this.bus = Objects.requireNonNull(bus, "bus");
-        this.ecs = Objects.requireNonNull(ecs, "ecs");
-        this.runtime = Objects.requireNonNull(runtime, "runtime");
-        this.api = Objects.requireNonNull(api, "api");
+    public WorldAppState(RuntimeAppState runtimeAppState) {
+        this.bus = runtimeAppState.getBus();
+        this.ecs = runtimeAppState.getEcs();
+        this.runtime = runtimeAppState.getRuntime();
+        this.api = runtimeAppState.getEngineApi();
+        this.physicsSpace = runtimeAppState.getSpace();
     }
 
     public void setHotReloadWatcher(HotReloadWatcher watcher) {
@@ -76,7 +80,7 @@ public final class WorldAppState extends BaseAppState {
             throw new IllegalStateException("WorldAppState requires SimpleApplication (got " + app.getClass().getName() + ")");
         }
 
-        this.ctx = new SystemContext(sa, sa.getAssetManager(), bus, ecs, runtime, api);
+        this.ctx = new SystemContext(sa, this);
 
         // New model: bind JS environment via Graal bindings, not via runtime.bindGlobals()
         installJsGlobals(this.ctx, this.api);
@@ -255,6 +259,25 @@ public final class WorldAppState extends BaseAppState {
         }
     }
 
+    public PhysicsSpace getPhysicsSpace() {
+        return physicsSpace;
+    }
+
+    public EngineApi getApi() {
+        return api;
+    }
+
+    public GraalScriptRuntime getRuntime() {
+        return runtime;
+    }
+
+    public EcsWorld getEcs() {
+        return ecs;
+    }
+
+    public ScriptEventBus getBus() {
+        return bus;
+    }
 
     private static void tryPut(Value bindings, String name, Object value) {
         try {

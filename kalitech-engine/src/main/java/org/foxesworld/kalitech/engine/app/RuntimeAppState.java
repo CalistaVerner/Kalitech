@@ -54,6 +54,7 @@ public final class RuntimeAppState extends BaseAppState {
     private String lastHash = null;
 
     private EngineApiImpl engineApi;
+    private PhysicsSpace space;
 
     public RuntimeAppState(String mainAssetPath, Path watchRoot, float reloadCooldownSec, EcsWorld ecs, ScriptEventBus bus) {
         this.mainAssetPath = Objects.requireNonNull(mainAssetPath, "mainAssetPath");
@@ -73,7 +74,7 @@ public final class RuntimeAppState extends BaseAppState {
         bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("log.level", "false")));
         app.getStateManager().attach(bullet);
 
-        PhysicsSpace space = bullet.getPhysicsSpace();
+        space = bullet.getPhysicsSpace();
         space.setGravity(new Vector3f(0, -9.81f, 0));
 
         // 1) shared runtime
@@ -110,7 +111,7 @@ public final class RuntimeAppState extends BaseAppState {
 
 
         // 5) world runner (keeps SystemContext)
-        worldState = new WorldAppState(bus, ecs, runtime, engineApi);
+        worldState = new WorldAppState(this);
         getStateManager().attach(worldState);
 
         // 6) builder uses registry
@@ -332,6 +333,26 @@ public final class RuntimeAppState extends BaseAppState {
 
     public EngineApiImpl getEngineApi() {
         return engineApi;
+    }
+
+    public PhysicsSpace getSpace() {
+        return space;
+    }
+
+    public ScriptEventBus getBus() {
+        return bus;
+    }
+
+    public EcsWorld getEcs() {
+        return ecs;
+    }
+
+    public GraalScriptRuntime getRuntime() {
+        return runtime;
+    }
+
+    public BulletAppState getBullet() {
+        return bullet;
     }
 
     @Override protected void onEnable() {}

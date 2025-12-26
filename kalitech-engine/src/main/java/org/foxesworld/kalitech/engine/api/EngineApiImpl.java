@@ -191,4 +191,8 @@ public final class EngineApiImpl implements EngineApi {
     public ScriptEventBus getBus() { return bus; }
     public EcsWorld getEcs() { return ecs; }
     public Logger getLog() { return log; }
+
+    public PhysicsSpace getPhysicsSpace() {
+        return physicsSpace;
+    }
 }

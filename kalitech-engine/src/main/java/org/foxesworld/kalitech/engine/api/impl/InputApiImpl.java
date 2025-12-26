@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
+import org.graalvm.polyglot.HostAccess;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +42,7 @@ public final class InputApiImpl implements InputApi {
         mdy = 0.0;
         wheel = 0.0;
     }
-
+    @HostAccess.Export
     @Override
     public boolean keyDown(String key) {
         int code = KeyNames.toKeyCode(key);

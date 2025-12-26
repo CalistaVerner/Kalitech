@@ -8,10 +8,11 @@ const DEFAULT_CONFIG = {
         "@lib": "Scripts/lib",
         "@engine": "Scripts/engine",
         "@systems": "Scripts/systems",
-        "@materials": "Scripts/materials"
+        "@materials": "Scripts/materials",
+        "@env": "Scripts/environment"
     },
     packageStyle: { enabled: false, roots: {} },
-    materials: { dbPath: "Scripts/core/materials/materials.json" },
+    materials: { dbPath: "data/materials.json" },
     builtins: {
         modules: {
             assert: "@builtin/assert",
