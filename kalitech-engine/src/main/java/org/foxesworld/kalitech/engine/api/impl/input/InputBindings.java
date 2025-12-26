@@ -87,8 +87,6 @@ final class InputBindings {
             if (code == null) return;
 
             kb.onKeyEvent(code, isPressed);
-            System.out.println("[MAPKEY] name=" + name + " pressed=" + isPressed);
-
         }
     };
 

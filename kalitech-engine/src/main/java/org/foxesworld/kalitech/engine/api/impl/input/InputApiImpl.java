@@ -90,6 +90,11 @@ public final class InputApiImpl implements InputApi {
         return keyboard.keyDown(code);
     }
 
+    @Override
+    public boolean keyDown(int keyCode) {
+        return false;
+    }
+
     @HostAccess.Export
     @Override
     public int keyCode(String name) {
@@ -190,9 +195,11 @@ public final class InputApiImpl implements InputApi {
         mouse.resetBaselines();
     }
 
-    @HostAccess.Export @Override public boolean grabMouse() { return cursor.isGrabbed(); }
+    @Override
+    public boolean grabbed() {
+        return false;
+    }
 
-    // -------- Frame lifecycle --------
 
     @HostAccess.Export
     @Override
@@ -202,18 +209,6 @@ public final class InputApiImpl implements InputApi {
         frameId++;
     }
 
-    // -------- Debug --------
-
-    @HostAccess.Export
-    @Override
-    public void debug(boolean enabled) {
-        this.debug = enabled;
-        log.info("[input] debug={}", enabled);
-    }
-
-    @HostAccess.Export
-    @Override
-    public boolean debug() { return debug; }
 
     private boolean isDebug() { return debug; }
 

@@ -27,7 +27,6 @@ public final class RawCollector implements RawInputListener {
     @Override
     public void onKeyEvent(KeyInputEvent evt) {
         keyboard.onKeyEvent(evt.getKeyCode(), evt.isPressed());
-        System.out.println("[RAWKEY] code=" + evt.getKeyCode() + " pressed=" + evt.isPressed());
     }
 
     @Override
