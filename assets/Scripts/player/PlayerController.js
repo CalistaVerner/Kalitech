@@ -93,7 +93,10 @@ function mergeDebug(src) {
 
 class PlayerController {
     /**
-     * @param {Object=} cfg
+     * OOP: new PlayerController(player)
+     * Legacy: new PlayerController(cfg)
+     *
+     * cfg:
      *  {
      *    enabled, speed, runSpeed, airControl, jumpImpulse,
      *    groundRay, groundEps, maxSlopeDot,
@@ -101,28 +104,36 @@ class PlayerController {
      *    debug: {enabled, everyFrames, logGround, logKeys}
      *  }
      */
-    constructor(cfg) {
-        cfg = cfg || {};
+    constructor(playerOrCfg) {
+        // OOP mode: new PlayerController(player)
+        // Legacy mode: new PlayerController(cfg)
+        const isPlayer = !!(playerOrCfg && typeof playerOrCfg === "object" && (playerOrCfg.cfg || playerOrCfg.getCfg || playerOrCfg.ctx));
+        const player = isPlayer ? playerOrCfg : null;
+        const cfg = isPlayer ? ((player && player.cfg && player.cfg.movement) || {}) : (playerOrCfg || {});
 
-        this.enabled = (cfg.enabled !== undefined) ? !!cfg.enabled : true;
+        this.player = player;
+
+        const cfg2 = cfg || {};
+
+        this.enabled = (cfg2.enabled !== undefined) ? !!cfg2.enabled : true;
         this.bodyId = 0;
 
         // movement
-        this.speed      = (cfg.speed      !== undefined) ? num(cfg.speed, 6.0) : 6.0;
-        this.runSpeed   = (cfg.runSpeed   !== undefined) ? num(cfg.runSpeed, 10.0) : 10.0;
-        this.airControl = (cfg.airControl !== undefined) ? clamp(num(cfg.airControl, 0.35), 0, 1) : 0.35;
-        this.jumpImpulse = (cfg.jumpImpulse !== undefined) ? num(cfg.jumpImpulse, 320.0) : 320.0;
+        this.speed      = (cfg2.speed      !== undefined) ? num(cfg2.speed, 6.0) : 6.0;
+        this.runSpeed   = (cfg2.runSpeed   !== undefined) ? num(cfg2.runSpeed, 10.0) : 10.0;
+        this.airControl = (cfg2.airControl !== undefined) ? clamp(num(cfg2.airControl, 0.35), 0, 1) : 0.35;
+        this.jumpImpulse = (cfg2.jumpImpulse !== undefined) ? num(cfg2.jumpImpulse, 320.0) : 320.0;
 
         // ground check
-        this.groundRay   = (cfg.groundRay   !== undefined) ? num(cfg.groundRay, 1.2) : 1.2;
-        this.groundEps   = (cfg.groundEps   !== undefined) ? num(cfg.groundEps, 0.08) : 0.08;
-        this.maxSlopeDot = (cfg.maxSlopeDot !== undefined) ? num(cfg.maxSlopeDot, 0.55) : 0.55;
+        this.groundRay   = (cfg2.groundRay   !== undefined) ? num(cfg2.groundRay, 1.2) : 1.2;
+        this.groundEps   = (cfg2.groundEps   !== undefined) ? num(cfg2.groundEps, 0.08) : 0.08;
+        this.maxSlopeDot = (cfg2.maxSlopeDot !== undefined) ? num(cfg2.maxSlopeDot, 0.55) : 0.55;
 
         // keys (multi-layout)
-        this.keys = cloneKeys(cfg.keys);
+        this.keys = cloneKeys(cfg2.keys);
 
         // debug
-        this.debug = mergeDebug(cfg.debug);
+        this.debug = mergeDebug(cfg2.debug);
 
         // keyCode cache (name -> code)
         this._kc = Object.create(null);
@@ -253,134 +264,149 @@ class PlayerController {
     }
 
     bind(ids) {
+        if (ids == null && this.player) ids = this.player;
+
         this.bodyId = this._resolveBodyId(ids);
         this._ensureKeyCodes(); // compile once on bind
         try { engine.log().info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
         return this;
     }
 
-    // ---------- update ----------
-    update(tpf, snap) {
-        if (!this.enabled) return;
-
-        const bodyId = this.bodyId | 0;
-        if (!bodyId) return;
-
-        this._ensureKeyCodes();
-
-        // keep upright
-        try { engine.physics().lockRotation(bodyId, true); } catch (_) {}
-
-        const grounded = this._isGrounded(bodyId);
-
+    // --------
+    _readYaw() {
+        // camera yaw from orchestrator (or fallback)
         let yaw = 0;
-        try { yaw = +engine.camera().yaw() || 0; } catch (_) {}
-
-        // axes from snapshot
-        const ix = this._axisCodes(snap, this._codes.left, this._codes.right);
-        const iz = this._axisCodes(snap, this._codes.back, this._codes.forward);
-
-        // normalize without alloc
-        norm2_into(ix, iz, this._tmpN);
-        const wantMove = len2(this._tmpN.x, this._tmpN.z) > 1e-6;
-
-        // rotate by camera yaw (world dir)
-        rotateByYaw_into(this._tmpN.x, this._tmpN.z, yaw, this._tmpDir);
-
-        const running = this._anyDownCodes(snap, this._codes.run);
-        const spd = running ? this.runSpeed : this.speed;
-
-        // current velocity
-        let v = null;
-        try { v = engine.physics().velocity(bodyId); } catch (_) { v = null; }
-        const vx0 = vx(v, 0), vy0 = vy(v, 0), vz0 = vz(v, 0);
-
-        // in air keep inertia; on ground snap more
-        const control = grounded ? 1.0 : this.airControl;
-
-        const tx = wantMove ? (this._tmpDir.x * spd) : 0.0;
-        const tz = wantMove ? (this._tmpDir.z * spd) : 0.0;
-
-        // blend current -> target
-        const nxv = vx0 + (tx - vx0) * control;
-        const nzv = vz0 + (tz - vz0) * control;
-
-        // reuse object
-        const vel = this._tmpVel;
-        vel.x = nxv; vel.y = vy0; vel.z = nzv;
-        try { engine.physics().velocity(bodyId, vel); } catch (_) {}
-
-        // jump: edge press
-        const jumpPressed = this._anyJustPressedCodes(snap, this._codes.jump);
-        if (jumpPressed && grounded) {
-            const j = this._tmpJump;
-            j.x = 0; j.y = this.jumpImpulse; j.z = 0;
-            try { engine.physics().applyImpulse(bodyId, j); } catch (_) {}
-        }
-
-        // debug
-        if (this.debug.enabled) {
-            this.debug._f++;
-            if ((this.debug._f % (this.debug.everyFrames | 0)) === 0) {
-                let p = null, vel2 = null;
-                try { p = engine.physics().position(bodyId); } catch (_) {}
-                try { vel2 = engine.physics().velocity(bodyId); } catch (_) {}
-
-                let msg =
-                    "[player][dbg] bodyId=" + bodyId +
-                    " grounded=" + grounded +
-                    " yaw=" + yaw.toFixed(3) +
-                    " pos=" + (p ? (vx(p, 0).toFixed(2) + "," + vy(p, 0).toFixed(2) + "," + vz(p, 0).toFixed(2)) : "null") +
-                    " vel=" + (vel2 ? (vx(vel2, 0).toFixed(2) + "," + vy(vel2, 0).toFixed(2) + "," + vz(vel2, 0).toFixed(2)) : "null") +
-                    " axis(ix,iz)=(" + ix + "," + iz + ")" +
-                    " spd=" + spd.toFixed(2) +
-                    " ctl=" + control.toFixed(2);
-
-                if (this.debug.logKeys && snap) {
-                    msg +=
-                        " W=" + (snapHas(snap, "keysDown", this._codes.W) ? 1 : 0) +
-                        " Z=" + (snapHas(snap, "keysDown", this._codes.Z) ? 1 : 0) +
-                        " A=" + (snapHas(snap, "keysDown", this._codes.A) ? 1 : 0) +
-                        " Q=" + (snapHas(snap, "keysDown", this._codes.Q) ? 1 : 0) +
-                        " S=" + (snapHas(snap, "keysDown", this._codes.S) ? 1 : 0) +
-                        " D=" + (snapHas(snap, "keysDown", this._codes.D) ? 1 : 0) +
-                        " SHIFT=" + (this._anyDownCodes(snap, this._codes.run) ? 1 : 0) +
-                        " SPACE(jp)=" + (snapHas(snap, "justPressed", this._codes.SPACE) ? 1 : 0);
-                }
-
-                try { engine.log().info(msg); } catch (_) {}
-            }
-        }
+        try {
+            const cam = engine.camera();
+            if (cam && cam.yaw) yaw = num(cam.yaw(), 0);
+            else if (cam && cam.rotationYaw) yaw = num(cam.rotationYaw(), 0);
+        } catch (_) {}
+        return yaw;
     }
 
-    _isGrounded(bodyId) {
+    _groundCheck() {
+        const bodyId = this.bodyId | 0;
+        if (!bodyId) return false;
+
         let p = null;
-        try { p = engine.physics().position(bodyId); } catch (_) { p = null; }
+        try { p = engine.physics().position(bodyId); } catch (_) {}
         if (!p) return false;
 
-        const px = vx(p, 0), py0 = vy(p, 0), pz = vz(p, 0);
+        const px = vx(p, 0), py = vy(p, 0), pz = vz(p, 0);
 
-        // reuse ray objects
-        const from = this._tmpFrom;
-        const to = this._tmpTo;
-
-        from.x = px; from.y = py0; from.z = pz;
-        to.x   = px; to.y   = py0 - this.groundRay; to.z = pz;
+        this._tmpFrom.x = px; this._tmpFrom.y = py; this._tmpFrom.z = pz;
+        this._tmpTo.x   = px; this._tmpTo.y   = py - this.groundRay; this._tmpTo.z = pz;
 
         let hit = null;
-        try { hit = engine.physics().raycast({ from, to }); } catch (_) { hit = null; }
+        try { hit = engine.physics().raycast({ from: this._tmpFrom, to: this._tmpTo }); } catch (_) {}
         if (!hit || !hit.hit) return false;
 
         const n = hit.normal || null;
-        const ny = n ? _readMember(n, "y", 1) : 1;
-
+        const ny = n ? (num((typeof n.y === "function") ? n.y() : n.y, 1)) : 1;
         if (ny < this.maxSlopeDot) return false;
 
         const dist = num(hit.distance, 9999);
         return dist <= (this.groundRay - this.groundEps);
     }
 
-    // ---------- utilities ----------
+    _applyPlanarVelocity(vxNew, vzNew) {
+        const bodyId = this.bodyId | 0;
+        if (!bodyId) return;
+
+        let vel = null;
+        try { vel = engine.physics().velocity(bodyId); } catch (_) {}
+        if (!vel) return;
+
+        const vyOld = vy(vel, 0);
+
+        this._tmpVel.x = vxNew;
+        this._tmpVel.y = vyOld;
+        this._tmpVel.z = vzNew;
+
+        try { engine.physics().velocity(bodyId, this._tmpVel); } catch (_) {}
+    }
+
+    update(tpf, snap) {
+        if (!this.enabled) return;
+        const bodyId = this.bodyId | 0;
+        if (!bodyId) return;
+
+        this._ensureKeyCodes();
+
+        // If player exists — always keep bodyId in sync (hot reload safe)
+        if (this.player) this.bodyId = (this.player.bodyId | 0);
+
+        // input axes
+        const c = this._codes;
+        const ax = this._axisCodes(snap, c.left, c.right);
+        const az = this._axisCodes(snap, c.back, c.forward);
+
+        const run = this._anyDownCodes(snap, c.run);
+        const wantJump = this._anyJustPressedCodes(snap, c.jump);
+
+        const grounded = this._groundCheck();
+
+        // debug keys (optional)
+        if (this.debug && this.debug.enabled) {
+            this.debug._f = (this.debug._f + 1) | 0;
+            if ((this.debug._f % (this.debug.everyFrames | 0)) === 0) {
+                if (this.debug.logKeys) {
+                    try {
+                        engine.log().info("[player][keys] ax=" + ax + " az=" + az +
+                            " run=" + (run ? "1" : "0") + " jump=" + (wantJump ? "1" : "0"));
+                    } catch (_) {}
+                }
+                if (this.debug.logGround) {
+                    try { engine.log().info("[player][ground] grounded=" + (grounded ? "1" : "0")); } catch (_) {}
+                }
+            }
+        }
+
+        // early out: no move input
+        if (ax === 0 && az === 0) {
+            // jump from standstill still allowed
+            if (grounded && wantJump) {
+                this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
+                try { engine.physics().applyImpulse(bodyId, this._tmpJump); } catch (_) {}
+            }
+            return;
+        }
+
+        // local dir -> normalize
+        norm2_into(ax, az, this._tmpN);
+
+        // rotate by camera yaw to world-space
+        const yaw = this._readYaw();
+        rotateByYaw_into(this._tmpN.x, this._tmpN.z, yaw, this._tmpDir);
+
+        // target speed
+        const sp = run ? this.runSpeed : this.speed;
+
+        // current vel
+        let vel = null;
+        try { vel = engine.physics().velocity(bodyId); } catch (_) {}
+        const vxOld = vx(vel, 0);
+        const vzOld = vz(vel, 0);
+
+        // desired planar velocity
+        const vxT = this._tmpDir.x * sp;
+        const vzT = this._tmpDir.z * sp;
+
+        // blend if in air
+        const k = grounded ? 1.0 : clamp(this.airControl, 0, 1);
+
+        const vxNew = vxOld + (vxT - vxOld) * k;
+        const vzNew = vzOld + (vzT - vzOld) * k;
+
+        this._applyPlanarVelocity(vxNew, vzNew);
+
+        // jump
+        if (grounded && wantJump) {
+            this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
+            try { engine.physics().applyImpulse(bodyId, this._tmpJump); } catch (_) {}
+        }
+    }
+
     warp(pos) {
         const bodyId = this.bodyId | 0;
         if (!bodyId || !pos) return;

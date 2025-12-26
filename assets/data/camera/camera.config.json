@@ -1,0 +1,18 @@
+{
+  "type": "first",
+  "debug": { "enabled": true, "everyFrames": 60 },
+  "keys": { "free": "F1", "first": "F2", "third": "F3", "top": "F4" },
+
+  "look": {
+    "sensitivity": 0.0002,
+    "smoothing": 0.52,
+    "pitchLimit": 1.5393804002589986,
+    "invertX": false,
+    "invertY": false
+  },
+
+  "free":  { "speed": 90, "accel": 18, "drag": 6.5 },
+  "first": { "offset": { "x": 0, "y": 1.65, "z": 0 } },
+  "third": { "distance": 3.4, "height": 1.55, "side": 0.25, "zoomSpeed": 1.0 },
+  "top":   { "height": 18, "panSpeed": 14, "zoomSpeed": 2, "pitch": -1.5393804002589986 }
+}

@@ -49,10 +49,22 @@ class PlayerEntity {
     }
 
     warp(pos) {
+        if (!pos) return;
+
+        const h = this.body;
+        if (h && typeof h.teleport === "function") {
+            try { h.teleport(pos); } catch (e) { try { engine.log().error("[player] warp.teleport failed: " + e); } catch (_) {} }
+            return;
+        }
+
+        // fallback: old api (may be no-op in your engine)
         const bodyId = this.bodyId | 0;
-        if (!bodyId || !pos) return;
-        try { engine.physics().position(bodyId, pos); } catch (_) {}
+        if (!bodyId) return;
+        try { engine.physics().position(bodyId, pos); } catch (e) {
+            try { engine.log().error("[player] warp.physics.position failed: " + e); } catch (_) {}
+        }
     }
+
 
     destroy() {
         try { if (this.bodyId > 0) engine.physics().remove(this.bodyId); } catch (_) {}
@@ -65,8 +77,15 @@ class PlayerEntity {
 }
 
 class PlayerEntityFactory {
+    constructor(player) {
+        this.player = player || null;
+    }
+
     create(cfg) {
+        // If cfg not provided — take from player
+        if (cfg == null && this.player) cfg = (this.player.cfg && this.player.cfg.spawn) || {};
         cfg = cfg || {};
+
         const e = new PlayerEntity();
 
         // 1) entity

@@ -2,8 +2,11 @@
 "use strict";
 
 class CrosshairWidget {
-    constructor(ctx) {
-        this.ctx = ctx;
+    constructor(playerOrCtx) {
+        const isPlayer = !!(playerOrCtx && typeof playerOrCtx === "object" && (playerOrCtx.cfg || playerOrCtx.getCfg || playerOrCtx.ctx));
+        this.player = isPlayer ? playerOrCtx : null;
+        this.ctx = isPlayer ? (this.player && this.player.ctx) : playerOrCtx;
+
         this.root = null;
         this.img = null;
 
@@ -19,8 +22,6 @@ class CrosshairWidget {
 
         const hud = engine.hud();
 
-        // Корень в центре экрана
-// root-группа (центр)
         this.root = hud.create({
             kind: "group",
             anchor: "center",
@@ -28,7 +29,6 @@ class CrosshairWidget {
             visible: true
         });
 
-        // Сам прицел — ОДНО изображение
         this.img = hud.create({
             kind: "image",
             parent: this.root,
@@ -43,7 +43,7 @@ class CrosshairWidget {
                 h: this.style.size
             },
 
-            color: this.style.color   // опционально (white = без искажения)
+            color: this.style.color
         });
 
         return this;
