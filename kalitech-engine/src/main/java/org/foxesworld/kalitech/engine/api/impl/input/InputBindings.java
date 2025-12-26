@@ -2,11 +2,16 @@ package org.foxesworld.kalitech.engine.api.impl.input;
 
 import com.jme3.input.InputManager;
 import com.jme3.input.MouseInput;
+import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.AnalogListener;
+import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseAxisTrigger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 final class InputBindings {
@@ -26,12 +31,68 @@ final class InputBindings {
     private final InputFrame frame;
     private final BooleanSupplier debug;
 
+    // --- keyboard mappings (on-demand, AAA++) ---
+    private final Map<String, Integer> keyMap = new ConcurrentHashMap<>();
+    private final AtomicBoolean keyListenerInstalled = new AtomicBoolean(false);
+    private volatile KeyboardState keyboardRef;
+
     InputBindings(InputManager input, MouseState mouse, InputFrame frame, BooleanSupplier debug) {
         this.input = input;
         this.mouse = mouse;
         this.frame = frame;
         this.debug = debug;
     }
+
+    /**
+     * Ensure KeyTrigger mapping exists for this KeyInput code.
+     *
+     * Why: on some backends / focus+grab combos RawInputListener key events can be unreliable,
+     * while ActionListener mappings keep working.
+     */
+    void ensureKeyMapping(int keyCode, KeyboardState keyboard) {
+        if (keyCode < 0) return;
+
+        // listener uses this reference
+        this.keyboardRef = keyboard;
+
+        final String map = "__kt_key_" + keyCode;
+        keyMap.put(map, keyCode);
+
+        try {
+            if (!input.hasMapping(map)) {
+                input.addMapping(map, new KeyTrigger(keyCode));
+            }
+
+            // jME accepts repeated addListener calls; it just registers more mapping names.
+            input.addListener(keyListener, map);
+
+            if (keyListenerInstalled.compareAndSet(false, true)) {
+                log.info("[input] key listener installed (ActionListener)");
+            }
+
+            // keep existing log behavior (useful while debugging)
+            log.info("[input] key mapping installed code={} map={}", keyCode, map);
+        } catch (Exception e) {
+            log.warn("[input] failed to install key mapping code={}: {}", keyCode, e.toString());
+        }
+    }
+
+    private final ActionListener keyListener = new ActionListener() {
+        @Override
+        public void onAction(String name, boolean isPressed, float tpf) {
+            KeyboardState kb = keyboardRef;
+            if (kb == null) return;
+
+            Integer code = keyMap.get(name);
+            if (code == null) return;
+
+            kb.onKeyEvent(code, isPressed);
+            System.out.println("[MAPKEY] name=" + name + " pressed=" + isPressed);
+
+        }
+    };
+
+    // ---------------- Mouse Axis mappings (THE FIX) ----------------
 
     void installMouseAxisMappings() {
         try {
@@ -71,7 +132,7 @@ final class InputBindings {
             else if (MAP_WHEEL_NEG.equals(name)) mouse.addWheel(-value);
 
             if (debug.getAsBoolean()) {
-                // не спамим: сама MouseState троттлит
+                // MouseState throttles internally
                 mouse.dbgDelta("axis", mouse.mouseDx(), mouse.mouseDy(), mouse.peekWheel(), true);
             }
         }

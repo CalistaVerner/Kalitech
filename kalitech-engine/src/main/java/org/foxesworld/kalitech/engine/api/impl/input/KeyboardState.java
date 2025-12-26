@@ -4,6 +4,8 @@ package org.foxesworld.kalitech.engine.api.impl.input;
 
 import com.jme3.input.KeyInput;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,6 +44,11 @@ public final class KeyboardState {
         return down[code];
     }
 
+    /** Fast numeric query (used from Java without name lookup). */
+    public boolean keyDown(int keyCode) {
+        return keyCode >= 0 && keyCode < down.length && down[keyCode];
+    }
+
     public int keyCode(String name) {
         return KeyNames.toKeyCode(name);
     }
@@ -50,13 +57,91 @@ public final class KeyboardState {
     public int[] justPressed() { return justPressed; }
     public int[] justReleased() { return justReleased; }
 
+    /**
+     * Snapshot-friendly copy of pressed key codes.
+     *
+     * NOTE: returns a new array each call (for snapshot immutability).
+     */
+    public int[] copyPressedKeyCodes() {
+        int[] src = keysDown;
+        if (src.length == 0) return new int[0];
+        int[] out = new int[src.length];
+        System.arraycopy(src, 0, out, 0, src.length);
+        return out;
+    }
+
     // ---------------- frame finalize ----------------
 
     /**
-     * Must be called once per frame (from InputApiImpl.endFrame()).
-     * Computes transitions and freezes snapshot arrays.
+     * Back-compat name.
      */
     public void endFrame() {
+        advanceFrame();
+    }
+
+    // ---------------- helpers ----------------
+
+    private static int guessKeyMax() {
+        try {
+            Object v = KeyInput.class.getField("KEY_LAST").get(null);
+            if (v instanceof Integer) return ((Integer) v) + 1;
+        } catch (Exception ignored) {}
+        return 512;
+    }
+
+    // ---------------- name → code ----------------
+
+    private static final class KeyNames {
+        private static final Map<String, Integer> MAP = new ConcurrentHashMap<>();
+
+        static {
+            // Auto-load ALL KeyInput.KEY_* constants correctly
+            try {
+                for (Field f : KeyInput.class.getFields()) {
+                    int mod = f.getModifiers();
+                    if (!Modifier.isStatic(mod) || f.getType() != int.class) continue;
+
+                    String n = f.getName(); // e.g. "KEY_W"
+                    if (!n.startsWith("KEY_")) continue;
+
+                    int code = f.getInt(null);
+                    String key = n.substring(4); // "W"
+                    MAP.put(key, code);
+                }
+            } catch (Exception ignored) {}
+
+            // Friendly aliases
+            alias("ESC", "ESCAPE");
+            alias("ENTER", "RETURN");
+            alias("CTRL", "LCONTROL");
+            alias("LCTRL", "LCONTROL");
+            alias("RCTRL", "RCONTROL");
+            alias("SHIFT", "LSHIFT");
+            alias("LSHIFT", "LSHIFT");
+            alias("RSHIFT", "RSHIFT");
+            alias("ALT", "LMENU");
+            alias("LALT", "LMENU");
+            alias("RALT", "RMENU");
+        }
+
+        private static void alias(String a, String b) {
+            Integer v = MAP.get(b);
+            if (v != null) MAP.put(a, v);
+        }
+
+        static int toKeyCode(String key) {
+            if (key == null) return -1;
+            String k = key.trim().toUpperCase();
+            if (k.isEmpty()) return -1;
+            Integer v = MAP.get(k);
+            return v != null ? v : -1;
+        }
+    }
+
+    /**
+     * Main per-frame computation (call once per snapshot).
+     */
+    public void advanceFrame() {
         int downCount = 0;
         int jpCount = 0;
         int jrCount = 0;
@@ -91,92 +176,4 @@ public final class KeyboardState {
         justPressed = jp;
         justReleased = jr;
     }
-
-    // ---------------- helpers ----------------
-
-    private static int guessKeyMax() {
-        try {
-            Object v = KeyInput.class.getField("KEY_LAST").get(null);
-            if (v instanceof Integer) return ((Integer) v) + 1;
-        } catch (Exception ignored) {}
-        return 512;
-    }
-
-    // ---------------- name → code ----------------
-
-    private static final class KeyNames {
-        private static final Map<String, Integer> MAP = new ConcurrentHashMap<>();
-
-        static {
-            for (char c = 'A'; c <= 'Z'; c++) {
-                MAP.put(String.valueOf(c), KeyInput.KEY_A + (c - 'A'));
-            }
-
-            MAP.put("0", KeyInput.KEY_0); MAP.put("1", KeyInput.KEY_1);
-            MAP.put("2", KeyInput.KEY_2); MAP.put("3", KeyInput.KEY_3);
-            MAP.put("4", KeyInput.KEY_4); MAP.put("5", KeyInput.KEY_5);
-            MAP.put("6", KeyInput.KEY_6); MAP.put("7", KeyInput.KEY_7);
-            MAP.put("8", KeyInput.KEY_8); MAP.put("9", KeyInput.KEY_9);
-
-            MAP.put("SPACE", KeyInput.KEY_SPACE);
-            MAP.put("ESC", KeyInput.KEY_ESCAPE);
-            MAP.put("ESCAPE", KeyInput.KEY_ESCAPE);
-            MAP.put("ENTER", KeyInput.KEY_RETURN);
-            MAP.put("TAB", KeyInput.KEY_TAB);
-
-            MAP.put("SHIFT", KeyInput.KEY_LSHIFT);
-            MAP.put("CTRL", KeyInput.KEY_LCONTROL);
-            MAP.put("ALT", KeyInput.KEY_LMENU);
-
-            MAP.put("LEFT", KeyInput.KEY_LEFT);
-            MAP.put("RIGHT", KeyInput.KEY_RIGHT);
-            MAP.put("UP", KeyInput.KEY_UP);
-            MAP.put("DOWN", KeyInput.KEY_DOWN);
-
-            MAP.put("F1", KeyInput.KEY_F1); MAP.put("F2", KeyInput.KEY_F2);
-            MAP.put("F3", KeyInput.KEY_F3); MAP.put("F4", KeyInput.KEY_F4);
-            MAP.put("F5", KeyInput.KEY_F5); MAP.put("F6", KeyInput.KEY_F6);
-            MAP.put("F7", KeyInput.KEY_F7); MAP.put("F8", KeyInput.KEY_F8);
-            MAP.put("F9", KeyInput.KEY_F9); MAP.put("F10", KeyInput.KEY_F10);
-            MAP.put("F11", KeyInput.KEY_F11); MAP.put("F12", KeyInput.KEY_F12);
-        }
-
-        static int toKeyCode(String key) {
-            if (key == null) return -1;
-            String k = key.trim().toUpperCase();
-            if (k.isEmpty()) return -1;
-            return MAP.getOrDefault(k, -1);
-        }
-    }
-
-    /**
-     * Immutable list of currently pressed key codes (KeyInput codes).
-     * Used for per-frame InputSnapshot (keysDown).
-     *
-     * @return int[] of pressed key codes, never null
-     */
-    public int[] copyPressedKeyCodes() {
-        int count = 0;
-
-        // first pass: count
-        for (boolean d : down) {
-            if (d) count++;
-        }
-
-        if (count == 0) {
-            return new int[0];
-        }
-
-        // second pass: fill
-        int[] out = new int[count];
-        int i = 0;
-        for (int keyCode = 0; keyCode < down.length; keyCode++) {
-            if (down[keyCode]) {
-                out[i++] = keyCode;
-            }
-        }
-
-        return out;
-    }
-
 }

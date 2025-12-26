@@ -1,104 +1,101 @@
 package org.foxesworld.kalitech.engine.api.impl.input;
 
+// Author: Calista Verner
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-final class MouseState {
+public final class MouseState {
 
     private static final Logger log = LogManager.getLogger(MouseState.class);
+
+    // Mouse buttons bitmask
+    private volatile int mouseMask = 0;
 
     // Absolute
     private volatile double mx = 0.0;
     private volatile double my = 0.0;
 
-    // Buttons bitmask
-    private volatile int mouseMask = 0;
+    // Accumulated deltas
+    private volatile double mdx = 0.0;
+    private volatile double mdy = 0.0;
+    private volatile double wheel = 0.0;
 
-    // Accumulators
-    private double mdx = 0.0;
-    private double mdy = 0.0;
-    private double wheel = 0.0;
+    // fallback baseline
+    private volatile boolean havePrevAbs = false;
+    private volatile double prevAbsX = 0.0;
+    private volatile double prevAbsY = 0.0;
 
-    // Baselines (fallback)
-    private boolean havePrevAbs = false;
-    private double prevAbsX = 0.0;
-    private double prevAbsY = 0.0;
+    public record Consumed(double dx, double dy, double wheel) {}
 
-    private boolean haveLastRawAbs = false;
-    private double lastRawAbsX = 0.0;
-    private double lastRawAbsY = 0.0;
+    // --- absolute ---
+    public void setAbsolute(double x, double y) {
+        this.mx = x;
+        this.my = y;
+    }
 
-    // Debug throttling
-    private long dbgTick = 0;
+    public double mouseX() { return mx; }
+    public double mouseY() { return my; }
 
-    // ---- absolute ----
-    double mouseX() { return mx; }
-    double mouseY() { return my; }
-    void setAbsolute(double x, double y) { mx = x; my = y; }
-
-    // ---- buttons ----
-    boolean mouseDown(int button) {
+    // --- buttons ---
+    public boolean mouseDown(int button) {
         if (button < 0 || button >= 31) return false;
         return (mouseMask & (1 << button)) != 0;
     }
 
-    int peekMouseMask() { return mouseMask; }
+    public int mouseMask() { return mouseMask; }
+    public int peekMouseMask() { return mouseMask; }
 
-    void setMouseDown(int button, boolean down) {
+    public void setMouseDown(int button, boolean down) {
         if (button < 0 || button >= 31) return;
         int bit = 1 << button;
         if (down) mouseMask |= bit;
         else mouseMask &= ~bit;
     }
 
-    // ---- deltas ----
-    synchronized void addDelta(double dx, double dy) { mdx += dx; mdy += dy; }
-    synchronized void addWheel(double w) { wheel += w; }
-
-    double mouseDx() { return mdx; }
-    double mouseDy() { return mdy; }
-
-    synchronized Delta consumeMouseDelta() {
-        double dx = mdx, dy = mdy;
-        mdx = 0.0; mdy = 0.0;
-        return new Delta(dx, dy);
+    // --- deltas ---
+    public void addDelta(double dx, double dy) {
+        mdx += dx;
+        mdy += dy;
     }
 
-    double peekWheel() { return wheel; }
+    public double mouseDx() { return mdx; }
+    public double mouseDy() { return mdy; }
 
-    synchronized double consumeWheel() {
+    // --- wheel ---
+    public void addWheel(double w) { wheel += w; }
+    public double peekWheel() { return wheel; }
+
+    public double consumeWheelOnly() {
         double w = wheel;
         wheel = 0.0;
         return w;
     }
 
-    synchronized Consumed consumeDeltasAndWheel() {
+    public Consumed consumeDeltasOnly() {
+        double dx = mdx, dy = mdy;
+        mdx = 0.0;
+        mdy = 0.0;
+        return new Consumed(dx, dy, 0.0);
+    }
+
+    public Consumed consumeDeltasAndWheel() {
         double dx = mdx, dy = mdy, w = wheel;
-        mdx = 0.0; mdy = 0.0; wheel = 0.0;
+        mdx = 0.0;
+        mdy = 0.0;
+        wheel = 0.0;
         return new Consumed(dx, dy, w);
     }
 
-    static final class Consumed {
-        final double dx, dy, wheel;
-        Consumed(double dx, double dy, double wheel) {
-            this.dx = dx; this.dy = dy; this.wheel = wheel;
-        }
-    }
-
-    // ---- fallback logic ----
-    void resetBaselines() {
+    // --- fallback ---
+    public void resetBaselines() {
         havePrevAbs = false;
-        haveLastRawAbs = false;
     }
 
-    void ensureFallbackDeltaIfNeeded(boolean grabbed, boolean motionThisFrame) {
-        // Важно: fallback делаем только если grab и не было motion от raw/axis.
+    public void ensureFallbackDeltaIfNeeded(boolean grabbed, boolean motionThisFrame) {
         if (!grabbed) return;
         if (motionThisFrame) return;
-        applyFallbackDeltaFromAbsolute();
-    }
 
-    private synchronized void applyFallbackDeltaFromAbsolute() {
         final double ax = mx;
         final double ay = my;
 
@@ -119,49 +116,9 @@ final class MouseState {
         mdy += dy;
     }
 
-    // ---- raw motion feed ----
-    void onRawMotion(double absX, double absY, double rawDx, double rawDy, double rawWheel) {
-        mx = absX;
-        my = absY;
-
-        double dx = rawDx;
-        double dy = rawDy;
-
-        if (dx == 0.0 && dy == 0.0) {
-            if (haveLastRawAbs) {
-                dx = absX - lastRawAbsX;
-                dy = absY - lastRawAbsY;
-            }
-        }
-
-        lastRawAbsX = absX;
-        lastRawAbsY = absY;
-        haveLastRawAbs = true;
-
-        synchronized (this) {
-            mdx += dx;
-            mdy += dy;
-            wheel += rawWheel;
-        }
-    }
-
-    // ---- debug ----
     void dbgDelta(String src, double dx, double dy, double w, boolean motion) {
-        dbgTick++;
-        if ((dbgTick % 60) != 0) return;
+        // throttled outside, keep it simple
         log.info("[input] src={} mx={} my={} dx={} dy={} wheel={} motion={}",
                 src, mx, my, dx, dy, w, motion);
-    }
-
-    void dbgEndFrame(double dx, double dy, double w, boolean motion, boolean grabbed, boolean cursorVisible) {
-        dbgTick++;
-        if ((dbgTick % 60) != 0) return;
-        log.info("[input] src=endFrame mx={} my={} dx={} dy={} wheel={} motion={} cursorVisible={} grabbed={}",
-                mx, my, dx, dy, w, motion, cursorVisible, grabbed);
-    }
-
-    static final class Delta {
-        final double dx, dy;
-        Delta(double dx, double dy) { this.dx = dx; this.dy = dy; }
     }
 }

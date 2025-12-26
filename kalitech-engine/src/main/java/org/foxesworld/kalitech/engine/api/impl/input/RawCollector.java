@@ -1,15 +1,17 @@
 package org.foxesworld.kalitech.engine.api.impl.input;
 
+// Author: Calista Verner
+
 import com.jme3.input.RawInputListener;
 import com.jme3.input.event.*;
 
-final class RawCollector implements RawInputListener {
+public final class RawCollector implements RawInputListener {
 
     private final KeyboardState keyboard;
     private final MouseState mouse;
     private final InputFrame frame;
 
-    RawCollector(KeyboardState keyboard, MouseState mouse, InputFrame frame) {
+    public RawCollector(KeyboardState keyboard, MouseState mouse, InputFrame frame) {
         this.keyboard = keyboard;
         this.mouse = mouse;
         this.frame = frame;
@@ -25,18 +27,15 @@ final class RawCollector implements RawInputListener {
     @Override
     public void onKeyEvent(KeyInputEvent evt) {
         keyboard.onKeyEvent(evt.getKeyCode(), evt.isPressed());
+        System.out.println("[RAWKEY] code=" + evt.getKeyCode() + " pressed=" + evt.isPressed());
     }
 
     @Override
     public void onMouseMotionEvent(MouseMotionEvent evt) {
         frame.markMotion();
-        mouse.onRawMotion(
-                evt.getX(),
-                evt.getY(),
-                evt.getDX(),
-                evt.getDY(),
-                evt.getDeltaWheel()
-        );
+        mouse.setAbsolute(evt.getX(), evt.getY());
+        mouse.addDelta(evt.getDX(), evt.getDY());
+        mouse.addWheel(evt.getDeltaWheel());
     }
 
     @Override

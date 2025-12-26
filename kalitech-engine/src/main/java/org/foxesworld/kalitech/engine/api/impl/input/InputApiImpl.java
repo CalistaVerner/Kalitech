@@ -10,6 +10,8 @@ import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
 import org.graalvm.polyglot.HostAccess;
 
+import java.util.Arrays;
+
 public final class InputApiImpl implements InputApi {
 
     private static final Logger log = LogManager.getLogger(InputApiImpl.class);
@@ -33,10 +35,10 @@ public final class InputApiImpl implements InputApi {
         this.cursor = new CursorGrabController(engineApi, input, mouse, this::isDebug);
         this.bindings = new InputBindings(input, mouse, frame, this::isDebug);
 
-        // Raw listener: keys/buttons/motion (если backend отдаёт)
+        // 1) RAW collector (keys/buttons + motion if backend provides)
         this.input.addRawInputListener(new RawCollector(keyboard, mouse, frame));
 
-        // Axis mappings (MouseAxisTrigger)
+        // 2) Axis mappings (THE FIX for mouse deltas)
         this.bindings.installMouseAxisMappings();
 
         // init cursor visible on render thread
@@ -47,38 +49,31 @@ public final class InputApiImpl implements InputApi {
         });
 
         log.info("[input] InputApiImpl attached (KEY_MAX={})", keyboard.keyMax());
+        log.info("[input] implClass={}", this.getClass().getName());
     }
 
     @HostAccess.Export
     public Object consumeSnapshot() {
-        // 1) обновим abs позицию best-effort
         refreshAbsoluteCursorBestEffort();
 
-        // 2) если grab и не было motion в этом кадре — fallback из абсолютной
-        mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
+        // ✅ фиксируем клавиатурный кадр здесь (justPressed/Released/keysDown)
+        keyboard.advanceFrame();
 
-        // 3) атомарно заберём deltas + wheel
+        mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
         MouseState.Consumed c = mouse.consumeDeltasAndWheel();
 
-        // 4) снимем keysDown (immutable copy)
-        int[] keysDown = keyboard.copyPressedKeyCodes();
-
-        // 5) соберём immutable snapshot
         InputSnapshot snap = new InputSnapshot(
                 frameId,
                 System.nanoTime(),
-
                 mouse.mouseX(), mouse.mouseY(),
-                c.dx, c.dy,
-                c.wheel,
-
+                c.dx(), c.dy(),
+                c.wheel(),
                 mouse.peekMouseMask(),
                 cursor.isGrabbed(),
                 cursor.isCursorVisible(),
-
-                keyboard.keysDown(),
-                keyboard.justPressed(),
-                keyboard.justReleased()
+                keyboard.copyPressedKeyCodes(),
+                Arrays.copyOf(keyboard.justPressed(), keyboard.justPressed().length),
+                Arrays.copyOf(keyboard.justReleased(), keyboard.justReleased().length)
         );
 
         return snap.toJs();
@@ -89,7 +84,18 @@ public final class InputApiImpl implements InputApi {
     @HostAccess.Export
     @Override
     public boolean keyDown(String key) {
-        return keyboard.keyDown(key);
+        int code = keyboard.keyCode(key);
+        // AAA++: ставим mapping on-demand, чтобы legacy JS (который дергает только keyDown) работал
+        bindings.ensureKeyMapping(code, keyboard);
+        return keyboard.keyDown(code);
+    }
+
+    @HostAccess.Export
+    @Override
+    public int keyCode(String name) {
+        int code = keyboard.keyCode(name);
+        bindings.ensureKeyMapping(code, keyboard);
+        return code;
     }
 
     // -------- Mouse absolute --------
@@ -100,9 +106,18 @@ public final class InputApiImpl implements InputApi {
     @HostAccess.Export
     @Override
     public Object cursorPosition() {
-        // best-effort refresh from InputManager
         refreshAbsoluteCursorBestEffort();
         return JsMarshalling.vec2(mouse.mouseX(), mouse.mouseY());
+    }
+
+    @Override
+    public double mouseDX() {
+        return 0;
+    }
+
+    @Override
+    public double mouseDY() {
+        return 0;
     }
 
     // -------- Mouse delta --------
@@ -117,38 +132,24 @@ public final class InputApiImpl implements InputApi {
 
     @HostAccess.Export
     @Override
-    public int keyCode(String name) {
-        return keyboard.keyCode(name);
-    }
-
-    @HostAccess.Export
-    @Override
     public double mouseDy() {
         refreshAbsoluteCursorBestEffort();
         mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
         return mouse.mouseDy();
     }
 
-    @HostAccess.Export
     @Override
     public Object mouseDelta() {
-        refreshAbsoluteCursorBestEffort();
-        mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
-        return JsMarshalling.delta(mouse.mouseDx(), mouse.mouseDy());
+        return null;
     }
-
-    // legacy aliases if some scripts call these
-    @HostAccess.Export public double mouseDX() { return mouse.mouseDx(); }
-    @HostAccess.Export public double mouseDY() { return mouse.mouseDy(); }
 
     @HostAccess.Export
     @Override
     public Object consumeMouseDelta() {
         refreshAbsoluteCursorBestEffort();
         mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
-        MouseState.Delta d = mouse.consumeMouseDelta();
-        if (debug) mouse.dbgDelta("consumeMouseDelta", d.dx, d.dy, mouse.peekWheel(), frame.motionThisFrame());
-        return JsMarshalling.delta(d.dx, d.dy);
+        MouseState.Consumed c = mouse.consumeDeltasOnly();
+        return JsMarshalling.delta2(c.dx(), c.dy());
     }
 
     // -------- Wheel --------
@@ -158,12 +159,10 @@ public final class InputApiImpl implements InputApi {
     @HostAccess.Export
     @Override
     public double consumeWheelDelta() {
-        double w = mouse.consumeWheel();
-        if (debug) mouse.dbgDelta("consumeWheelDelta", mouse.mouseDx(), mouse.mouseDy(), w, frame.motionThisFrame());
-        return w;
+        return mouse.consumeWheelOnly();
     }
 
-    // -------- Mouse buttons --------
+    // -------- Buttons --------
 
     @HostAccess.Export
     @Override
@@ -173,14 +172,19 @@ public final class InputApiImpl implements InputApi {
 
     // -------- Cursor / grab --------
 
-    @HostAccess.Export @Override public void cursorVisible(boolean visible) { cursor.setCursorVisible(visible); }
+    @HostAccess.Export
+    @Override
+    public void cursorVisible(boolean visible) {
+        cursor.setCursorVisible(visible);
+    }
+
     @HostAccess.Export @Override public boolean cursorVisible() { return cursor.isCursorVisible(); }
 
     @HostAccess.Export
     @Override
     public void grabMouse(boolean grab) {
         cursor.setGrabbed(grab);
-        // gameplay policy: grab => hide cursor
+        // gameplay: grab => hide cursor
         cursor.setCursorVisible(!grab);
         // reset baselines to avoid jump
         mouse.resetBaselines();
@@ -190,18 +194,13 @@ public final class InputApiImpl implements InputApi {
 
     // -------- Frame lifecycle --------
 
-
+    @HostAccess.Export
     @Override
     public void endFrame() {
         refreshAbsoluteCursorBestEffort();
-
-        // finalize keyboard transitions
-        keyboard.endFrame();
-
-        frame.endFrame();
+        frame.endFrame();  // only resets motionThisFrame
         frameId++;
     }
-
 
     // -------- Debug --------
 

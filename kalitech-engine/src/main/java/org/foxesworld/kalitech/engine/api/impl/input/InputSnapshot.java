@@ -94,9 +94,10 @@ public final class InputSnapshot {
         m.put("grabbed", grabbed);
         m.put("cursorVisible", cursorVisible);
 
-        m.put("keysDown", keysDown);
-        m.put("justPressed", justPressed);
-        m.put("justReleased", justReleased);
+        m.put("keysDown",     JsMarshalling.intArray(keysDown));
+        m.put("justPressed",  JsMarshalling.intArray(justPressed));
+        m.put("justReleased", JsMarshalling.intArray(justReleased));
+
 
         return ProxyObject.fromMap(m);
     }
