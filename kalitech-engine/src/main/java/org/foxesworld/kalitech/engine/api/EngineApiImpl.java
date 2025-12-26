@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
 import org.foxesworld.kalitech.engine.api.impl.hud.HudApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.input.InputApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;

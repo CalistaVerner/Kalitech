@@ -285,17 +285,44 @@ public final class PhysicsApiImpl implements PhysicsApi {
         if (s instanceof Value v) {
             if (v.isNumber()) return v.asInt();
 
-            // SurfaceHandle object: {id, kind}
+            // SurfaceHandle object: {id} OR {id: function()->number}
             if (v.hasMember("id")) {
                 Value id = v.getMember("id");
-                if (id != null && id.isNumber()) return id.asInt();
+                if (id != null) {
+                    if (id.isNumber()) return id.asInt();
+                    if (id.canExecute()) {
+                        Value r = id.execute();
+                        if (r != null && r.isNumber()) return r.asInt();
+                    }
+                }
+            }
+
+            // common alternative: id() method
+            if (v.hasMember("id") && v.getMember("id").canExecute()) {
+                Value r = v.getMember("id").execute();
+                if (r != null && r.isNumber()) return r.asInt();
+            }
+            if (v.hasMember("id") && v.getMember("id").isNumber()) {
+                return v.getMember("id").asInt();
+            }
+
+            // other names
+            if (v.hasMember("surfaceId")) {
+                Value sid = v.getMember("surfaceId");
+                if (sid != null) {
+                    if (sid.isNumber()) return sid.asInt();
+                    if (sid.canExecute()) {
+                        Value r = sid.execute();
+                        if (r != null && r.isNumber()) return r.asInt();
+                    }
+                }
             }
         }
 
         // SurfaceHandle from Java (SurfaceApi.SurfaceHandle)
         if (s instanceof SurfaceApi.SurfaceHandle h) return h.id;
 
-        // Map {id:...}
+        // Map {id:...} OR {id: function}
         if (s instanceof java.util.Map<?, ?> m) {
             Object id = m.get("id");
             if (id instanceof Number n) return n.intValue();
@@ -312,9 +339,29 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         if (handleOrId instanceof Value v) {
             if (v.isNumber()) return v.asInt();
+
+            // {id} OR {id: function()->number}
             if (v.hasMember("id")) {
                 Value id = v.getMember("id");
-                if (id != null && id.isNumber()) return id.asInt();
+                if (id != null) {
+                    if (id.isNumber()) return id.asInt();
+                    if (id.canExecute()) {
+                        Value r = id.execute();
+                        if (r != null && r.isNumber()) return r.asInt();
+                    }
+                }
+            }
+
+            // also accept bodyId / getBodyId styles
+            if (v.hasMember("bodyId")) {
+                Value bid = v.getMember("bodyId");
+                if (bid != null) {
+                    if (bid.isNumber()) return bid.asInt();
+                    if (bid.canExecute()) {
+                        Value r = bid.execute();
+                        if (r != null && r.isNumber()) return r.asInt();
+                    }
+                }
             }
         }
 
@@ -326,6 +373,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         return 0;
     }
+
 
     /** Clear ALL physics bodies created via this API (used before world rebuild / ecs.reset). */
     public void __clearAll() {

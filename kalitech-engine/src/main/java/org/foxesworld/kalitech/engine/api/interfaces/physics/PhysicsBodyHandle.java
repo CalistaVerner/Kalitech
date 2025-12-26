@@ -1,4 +1,4 @@
-// FILE: org/foxesworld/kalitech/engine/api/interfaces/PhysicsBodyHandle.java
+// FILE: org/foxesworld/kalitech/engine/api/interfaces/physics/PhysicsBodyHandle.java
 package org.foxesworld.kalitech.engine.api.interfaces.physics;
 
 import com.jme3.bullet.control.RigidBodyControl;
@@ -92,6 +92,24 @@ public final class PhysicsBodyHandle {
     }
 
     // ----- getters -----
+
+    // ✅ CRITICAL: make id visible to JS in a durable way
+    @HostAccess.Export
+    public int id() {
+        return id;
+    }
+
+    // ✅ CRITICAL: make surfaceId visible to JS
+    @HostAccess.Export
+    public int surfaceId() {
+        return surfaceId;
+    }
+
+    // Optional: allow numeric coercion in JS (Number(handle) / handle | 0 in some cases)
+    @HostAccess.Export
+    public int valueOf() {
+        return id;
+    }
 
     @HostAccess.Export
     public float mass() {

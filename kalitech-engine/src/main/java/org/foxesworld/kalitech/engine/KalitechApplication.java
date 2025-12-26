@@ -39,7 +39,7 @@ public class KalitechApplication extends SimpleApplication {
                 ecs,
                 bus
         ));
-        //flyCam.setEnabled(false);
+        flyCam.setEnabled(false);
     }
 
     public String getVersion() {
