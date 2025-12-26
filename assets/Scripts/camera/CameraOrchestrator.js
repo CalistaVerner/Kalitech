@@ -1,18 +1,12 @@
-// FILE: Scripts/camera/CameraOrchestrator.js
+// FILE: Scripts/Camera/CameraOrchestrator.js
 // Author: Calista Verner
 "use strict";
 
 /**
- * CameraOrchestrator (Main JS camera brain) — AAA++ input
- *
- * Now uses:
- *  - input.consumeSnapshot() (one call per frame)
- *  - input.keyCode(name) (no JS key tables)
- *  - snapshot.justPressed / snapshot.justReleased (edge events)
- *
- * Keeps:
- *  - grab/cursor policy (top = cursor visible, gameplay = grabbed)
- *  - modes API unchanged: mode.update({ cam, bodyId, bodyPos, look, input })
+ * CameraOrchestrator — AAA++ PIPELINE:
+ *  - DOES NOT read engine.input() for data (no consume*, no keyDown, no mouseDown)
+ *  - receives snapshot from Plr.js: update(dt, snap)
+ *  - may still CONTROL cursor/grab (engine.input().grabMouse/cursorVisible) — that's output, not polling
  */
 
 const FreeCam  = require("./modes/free.js");
@@ -21,15 +15,13 @@ const ThirdCam = require("./modes/third.js");
 const TopCam   = require("./modes/top.js");
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
-
 function wrapAngle(a) {
     while (a > Math.PI) a -= Math.PI * 2;
     while (a < -Math.PI) a += Math.PI * 2;
     return a;
 }
 
-// --- helpers for Graal Java int[] arrays ---
+// Graal Java int[] helper
 function arrHas(arr, code) {
     if (!arr) return false;
     const n = arr.length | 0;
@@ -41,17 +33,11 @@ function arrHas(arr, code) {
 
 class CameraOrchestrator {
     constructor() {
-        this.type = "third";   // "free" | "first" | "third" | "top"
+        this.type = "third";
         this.bodyId = 0;
 
-        // debug
-        this.debug = {
-            enabled: false,
-            everyFrames: 60,
-            _frame: 0
-        };
+        this.debug = { enabled: false, everyFrames: 60, _frame: 0 };
 
-        // shared look state (yaw/pitch in radians)
         this.look = {
             yaw: 0,
             pitch: 0,
@@ -65,15 +51,8 @@ class CameraOrchestrator {
             _inited: false
         };
 
-        // shared hotkeys
-        this.keys = {
-            free: "F1",
-            first: "F2",
-            third: "F3",
-            top: "F4"
-        };
+        this.keys = { free: "F1", first: "F2", third: "F3", top: "F4" };
 
-        // mode instances
         this.modes = {
             free: new FreeCam(),
             first: new FirstCam(),
@@ -84,26 +63,17 @@ class CameraOrchestrator {
         this._active = null;
         this._activeKey = "";
 
-        // per-frame input fed to modes
-        this.input = {
-            dx: 0, dy: 0,
-            mx: 0, my: 0, mz: 0,
-            wheel: 0,
-            dt: 0
-        };
+        this.input = { dx: 0, dy: 0, mx: 0, my: 0, mz: 0, wheel: 0, dt: 0 };
 
-        // --- mouse-grab policy ---
         this.mouseGrab = {
             mode: "always",     // "always" | "rmb" | "never"
-            rmbButtonIndex: 1,  // jME: 0=LMB, 1=RMB, 2=MMB
+            rmbButtonIndex: 1,  // 0=LMB, 1=RMB, 2=MMB
             _grabbed: false
         };
 
-        // keyCode cache (avoid host calls every frame)
+        // keyCode cache (host call, cached)
         this._kc = Object.create(null);
     }
-
-    // ---------------- public API ----------------
 
     setType(type) {
         const t = String(type || "").trim().toLowerCase();
@@ -166,10 +136,10 @@ class CameraOrchestrator {
             this.keys.top = cfg.keys.top || this.keys.top;
         }
 
-        // if key names changed, drop cached codes for those names
         this._kc = Object.create(null);
     }
 
+    // control only (not polling)
     grabMouse(grab) {
         const g = !!grab;
         try {
@@ -179,18 +149,14 @@ class CameraOrchestrator {
         this.mouseGrab._grabbed = g;
     }
 
-    update(dt) {
+    update(dt, snap) {
         this.input.dt = +dt || 0.016;
-
-        // ✅ ONE CALL PER FRAME
-        let snap = null;
-        try { snap = engine.input().consumeSnapshot(); } catch (_) { snap = null; }
         if (!snap) return;
 
         this._readHotkeysFromSnapshot(snap);
         this._activateIfNeeded();
 
-        this._updateMouseGrabPolicy(); // may use mouseDown() (host call), ok
+        this._updateMouseGrabPolicyFromSnapshot(snap);
         this._updateInputFromSnapshot(snap);
         this._updateLook();
 
@@ -210,16 +176,11 @@ class CameraOrchestrator {
             input: this.input
         });
 
-        // clear one-frame deltas for mode inputs
+        // clear one-frame deltas for modes
         this.input.dx = 0;
         this.input.dy = 0;
         this.input.wheel = 0;
-
-        // keep java-side motion flag correct for next frame
-        try { if (engine.input().endFrame) engine.input().endFrame(); } catch (_) {}
     }
-
-    // ---------------- internal ----------------
 
     _keyCode(name) {
         const k = String(name || "").trim().toUpperCase();
@@ -232,7 +193,6 @@ class CameraOrchestrator {
     }
 
     _readHotkeysFromSnapshot(snap) {
-        // Prefer AAA++ edge list
         const jp = snap.justPressed;
 
         const kFree  = this._keyCode(this.keys.free);
@@ -256,7 +216,7 @@ class CameraOrchestrator {
         this._active = next;
         this._activeKey = this.type;
 
-        // init yaw/pitch from current camera (so switching doesn't snap)
+        // init yaw/pitch from current camera (avoid snap on switch)
         try {
             const cam = engine.camera();
             const y = +cam.yaw() || 0;
@@ -275,11 +235,10 @@ class CameraOrchestrator {
 
         engine.log().info("[camera.js] type=" + this.type + " body=" + (this.bodyId | 0));
 
-        // top mode: always release grab
         if (this.type === "top") this.grabMouse(false);
     }
 
-    _updateMouseGrabPolicy() {
+    _updateMouseGrabPolicyFromSnapshot(snap) {
         const gameplay = (this.type === "first" || this.type === "third" || this.type === "free");
 
         if (!gameplay) {
@@ -288,25 +247,24 @@ class CameraOrchestrator {
         }
 
         const mode = this.mouseGrab.mode;
-
         if (mode === "never") {
             if (this.mouseGrab._grabbed) this.grabMouse(false);
             return;
         }
-
         if (mode === "always") {
             if (!this.mouseGrab._grabbed) this.grabMouse(true);
             return;
         }
 
-        // mode === "rmb"
-        let rmb = false;
-        try { rmb = !!engine.input().mouseDown(this.mouseGrab.rmbButtonIndex); } catch (_) { rmb = false; }
-        if (rmb !== this.mouseGrab._grabbed) this.grabMouse(rmb);
+        // mode === "rmb": read RMB from snapshot.mouseMask (no input polling)
+        const btn = this.mouseGrab.rmbButtonIndex | 0;
+        const bit = (btn >= 0 && btn < 31) ? (1 << btn) : 0;
+        const rmbDown = bit ? ((snap.mouseMask & bit) !== 0) : false;
+
+        if (rmbDown !== this.mouseGrab._grabbed) this.grabMouse(rmbDown);
     }
 
     _updateInputFromSnapshot(snap) {
-        // movement axes (camera free mode uses these; player controller has its own input)
         const kd = snap.keysDown;
 
         const KW = this._keyCode("W");
@@ -327,34 +285,25 @@ class CameraOrchestrator {
         this.input.my = (E ? 1 : 0) + (Q ? -1 : 0);
         this.input.mz = (W ? 1 : 0) + (S ? -1 : 0);
 
-        // mouse look deltas (already consumed in Java)
         const dx = +snap.dx || 0;
         const dy = +snap.dy || 0;
 
         this.input.dx += dx;
-        // invert screen Y: mouse up => look up
-        this.input.dy += -dy;
+        this.input.dy += -dy; // screen Y up => look up
 
-        // wheel (already consumed in Java)
         this.input.wheel += (+snap.wheel || 0);
-
-        // optional: keep absolute in case someone wants it
-        // (not used by modes directly right now)
-        // snap.mx / snap.my
 
         if (this.debug.enabled) {
             this.debug._frame++;
             if ((this.debug._frame % this.debug.everyFrames) === 0) {
                 engine.log().info(
-                    "[camera.js][input] " +
-                    "type=" + this.type +
+                    "[camera.js][input] type=" + this.type +
                     " body=" + (this.bodyId | 0) +
                     " keys(mx,my,mz)=(" + this.input.mx + "," + this.input.my + "," + this.input.mz + ")" +
                     " snap(dx,dy)=(" + dx + "," + dy + ")" +
                     " wheel=" + (+snap.wheel || 0) +
                     " grabbed=" + (snap.grabbed ? 1 : 0) +
-                    " cursorVisible=" + (snap.cursorVisible ? 1 : 0) +
-                    " mx,my=(" + (+snap.mx || 0).toFixed(1) + "," + (+snap.my || 0).toFixed(1) + ")"
+                    " cursorVisible=" + (snap.cursorVisible ? 1 : 0)
                 );
             }
         }
@@ -371,20 +320,16 @@ class CameraOrchestrator {
                 L.pitch = clamp((+cam.pitch() || 0), -L.pitchLimit, L.pitchLimit);
                 L._yawS = L.yaw;
                 L._pitchS = L.pitch;
-                L._inited = true;
-            } catch (_) {
-                L._inited = true;
-            }
+            } catch (_) {}
+            L._inited = true;
         }
 
         const invX = L.invertX ? -1 : 1;
         const invY = L.invertY ? -1 : 1;
 
-        // integrate raw (unsmoothed) targets
         L.yaw += this.input.dx * L.sensitivity * invX;
         L.pitch = clamp(L.pitch + this.input.dy * L.sensitivity * invY, -L.pitchLimit, L.pitchLimit);
 
-        // smoothing
         const s = clamp(L.smoothing, 0, 1);
         const k = 1 - s;
         const a = 1 - Math.exp(-k * 30 * dt);
@@ -393,7 +338,6 @@ class CameraOrchestrator {
         L._yawS = L._yawS + diff * a;
         L._pitchS = L._pitchS + (L.pitch - L._pitchS) * a;
 
-        // apply
         try {
             const cam = engine.camera();
             cam.setYawPitch(L._yawS, L._pitchS);
@@ -401,12 +345,8 @@ class CameraOrchestrator {
             if (this.debug.enabled) {
                 this.debug._frame++;
                 if ((this.debug._frame % this.debug.everyFrames) === 0) {
-                    const yNow = +cam.yaw() || 0;
-                    const pNow = +cam.pitch() || 0;
                     engine.log().info(
-                        "[camera.js][apply] " +
-                        "target(y,p)=(" + L._yawS.toFixed(4) + "," + L._pitchS.toFixed(4) + ")" +
-                        " actual(y,p)=(" + yNow.toFixed(4) + "," + pNow.toFixed(4) + ")" +
+                        "[camera.js][apply] target(y,p)=(" + L._yawS.toFixed(4) + "," + L._pitchS.toFixed(4) + ")" +
                         " rawInput(dx,dy)=(" + this.input.dx.toFixed(3) + "," + this.input.dy.toFixed(3) + ")"
                     );
                 }
