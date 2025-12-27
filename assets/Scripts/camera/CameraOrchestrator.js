@@ -317,42 +317,38 @@ class CameraOrchestrator {
             try {
                 const cam = engine.camera();
                 L.yaw = +cam.yaw() || 0;
-                L.pitch = clamp((+cam.pitch() || 0), -L.pitchLimit, L.pitchLimit);
+                L.pitch = clamp(+cam.pitch() || 0, -L.pitchLimit, L.pitchLimit);
                 L._yawS = L.yaw;
                 L._pitchS = L.pitch;
             } catch (_) {}
             L._inited = true;
         }
 
-        const invX = L.invertX ? -1 : 1;
-        const invY = L.invertY ? -1 : 1;
+        // ⬅⬅⬅ ВОТ ТУТ ВСЯ СУТЬ
+        const dx = L.invertX ? -this.input.dx : this.input.dx;
+        const dy = L.invertY ? -this.input.dy : this.input.dy;
 
-        L.yaw += this.input.dx * L.sensitivity * invX;
-        L.pitch = clamp(L.pitch + this.input.dy * L.sensitivity * invY, -L.pitchLimit, L.pitchLimit);
+        // базовое поведение
+        L.yaw   -= dx * L.sensitivity;
+        L.pitch = clamp(
+            L.pitch + dy * L.sensitivity,
+            -L.pitchLimit,
+            L.pitchLimit
+        );
 
+        // smoothing
         const s = clamp(L.smoothing, 0, 1);
-        const k = 1 - s;
-        const a = 1 - Math.exp(-k * 30 * dt);
+        const a = 1 - Math.exp(-(1 - s) * 30 * dt);
 
         const diff = wrapAngle(L.yaw - L._yawS);
-        L._yawS = L._yawS + diff * a;
-        L._pitchS = L._pitchS + (L.pitch - L._pitchS) * a;
+        L._yawS += diff * a;
+        L._pitchS += (L.pitch - L._pitchS) * a;
 
         try {
-            const cam = engine.camera();
-            cam.setYawPitch(L._yawS, L._pitchS);
-
-            if (this.debug.enabled) {
-                this.debug._frame++;
-                if ((this.debug._frame % this.debug.everyFrames) === 0) {
-                    engine.log().info(
-                        "[camera.js][apply] target(y,p)=(" + L._yawS.toFixed(4) + "," + L._pitchS.toFixed(4) + ")" +
-                        " rawInput(dx,dy)=(" + this.input.dx.toFixed(3) + "," + this.input.dy.toFixed(3) + ")"
-                    );
-                }
-            }
+            engine.camera().setYawPitch(L._yawS, L._pitchS);
         } catch (_) {}
     }
+
 }
 
 module.exports = new CameraOrchestrator();

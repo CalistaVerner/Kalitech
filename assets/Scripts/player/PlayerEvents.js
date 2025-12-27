@@ -33,7 +33,7 @@ class PlayerEvents {
         //engine.log().info("[player] spawn entity=" + (p.entityId | 0) + " bodyId=" + (p.bodyId | 0));
 
         // тестовый телепорт (можешь убрать)
-        this.player.entity.warp({ x: 200, y: 80, z: -300 });
+        this.player.entity.warp({ x: 200, y: 8, z: -300 });
     }
 
     onState(state) {

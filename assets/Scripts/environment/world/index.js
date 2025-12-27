@@ -17,15 +17,10 @@ class Index {
         render.ensureScene();
 
         // --- ground plane ---
-        const ground = engine.terrain().plane({
-            w: 1000,
-            h: 1000
-        });
-
-        engine.surface().setMaterial(
-            ground,
-            M.getMaterial("unshaded.grass")
-        );
+        const ground = engine.terrain().plane({w: 1000, h: 1000});
+        ground.setMaterial(M.getMaterial("unshaded.grass"));
+        //ground.setShadowMode("Cast");
+        ground.setTransform({ pos:[0,0,0] });
 
         const groundBody = engine.physics().body({
             surface: ground,

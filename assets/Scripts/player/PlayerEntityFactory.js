@@ -92,13 +92,23 @@ class PlayerEntityFactory {
         e.entityId = engine.entity().create(cfg.name || "player");
 
         // 2) surface
-        e.surface = engine.mesh().capsule({
-            name: cfg.surfaceName || "player.body",
-            radius: cfg.radius != null ? cfg.radius : 0.35,
-            height: cfg.height != null ? cfg.height : 1.8,
-            pos: cfg.pos || { x: 0, y: 3, z: 0 },
-            attach: true
+        e.surface = engine.mesh().create({
+            type: "capsule",
+
+            name: cfg.surfaceName ?? "player.body",
+            radius: cfg.radius ?? 0.35,
+            height: cfg.height ?? 1.8,
+
+            pos: cfg.pos ?? { x: 0, y: 3, z: 0 },
+            attach: true,
+
+            physics: {
+                mass: cfg.mass ?? 80,
+                lockRotation: true
+                // collider автогенерируется как capsule (см. MeshApiImpl)
+            }
         });
+
         e.surfaceId = idOf(e.surface, "surface");
         try { engine.surface().attach(e.surface, e.entityId); } catch (_) {}
 

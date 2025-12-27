@@ -3,26 +3,105 @@
     "def": "Common/MatDefs/Terrain/TerrainLighting.j3md",
     "params": {}
   },
-  "grass.pbr": {
-    "def": "Common/MatDefs/Light/PBRLighting.j3md",
-    "params": {
-      "BaseColorMap": "Textures/grass.jpg|Repeat",
-      "UseSpecGloss": false,
-      "UseSpecularAA": false,
-      "Metallic": 0.0,
-      "Roughness": 0.8
-    },
-    "scales": {
-      "BaseColorMap": 4.0,
-      "RoughnessMap": 4.0,
-      "MetallicMap": 4.0,
-      "AmbientOcclusionMap": 4.0
-    }
-  },
   "unshaded.grass": {
     "def": "Common/MatDefs/Misc/Unshaded.j3md",
     "params": {
-      "ColorMap": "Textures/grass.jpg|Repeat"
+      "ColorMap": {
+        "texture": "Textures/grass.jpg",
+        "wrap": "Repeat",
+        "tileWorld": { "x": 1.0, "z": 1.0 },
+        "min": "Trilinear",
+        "mag": "Bilinear",
+        "anisotropy": 8
+      }
+    }
+  },
+  "grass.stylized.pbr": {
+    "def": "Common/MatDefs/Light/PBRLighting.j3md",
+    "params": {
+      "BaseColorMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_albedo.png",
+        "wrap": "Repeat"
+      },
+      "NormalMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_normal-ogl.png",
+        "wrap": "Repeat"
+      },
+      "RoughnessMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_roughness.png",
+        "wrap": "Repeat"
+      },
+      "MetallicMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_metallic.png",
+        "wrap": "Repeat"
+      },
+
+      "LightMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_ao.png",
+        "wrap": "Repeat"
+      },
+      "LightMapAsAOMap": false,
+      "AoStrength": 0.0,
+
+      "ParallaxMap": {
+        "texture": "Textures/Terrain/Grass/stylized-grass1_height.png",
+        "wrap": "Repeat"
+      },
+      "ParallaxHeight": 0.04,
+      "SteepParallax": false,
+      "PackedNormalParallax": false,
+
+      "UseSpecGloss": false,
+      "UseSpecularAA": false,
+
+      "NormalType": 1.0,
+      "Metallic": 0.0,
+      "Roughness": 0.85,
+      "BaseColor": [1.0, 0.0, 0.0, 1.0]
+    },
+    "scales": {
+      "BaseColorMap": 4.0,
+      "NormalMap": 4.0,
+      "RoughnessMap": 4.0,
+      "MetallicMap": 4.0,
+      "LightMap": 4.0,
+      "ParallaxMap": 4.0
+    }
+  },
+  "grass.debug": {
+    "def": "Common/MatDefs/Light/PBRLighting.j3md",
+    "params": {
+      "BaseColorMap": { "texture": "Textures/Terrain/Grass/stylized-grass1_albedo.png", "wrap": "Repeat" },
+      "NormalMap":    { "texture": "Textures/Terrain/Grass/stylized-grass1_normal-ogl.png", "wrap": "Repeat" },
+      "RoughnessMap": { "texture": "Textures/Terrain/Grass/stylized-grass1_roughness.png", "wrap": "Repeat" },
+      "MetallicMap":  { "texture": "Textures/Terrain/Grass/stylized-grass1_metallic.png", "wrap": "Repeat" },
+
+      "LightMap": { "texture": "Textures/Terrain/Grass/stylized-grass1_ao.png", "wrap": "Repeat" },
+      "LightMapAsAOMap": true,
+      "AoStrength": 1.0,
+
+      "ParallaxMap": { "texture": "Textures/Terrain/Grass/stylized-grass1_height.png", "wrap": "Repeat" },
+      "ParallaxHeight": 0.03,
+      "SteepParallax": false,
+      "PackedNormalParallax": false,
+
+      "UseSpecGloss": false,
+      "UseSpecularAA": false,
+
+      "NormalType": 1.0,
+
+      "Metallic": 0.0,
+      "Roughness": 0.85,
+      "BaseColor": [1.0, 1.0, 1.0, 1.0]
+    },
+    "scales": {
+      "BaseColorMap": 4.0,
+      "NormalMap": 4.0,
+      "RoughnessMap": 4.0,
+      "MetallicMap": 4.0,
+      "LightMap": 4.0,
+      "ParallaxMap": 4.0
     }
   }
-}
+
+  }
