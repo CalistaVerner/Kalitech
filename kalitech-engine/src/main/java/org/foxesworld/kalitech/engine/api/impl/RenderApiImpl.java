@@ -5,38 +5,33 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
-import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
+import com.jme3.post.filters.BloomFilter;
+import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
+import com.jme3.post.filters.ToneMapFilter;
 import com.jme3.renderer.ViewPort;
-import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Node;
-import com.jme3.scene.Spatial;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
-import com.jme3.terrain.geomipmap.TerrainQuad;
-import com.jme3.texture.Texture;
-import com.jme3.util.SkyFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.intClampR;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.numClamp;
 
 public final class RenderApiImpl implements RenderApi {
 
     private static final Logger log = LogManager.getLogger(RenderApiImpl.class);
+
+    // minimal shadow policy (since API now passes only mapSize)
+    private static final int   DEFAULT_SHADOW_SPLITS = 3;
+    private static final float DEFAULT_SHADOW_LAMBDA = 0.65f;
 
     // Fog state cache (prevents spam + avoids redundant updates)
     private double _fogBaseR = 0.70;
@@ -44,9 +39,6 @@ public final class RenderApiImpl implements RenderApi {
     private double _fogBaseB = 0.90;
     private double _fogDensity = 1.2;
     private double _fogDistance = 250.0;
-
-    private final Set<String> missingMatParamsLogged =
-            java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final EngineApiImpl engineApi;
     private final SimpleApplication app;
@@ -56,156 +48,46 @@ public final class RenderApiImpl implements RenderApi {
 
     private volatile boolean sceneReady = false;
 
-    private TerrainQuad terrain;
+    // lights/shadows
     private AmbientLight ambient;
     private DirectionalLight sun;
     private DirectionalLightShadowRenderer sunShadow;
 
-    private Spatial sky;
+    // post stack
     private FilterPostProcessor fpp;
     private FogFilter fog;
+    private FXAAFilter fxaa;
+    private BloomFilter bloom;
+    private ToneMapFilter tonemap;
 
-    // ---------------------------
-    // Spatial handles (JS-facing)
-    // ---------------------------
+    // Optional SSAO filter (kept as Object + reflection so the build doesn't require the module)
+    private Object ssao;
 
-    public static final class SpatialHandle {
-        private final int id;
-        private SpatialHandle(int id) { this.id = id; }
+    // caches to avoid redundant light updates
+    private float _sunDx = Float.NaN, _sunDy = Float.NaN, _sunDz = Float.NaN;
+    private float _sunR = Float.NaN, _sunG = Float.NaN, _sunB = Float.NaN, _sunI = Float.NaN;
+    private float _ambR = Float.NaN, _ambG = Float.NaN, _ambB = Float.NaN, _ambI = Float.NaN;
 
-        @HostAccess.Export
-        public int id() { return id; }
-
-        @Override
-        public String toString() { return "SpatialHandle(" + id + ")"; }
-    }
-
-    private final AtomicInteger spatialIds = new AtomicInteger(1);
-    private final ConcurrentHashMap<Integer, Spatial> spatials = new ConcurrentHashMap<>();
-
-    // ✅ stable root handle (no leaking new handles on every root() call)
-    private final SpatialHandle rootHandle;
+    // post switches cache
+    private boolean _fxaaEnabled = false;
+    private boolean _bloomEnabled = false;
+    private boolean _tonemapEnabled = false;
+    private boolean _ssaoEnabled = false;
 
     public RenderApiImpl(EngineApiImpl engineApi) {
         this.engineApi = engineApi;
         this.app = engineApi.getApp();
         this.assets = engineApi.getAssets();
         this.ecs = engineApi.getEcs();
-
-        // register root once
-        this.rootHandle = registerSpatial(app.getRootNode());
     }
+
+    // ------------------------------------------------------------
+    // Threading
+    // ------------------------------------------------------------
 
     private void onJme(Runnable r) {
         if (engineApi.isJmeThread()) r.run();
         else app.enqueue(() -> { r.run(); return null; });
-    }
-
-    private SpatialHandle registerSpatial(Spatial s) {
-        int id = spatialIds.getAndIncrement();
-        spatials.put(id, s);
-        return new SpatialHandle(id);
-    }
-
-    private Spatial requireSpatial(Object handle, String where) {
-        if (handle == null) throw new IllegalArgumentException(where + ": handle is null");
-
-        final int id;
-        if (handle instanceof SpatialHandle sh) id = sh.id;
-        else if (handle instanceof Number n) id = n.intValue();
-        else throw new IllegalArgumentException(where + ": invalid handle type: " + handle.getClass().getName());
-
-        Spatial s = spatials.get(id);
-        if (s == null) throw new IllegalArgumentException(where + ": spatial not found id=" + id);
-        return s;
-    }
-
-    private int handleId(Object handle, String where) {
-        if (handle instanceof SpatialHandle sh) return sh.id;
-        if (handle instanceof Number n) return n.intValue();
-        throw new IllegalArgumentException(where + ": invalid handle type: " + handle.getClass().getName());
-    }
-
-    // ------------------------------------------------------------
-    // AAA viewport hygiene (self-healing contract)
-    // ------------------------------------------------------------
-
-    /** Enforces viewport contract (AAA hygiene). Call on JME thread only. */
-    private void ensureViewportContract(String where) {
-        try {
-            // MAIN viewport must render rootNode
-            ViewPort main = app.getViewPort();
-            if (main != null) {
-                boolean hasRoot = false;
-                for (Spatial s : main.getScenes()) {
-                    if (s == app.getRootNode()) { hasRoot = true; break; }
-                }
-                if (!hasRoot) {
-                    try { main.clearScenes(); } catch (Throwable ignored) {}
-                    main.attachScene(app.getRootNode());
-                    log.warn("RenderApi: {} fixed MAIN viewport scenes -> rootNode attached", where);
-                }
-            }
-
-            // GUI viewport must render guiNode and never clear
-            ViewPort gui = app.getGuiViewPort();
-            if (gui != null) {
-                if (!gui.isEnabled()) {
-                    gui.setEnabled(true);
-                    log.warn("RenderApi: {} GUI viewport was disabled -> enabled", where);
-                }
-
-                boolean hasGui = false;
-                for (Spatial s : gui.getScenes()) {
-                    if (s == app.getGuiNode()) { hasGui = true; break; }
-                }
-                if (!hasGui) {
-                    try { gui.clearScenes(); } catch (Throwable ignored) {}
-                    gui.attachScene(app.getGuiNode());
-                    log.warn("RenderApi: {} fixed GUI viewport scenes -> guiNode attached", where);
-                }
-
-                // GUI draws on top; must not clear buffers
-                gui.setClearFlags(false, false, false);
-
-                // Ensure guiNode is in GUI render path
-                Node guiNode = app.getGuiNode();
-                guiNode.setQueueBucket(RenderQueue.Bucket.Gui);
-                guiNode.setCullHint(Spatial.CullHint.Never);
-            }
-        } catch (Throwable t) {
-            log.warn("RenderApi: ensureViewportContract({}) failed: {}", where, t.toString());
-        }
-    }
-
-    /** Ensures main FPP exists and is attached to MAIN viewport only. Call on JME thread only. */
-    private void ensureMainFpp(String where) {
-        if (fpp != null) return;
-        fpp = new FilterPostProcessor(assets);
-        app.getViewPort().addProcessor(fpp);
-        log.info("RenderApi: {} main FPP created", where);
-    }
-
-    @HostAccess.Export
-    public void debugViewports() {
-        onJme(() -> {
-            try {
-                ViewPort main = app.getViewPort();
-                ViewPort gui  = app.getGuiViewPort();
-
-                log.info("VP MAIN enabled={} scenes={} procs={}",
-                        main != null && main.isEnabled(),
-                        main == null ? -1 : main.getScenes().size(),
-                        main == null ? -1 : main.getProcessors().size());
-
-                log.info("VP GUI  enabled={} scenes={} procs={} clearFlags=(false,false,false expected)",
-                        gui != null && gui.isEnabled(),
-                        gui == null ? -1 : gui.getScenes().size(),
-                        gui == null ? -1 : gui.getProcessors().size());
-            } catch (Throwable t) {
-                log.warn("debugViewports failed: {}", t.toString());
-            }
-        });
     }
 
     // ------------------------------------------------------------
@@ -220,151 +102,192 @@ public final class RenderApiImpl implements RenderApi {
 
         onJme(() -> {
             ensureViewportContract("ensureScene");
-            log.info("RenderApi: scene ready");
+            ensureAmbientExists();
+            ensureSunExists();
+            ensureMainFpp("ensureScene");
+            ensureFogExists();
+            log.info("RenderApi: scene ensured");
         });
     }
 
-    private void ensureSunExists() {
-        // must be called on JME thread
-        if (sun == null) {
-            sun = new DirectionalLight();
-            app.getRootNode().addLight(sun);
+    private void ensureViewportContract(String where) {
+        // Ensure MAIN has rootNode, GUI has guiNode. Prevent scene corruption.
+        try {
+            ViewPort main = app.getViewPort();
+            ViewPort gui  = app.getGuiViewPort();
+            if (main == null || gui == null) return;
+
+            Node root = app.getRootNode();
+            Node guiNode = app.getGuiNode();
+
+            if (!main.getScenes().contains(root)) {
+                main.attachScene(root);
+                log.info("RenderApi: {} attach rootNode to MAIN", where);
+            }
+            if (main.getScenes().contains(guiNode)) {
+                main.detachScene(guiNode);
+                log.warn("RenderApi: {} detached guiNode from MAIN (fix)", where);
+            }
+
+            if (!gui.getScenes().contains(guiNode)) {
+                gui.attachScene(guiNode);
+                log.info("RenderApi: {} attach guiNode to GUI", where);
+            }
+            if (gui.getScenes().contains(root)) {
+                gui.detachScene(root);
+                log.warn("RenderApi: {} detached rootNode from GUI (fix)", where);
+            }
+        } catch (Throwable t) {
+            log.warn("RenderApi: ensureViewportContract failed: {}", t.toString());
         }
-        // keep shadows bound to same light
-        if (sunShadow != null) sunShadow.setLight(sun);
+    }
+
+    private void ensureMainFpp(String where) {
+        if (fpp != null) return;
+        fpp = new FilterPostProcessor(assets);
+        app.getViewPort().addProcessor(fpp);
+        log.info("RenderApi: {} main FPP created", where);
     }
 
     private void ensureAmbientExists() {
-        // must be called on JME thread
-        if (ambient == null) {
-            ambient = new AmbientLight();
-            app.getRootNode().addLight(ambient);
-        }
+        if (ambient != null) return;
+        ambient = new AmbientLight();
+        ambient.setColor(new ColorRGBA(0.25f, 0.28f, 0.35f, 1f));
+        app.getRootNode().addLight(ambient);
+        log.info("RenderApi: ambient created");
+    }
+
+    private void ensureSunExists() {
+        if (sun != null) return;
+        sun = new DirectionalLight();
+        sun.setDirection(new Vector3f(-1, -1, -0.3f).normalizeLocal());
+        sun.setColor(new ColorRGBA(1f, 0.98f, 0.90f, 1f).mult(1.2f));
+        app.getRootNode().addLight(sun);
+        log.info("RenderApi: sun created");
+    }
+
+    private void ensureFogExists() {
+        if (fog != null) return;
+        ensureMainFpp("ensureFogExists");
+        fog = new FogFilter();
+        fog.setFogColor(new ColorRGBA((float) _fogBaseR, (float) _fogBaseG, (float) _fogBaseB, 1f));
+        fog.setFogDensity((float) _fogDensity);
+        fog.setFogDistance((float) _fogDistance);
+        fpp.addFilter(fog);
+        log.info("RenderApi: fog filter created");
     }
 
     // ------------------------------------------------------------
-    // Lighting
+    // Lighting (config style only)
     // ------------------------------------------------------------
 
     @HostAccess.Export
     @Override
-    public void ambient(double r, double g, double b, double intensity) {
+    public void ambientCfg(Value cfg) {
         ensureScene();
         onJme(() -> {
-            ensureViewportContract("ambient");
+            ensureViewportContract("ambientCfg");
             ensureAmbientExists();
-            ambient.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
-                    .mult((float) Math.max(0.0, intensity)));
+
+            double r = num(cfg, "r", numPath(cfg, "color", "r", 0.25));
+            double g = num(cfg, "g", numPath(cfg, "color", "g", 0.28));
+            double b = num(cfg, "b", numPath(cfg, "color", "b", 0.35));
+            double intensity = num(cfg, "intensity", 1.0);
+
+            float fr = (float) r, fg = (float) g, fb = (float) b;
+            float fi = (float) Math.max(0.0, intensity);
+
+            if (approx(fr, _ambR) && approx(fg, _ambG) && approx(fb, _ambB) && approx(fi, _ambI)) return;
+            _ambR = fr; _ambG = fg; _ambB = fb; _ambI = fi;
+
+            ambient.setColor(new ColorRGBA(fr, fg, fb, 1f).mult(fi));
         });
     }
 
     @HostAccess.Export
     @Override
-    public void sun(double dx, double dy, double dz,
-                    double r, double g, double b,
-                    double intensity) {
+    public void sunCfg(Value cfg) {
         ensureScene();
         onJme(() -> {
-            ensureViewportContract("sun");
+            ensureViewportContract("sunCfg");
             ensureSunExists();
 
-            Vector3f dir = new Vector3f((float) dx, (float) dy, (float) dz);
-            if (dir.lengthSquared() < 1e-6f) dir.set(-1, -1, -1);
-            dir.normalizeLocal();
+            Value dir = member(cfg, "dir");
+            Value col = member(cfg, "color");
 
-            sun.setDirection(dir);
-            sun.setColor(new ColorRGBA((float) r, (float) g, (float) b, 1f)
-                    .mult((float) Math.max(0.0, intensity)));
+            float dx = vec3x(dir, -1f);
+            float dy = vec3y(dir, -1f);
+            float dz = vec3z(dir, -0.3f);
 
-            if (terrain != null) terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
+            float r = vec3x(col, 1f);
+            float g = vec3y(col, 0.98f);
+            float b = vec3z(col, 0.9f);
+
+            float intensity = (float) Math.max(0.0, num(cfg, "intensity", 1.2));
+
+            if (approx(dx, _sunDx) && approx(dy, _sunDy) && approx(dz, _sunDz) &&
+                    approx(r, _sunR) && approx(g, _sunG) && approx(b, _sunB) && approx(intensity, _sunI)) {
+                return;
+            }
+            _sunDx = dx; _sunDy = dy; _sunDz = dz;
+            _sunR = r; _sunG = g; _sunB = b; _sunI = intensity;
+
+            Vector3f v = new Vector3f(dx, dy, dz);
+            if (v.lengthSquared() < 1e-6f) v.set(-1, -1, -1);
+            v.normalizeLocal();
+
+            sun.setDirection(v);
+            sun.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
             if (sunShadow != null) sunShadow.setLight(sun);
         });
     }
 
+    // ------------------------------------------------------------
+    // Shadows (minimal: only map size)
+    // ------------------------------------------------------------
+
     @HostAccess.Export
     @Override
-    public void sunShadows(double mapSizeD, double splitsD, double lambdaD) {
+    public void sunShadows(int mapSize) {
         ensureScene();
         onJme(() -> {
             ensureViewportContract("sunShadows");
             ensureSunExists();
 
-            int ms = clamp((int) Math.round(mapSizeD), 256, 8192);
-            int sp = clamp((int) Math.round(splitsD), 1, 4);
-            float lambda = (float) clamp(lambdaD, 0.0, 1.0);
-
+            // remove old
             if (sunShadow != null) {
-                try { app.getViewPort().removeProcessor(sunShadow); } catch (Exception ignored) {}
+                try { app.getViewPort().removeProcessor(sunShadow); } catch (Throwable ignored) {}
                 sunShadow = null;
             }
 
-            sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
-            sunShadow.setLight(sun);
-            sunShadow.setLambda(lambda);
-            app.getViewPort().addProcessor(sunShadow);
+            if (mapSize <= 0) {
+                log.info("RenderApi: shadows disabled");
+                return;
+            }
 
-            log.info("RenderApi: sun shadows enabled ({}px, splits={}, lambda={})", ms, sp, lambda);
+            int ms = Math.max(256, Math.min(mapSize, 8192));
+
+            sunShadow = new DirectionalLightShadowRenderer(assets, ms, DEFAULT_SHADOW_SPLITS);
+            sunShadow.setLight(sun);
+            sunShadow.setLambda(DEFAULT_SHADOW_LAMBDA);
+            sunShadow.setShadowIntensity(0.65f);
+
+            app.getViewPort().addProcessor(sunShadow);
+            log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={}", ms, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA);
         });
     }
 
     @HostAccess.Export
     @Override
     public void sunShadowsCfg(Value cfg) {
-        int map = intClampR(cfg, "mapSize", 2048, 256, 8192);
-        int sp = intClampR(cfg, "splits", 3, 1, 4);
-        float l = (float) numClamp(cfg, "lambda", 0.65, 0.0, 1.0);
-        sunShadows(map, sp, l);
-    }
-
-    @HostAccess.Export
-    @Override
-    public void ambientCfg(Value cfg) {
-        ambient(
-                num(cfg, "r", numPath(cfg, "color", "r", 0.25)),
-                num(cfg, "g", numPath(cfg, "color", "g", 0.28)),
-                num(cfg, "b", numPath(cfg, "color", "b", 0.35)),
-                num(cfg, "intensity", 1.0)
-        );
-    }
-
-    @HostAccess.Export
-    @Override
-    public void sunCfg(Value cfg) {
-        Value dir = member(cfg, "dir");
-        Value col = member(cfg, "color");
-
-        sun(
-                vec3x(dir, -1), vec3y(dir, -1), vec3z(dir, -0.3f),
-                vec3x(col, 1), vec3y(col, 0.98f), vec3z(col, 0.9f),
-                num(cfg, "intensity", 1.2)
-        );
+        int map = intClampR(cfg, "mapSize", 2048, 0, 8192); // 0 disables
+        sunShadows(map);
     }
 
     // ------------------------------------------------------------
-    // Sky / Fog
+    // Fog
     // ------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void skyboxCube(String cubeMapAsset) {
-        ensureScene();
-        if (cubeMapAsset == null || cubeMapAsset.isBlank()) {
-            throw new IllegalArgumentException("skyboxCube: cubeMapAsset is empty");
-        }
-        onJme(() -> {
-            ensureViewportContract("skyboxCube");
-
-            if (sky != null) {
-                sky.removeFromParent();
-                sky = null;
-            }
-            sky = SkyFactory.createSky(assets, cubeMapAsset.trim(), SkyFactory.EnvMapType.CubeMap);
-            app.getRootNode().attachChild(sky);
-
-            log.info("RenderApi: skybox set {}", cubeMapAsset);
-        });
-    }
 
     @HostAccess.Export
     @Override
@@ -377,10 +300,10 @@ public final class RenderApiImpl implements RenderApi {
             double g = num(cfg, "g", numPath(cfg, "color", "g", _fogBaseG));
             double b = num(cfg, "b", numPath(cfg, "color", "b", _fogBaseB));
 
-            double density = num(cfg, "density", _fogDensity);
+            double density  = num(cfg, "density", _fogDensity);
             double distance = num(cfg, "distance", _fogDistance);
 
-            // AAA: allow disabling fog by setting density<=0 or distance<=0
+            // disable fog by density<=0 or distance<=0
             if (density <= 0.0 || distance <= 0.0) {
                 if (fog != null && fpp != null) {
                     try { fpp.removeFilter(fog); } catch (Throwable ignored) {}
@@ -393,22 +316,7 @@ public final class RenderApiImpl implements RenderApi {
                 return;
             }
 
-            ensureMainFpp("fogCfg");
-
-            if (fog == null) {
-                fog = new FogFilter();
-                fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
-                fog.setFogDensity((float) density);
-                fog.setFogDistance((float) distance);
-                fpp.addFilter(fog);
-
-                _fogBaseR = r; _fogBaseG = g; _fogBaseB = b;
-                _fogDensity = density;
-                _fogDistance = distance;
-
-                log.info("RenderApi: fog enabled (density={}, distance={})", density, distance);
-                return;
-            }
+            ensureFogExists();
 
             boolean changed = false;
 
@@ -435,130 +343,150 @@ public final class RenderApiImpl implements RenderApi {
     }
 
     // ------------------------------------------------------------
-    // Material helpers (terrain compatibility)
+    // Post-processing (no exposure API)
     // ------------------------------------------------------------
 
-    private void setLayer(Material mat, int layerIndex, Texture tex, float scale) {
-        String texParamA = (layerIndex == 0) ? "DiffuseMap" : ("DiffuseMap_" + layerIndex);
-        String texParamB = "Tex" + (layerIndex + 1);
+    @HostAccess.Export
+    @Override
+    public void postCfg(Value cfg) {
+        ensureScene();
+        onJme(() -> {
+            ensureViewportContract("postCfg");
+            ensureMainFpp("postCfg");
 
-        boolean texOk = trySetTexture(mat, texParamA, tex) || trySetTexture(mat, texParamB, tex);
-        if (!texOk) warnMissingOnce(mat, "layerTexture#" + layerIndex + " (" + texParamA + " / " + texParamB + ")");
+            boolean fx = bool(cfg, "fxaa", false);
+            boolean bl = bool(cfg, "bloom", false);
+            boolean tm = bool(cfg, "tonemap", false);
+            boolean ao = bool(cfg, "ssao", false);
 
-        String scaleA = "DiffuseMap_" + layerIndex + "_scale";
-        String scaleB = "Tex" + (layerIndex + 1) + "Scale";
-        String scaleC = "Tex" + (layerIndex + 1) + "_Scale";
-        String scaleD = "DiffuseMap_" + (layerIndex + 1) + "_scale";
-        String scaleE = "DiffuseMap_" + (layerIndex + 1) + "Scale";
-
-        boolean scaleOk =
-                trySetFloat(mat, scaleA, scale) ||
-                        trySetFloat(mat, scaleB, scale) ||
-                        trySetFloat(mat, scaleC, scale) ||
-                        trySetFloat(mat, scaleD, scale) ||
-                        trySetFloat(mat, scaleE, scale);
-
-        if (!scaleOk) warnMissingOnce(mat, "layerScale#" + layerIndex + " (" + scaleA + " / " + scaleB + ")");
-    }
-
-    private boolean trySetFloat(Material mat, String name, float value) {
-        try {
-            if (mat.getParam(name) == null) return false;
-            mat.setFloat(name, value);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private boolean trySetTexture(Material mat, String name, Texture tex) {
-        try {
-            if (mat.getParam(name) == null) return false;
-            mat.setTexture(name, tex);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void warnMissingOnce(Material mat, String param) {
-        String key = mat.getMaterialDef().getName() + "::" + param;
-        if (missingMatParamsLogged.add(key)) {
-            log.warn("Material '{}' does not define param {}. Feature will fallback/skip.",
-                    mat.getMaterialDef().getName(), param);
-        }
-    }
-
-    // ------------------------------------------------------------
-    // Terrain cfg (compat + JS-first)
-    // ------------------------------------------------------------
-
-    private boolean applyTerrainMaterialHandle(Value cfg) {
-        if (terrain == null) return false;
-
-        try {
-            Value m = member(cfg, "material");
-            if (m == null || m.isNull()) return false;
-
-            Object host = null;
-            if (m.isHostObject()) host = m.asHostObject();
-
-            if (host instanceof MaterialApiImpl.MaterialHandle mh && mh.__material() != null) {
-                onJme(() -> {
-                    terrain.setMaterial(mh.__material());
-                    terrain.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
-                });
-                return true;
+            // FXAA
+            if (fx != _fxaaEnabled) {
+                _fxaaEnabled = fx;
+                if (fx) {
+                    if (fxaa == null) fxaa = new FXAAFilter();
+                    addFilterOnce(fxaa);
+                    log.info("RenderApi: FXAA enabled");
+                } else {
+                    removeFilterSafe(fxaa);
+                    log.info("RenderApi: FXAA disabled");
+                }
             }
-            return false;
-        } catch (Exception e) {
-            log.warn("render.terrain: failed to apply cfg.material handle: {}", e.toString());
-            return false;
+
+            // Bloom
+            if (bl != _bloomEnabled) {
+                _bloomEnabled = bl;
+                if (bl) {
+                    if (bloom == null) bloom = new BloomFilter();
+                    bloom.setBloomIntensity((float) num(cfg, "bloomIntensity", 1.2));
+                    bloom.setExposurePower((float) num(cfg, "bloomExposure", 2.0));
+                    addFilterOnce(bloom);
+                    log.info("RenderApi: Bloom enabled");
+                } else {
+                    removeFilterSafe(bloom);
+                    log.info("RenderApi: Bloom disabled");
+                }
+            } else if (bl && bloom != null) {
+                bloom.setBloomIntensity((float) num(cfg, "bloomIntensity", bloom.getBloomIntensity()));
+                bloom.setExposurePower((float) num(cfg, "bloomExposure", bloom.getExposurePower()));
+            }
+
+            // Tonemap (no setExposure in your build → only enable/disable)
+            if (tm != _tonemapEnabled) {
+                _tonemapEnabled = tm;
+                if (tm) {
+                    if (tonemap == null) tonemap = new ToneMapFilter();
+                    addFilterOnce(tonemap);
+                    log.info("RenderApi: ToneMap enabled");
+                } else {
+                    removeFilterSafe(tonemap);
+                    log.info("RenderApi: ToneMap disabled");
+                }
+            }
+
+            // SSAO (optional, reflection)
+            if (ao != _ssaoEnabled) {
+                _ssaoEnabled = ao;
+                if (ao) {
+                    if (ssao == null) ssao = createSsaoIfAvailable();
+                    if (ssao != null) {
+                        addFilterOnce(ssao);
+                        log.info("RenderApi: SSAO enabled");
+                    } else {
+                        log.warn("RenderApi: SSAO requested but filter not available on classpath");
+                    }
+                } else {
+                    removeFilterSafe(ssao);
+                    log.info("RenderApi: SSAO disabled");
+                }
+            }
+        });
+    }
+
+    // ------------------------------------------------------------
+    // Post helpers
+    // ------------------------------------------------------------
+
+    private void addFilterOnce(Object filter) {
+        if (filter == null) return;
+        ensureMainFpp("addFilterOnce");
+
+        if (filter instanceof com.jme3.post.Filter f) {
+            if (!fpp.getFilterList().contains(f)) fpp.addFilter(f);
+            return;
         }
-    }
-
-    private static final class Layer {
-        final String tex;
-        final double scale;
-        Layer(String tex, double scale) { this.tex = tex; this.scale = scale; }
-    }
-
-    private Layer readLayer(Value layers, int idx) {
         try {
-            if (layers == null || !layers.hasArrayElements()) return new Layer(null, 32.0);
-            long n = layers.getArraySize();
-            if (n <= 0) return new Layer(null, 32.0);
+            var m = fpp.getClass().getMethod("addFilter", com.jme3.post.Filter.class);
+            m.invoke(fpp, filter);
+        } catch (Throwable ignored) {}
+    }
 
-            int safe = (int) Math.min(Math.max(idx, 0), n - 1);
-            Value l = layers.getArrayElement(safe);
-            if (l == null || l.isNull()) return new Layer(null, 32.0);
+    private void removeFilterSafe(Object filter) {
+        if (filter == null || fpp == null) return;
 
-            if (l.isString()) return new Layer(l.asString(), 32.0);
+        if (filter instanceof com.jme3.post.Filter f) {
+            try { fpp.removeFilter(f); } catch (Throwable ignored) {}
+            return;
+        }
+        try {
+            var m = fpp.getClass().getMethod("removeFilter", com.jme3.post.Filter.class);
+            m.invoke(fpp, filter);
+        } catch (Throwable ignored) {}
+    }
 
-            String tex = str(l, "tex", null);
-            double scale = num(l, "scale", 32.0);
-
-            if (scale < 0.001) scale = 0.001;
-            if (scale > 4096) scale = 4096;
-
-            return new Layer(tex, scale);
-        } catch (Exception e) {
-            return new Layer(null, 32.0);
+    private Object createSsaoIfAvailable() {
+        try {
+            Class<?> c = Class.forName("com.jme3.post.ssao.SSAOFilter");
+            return c.getConstructor().newInstance();
+        } catch (Throwable t) {
+            if (log.isDebugEnabled()) log.debug("RenderApi: SSAOFilter not available: {}", t.toString());
+            return null;
         }
     }
 
     // ------------------------------------------------------------
-    // Helpers
+    // Value parsing helpers
     // ------------------------------------------------------------
+
+    private static boolean approx(float a, float b) {
+        return Float.isFinite(a) && Float.isFinite(b) && Math.abs(a - b) < 1e-4f;
+    }
 
     private static Value member(Value v, String k) {
         return (v != null && v.hasMember(k)) ? v.getMember(k) : null;
     }
 
-    private static String str(Value v, String k, String def) {
+    private static boolean bool(Value v, String k, boolean def) {
         try {
             Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asString();
+            if (m == null || m.isNull()) return def;
+            if (m.isBoolean()) return m.asBoolean();
+            if (m.isNumber()) return m.asDouble() != 0.0;
+            if (m.isString()) {
+                String s = m.asString().trim().toLowerCase();
+                if (s.isEmpty()) return def;
+                return s.equals("true") || s.equals("1") || s.equals("yes") || s.equals("on");
+            }
+            return def;
         } catch (Exception e) {
             return def;
         }
@@ -567,18 +495,20 @@ public final class RenderApiImpl implements RenderApi {
     private static double num(Value v, String k, double def) {
         try {
             Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asDouble();
+            if (m == null || m.isNull()) return def;
+            if (m.isNumber()) return m.asDouble();
+            if (m.isString()) return Double.parseDouble(m.asString());
+            return def;
         } catch (Exception e) {
             return def;
         }
     }
 
-    private static double numPath(Value v, String k1, String k2, double def) {
+    private static double numPath(Value v, String k, String kk, double def) {
         try {
-            Value a = member(v, k1);
-            if (a == null || a.isNull() || !a.hasMember(k2)) return def;
-            Value b = a.getMember(k2);
-            return (b == null || b.isNull()) ? def : b.asDouble();
+            Value m = member(v, k);
+            if (m == null || m.isNull()) return def;
+            return num(m, kk, def);
         } catch (Exception e) {
             return def;
         }
@@ -588,7 +518,8 @@ public final class RenderApiImpl implements RenderApi {
         try {
             if (v == null || v.isNull()) return def;
             if (v.hasArrayElements()) return (float) v.getArrayElement(0).asDouble();
-            return (float) v.getMember("x").asDouble();
+            Value x = member(v, "x");
+            return (x == null || x.isNull()) ? def : (float) x.asDouble();
         } catch (Exception e) { return def; }
     }
 
@@ -596,7 +527,8 @@ public final class RenderApiImpl implements RenderApi {
         try {
             if (v == null || v.isNull()) return def;
             if (v.hasArrayElements()) return (float) v.getArrayElement(1).asDouble();
-            return (float) v.getMember("y").asDouble();
+            Value y = member(v, "y");
+            return (y == null || y.isNull()) ? def : (float) y.asDouble();
         } catch (Exception e) { return def; }
     }
 
@@ -604,32 +536,8 @@ public final class RenderApiImpl implements RenderApi {
         try {
             if (v == null || v.isNull()) return def;
             if (v.hasArrayElements()) return (float) v.getArrayElement(2).asDouble();
-            return (float) v.getMember("z").asDouble();
+            Value z = member(v, "z");
+            return (z == null || z.isNull()) ? def : (float) z.asDouble();
         } catch (Exception e) { return def; }
-    }
-
-    private static int clamp(int v, int lo, int hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
-
-    private static double clamp(double v, double lo, double hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
-
-    // ------------------------------------------------------------
-    // Internal bridge for other APIs (EditorLines, etc.)
-    // ------------------------------------------------------------
-
-    EditorLinesBridge __editorLinesBridge() {
-        return new EditorLinesBridge();
-    }
-
-    final class EditorLinesBridge {
-        RenderApiImpl.SpatialHandle register(Spatial s) { return registerSpatial(s); }
-        Spatial require(Object handle, String where) { return requireSpatial(handle, where); }
-        int handleId(Object handle, String where) { return RenderApiImpl.this.handleId(handle, where); }
-        void remove(int id) { spatials.remove(id); }
-        SimpleApplication app() { return app; }
-        AssetManager assets() { return assets; }
     }
 }
