@@ -24,7 +24,18 @@ public final class RawCollector implements RawInputListener {
 
     @Override
     public void onKeyEvent(KeyInputEvent evt) {
-        keyboard.onKeyEvent(evt.getKeyCode(), evt.isPressed());
+        // JME может слать повтор (repeat) отдельно. Повтор = клавиша всё ещё нажата.
+        // Сбрасываем состояние ТОЛЬКО на явном release.
+        int code = evt.getKeyCode();
+
+        if (evt.isPressed() || evt.isRepeating()) {
+            keyboard.onKeyEvent(code, true);
+        } else if (evt.isReleased()) {
+            keyboard.onKeyEvent(code, false);
+        } else {
+            // fallback
+            keyboard.onKeyEvent(code, evt.isPressed());
+        }
     }
 
     @Override

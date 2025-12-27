@@ -2,14 +2,17 @@ package org.foxesworld.kalitech.engine.api.impl.input;
 
 import com.jme3.input.InputManager;
 import com.jme3.input.MouseInput;
-import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseAxisTrigger;
 
-import java.util.HashMap;
-import java.util.Map;
-
+/**
+ * Input bindings helper.
+ *
+ * Design rule:
+ *  - KeyboardState is updated ONLY by RawInputListener (RawCollector).
+ *  - This class handles only mouse analog axes (dx/dy/wheel).
+ */
 final class InputBindings {
 
     private static final String MAP_MOUSE_X_POS = "__kt_mouse_x_pos";
@@ -23,46 +26,35 @@ final class InputBindings {
     private final MouseState mouse;
     private final InputFrame frame;
 
-    private final Map<String, Integer> keyMap = new HashMap<>(128);
-    private boolean keyListenerInstalled = false;
-    private KeyboardState keyboardRef;
-
     InputBindings(InputManager input, MouseState mouse, InputFrame frame) {
         this.input = input;
         this.mouse = mouse;
         this.frame = frame;
-    }
 
-    void ensureKeyMapping(int keyCode, KeyboardState keyboard) {
-        if (keyCode < 0) return;
-
-        this.keyboardRef = keyboard;
-
-        final String map = "__kt_key_" + keyCode;
-        if (!keyMap.containsKey(map)) keyMap.put(map, keyCode);
-
+        installMouseAxisMappings();
         try {
-            if (!input.hasMapping(map)) input.addMapping(map, new KeyTrigger(keyCode));
-
-            if (!keyListenerInstalled) {
-                input.addListener(keyListener, map);
-                keyListenerInstalled = true;
-            } else {
-                input.addListener(keyListener, map);
-            }
+            input.addListener(axisListener,
+                    MAP_MOUSE_X_POS, MAP_MOUSE_X_NEG,
+                    MAP_MOUSE_Y_POS, MAP_MOUSE_Y_NEG,
+                    MAP_WHEEL_POS, MAP_WHEEL_NEG
+            );
         } catch (Exception ignored) {}
     }
 
-    private final ActionListener keyListener = new ActionListener() {
-        @Override
-        public void onAction(String name, boolean isPressed, float tpf) {
-            KeyboardState kb = keyboardRef;
-            if (kb == null) return;
-            Integer code = keyMap.get(name);
-            if (code == null) return;
-            kb.onKeyEvent(code, isPressed);
-        }
-    };
+    /**
+     * Optional (future use): creates a mapping name for a keyCode.
+     * Does NOT add any listeners and does NOT touch KeyboardState.
+     * RawCollector is the only keyboard source of truth.
+     */
+    void ensureKeyMapping(int keyCode) {
+        if (keyCode < 0) return;
+        final String map = "__kt_key_" + keyCode;
+        try {
+            if (!input.hasMapping(map)) {
+                input.addMapping(map, new KeyTrigger(keyCode));
+            }
+        } catch (Exception ignored) {}
+    }
 
     void installMouseAxisMappings() {
         try {
@@ -70,14 +62,8 @@ final class InputBindings {
             if (!input.hasMapping(MAP_MOUSE_X_NEG)) input.addMapping(MAP_MOUSE_X_NEG, new MouseAxisTrigger(MouseInput.AXIS_X, true));
             if (!input.hasMapping(MAP_MOUSE_Y_POS)) input.addMapping(MAP_MOUSE_Y_POS, new MouseAxisTrigger(MouseInput.AXIS_Y, false));
             if (!input.hasMapping(MAP_MOUSE_Y_NEG)) input.addMapping(MAP_MOUSE_Y_NEG, new MouseAxisTrigger(MouseInput.AXIS_Y, true));
-            if (!input.hasMapping(MAP_WHEEL_POS)) input.addMapping(MAP_WHEEL_POS, new MouseAxisTrigger(MouseInput.AXIS_WHEEL, false));
-            if (!input.hasMapping(MAP_WHEEL_NEG)) input.addMapping(MAP_WHEEL_NEG, new MouseAxisTrigger(MouseInput.AXIS_WHEEL, true));
-
-            input.addListener(axisListener,
-                    MAP_MOUSE_X_POS, MAP_MOUSE_X_NEG,
-                    MAP_MOUSE_Y_POS, MAP_MOUSE_Y_NEG,
-                    MAP_WHEEL_POS, MAP_WHEEL_NEG
-            );
+            if (!input.hasMapping(MAP_WHEEL_POS))   input.addMapping(MAP_WHEEL_POS,   new MouseAxisTrigger(MouseInput.AXIS_WHEEL, false));
+            if (!input.hasMapping(MAP_WHEEL_NEG))   input.addMapping(MAP_WHEEL_NEG,   new MouseAxisTrigger(MouseInput.AXIS_WHEEL, true));
         } catch (Exception ignored) {}
     }
 

@@ -67,7 +67,7 @@ public final class InputApiImpl implements InputApi {
     @Override
     public boolean keyDown(String key) {
         int code = keyboard.keyCode(key);
-        bindings.ensureKeyMapping(code, keyboard);
+        bindings.ensureKeyMapping(code);
         return keyboard.keyDown(code);
     }
 
@@ -75,7 +75,7 @@ public final class InputApiImpl implements InputApi {
     @Override
     public boolean keyDown(int keyCode) {
         if (keyCode < 0) return false;
-        bindings.ensureKeyMapping(keyCode, keyboard);
+        bindings.ensureKeyMapping(keyCode);
         return keyboard.keyDown(keyCode);
     }
 
@@ -83,7 +83,7 @@ public final class InputApiImpl implements InputApi {
     @Override
     public int keyCode(String name) {
         int code = keyboard.keyCode(name);
-        bindings.ensureKeyMapping(code, keyboard);
+        bindings.ensureKeyMapping(code);
         return code;
     }
 
