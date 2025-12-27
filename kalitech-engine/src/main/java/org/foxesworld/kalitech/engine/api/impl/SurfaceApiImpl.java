@@ -209,6 +209,59 @@ public final class SurfaceApiImpl implements SurfaceApi {
         applyTransform(s, cfg);
     }
 
+    /**
+     * Legacy-friendly name: setPos(handle, [x,y,z])
+     */
+    @HostAccess.Export
+    public void setPos(SurfaceHandle target, Object pos) {
+        Spatial s = requireSpatial(target);
+        Vector3f p = vec3Any(pos, 0f, 0f, 0f);
+        s.setLocalTranslation(p);
+    }
+
+    /**
+     * Legacy-friendly name: setRot(handle, [degX,degY,degZ])
+     */
+    @HostAccess.Export
+    public void setRot(SurfaceHandle target, Object rotDeg) {
+        Spatial s = requireSpatial(target);
+        Vector3f deg = vec3Any(rotDeg, 0f, 0f, 0f);
+        float rx = deg.x * (float) (Math.PI / 180.0);
+        float ry = deg.y * (float) (Math.PI / 180.0);
+        float rz = deg.z * (float) (Math.PI / 180.0);
+        s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
+    }
+
+    /**
+     * Legacy-friendly name: setScale(handle, [sx,sy,sz]) or setScale(handle, number)
+     */
+    @HostAccess.Export
+    public void setScale(SurfaceHandle target, Object scale) {
+        Spatial s = requireSpatial(target);
+
+        if (scale instanceof Number n) {
+            s.setLocalScale(n.floatValue());
+            return;
+        }
+        if (scale instanceof Value v && !v.isNull() && v.isNumber()) {
+            s.setLocalScale((float) v.asDouble());
+            return;
+        }
+
+        Vector3f sc = vec3Any(scale, 1f, 1f, 1f);
+        s.setLocalScale(sc);
+    }
+
+    /**
+     * Optional convenience: setName(handle, "name") if you want Primitive.setName to be live.
+     */
+    @HostAccess.Export
+    public void setName(SurfaceHandle target, String name) {
+        Spatial s = requireSpatial(target);
+        if (name == null) return;
+        s.setName(name);
+    }
+
     @HostAccess.Export
     @Override
     public void setShadowMode(SurfaceHandle target, String mode) {
@@ -393,6 +446,24 @@ public final class SurfaceApiImpl implements SurfaceApi {
         return new Hit(gname, r.getDistance(), p.x, p.y, p.z, n.x, n.y, n.z);
     }
 
+    private static Vector3f vec3Any(Object o, float dx, float dy, float dz) {
+        if (o == null) return new Vector3f(dx, dy, dz);
+
+        if (o instanceof Vector3f v3) return v3;
+
+        if (o instanceof float[] a && a.length >= 3) return new Vector3f(a[0], a[1], a[2]);
+        if (o instanceof double[] a && a.length >= 3) return new Vector3f((float) a[0], (float) a[1], (float) a[2]);
+        if (o instanceof int[] a && a.length >= 3) return new Vector3f(a[0], a[1], a[2]);
+
+        if (o instanceof Value v) {
+            // reuse existing vec3(Value,dx,dy,dz) from this class
+            return vec3(v, dx, dy, dz);
+        }
+
+        // last resort
+        return new Vector3f(dx, dy, dz);
+    }
+
     // --------------------------
     // Component (host-safe)
     // --------------------------
@@ -411,6 +482,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
     public Hit[] pickUnderCursor() {
         return pickUnderCursorCfg((Value) null);
     }
+
 
     @HostAccess.Export
     @Override

@@ -149,14 +149,22 @@ public final class MeshApiImpl implements MeshApi {
         String t = normType(type);
         String name = str(cfg, "name", t);
 
-        return switch (t) {
+        Spatial spatial = switch (t) {
             case "box" -> buildBox(cfg, name);
             case "sphere" -> buildSphere(cfg, name);
             case "cylinder" -> buildCylinder(cfg, name);
             case "capsule" -> buildCapsule(cfg, name);
             default -> throw new IllegalArgumentException("mesh.create: unknown type=" + type);
         };
+
+        // ✅ единое место пост-инициализации
+        if (name != null && !name.isBlank()) {
+            spatial.setName(name);
+        }
+
+        return spatial;
     }
+
 
     private void applyMaterial(SurfaceApi.SurfaceHandle h, Spatial s, Value cfg) {
         Value m = member(cfg, "material");
