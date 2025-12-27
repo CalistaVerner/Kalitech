@@ -2,206 +2,245 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 
 /**
- * JsWorldSystem
- *
- * Runs a JS "world system" module.
- *
- * Shutdown-safe:
- * - If Graal context is closing/cancelled, stop() becomes no-op (no WARN spam).
+ * JsWorldSystem (AAA):
+ *  - ctx is stable/shared across systems
+ *  - per-system config is applied ONLY during this system callback and then restored
+ *  - module loading uses reflection against GraalScriptRuntime to avoid hard dependency on exact method names
  */
 public final class JsWorldSystem implements KSystem {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystem.class);
 
-    private final String moduleId;
-    private final boolean hotReload;
+    private final String module;
+    private final Object cfg;     // JS-friendly config (ProxyObject/ProxyArray/primitives)
+    private final Object sysDesc; // ProxyObject with {provider,module,config}
 
-    private SystemContext ctx;
-    private GraalScriptRuntime runtime;
+    // module exports cached
+    private volatile Value exports;
 
-    private Value instance;
-    private String appliedVersion;
+    // optional: keep init state
+    private volatile boolean started = false;
 
-    public JsWorldSystem(String moduleId, boolean hotReload) {
-        this.moduleId = Objects.requireNonNull(moduleId, "moduleId");
-        this.hotReload = hotReload;
+    /**
+     * New constructor used by JsWorldSystemProvider (AAA scoped config).
+     */
+    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
+        this.module = Objects.requireNonNull(module, "module");
+        this.cfg = cfg;
+        this.sysDesc = sysDesc;
     }
 
-    public JsWorldSystem(String moduleId) {
-        this(moduleId, true);
+    /**
+     * Back-compat constructor if something still calls new JsWorldSystem(module).
+     * In that case, scripts will see null config unless you pass it via ctx externally.
+     */
+    public JsWorldSystem(String module) {
+        this(module, null, null);
     }
+
+    // -----------------------
+    // KSystem lifecycle
+    // -----------------------
 
     @Override
     public void onStart(SystemContext ctx) {
-        this.ctx = Objects.requireNonNull(ctx, "ctx");
-        this.runtime = Objects.requireNonNull(ctx.runtime(), "ctx.runtime");
-
-        restartIfNeeded(true);
-
-        log.info("JsWorldSystem started: {} (hotReload={})", moduleId, hotReload);
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("init", ctx);
+            started = true;
+            return null;
+        });
     }
 
     @Override
-    public void onUpdate(SystemContext systemContext, float tpf) {
-        if (runtime == null) return;
-
-        if (hotReload) {
-            restartIfNeeded(false);
-        }
-
-        // update(ctx,tpf)
-        try {
-            if (safeHasFn(instance, "update")) {
-                instance.getMember("update").execute(ctx, tpf);
-            }
-        } catch (PolyglotException pe) {
-            // During shutdown/cancel, treat as normal.
-            if (!isContextCancelled(pe)) {
-                log.warn("JsWorldSystem update failed: {}", moduleId, pe);
-            }
-        } catch (Throwable t) {
-            log.warn("JsWorldSystem update failed: {}", moduleId, t);
-        }
+    public void onUpdate(SystemContext ctx, float tpf) {
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("update", ctx, tpf);
+            return null;
+        });
     }
 
     @Override
-    public void onStop(SystemContext systemContext) {
-        // IMPORTANT: During shutdown Graal context may already be cancelled/closing.
-        // Any Value.* call can throw PolyglotException. Treat it as normal and do not warn.
+    public void onStop(SystemContext ctx) {
+        withScopedConfig(ctx, () -> {
+            try { invokeIfPresent("destroy"); } catch (Throwable ignored) {}
+            started = false;
+            return null;
+        });
+    }
+
+    // -----------------------
+    // Scoped config binding
+    // -----------------------
+
+    private <T> T withScopedConfig(SystemContext ctx, Callable<T> call) {
+        // save previous values from shared ctx (if any)
+        final boolean hadConfig = safeHas(ctx, "config");
+        final boolean hadCfg    = safeHas(ctx, "cfg");
+        final boolean hadSystem = safeHas(ctx, "system");
+
+        final Object prevConfig = hadConfig ? safeGet(ctx, "config") : null;
+        final Object prevCfg    = hadCfg    ? safeGet(ctx, "cfg")    : null;
+        final Object prevSystem = hadSystem ? safeGet(ctx, "system") : null;
+
+        // set this system values (ONLY for this callback)
+        if (cfg != null) {
+            safePut(ctx, "config", cfg);
+            safePut(ctx, "cfg", cfg);
+        }
+        if (sysDesc != null) {
+            safePut(ctx, "system", sysDesc);
+        }
+
         try {
-            safeStopInstance();
+            return call.call();
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         } finally {
-            instance = null;
-            appliedVersion = null;
-            runtime = null;
-            ctx = null;
-            log.info("JsWorldSystem stopped: {}", moduleId);
+            // restore exactly to previous state
+            if (hadConfig) safePut(ctx, "config", prevConfig); else safeRemove(ctx, "config");
+            if (hadCfg)    safePut(ctx, "cfg", prevCfg);       else safeRemove(ctx, "cfg");
+            if (hadSystem) safePut(ctx, "system", prevSystem); else safeRemove(ctx, "system");
         }
     }
 
-    // ---------------- internals ----------------
+    private static boolean safeHas(SystemContext ctx, String k) {
+        try { return ctx != null && ctx.has(k); } catch (Throwable ignored) { return false; }
+    }
 
-    private void safeStopInstance() {
-        if (instance == null) return;
+    private static Object safeGet(SystemContext ctx, String k) {
+        try { return (ctx == null) ? null : ctx.get(k); } catch (Throwable ignored) { return null; }
+    }
 
+    private static void safePut(SystemContext ctx, String k, Object v) {
+        try { if (ctx != null) ctx.put(k, v); } catch (Throwable ignored) {}
+    }
+
+    private static void safeRemove(SystemContext ctx, String k) {
+        try { if (ctx != null) ctx.remove(k); } catch (Throwable ignored) {}
+    }
+
+    // -----------------------
+    // Module loading
+    // -----------------------
+
+    private void ensureLoaded(SystemContext ctx) throws Exception {
+        if (exports != null) return;
+
+        // SystemContext.runtime() is package-private; JsWorldSystem is in same package => доступ есть.
+        final GraalScriptRuntime rt;
         try {
-            // stop(ctx) preferred
-            if (safeHasFn(instance, "stop")) {
-                instance.getMember("stop").execute(ctx);
-                return;
-            }
-            // legacy alias
-            if (safeHasFn(instance, "destroy")) {
-                instance.getMember("destroy").execute(ctx);
-            }
-        } catch (PolyglotException pe) {
-            if (!isContextCancelled(pe)) {
-                log.warn("JsWorldSystem stop failed: {}", moduleId, pe);
-            }
-            // cancelled -> swallow
+            rt = ctx.runtime();
         } catch (Throwable t) {
-            log.warn("JsWorldSystem stop failed: {}", moduleId, t);
+            log.error("[jsSystem] cannot access ctx.runtime() for module {}: {}", module, t.toString());
+            throw t;
         }
-    }
 
-    private void restartIfNeeded(boolean force) {
-        String id = normalize(moduleId);
-        String vStr = "0";
         try {
-            vStr = Long.toString(runtime.moduleVersion(id));
-        } catch (PolyglotException pe) {
-            // runtime closing -> just keep current instance
-            if (isContextCancelled(pe)) return;
-            throw pe;
-        }
-
-        if (!force && appliedVersion != null && appliedVersion.equals(vStr) && instance != null) {
-            return;
-        }
-
-        // destroy old (safe)
-        if (instance != null) {
-            safeStopInstance();
-            instance = null;
-        }
-
-        // load new
-        try {
-            Value exports = runtime.require(id);
-            instance = createInstance(exports);
-            appliedVersion = vStr;
-
-            // start/init
-            if (safeHasFn(instance, "start")) instance.getMember("start").execute(ctx);
-            else if (safeHasFn(instance, "init")) instance.getMember("init").execute(ctx);
-
-        } catch (PolyglotException pe) {
-            if (!isContextCancelled(pe)) {
-                log.error("JsWorldSystem start failed: {}", moduleId, pe);
+            exports = requireViaReflection(rt, module);
+            if (exports == null) {
+                throw new IllegalStateException("GraalScriptRuntime returned null exports for module=" + module);
             }
-            // cancelled -> swallow; engine is shutting down
         } catch (Throwable t) {
-            log.error("JsWorldSystem start failed: {}", moduleId, t);
-        }
-    }
-
-    private static Value createInstance(Value exports) {
-        if (exports == null) return null;
-
-        try {
-            if (exports.isNull()) return null;
-
-            if (exports.canExecute()) return exports.execute();
-
-            if (exports.hasMember("create")) {
-                Value c = exports.getMember("create");
-                if (c != null && !c.isNull() && c.canExecute()) return c.execute();
-            }
-
-            return exports;
-        } catch (PolyglotException pe) {
-            if (isContextCancelled(pe)) return null;
-            throw pe;
+            log.error("[jsSystem] failed to load module {}: {}", module, t.toString());
+            throw t;
         }
     }
 
     /**
-     * Absolutely must be shutdown-safe: ANY Value.* may throw when context is cancelled.
+     * Tries several common runtime method names/signatures to load a module.
+     * This avoids coupling to your exact GraalScriptRuntime API.
      */
-    private static boolean safeHasFn(Value obj, String name) {
-        if (obj == null) return false;
+    private static Value requireViaReflection(GraalScriptRuntime rt, String module) throws Exception {
+        final Class<?> c = rt.getClass();
+
+        // 1) require(String)
+        Value v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        // 2) requireModule(String)
+        v = tryInvokeValue(c, rt, "requireModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        // 3) loadModule(String)
+        v = tryInvokeValue(c, rt, "loadModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        // 4) evalModule(String)
+        v = tryInvokeValue(c, rt, "evalModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        // 5) evaluateModule(String)
+        v = tryInvokeValue(c, rt, "evaluateModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        // 6) require(String request, String parent) — parent null
+        v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class, String.class}, new Object[]{module, null});
+        if (v != null) return v;
+
+        // 7) require(String request, Object parent) — parent null
+        v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class, Object.class}, new Object[]{module, null});
+        if (v != null) return v;
+
+        // If none worked, give a useful error with available method names
+        StringBuilder sb = new StringBuilder();
+        for (Method m : c.getMethods()) {
+            if (m.getName().toLowerCase().contains("require") ||
+                    m.getName().toLowerCase().contains("module") ||
+                    m.getName().toLowerCase().contains("eval")) {
+                sb.append(m.getName()).append("(");
+                Class<?>[] pt = m.getParameterTypes();
+                for (int i = 0; i < pt.length; i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(pt[i].getSimpleName());
+                }
+                sb.append(") -> ").append(m.getReturnType().getSimpleName()).append("; ");
+            }
+        }
+
+        throw new IllegalStateException(
+                "Cannot load module via GraalScriptRuntime reflection. " +
+                        "Tried: require/requireModule/loadModule/evalModule/evaluateModule. " +
+                        "Candidates: " + sb
+        );
+    }
+
+    private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
         try {
-            if (obj.isNull()) return false;
-            if (!obj.hasMember(name)) return false;
-            Value m = obj.getMember(name);
-            return m != null && !m.isNull() && m.canExecute();
-        } catch (PolyglotException pe) {
-            return !isContextCancelled(pe) ? false : false;
+            Method m = c.getMethod(name, sig);
+            Object r = m.invoke(target, args);
+            if (r instanceof Value vv) return vv;
+            return null;
+        } catch (NoSuchMethodException ignored) {
+            return null;
         } catch (Throwable t) {
-            return false;
+            // method exists but failed — this is important
+            throw new RuntimeException("runtime." + name + " invocation failed: " + t, t);
         }
     }
 
-    private static boolean isContextCancelled(PolyglotException pe) {
-        // Graal uses "Context execution was cancelled." and similar on shutdown.
-        // Also treat "closed" as normal shutdown.
-        String msg = pe.getMessage();
-        if (msg == null) return false;
-        String m = msg.toLowerCase();
-        return m.contains("cancel") || m.contains("closed");
-    }
+    // -----------------------
+    // Invocations
+    // -----------------------
 
-    private static String normalize(String id) {
-        if (id == null) return "";
-        String s = id.trim().replace('\\', '/');
-        while (s.startsWith("./")) s = s.substring(2);
-        return s;
+    private void invokeIfPresent(String fnName, Object... args) {
+        if (exports == null) return;
+        if (!exports.hasMember(fnName)) return;
+
+        Value fn = exports.getMember(fnName);
+        if (fn == null || !fn.canExecute()) return;
+
+        fn.execute(args);
     }
 }
