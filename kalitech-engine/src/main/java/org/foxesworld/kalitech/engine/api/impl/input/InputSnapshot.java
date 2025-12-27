@@ -1,17 +1,11 @@
 package org.foxesworld.kalitech.engine.api.impl.input;
 
-// Author: Calista Verner
-
+import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Set;
 
-/**
- * Immutable input snapshot for a single frame (AAA++).
- * One object → JS reads everything from it.
- */
-public final class InputSnapshot {
+public final class InputSnapshot implements ProxyObject {
 
     public final long frameId;
     public final long timeNanos;
@@ -29,14 +23,19 @@ public final class InputSnapshot {
     public final boolean grabbed;
     public final boolean cursorVisible;
 
-    /** Keys currently held down */
     public final int[] keysDown;
-
-    /** Keys pressed THIS frame */
     public final int[] justPressed;
-
-    /** Keys released THIS frame */
     public final int[] justReleased;
+
+    private static final Set<String> KEYS = Set.of(
+            "frame", "timeNanos",
+            "mx", "my",
+            "dx", "dy",
+            "wheel",
+            "mouseMask",
+            "grabbed", "cursorVisible",
+            "keysDown", "justPressed", "justReleased"
+    );
 
     public InputSnapshot(
             long frameId,
@@ -53,52 +52,50 @@ public final class InputSnapshot {
     ) {
         this.frameId = frameId;
         this.timeNanos = timeNanos;
-
         this.mx = mx;
         this.my = my;
-
         this.dx = dx;
         this.dy = dy;
-
         this.wheel = wheel;
-
         this.mouseMask = mouseMask;
-
         this.grabbed = grabbed;
         this.cursorVisible = cursorVisible;
-
-        this.keysDown     = (keysDown != null)     ? keysDown     : new int[0];
-        this.justPressed  = (justPressed != null)  ? justPressed  : new int[0];
+        this.keysDown = (keysDown != null) ? keysDown : new int[0];
+        this.justPressed = (justPressed != null) ? justPressed : new int[0];
         this.justReleased = (justReleased != null) ? justReleased : new int[0];
     }
 
-    /**
-     * Export snapshot to JS as a stable plain object.
-     */
-    public Object toJs() {
-        Map<String, Object> m = new HashMap<>(20);
+    @Override
+    public Object getMember(String key) {
+        return switch (key) {
+            case "frame" -> frameId;
+            case "timeNanos" -> timeNanos;
+            case "mx" -> mx;
+            case "my" -> my;
+            case "dx" -> dx;
+            case "dy" -> dy;
+            case "wheel" -> wheel;
+            case "mouseMask" -> mouseMask;
+            case "grabbed" -> grabbed;
+            case "cursorVisible" -> cursorVisible;
+            case "keysDown" -> JsMarshalling.intArray(keysDown);
+            case "justPressed" -> JsMarshalling.intArray(justPressed);
+            case "justReleased" -> JsMarshalling.intArray(justReleased);
+            default -> null;
+        };
+    }
 
-        m.put("frame", frameId);
-        m.put("timeNanos", timeNanos);
+    @Override
+    public Object getMemberKeys() {
+        return ProxyArray.fromArray(KEYS.toArray(new Object[0]));
+    }
 
-        m.put("mx", mx);
-        m.put("my", my);
+    @Override
+    public boolean hasMember(String key) {
+        return KEYS.contains(key);
+    }
 
-        m.put("dx", dx);
-        m.put("dy", dy);
-
-        m.put("wheel", wheel);
-
-        m.put("mouseMask", mouseMask);
-
-        m.put("grabbed", grabbed);
-        m.put("cursorVisible", cursorVisible);
-
-        m.put("keysDown",     JsMarshalling.intArray(keysDown));
-        m.put("justPressed",  JsMarshalling.intArray(justPressed));
-        m.put("justReleased", JsMarshalling.intArray(justReleased));
-
-
-        return ProxyObject.fromMap(m);
+    @Override
+    public void putMember(String key, org.graalvm.polyglot.Value value) {
     }
 }

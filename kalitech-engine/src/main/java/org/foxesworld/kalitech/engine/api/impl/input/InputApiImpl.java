@@ -1,11 +1,7 @@
 package org.foxesworld.kalitech.engine.api.impl.input;
 
-// Author: Calista Verner
-
 import com.jme3.input.InputManager;
 import com.jme3.math.Vector2f;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
 import org.graalvm.polyglot.HostAccess;
@@ -14,10 +10,9 @@ import java.util.Arrays;
 
 public final class InputApiImpl implements InputApi {
 
-    private static final Logger log = LogManager.getLogger(InputApiImpl.class);
-
     private final EngineApiImpl engine;
     private final InputManager input;
+
     private long frameId = 0;
 
     private final InputFrame frame = new InputFrame();
@@ -26,37 +21,26 @@ public final class InputApiImpl implements InputApi {
     private final CursorGrabController cursor;
     private final InputBindings bindings;
 
-    private volatile boolean debug = false;
-
     public InputApiImpl(EngineApiImpl engineApi) {
         this.engine = engineApi;
         this.input = engineApi.getApp().getInputManager();
 
-        this.cursor = new CursorGrabController(engineApi, input, mouse, this::isDebug);
-        this.bindings = new InputBindings(input, mouse, frame, this::isDebug);
+        this.cursor = new CursorGrabController(engineApi, input, mouse);
+        this.bindings = new InputBindings(input, mouse, frame);
 
-        // 1) RAW collector (keys/buttons + motion if backend provides)
         this.input.addRawInputListener(new RawCollector(keyboard, mouse, frame));
-
-        // 2) Axis mappings (THE FIX for mouse deltas)
         this.bindings.installMouseAxisMappings();
 
-        // init cursor visible on render thread
         engineApi.getApp().enqueue(() -> {
-            try { input.setCursorVisible(true); }
-            catch (Exception e) { log.warn("[input] setCursorVisible(true) failed: {}", e.toString()); }
+            try { input.setCursorVisible(true); } catch (Exception ignored) {}
             return null;
         });
-
-        log.info("[input] InputApiImpl attached (KEY_MAX={})", keyboard.keyMax());
-        log.info("[input] implClass={}", this.getClass().getName());
     }
 
     @HostAccess.Export
     public Object consumeSnapshot() {
         refreshAbsoluteCursorBestEffort();
 
-        // ✅ фиксируем клавиатурный кадр здесь (justPressed/Released/keysDown)
         keyboard.advanceFrame();
 
         mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
@@ -76,23 +60,23 @@ public final class InputApiImpl implements InputApi {
                 Arrays.copyOf(keyboard.justReleased(), keyboard.justReleased().length)
         );
 
-        return snap.toJs();
+        return snap;
     }
-
-    // -------- Keyboard --------
 
     @HostAccess.Export
     @Override
     public boolean keyDown(String key) {
         int code = keyboard.keyCode(key);
-        // AAA++: ставим mapping on-demand, чтобы legacy JS (который дергает только keyDown) работал
         bindings.ensureKeyMapping(code, keyboard);
         return keyboard.keyDown(code);
     }
 
+    @HostAccess.Export
     @Override
     public boolean keyDown(int keyCode) {
-        return false;
+        if (keyCode < 0) return false;
+        bindings.ensureKeyMapping(keyCode, keyboard);
+        return keyboard.keyDown(keyCode);
     }
 
     @HostAccess.Export
@@ -102,8 +86,6 @@ public final class InputApiImpl implements InputApi {
         bindings.ensureKeyMapping(code, keyboard);
         return code;
     }
-
-    // -------- Mouse absolute --------
 
     @HostAccess.Export @Override public double mouseX() { return mouse.mouseX(); }
     @HostAccess.Export @Override public double mouseY() { return mouse.mouseY(); }
@@ -115,17 +97,17 @@ public final class InputApiImpl implements InputApi {
         return JsMarshalling.vec2(mouse.mouseX(), mouse.mouseY());
     }
 
+    @HostAccess.Export
     @Override
     public double mouseDX() {
-        return 0;
+        return mouseDx();
     }
 
+    @HostAccess.Export
     @Override
     public double mouseDY() {
-        return 0;
+        return mouseDy();
     }
-
-    // -------- Mouse delta --------
 
     @HostAccess.Export
     @Override
@@ -143,9 +125,12 @@ public final class InputApiImpl implements InputApi {
         return mouse.mouseDy();
     }
 
+    @HostAccess.Export
     @Override
     public Object mouseDelta() {
-        return null;
+        refreshAbsoluteCursorBestEffort();
+        mouse.ensureFallbackDeltaIfNeeded(cursor.isGrabbed(), frame.motionThisFrame());
+        return JsMarshalling.delta2(mouse.mouseDx(), mouse.mouseDy());
     }
 
     @HostAccess.Export
@@ -157,8 +142,6 @@ public final class InputApiImpl implements InputApi {
         return JsMarshalling.delta2(c.dx(), c.dy());
     }
 
-    // -------- Wheel --------
-
     @HostAccess.Export @Override public double wheelDelta() { return mouse.peekWheel(); }
 
     @HostAccess.Export
@@ -167,15 +150,11 @@ public final class InputApiImpl implements InputApi {
         return mouse.consumeWheelOnly();
     }
 
-    // -------- Buttons --------
-
     @HostAccess.Export
     @Override
     public boolean mouseDown(int button) {
         return mouse.mouseDown(button);
     }
-
-    // -------- Cursor / grab --------
 
     @HostAccess.Export
     @Override
@@ -189,28 +168,23 @@ public final class InputApiImpl implements InputApi {
     @Override
     public void grabMouse(boolean grab) {
         cursor.setGrabbed(grab);
-        // gameplay: grab => hide cursor
         cursor.setCursorVisible(!grab);
-        // reset baselines to avoid jump
         mouse.resetBaselines();
     }
 
+    @HostAccess.Export
     @Override
     public boolean grabbed() {
-        return false;
+        return cursor.isGrabbed();
     }
-
 
     @HostAccess.Export
     @Override
     public void endFrame() {
         refreshAbsoluteCursorBestEffort();
-        frame.endFrame();  // only resets motionThisFrame
+        frame.endFrame();
         frameId++;
     }
-
-
-    private boolean isDebug() { return debug; }
 
     private void refreshAbsoluteCursorBestEffort() {
         try {

@@ -4,26 +4,16 @@ import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
-import java.util.HashMap;
-import java.util.Map;
-
 final class JsMarshalling {
 
     static Object vec2(double x, double y) {
-        Map<String, Object> m = new HashMap<>(2);
-        m.put("x", x);
-        m.put("y", y);
-        return ProxyObject.fromMap(m);
+        return new Vec2Proxy(x, y);
     }
 
     static Object delta2(double dx, double dy) {
-        Map<String, Object> m = new HashMap<>(2);
-        m.put("dx", dx);
-        m.put("dy", dy);
-        return ProxyObject.fromMap(m);
+        return new Delta2Proxy(dx, dy);
     }
 
-    // ✅ expose Java int[] to JS as real array-like
     static Object intArray(int[] a) {
         return (a == null || a.length == 0) ? ProxyArray.fromArray() : new IntArrayProxy(a);
     }
@@ -36,14 +26,28 @@ final class JsMarshalling {
 
         @Override public Object get(long index) {
             int i = (int) index;
-            if (i < 0 || i >= a.length) return 0;
-            return a[i];
+            return (i < 0 || i >= a.length) ? 0 : a[i];
         }
 
-        @Override public void set(long index, Value value) {
-            // immutable snapshot — ignore
-        }
-
+        @Override public void set(long index, Value value) {}
         @Override public boolean remove(long index) { return false; }
+    }
+
+    private record Vec2Proxy(double x, double y) implements ProxyObject {
+        @Override public Object getMember(String key) {
+            return switch (key) { case "x" -> x; case "y" -> y; default -> null; };
+        }
+        @Override public Object getMemberKeys() { return ProxyArray.fromArray("x", "y"); }
+        @Override public boolean hasMember(String key) { return "x".equals(key) || "y".equals(key); }
+        @Override public void putMember(String key, Value value) {}
+    }
+
+    private record Delta2Proxy(double dx, double dy) implements ProxyObject {
+        @Override public Object getMember(String key) {
+            return switch (key) { case "dx" -> dx; case "dy" -> dy; default -> null; };
+        }
+        @Override public Object getMemberKeys() { return ProxyArray.fromArray("dx", "dy"); }
+        @Override public boolean hasMember(String key) { return "dx".equals(key) || "dy".equals(key); }
+        @Override public void putMember(String key, Value value) {}
     }
 }

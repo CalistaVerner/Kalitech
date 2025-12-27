@@ -1,7 +1,5 @@
 package org.foxesworld.kalitech.engine.api.impl.input;
 
-// Author: Calista Verner
-
 import com.jme3.input.RawInputListener;
 import com.jme3.input.event.*;
 
