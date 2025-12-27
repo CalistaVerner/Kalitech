@@ -26,10 +26,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.str;
 
@@ -563,13 +560,32 @@ public final class SurfaceApiImpl implements SurfaceApi {
         return null;
     }
 
-    private static void applyMaterialRecursive(Spatial s, Material mat) {
-        if (s instanceof Geometry g) { g.setMaterial(mat); return; }
-        if (s instanceof TerrainQuad tq) { tq.setMaterial(mat); return; }
-        if (s instanceof Node n) {
-            for (Spatial child : n.getChildren()) applyMaterialRecursive(child, mat);
+    private static void applyMaterialRecursive(Spatial root, Material mat) {
+        if (root == null || mat == null) return;
+
+        ArrayDeque<Spatial> stack = new ArrayDeque<>();
+        stack.push(root);
+
+        while (!stack.isEmpty()) {
+            Spatial s = stack.pop();
+
+            if (s instanceof Geometry g) {
+                if (g.getMaterial() != mat) g.setMaterial(mat);
+                continue;
+            }
+            if (s instanceof com.jme3.terrain.geomipmap.TerrainQuad tq) {
+                if (tq.getMaterial() != mat) tq.setMaterial(mat);
+                continue;
+            }
+            if (s instanceof Node n) {
+                // children list is stable enough for iteration
+                for (Spatial child : n.getChildren()) {
+                    if (child != null) stack.push(child);
+                }
+            }
         }
     }
+
 
     // ---- transform helpers (same style as before) ----
     public static void applyTransform(Spatial s, Value cfg) {

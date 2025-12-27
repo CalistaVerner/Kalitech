@@ -2,15 +2,20 @@
 package org.foxesworld.kalitech.engine.api.impl.physics;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.bounding.BoundingBox;
+import com.jme3.bounding.BoundingVolume;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
-import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.collision.shapes.*;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
-import com.jme3.scene.Spatial;
+import com.jme3.scene.*;
+import com.jme3.scene.shape.Box;
+import com.jme3.scene.shape.Cylinder;
+import com.jme3.scene.shape.Sphere;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -25,6 +30,8 @@ import org.graalvm.polyglot.Value;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class PhysicsApiImpl implements PhysicsApi {
@@ -38,6 +45,25 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> bodyIdBySurface = new ConcurrentHashMap<>();
+
+    // ------------------------------------------------------------
+    // ✅ Batched add to PhysicsSpace (NO JS/API changes)
+    // ------------------------------------------------------------
+    private final ConcurrentLinkedQueue<RigidBodyControl> pendingAdd = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean addFlushScheduled = new AtomicBoolean(false);
+
+    // Time slicing: limit how many adds per flush to avoid big frame spikes
+    // (tune: 64/128 depending on your machine)
+    private static final int ADD_FLUSH_MAX_PER_TICK = 128;
+
+    // ------------------------------------------------------------
+    // ✅ CollisionShape caching (NO JS/API changes)
+    // ------------------------------------------------------------
+    // Cache by Mesh identity + dynamic flag.
+    // This gives a MASSIVE boost when you spawn many identical cubes/spheres/etc.
+    private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
+
+    private record ShapeKey(Mesh mesh, boolean dynamic) { }
 
     public PhysicsApiImpl(EngineApiImpl engine, SurfaceRegistry surfaces) {
         this.engine = Objects.requireNonNull(engine, "engine");
@@ -62,14 +88,153 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
+    // ✅ Batched add internals
+    // ------------------------------------------------------------
+
+    private void enqueueAddToSpace(RigidBodyControl rb) {
+        if (rb == null) return;
+        pendingAdd.add(rb);
+        scheduleAddFlush();
+    }
+
+    private void scheduleAddFlush() {
+        if (!addFlushScheduled.compareAndSet(false, true)) return;
+
+        app.enqueue(() -> {
+            try {
+                flushPendingAdd();
+            } finally {
+                addFlushScheduled.set(false);
+                if (!pendingAdd.isEmpty()) scheduleAddFlush();
+            }
+            return null;
+        });
+    }
+
+    private void flushPendingAdd() {
+        PhysicsSpace sp = engine.__getPhysicsSpaceOrNull();
+        if (sp == null) return;
+
+        int n = 0;
+        RigidBodyControl rb;
+        while (n < ADD_FLUSH_MAX_PER_TICK && (rb = pendingAdd.poll()) != null) {
+            try { sp.add(rb); } catch (Throwable ignored) {}
+            n++;
+        }
+
+        // If still queued — reschedule (we already do it in finally)
+    }
+
+    // ------------------------------------------------------------
+    // ✅ CollisionShape selection (fast path)
+    // ------------------------------------------------------------
+
+    private static float clampPositive(float v, float min) {
+        return (Float.isFinite(v) && v > min) ? v : min;
+    }
+
+    private CollisionShape primitiveShapeFromGeometry(Geometry g) {
+        Mesh mesh = g.getMesh();
+        if (mesh == null) return null;
+
+        // 1) Fast primitives for known mesh types
+        if (mesh instanceof Box) {
+            // Use mesh bound extents (local)
+            BoundingVolume bv = mesh.getBound();
+            if (bv instanceof BoundingBox bb) {
+                Vector3f he = bb.getExtent(null);
+                he.x = clampPositive(he.x, 0.001f);
+                he.y = clampPositive(he.y, 0.001f);
+                he.z = clampPositive(he.z, 0.001f);
+                return new BoxCollisionShape(he);
+            }
+            // fallback: try world bound (may be null if not updated)
+            BoundingVolume w = g.getWorldBound();
+            if (w instanceof BoundingBox wb) {
+                Vector3f he = wb.getExtent(null);
+                he.x = clampPositive(he.x, 0.001f);
+                he.y = clampPositive(he.y, 0.001f);
+                he.z = clampPositive(he.z, 0.001f);
+                return new BoxCollisionShape(he);
+            }
+        }
+
+        if (mesh instanceof Sphere) {
+            BoundingVolume bv = mesh.getBound();
+            if (bv instanceof BoundingBox bb) {
+                Vector3f he = bb.getExtent(null);
+                float r = Math.max(he.x, Math.max(he.y, he.z));
+                r = clampPositive(r, 0.001f);
+                return new SphereCollisionShape(r);
+            }
+        }
+
+        if (mesh instanceof Cylinder) {
+            // Cylinder mesh bound -> half extents
+            BoundingVolume bv = mesh.getBound();
+            if (bv instanceof BoundingBox bb) {
+                Vector3f he = bb.getExtent(null);
+                he.x = clampPositive(he.x, 0.001f);
+                he.y = clampPositive(he.y, 0.001f);
+                he.z = clampPositive(he.z, 0.001f);
+                // JME bullet cylinder shape uses half extents
+                return new CylinderCollisionShape(he);
+            }
+        }
+
+        // 2) Generic primitive fallback by bound
+        BoundingVolume bv = mesh.getBound();
+        if (bv instanceof BoundingBox bb) {
+            Vector3f he = bb.getExtent(null);
+            if (he != null) {
+                he.x = clampPositive(he.x, 0.001f);
+                he.y = clampPositive(he.y, 0.001f);
+                he.z = clampPositive(he.z, 0.001f);
+                // If it's close to cube-ish, box collider is a good default
+                return new BoxCollisionShape(he);
+            }
+        }
+
+        return null;
+    }
+
+    private CollisionShape defaultShapeForSpatial(Spatial spatial, boolean dynamic) {
+        // If geometry -> try primitive collider (HUGE perf win)
+        if (spatial instanceof Geometry g) {
+            CollisionShape prim = primitiveShapeFromGeometry(g);
+            if (prim != null) return prim;
+
+            // If no primitive path: cache mesh shapes by Mesh identity
+            Mesh mesh = g.getMesh();
+            if (mesh != null) {
+                ShapeKey key = new ShapeKey(mesh, dynamic);
+                CollisionShape cached = shapeCache.get(key);
+                if (cached != null) return cached;
+
+                CollisionShape created = dynamic
+                        ? CollisionShapeFactory.createDynamicMeshShape(g)
+                        : CollisionShapeFactory.createMeshShape(g);
+
+                // cache it
+                shapeCache.putIfAbsent(key, created);
+                return created;
+            }
+        }
+
+        // Node or unknown: mesh shapes (expensive) but still can be cached by a pseudo-key if needed.
+        // For now keep it safe: node mesh shape depends on subtree transforms.
+        return dynamic
+                ? CollisionShapeFactory.createDynamicMeshShape(spatial)
+                : CollisionShapeFactory.createMeshShape(spatial);
+    }
+
+    // ------------------------------------------------------------
     // API
     // ------------------------------------------------------------
 
     @HostAccess.Export
     @Override
     public PhysicsBodyHandle body(Object cfg) {
-        PhysicsSpace space = space();
-
         if (cfg == null) throw new IllegalArgumentException("physics.body(cfg) cfg is required");
 
         int surfaceId = resolveSurfaceId(cfg);
@@ -84,32 +249,31 @@ public final class PhysicsApiImpl implements PhysicsApi {
             if (h != null) return h;
         }
 
-        // ✅ mass FIRST (важно!)
+        // ✅ mass FIRST
         float mass = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "mass"), 0.0);
+        boolean dynamic = mass > 0f;
 
         Object colliderCfg = PhysicsValueParsers.member(cfg, "collider");
 
-        // ✅ default collider: for dynamic bodies use dynamicMesh, for static use mesh
         CollisionShape shape;
         if (colliderCfg == null) {
-            shape = (mass > 0f) ? CollisionShapeFactory.createDynamicMeshShape(spatial) : CollisionShapeFactory.createMeshShape(spatial);
+            // ✅ FAST default collider path
+            shape = defaultShapeForSpatial(spatial, dynamic);
         } else {
             // ✅ if user explicitly requested "mesh" with mass>0 -> hard error with clear message
-            // Value
             if (colliderCfg instanceof Value v && v.hasMembers() && v.hasMember("type")) {
                 String t = String.valueOf(v.getMember("type"));
-                if ("mesh".equalsIgnoreCase(t) && mass > 0f) {
+                if ("mesh".equalsIgnoreCase(t) && dynamic) {
                     throw new IllegalArgumentException(
                             "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
                                     "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
                     );
                 }
             }
-            // Map
             if (colliderCfg instanceof java.util.Map<?, ?> m) {
                 Object tObj = m.get("type");
                 String t = (tObj != null) ? String.valueOf(tObj) : "";
-                if ("mesh".equalsIgnoreCase(t) && mass > 0f) {
+                if ("mesh".equalsIgnoreCase(t) && dynamic) {
                     throw new IllegalArgumentException(
                             "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
                                     "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
@@ -141,7 +305,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
         if (lockRot) rb.setAngularFactor(0f);
 
         spatial.addControl(rb);
-        space.add(rb);
+
+        // ✅ batched apply to space
+        enqueueAddToSpace(rb);
 
         int id = ids.getAndIncrement();
         PhysicsBodyHandle handle = new PhysicsBodyHandle(id, surfaceId, rb);
@@ -157,7 +323,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
     @HostAccess.Export
     @Override
     public void remove(Object handleOrId) {
-        PhysicsSpace space = space();
         int id = resolveBodyId(handleOrId);
         if (id <= 0) return;
 
@@ -169,7 +334,14 @@ public final class PhysicsApiImpl implements PhysicsApi {
         Spatial spatial = surfaces.get(h.surfaceId);
         RigidBodyControl rb = h.__raw();
 
-        try { space.remove(rb); } catch (Throwable ignored) {}
+        // Remove from pending queue (best effort)
+        try { pendingAdd.remove(rb); } catch (Throwable ignored) {}
+
+        PhysicsSpace space = engine.__getPhysicsSpaceOrNull();
+        if (space != null) {
+            try { space.remove(rb); } catch (Throwable ignored) {}
+        }
+
         try { if (spatial != null) spatial.removeControl(rb); } catch (Throwable ignored) {}
 
         log.debug("[physics] body removed id={} surfaceId={}", id, h.surfaceId);
@@ -187,7 +359,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
         List<PhysicsRayTestResult> hits = space.rayTest(from, to);
         if (hits == null || hits.isEmpty()) return null;
 
-        // choose closest
         PhysicsRayTestResult best = null;
         float bestFrac = Float.POSITIVE_INFINITY;
         for (PhysicsRayTestResult r : hits) {
@@ -196,7 +367,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
         }
         if (best == null) return null;
 
-        // Map back to our handle (by comparing native object reference)
         int bodyId = 0;
         int surfaceId = 0;
 
@@ -224,7 +394,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
         );
     }
 
-    // ---- controller helpers (NEW) ----
+    // ---- controller helpers ----
 
     @HostAccess.Export
     public Object position(Object handleOrId) {
@@ -263,33 +433,19 @@ public final class PhysicsApiImpl implements PhysicsApi {
         RigidBodyControl rb = h.__raw();
 
         if (log.isDebugEnabled()) {
-            log.debug(
-                    "[physics] yaw bodyId={} yaw(rad)={} yaw(deg)={}",
-                    h.id,
-                    yaw,
-                    Math.toDegrees(yaw)
-            );
+            log.debug("[physics] yaw bodyId={} yaw(rad)={} yaw(deg)={}", h.id, yaw, Math.toDegrees(yaw));
         }
 
-        // rotate around Y axis only
         Quaternion q = new Quaternion();
         q.fromAngles(0f, (float) yaw, 0f);
 
         rb.setPhysicsRotation(q);
-
-        // keep rotation stable when angularFactor==0 (lockRotation)
         rb.setAngularVelocity(Vector3f.ZERO);
 
         if (log.isTraceEnabled()) {
-            log.trace(
-                    "[physics] yaw applied bodyId={} quat={}",
-                    h.id,
-                    q
-            );
+            log.trace("[physics] yaw applied bodyId={} quat={}", h.id, q);
         }
     }
-
-
 
     @HostAccess.Export
     public void applyImpulse(Object handleOrId, Object vec3) {
@@ -315,7 +471,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
     @HostAccess.Export
     @Override
     public void debug(boolean enabled) {
-        // FIX: bullet field was never bound. Take BulletAppState from AppStateManager.
         BulletAppState b = app.getStateManager().getState(BulletAppState.class);
         if (b == null) {
             log.warn("[physics] debug({}) ignored: BulletAppState not attached", enabled);
@@ -334,7 +489,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
     // ---- integration helpers (internal) ----
 
-    /** Called by EngineApiImpl cleanup when a surface is destroyed */
     public void __cleanupSurface(int surfaceId) {
         if (surfaceId <= 0) return;
         Integer id = bodyIdBySurface.get(surfaceId);
@@ -347,14 +501,11 @@ public final class PhysicsApiImpl implements PhysicsApi {
         Object s = PhysicsValueParsers.member(cfg, "surface");
         if (s == null) return 0;
 
-        // number
         if (s instanceof Number n) return n.intValue();
 
-        // JS Value
         if (s instanceof Value v) {
             if (v.isNumber()) return v.asInt();
 
-            // SurfaceHandle object: {id} OR {id: function()->number}
             if (v.hasMember("id")) {
                 Value id = v.getMember("id");
                 if (id != null) {
@@ -366,16 +517,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 }
             }
 
-            // common alternative: id() method
-            if (v.hasMember("id") && v.getMember("id").canExecute()) {
-                Value r = v.getMember("id").execute();
-                if (r != null && r.isNumber()) return r.asInt();
-            }
-            if (v.hasMember("id") && v.getMember("id").isNumber()) {
-                return v.getMember("id").asInt();
-            }
-
-            // other names
             if (v.hasMember("surfaceId")) {
                 Value sid = v.getMember("surfaceId");
                 if (sid != null) {
@@ -388,10 +529,8 @@ public final class PhysicsApiImpl implements PhysicsApi {
             }
         }
 
-        // SurfaceHandle from Java (SurfaceApi.SurfaceHandle)
         if (s instanceof SurfaceApi.SurfaceHandle h) return h.id;
 
-        // Map {id:...} OR {id: function}
         if (s instanceof java.util.Map<?, ?> m) {
             Object id = m.get("id");
             if (id instanceof Number n) return n.intValue();
@@ -409,7 +548,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
         if (handleOrId instanceof Value v) {
             if (v.isNumber()) return v.asInt();
 
-            // {id} OR {id: function()->number}
             if (v.hasMember("id")) {
                 Value id = v.getMember("id");
                 if (id != null) {
@@ -421,7 +559,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 }
             }
 
-            // also accept bodyId / getBodyId styles
             if (v.hasMember("bodyId")) {
                 Value bid = v.getMember("bodyId");
                 if (bid != null) {
@@ -434,7 +571,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
             }
         }
 
-        // Map {id:...}
         if (handleOrId instanceof java.util.Map<?, ?> m) {
             Object id = m.get("id");
             if (id instanceof Number n) return n.intValue();
@@ -443,9 +579,10 @@ public final class PhysicsApiImpl implements PhysicsApi {
         return 0;
     }
 
-
-    /** Clear ALL physics bodies created via this API (used before world rebuild / ecs.reset). */
     public void __clearAll() {
+        pendingAdd.clear();
+        shapeCache.clear();
+
         PhysicsSpace s = engine.__getPhysicsSpaceOrNull();
         if (s == null) {
             byId.clear();

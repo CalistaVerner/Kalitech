@@ -9,6 +9,8 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SurfaceRegistry {
@@ -23,8 +25,15 @@ public final class SurfaceRegistry {
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> kindById = new ConcurrentHashMap<>();
 
+    // attachment maps
     private final ConcurrentHashMap<Integer, Integer> surfaceToEntity = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> entityToSurface = new ConcurrentHashMap<>();
+
+    // --- scene attach batching ---
+    // Creating 100+ spatials and attaching them one-by-one can stall the frame due to repeated scenegraph updates.
+    // We keep the JS/Host API intact, but coalesce actual attach operations into a single flush on the render thread.
+    private final ConcurrentLinkedQueue<Integer> pendingAttach = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean attachFlushScheduled = new AtomicBoolean(false);
 
     public SurfaceRegistry(SimpleApplication app) {
         this.app = Objects.requireNonNull(app, "app");
@@ -86,9 +95,35 @@ public final class SurfaceRegistry {
     }
 
     public void attachToRoot(int id) {
-        Spatial s = byId.get(id);
-        if (s == null) throw new IllegalArgumentException("attachToRoot: unknown surface id=" + id);
-        if (s.getParent() == null) app.getRootNode().attachChild(s);
+        // NOTE: preserve method semantics for callers, but avoid doing N scene attaches in a tight loop.
+        if (!exists(id)) throw new IllegalArgumentException("attachToRoot: unknown surface id=" + id);
+        pendingAttach.add(id);
+        scheduleAttachFlush();
+    }
+
+    private void scheduleAttachFlush() {
+        if (!attachFlushScheduled.compareAndSet(false, true)) return;
+
+        // Execute on the render thread at the next safe point.
+        app.enqueue(() -> {
+            try {
+                flushPendingAttach();
+            } finally {
+                attachFlushScheduled.set(false);
+                // If new items arrived while flushing, schedule again.
+                if (!pendingAttach.isEmpty()) scheduleAttachFlush();
+            }
+            return null;
+        });
+    }
+
+    private void flushPendingAttach() {
+        Integer id;
+        while ((id = pendingAttach.poll()) != null) {
+            Spatial s = byId.get(id);
+            if (s == null) continue;
+            if (s.getParent() == null) app.getRootNode().attachChild(s);
+        }
     }
 
     public void detachFromParent(int id) {

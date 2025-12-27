@@ -1,34 +1,47 @@
 package org.foxesworld.kalitech.engine.api.impl.material;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.MatParam;
 import com.jme3.material.Material;
-import com.jme3.math.ColorRGBA;
-import com.jme3.math.Vector2f;
-import com.jme3.math.Vector3f;
-import com.jme3.math.Vector4f;
+import com.jme3.math.*;
 import com.jme3.texture.Texture;
 import org.graalvm.polyglot.Value;
+
+import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.*;
 
 public final class MaterialUtils {
     private MaterialUtils() {}
 
-    public static Material unwrapMaterial(Object h) {
-        if (h == null) return null;
+    private static final Cache<TextureKey, Texture> textureCache = Caffeine.newBuilder()
+            .maximumSize(8192)
+            .softValues()
+            .recordStats()
+            .build();
 
-        if (h instanceof Material m) return m;
-
-        if (h instanceof MaterialApiImpl.MaterialHandle mh) return mh.__material();
-
-        if (h instanceof Value v && v.isHostObject()) {
-            Object host = v.asHostObject();
-            if (host instanceof MaterialApiImpl.MaterialHandle mh) return mh.__material();
-            if (host instanceof Material m) return m;
+    private record TextureKey(String path, Texture.WrapMode wrap, Texture.MinFilter min, Texture.MagFilter mag, int aniso, int hash) {
+        static TextureKey of(TextureDesc td) {
+            String p = td.texture().trim();
+            Texture.WrapMode w = td.wrap();
+            Texture.MinFilter mi = td.minFilter();
+            Texture.MagFilter ma = td.magFilter();
+            int a = Math.max(0, td.anisotropy());
+            int h = Objects.hash(p, w, mi, ma, a);
+            return new TextureKey(p, w, mi, ma, a, h);
         }
-
-        return null;
+        @Override public int hashCode() { return hash; }
+        @Override public boolean equals(Object o) {
+            if (!(o instanceof TextureKey k)) return false;
+            return hash == k.hash &&
+                    aniso == k.aniso &&
+                    Objects.equals(path, k.path) &&
+                    wrap == k.wrap &&
+                    min == k.min &&
+                    mag == k.mag;
+        }
     }
 
     public record TileWorld(float x, float z) {}
@@ -44,17 +57,26 @@ public final class MaterialUtils {
 
     public record ParsedTex(String path, Texture.WrapMode wrap) {}
 
+    public static ParsedTex parseTextureShorthand(String s) {
+        if (s == null) return new ParsedTex(null, null);
+        String t = s.trim();
+        if (t.isEmpty()) return new ParsedTex(null, null);
+
+        String[] parts = t.split("\\|");
+        String path = parts[0].trim();
+        Texture.WrapMode wrap = null;
+        if (parts.length >= 2) wrap = parseWrap(parts[1].trim());
+        return new ParsedTex(path, wrap);
+    }
+
     public static Texture.WrapMode parseWrap(String s) {
         if (s == null || s.isBlank()) return null;
-
         String w = s.trim().toLowerCase();
 
         if (w.equals("repeat") || w.equals("reppeat") || w.equals("tile") || w.equals("tiled"))
             return Texture.WrapMode.Repeat;
-
         if (w.equals("clamp") || w.equals("edge") || w.equals("edgeclamp") || w.equals("edge_clamp") || w.equals("clamp_to_edge"))
             return Texture.WrapMode.EdgeClamp;
-
         if (w.equals("mirror") || w.equals("mirrored") || w.equals("mirroredrepeat") || w.equals("mirrored_repeat"))
             return Texture.WrapMode.MirroredRepeat;
 
@@ -66,47 +88,27 @@ public final class MaterialUtils {
 
     public static Texture.MinFilter parseMinFilter(String s) {
         if (s == null || s.isBlank()) return null;
-
         String t = s.trim();
         for (Texture.MinFilter f : Texture.MinFilter.values()) {
             if (f.name().equalsIgnoreCase(t)) return f;
         }
-
         String k = t.toLowerCase();
         if (k.equals("nearest")) return Texture.MinFilter.NearestNoMipMaps;
         if (k.equals("bilinear")) return Texture.MinFilter.BilinearNoMipMaps;
         if (k.equals("trilinear")) return Texture.MinFilter.Trilinear;
-
         return null;
     }
 
     public static Texture.MagFilter parseMagFilter(String s) {
         if (s == null || s.isBlank()) return null;
-
         String t = s.trim();
         for (Texture.MagFilter f : Texture.MagFilter.values()) {
             if (f.name().equalsIgnoreCase(t)) return f;
         }
-
         String k = t.toLowerCase();
         if (k.equals("nearest")) return Texture.MagFilter.Nearest;
         if (k.equals("bilinear") || k.equals("linear")) return Texture.MagFilter.Bilinear;
-
         return null;
-    }
-
-    public static ParsedTex parseTextureShorthand(String s) {
-        if (s == null) return new ParsedTex(null, null);
-
-        String t = s.trim();
-        if (t.isEmpty()) return new ParsedTex(null, null);
-
-        String[] parts = t.split("\\|");
-        String path = parts[0].trim();
-        Texture.WrapMode wrap = null;
-        if (parts.length >= 2) wrap = parseWrap(parts[1].trim());
-
-        return new ParsedTex(path, wrap);
     }
 
     public static TextureDesc parseTextureDesc(Value v) {
@@ -171,34 +173,19 @@ public final class MaterialUtils {
         if (declared != null && applyByDeclared(assets, m, name, declared, v)) return;
 
         TextureDesc td = parseTextureDesc(v);
-        if (td != null) {
-            setTexture(assets, m, name, td);
-            return;
-        }
+        if (td != null) { setTexture(assets, m, name, td); return; }
 
         ColorRGBA c = parseColor(v);
-        if (c != null) {
-            m.setColor(name, c);
-            return;
-        }
+        if (c != null) { m.setColor(name, c); return; }
 
         Vector2f v2 = parseVec2(v);
-        if (v2 != null) {
-            m.setVector2(name, v2);
-            return;
-        }
+        if (v2 != null) { m.setVector2(name, v2); return; }
 
         Vector3f v3 = parseVec3(v);
-        if (v3 != null) {
-            m.setVector3(name, v3);
-            return;
-        }
+        if (v3 != null) { m.setVector3(name, v3); return; }
 
         Vector4f v4 = parseVec4(v);
-        if (v4 != null) {
-            m.setVector4(name, v4);
-            return;
-        }
+        if (v4 != null) { m.setVector4(name, v4); return; }
 
         if (v.isBoolean()) { m.setBoolean(name, v.asBoolean()); return; }
         if (v.isNumber())  { m.setFloat(name, (float) v.asDouble()); return; }
@@ -219,28 +206,12 @@ public final class MaterialUtils {
                     if (v.isBoolean()) { m.setBoolean(name, v.asBoolean()); return true; }
                     if (v.isNumber())  { m.setBoolean(name, v.asDouble() != 0.0); return true; }
                 }
-                case "Int" -> {
-                    if (v.isNumber()) { m.setInt(name, (int) Math.round(v.asDouble())); return true; }
-                }
-                case "Float" -> {
-                    if (v.isNumber()) { m.setFloat(name, (float) v.asDouble()); return true; }
-                }
-                case "Color" -> {
-                    ColorRGBA c = parseColor(v);
-                    if (c != null) { m.setColor(name, c); return true; }
-                }
-                case "Vector2" -> {
-                    Vector2f vv = parseVec2(v);
-                    if (vv != null) { m.setVector2(name, vv); return true; }
-                }
-                case "Vector3" -> {
-                    Vector3f vv = parseVec3(v);
-                    if (vv != null) { m.setVector3(name, vv); return true; }
-                }
-                case "Vector4" -> {
-                    Vector4f vv = parseVec4(v);
-                    if (vv != null) { m.setVector4(name, vv); return true; }
-                }
+                case "Int" -> { if (v.isNumber()) { m.setInt(name, (int) Math.round(v.asDouble())); return true; } }
+                case "Float" -> { if (v.isNumber()) { m.setFloat(name, (float) v.asDouble()); return true; } }
+                case "Color" -> { ColorRGBA c = parseColor(v); if (c != null) { m.setColor(name, c); return true; } }
+                case "Vector2" -> { Vector2f vv = parseVec2(v); if (vv != null) { m.setVector2(name, vv); return true; } }
+                case "Vector3" -> { Vector3f vv = parseVec3(v); if (vv != null) { m.setVector3(name, vv); return true; } }
+                case "Vector4" -> { Vector4f vv = parseVec4(v); if (vv != null) { m.setVector4(name, vv); return true; } }
                 case "Texture2D", "Texture3D", "TextureCubeMap" -> {
                     TextureDesc td = parseTextureDesc(v);
                     if (td != null) { setTexture(assets, m, name, td); return true; }
@@ -277,27 +248,17 @@ public final class MaterialUtils {
 
     private static Vector2f parseVec2(Value v) {
         if (v == null || v.isNull()) return null;
-
         if (v.hasArrayElements() && v.getArraySize() >= 2) {
-            return new Vector2f(
-                    (float) v.getArrayElement(0).asDouble(),
-                    (float) v.getArrayElement(1).asDouble()
-            );
+            return new Vector2f((float) v.getArrayElement(0).asDouble(), (float) v.getArrayElement(1).asDouble());
         }
-
         if (v.hasMembers() && (v.hasMember("x") || v.hasMember("y"))) {
-            return new Vector2f(
-                    (float) num(v, "x", 0.0),
-                    (float) num(v, "y", 0.0)
-            );
+            return new Vector2f((float) num(v, "x", 0.0), (float) num(v, "y", 0.0));
         }
-
         return null;
     }
 
     private static Vector3f parseVec3(Value v) {
         if (v == null || v.isNull()) return null;
-
         if (v.hasArrayElements() && v.getArraySize() >= 3) {
             return new Vector3f(
                     (float) v.getArrayElement(0).asDouble(),
@@ -305,21 +266,14 @@ public final class MaterialUtils {
                     (float) v.getArrayElement(2).asDouble()
             );
         }
-
         if (v.hasMembers() && (v.hasMember("x") || v.hasMember("y") || v.hasMember("z"))) {
-            return new Vector3f(
-                    (float) num(v, "x", 0.0),
-                    (float) num(v, "y", 0.0),
-                    (float) num(v, "z", 0.0)
-            );
+            return new Vector3f((float) num(v, "x", 0.0), (float) num(v, "y", 0.0), (float) num(v, "z", 0.0));
         }
-
         return null;
     }
 
     private static Vector4f parseVec4(Value v) {
         if (v == null || v.isNull()) return null;
-
         if (v.hasArrayElements() && v.getArraySize() >= 4) {
             return new Vector4f(
                     (float) v.getArrayElement(0).asDouble(),
@@ -328,7 +282,6 @@ public final class MaterialUtils {
                     (float) v.getArrayElement(3).asDouble()
             );
         }
-
         if (v.hasMembers() && (v.hasMember("x") || v.hasMember("y") || v.hasMember("z") || v.hasMember("w"))) {
             return new Vector4f(
                     (float) num(v, "x", 0.0),
@@ -337,19 +290,44 @@ public final class MaterialUtils {
                     (float) num(v, "w", 1.0)
             );
         }
-
         return null;
     }
 
     private static void setTexture(AssetManager assets, Material m, String name, TextureDesc td) {
         if (td == null || td.texture() == null || td.texture().isBlank()) return;
 
-        Texture t = assets.loadTexture(td.texture().trim());
+        boolean hasOverrides =
+                td.wrap() != null ||
+                        td.minFilter() != null ||
+                        td.magFilter() != null ||
+                        td.anisotropy() > 0;
 
-        if (td.wrap() != null) t.setWrap(td.wrap());
-        if (td.minFilter() != null) t.setMinFilter(td.minFilter());
-        if (td.magFilter() != null) t.setMagFilter(td.magFilter());
-        if (td.anisotropy() > 0) t.setAnisotropicFilter(td.anisotropy());
+        if (!hasOverrides) {
+            Texture t = assets.loadTexture(td.texture().trim());
+            m.setTexture(name, t);
+            return;
+        }
+
+        TextureKey key = TextureKey.of(td);
+        Texture t = textureCache.get(key, k -> {
+            Texture base = assets.loadTexture(td.texture().trim());
+
+            // Never mutate base (shared by AssetManager)
+            Texture copy;
+            try {
+                copy = base.clone();
+            } catch (Throwable ignored) {
+                // If clone failed, safest is: return base as-is without overrides
+                // (better than breaking other materials)
+                return base;
+            }
+
+            if (td.wrap() != null) copy.setWrap(td.wrap());
+            if (td.minFilter() != null) copy.setMinFilter(td.minFilter());
+            if (td.magFilter() != null) copy.setMagFilter(td.magFilter());
+            if (td.anisotropy() > 0) copy.setAnisotropicFilter(td.anisotropy());
+            return copy;
+        });
 
         m.setTexture(name, t);
     }

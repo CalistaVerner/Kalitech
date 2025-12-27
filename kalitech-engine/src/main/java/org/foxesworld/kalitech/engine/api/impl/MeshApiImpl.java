@@ -34,6 +34,10 @@ public final class MeshApiImpl implements MeshApi {
     private final AssetManager assets;
     private final SurfaceRegistry registry;
 
+    // Creating a new default material for every mesh is a common source of stutter when creating many meshes.
+    // Cache it (and clone if you ever need per-geometry mutation).
+    private volatile Material cachedDefaultMat;
+
     public MeshApiImpl(EngineApiImpl engine, AssetManager assets, SurfaceRegistry registry) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.assets = Objects.requireNonNull(assets, "assets");
@@ -72,8 +76,13 @@ public final class MeshApiImpl implements MeshApi {
     }
 
     private Material defaultMat() {
-        Material m = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
-        m.setColor("Color", ColorRGBA.White);
+        Material m = cachedDefaultMat;
+        if (m == null) {
+            Material created = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
+            created.setColor("Color", ColorRGBA.White);
+            cachedDefaultMat = created;
+            m = created;
+        }
         return m;
     }
 
@@ -164,7 +173,6 @@ public final class MeshApiImpl implements MeshApi {
 
         return spatial;
     }
-
 
     private void applyMaterial(SurfaceApi.SurfaceHandle h, Spatial s, Value cfg) {
         Value m = member(cfg, "material");
