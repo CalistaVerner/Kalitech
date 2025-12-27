@@ -255,17 +255,17 @@ class LightRig {
         });
 
         engine.log().info("[TEST] torch id=" + torch.id());
-        engine.render().debugViewports();
-        for (let i = 0; i < 4; i++) {
+        //engine.render().debugViewports();
+        for (let i = 0; i < 160; i++) {
 
             const g = primitives.create({
-                type: "capsule",
-                radius: 0.35,
-                height: 1.8,
-                pos: [200, 3, -300],
-                physics: { mass: 80, lockRotation: true }
+                type: "box",
+                size: this.randNum(1, 5),
+                name: 'box-'+i,
+                pos: [120, 3, -300],
+                physics: { mass: 80, lockRotation: false }
             });
-            g.setMaterial(M.getMaterial('unshaded.grass'));
+            g.setMaterial(M.getMaterial('box'));
     }
 
 
@@ -273,6 +273,19 @@ class LightRig {
 
 
     }
+
+     randNum(min, max) {
+        min = +min;
+        max = +max;
+        if (!Number.isFinite(min) || !Number.isFinite(max)) {
+            throw new Error("randNum(min, max): min/max must be numbers");
+        }
+        if (max < min) {
+            const t = min; min = max; max = t;
+        }
+        return min + Math.random() * (max - min);
+    }
+
 }
 
 module.exports = LightRig;

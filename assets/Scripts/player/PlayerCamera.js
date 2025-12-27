@@ -129,6 +129,25 @@ class PlayerCamera {
         camModes.update(tpf, snap);
     }
 
+    /**
+     * Copies the authoritative view (smoothed yaw/pitch) from CameraOrchestrator into PlayerDomain.
+     * This is the single source of truth for aiming/movement direction for all subsystems.
+     */
+    syncDomain(dom) {
+        if (!dom) return;
+
+        // These are the *actual* angles used by the orchestrator.
+        try {
+            if (camModes && camModes.look) {
+                dom.view.yaw = +camModes.look._yawS || 0;
+                dom.view.pitch = +camModes.look._pitchS || 0;
+            }
+        } catch (_) {}
+
+        try { dom.view.type = String(camModes.type || this.type || "third"); }
+        catch (_) { dom.view.type = this.type || "third"; }
+    }
+
     destroy() {
         this.ready = false;
         try { camModes.attachTo(0); camModes.setType("free"); } catch (_) {}

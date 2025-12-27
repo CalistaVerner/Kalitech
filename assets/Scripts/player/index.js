@@ -17,6 +17,46 @@ const PlayerUI = require("./PlayerUI.js");
 const PlayerEvents = require("./PlayerEvents.js");
 const { PlayerEntityFactory } = require("./PlayerEntityFactory.js");
 
+// -------------------- domain --------------------
+
+/**
+ * PlayerDomain is the single source of truth for player state for the current frame.
+ * All subsystems must read from here instead of guessing from engine.* APIs.
+ */
+class PlayerDomain {
+    constructor(player) {
+        this.player = player;
+
+        this.ids = { entityId: 0, surfaceId: 0, bodyId: 0 };
+
+        this.input = {
+            ax: 0,
+            az: 0,
+            run: false,
+            jump: false,
+            lmbDown: false,
+            lmbJustPressed: false
+        };
+
+        // ✅ one view for everyone (Movement/Shoot/etc)
+        this.view = { yaw: 0, pitch: 0, type: "third" };
+
+        // optional derived state (events, UI, etc.)
+        this.pose = { x: 0, y: 0, z: 0, grounded: false };
+
+        // frame bookkeeping
+        this.frame = { tpf: 0, snap: null };
+    }
+
+    syncIdsFromPlayer() {
+        const p = this.player;
+        this.ids.entityId = p.entityId | 0;
+        this.ids.surfaceId = p.surfaceId | 0;
+        this.ids.bodyId = p.bodyId | 0;
+        return this;
+    }
+}
+
 class Player {
     constructor(ctx, cfg) {
         this.ctx = ctx;
@@ -28,6 +68,9 @@ class Player {
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
+
+        // ✅ single source of truth for player state (shared for all subsystems)
+        this.dom = new PlayerDomain(this);
 
         // subsystems (all receive `this`)
         this.factory  = new PlayerEntityFactory(this);
@@ -108,6 +151,9 @@ class Player {
         this.surfaceId = this.entity.surfaceId | 0;
         this.bodyId    = this.entity.bodyId | 0;
 
+        // publish ids into domain immediately
+        this.dom.syncIdsFromPlayer();
+
         // ---- bind movement ----
         this.movement.bind(); // takes bodyId from player
 
@@ -140,14 +186,21 @@ class Player {
         let snap = null;
         try { snap = engine.input().consumeSnapshot(); } catch (_) {}
 
-        // movement
-        this.movement.update(tpf, snap);
+        // frame sync
+        this.dom.frame.tpf = tpf;
+        this.dom.frame.snap = snap;
+        this.dom.syncIdsFromPlayer();
 
-        // camera
+        // 1) camera updates first (so view is authoritative for this frame)
         this.camera.update(tpf, snap);
+        if (this.camera.syncDomain) this.camera.syncDomain(this.dom);
+
+        // 2) player logic (movement/shoot/etc) consumes dom.view
+        this.movement.update(tpf, snap);
 
         // events (derived state)
         const grounded = this._calcGroundedForEvents();
+        this.dom.pose.grounded = grounded;
         this.events.onState({ grounded, bodyId: this.bodyId | 0 });
 
         // end frame
