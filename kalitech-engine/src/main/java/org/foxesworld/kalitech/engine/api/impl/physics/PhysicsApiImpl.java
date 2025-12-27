@@ -8,6 +8,7 @@ import com.jme3.bullet.collision.PhysicsRayTestResult;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.util.CollisionShapeFactory;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
@@ -255,6 +256,40 @@ public final class PhysicsApiImpl implements PhysicsApi {
         Vector3f v = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
         h.__raw().setLinearVelocity(v);
     }
+
+    @HostAccess.Export
+    public void yaw(Object handleOrId, double yaw) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.yaw(yaw)");
+        RigidBodyControl rb = h.__raw();
+
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "[physics] yaw bodyId={} yaw(rad)={} yaw(deg)={}",
+                    h.id,
+                    yaw,
+                    Math.toDegrees(yaw)
+            );
+        }
+
+        // rotate around Y axis only
+        Quaternion q = new Quaternion();
+        q.fromAngles(0f, (float) yaw, 0f);
+
+        rb.setPhysicsRotation(q);
+
+        // keep rotation stable when angularFactor==0 (lockRotation)
+        rb.setAngularVelocity(Vector3f.ZERO);
+
+        if (log.isTraceEnabled()) {
+            log.trace(
+                    "[physics] yaw applied bodyId={} quat={}",
+                    h.id,
+                    q
+            );
+        }
+    }
+
+
 
     @HostAccess.Export
     public void applyImpulse(Object handleOrId, Object vec3) {

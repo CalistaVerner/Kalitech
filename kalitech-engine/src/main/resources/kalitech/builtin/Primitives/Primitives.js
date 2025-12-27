@@ -3,11 +3,13 @@
 "use strict";
 
 /**
- * Builtin primitives factory (OO wrapper).
+ * Builtin primitives factory.
  *
- * Returns Primitive objects with methods like:
- *   const g = primitives.box({...})
- *   g.setMaterial({def, params})
+ * Wraps returned SurfaceHandle so scripts can call:
+ *   g.applyImpulse({x,y,z})
+ *
+ * This wrapper is transparent for all other methods:
+ *   g.setMaterial(...), g.attachToRoot(), g.id, etc.
  */
 module.exports = function primitivesFactory(K) {
     K = K || (globalThis.__kalitech || Object.create(null));
@@ -19,7 +21,7 @@ module.exports = function primitivesFactory(K) {
         return eng;
     }
 
-    function meshApi() {
+    function mesh() {
         const eng = requireEngine();
         const m = eng.mesh && eng.mesh();
         if (!m || typeof m.create !== "function") {
@@ -28,15 +30,106 @@ module.exports = function primitivesFactory(K) {
         return m;
     }
 
-    function surfaceApi() {
-        const eng = requireEngine();
-        const s = eng.surface && eng.surface();
-        if (!s) throw new Error("[builtin/primitives] engine.surface() is required");
-        return s;
+    // ---------- config normalization (IMPORTANT) ----------
+
+    function _isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+    function _num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
+
+    function _normalizePos(p) {
+        // keep array [x,y,z] OR {x,y,z} (engine side can parse both)
+        if (Array.isArray(p)) {
+            return [ _num(p[0], 0), _num(p[1], 0), _num(p[2], 0) ];
+        }
+        if (_isObj(p)) {
+            // accept {x,y,z} or {0:..,1:..,2:..}
+            const x = (p.x != null) ? p.x : p[0];
+            const y = (p.y != null) ? p.y : p[1];
+            const z = (p.z != null) ? p.z : p[2];
+            return [ _num(x, 0), _num(y, 0), _num(z, 0) ];
+        }
+        return undefined;
+    }
+
+    function _normalizePhysics(cfg) {
+        // allow:
+        //  physics: {mass, lockRotation,...}
+        //  physics: 80  -> {mass:80}
+        //  mass: 80     -> physics.mass = 80
+        //  lockRotation/kinematic/... at top-level -> move into physics
+        let p = cfg.physics;
+
+        if (typeof p === "number") p = { mass: p };
+        else if (!_isObj(p)) p = (_isObj(p) ? p : undefined);
+
+        // top-level shorthands
+        const topMass = (cfg.mass != null) ? cfg.mass : undefined;
+        const topEnabled = (cfg.physicsEnabled != null) ? cfg.physicsEnabled : cfg.enabled; // optional alias
+        const topLock = cfg.lockRotation;
+        const topKin = cfg.kinematic;
+
+        const topFriction = cfg.friction;
+        const topRest = cfg.restitution;
+        const topDamp = cfg.damping;
+        const topCollider = cfg.collider;
+
+        // if any physics info exists anywhere — ensure object
+        const hasAny =
+            p != null ||
+            topMass != null || topEnabled != null || topLock != null || topKin != null ||
+            topFriction != null || topRest != null || topDamp != null || topCollider != null;
+
+        if (!hasAny) return undefined;
+
+        p = p || {};
+        if (topMass != null && p.mass == null) p.mass = _num(topMass, 0);
+        if (topEnabled != null && p.enabled == null) p.enabled = !!topEnabled;
+        if (topLock != null && p.lockRotation == null) p.lockRotation = !!topLock;
+        if (topKin != null && p.kinematic == null) p.kinematic = !!topKin;
+
+        if (topFriction != null && p.friction == null) p.friction = topFriction;
+        if (topRest != null && p.restitution == null) p.restitution = topRest;
+        if (topDamp != null && p.damping == null) p.damping = topDamp;
+        if (topCollider != null && p.collider == null) p.collider = topCollider;
+
+        return p;
     }
 
     function normalizeCfg(cfg) {
-        return (cfg && typeof cfg === "object") ? cfg : {};
+        // Goal: preserve and normalize options you listed:
+        // radius, height, name, pos, physics
+        cfg = (_isObj(cfg)) ? cfg : {};
+
+        const out = Object.assign({}, cfg);
+
+        // --- type normalization ---
+        if (out.type != null) out.type = String(out.type);
+
+        // --- name ---
+        if (out.name != null) out.name = String(out.name);
+
+        // --- position: accept pos | position | loc | location ---
+        const p =
+            (out.pos != null) ? out.pos :
+                (out.position != null) ? out.position :
+                    (out.loc != null) ? out.loc :
+                        (out.location != null) ? out.location :
+                            undefined;
+
+        const posN = _normalizePos(p);
+        if (posN !== undefined) out.pos = posN;
+
+        // --- geometry params: keep radius/height, plus aliases r/h ---
+        if (out.radius == null && out.r != null) out.radius = out.r;
+        if (out.height == null && out.h != null) out.height = out.h;
+
+        if (out.radius != null) out.radius = _num(out.radius, out.radius);
+        if (out.height != null) out.height = _num(out.height, out.height);
+
+        // --- physics normalization ---
+        const phys = _normalizePhysics(out);
+        if (phys !== undefined) out.physics = phys;
+
+        return out;
     }
 
     function withType(type, cfg) {
@@ -44,159 +137,6 @@ module.exports = function primitivesFactory(K) {
         if (!c.type) c.type = type;
         else c.type = String(c.type);
         return c;
-    }
-
-    function toSurfaceRef(handleOrId) {
-        if (handleOrId == null) return null;
-        if (typeof handleOrId === "number") return handleOrId;
-        if (typeof handleOrId === "object") return handleOrId;
-        return handleOrId;
-    }
-
-    /**
-     * @class Primitive
-     */
-    class Primitive {
-        /**
-         * @param {any} handle SurfaceHandle returned by engine.mesh().create
-         * @param {string} type
-         */
-        constructor(handle, type) {
-            this._h = handle;
-            this._type = String(type || "");
-        }
-
-        /**
-         * Returns raw surface handle.
-         * @returns {any}
-         */
-        handle() {
-            return this._h;
-        }
-
-        /**
-         * Returns surface id if available (supports id() or id field).
-         * @returns {number}
-         */
-        id() {
-            const h = this._h;
-            if (!h) return 0;
-            try {
-                const v = h.id;
-                if (typeof v === "function") return +v.call(h) || 0;
-                if (typeof v === "number") return v | 0;
-            } catch (_) {}
-            try {
-                if (typeof h.id === "function") return +h.id() || 0;
-            } catch (_) {}
-            return 0;
-        }
-
-        /**
-         * @returns {string}
-         */
-        type() {
-            return this._type;
-        }
-
-        /**
-         * Applies a material to this primitive.
-         * Accepts MaterialHandle or {def, params}.
-         *
-         * @param {any} materialOrCfg
-         * @returns {Primitive}
-         */
-        setMaterial(materialOrCfg) {
-            const eng = requireEngine();
-            const s = surfaceApi();
-            if (typeof s.setMaterial !== "function") {
-                throw new Error("[builtin/primitives] engine.surface().setMaterial(surfaceOrId, matOrCfg) is required");
-            }
-
-            let m = materialOrCfg;
-
-            // Если пришёл plain JS cfg {def, params}, сначала создаём host MaterialHandle.
-            // Это убирает зависимость от того, как Graal передаст объект в Java (Value/Proxy/Map).
-            if (m && typeof m === "object" && !Array.isArray(m) && m.def) {
-                const matApi = eng.material && eng.material();
-                if (!matApi || typeof matApi.create !== "function") {
-                    throw new Error("[builtin/primitives] engine.material().create(cfg) is required");
-                }
-                m = matApi.create(m);
-            }
-
-            // Можно поддержать удобный кейс: material name из MaterialsRegistry
-            // g.setMaterial("grass") -> materials.getHandle("grass")
-            if (typeof m === "string") {
-                const reg = (K && K.builtins && K.builtins.materials) || globalThis.materials;
-                if (!reg || typeof reg.getHandle !== "function") {
-                    throw new Error("[builtin/primitives] materials registry is required for setMaterial(name)");
-                }
-                m = reg.getHandle(m);
-            }
-
-            s.setMaterial(toSurfaceRef(this._h), m);
-            return this;
-        }
-
-
-        /**
-         * Sets position (if surface API supports it).
-         *
-         * @param {any} pos
-         * @returns {Primitive}
-         */
-        setPos(pos) {
-            const s = surfaceApi();
-            const ref = toSurfaceRef(this._h);
-
-            if (typeof s.transform === "function") {
-                s.transform(ref, { pos: pos });
-                return this;
-            }
-            if (typeof s.setPos === "function") {
-                s.setPos(ref, pos);
-                return this;
-            }
-            throw new Error("[builtin/primitives] engine.surface().transform(...) or setPos(...) is required for setPos()");
-        }
-
-        /**
-         * Sets transform (best-effort through surface API).
-         *
-         * @param {object} t {pos?, rot?, scale?}
-         * @returns {Primitive}
-         */
-        setTransform(t) {
-            const s = surfaceApi();
-            const ref = toSurfaceRef(this._h);
-
-            if (typeof s.transform === "function") {
-                s.transform(ref, t);
-                return this;
-            }
-
-            if (t && t.pos != null && typeof s.setPos === "function") s.setPos(ref, t.pos);
-            if (t && t.rot != null && typeof s.setRot === "function") s.setRot(ref, t.rot);
-            if (t && t.scale != null && typeof s.setScale === "function") s.setScale(ref, t.scale);
-
-            return this;
-        }
-
-        /**
-         * Destroys this surface (if surface API supports destroy/remove).
-         *
-         * @returns {boolean}
-         */
-        destroy() {
-            const s = surfaceApi();
-            const ref = toSurfaceRef(this._h);
-
-            if (typeof s.destroy === "function") return !!s.destroy(ref);
-            if (typeof s.remove === "function") { s.remove(ref); return true; }
-
-            throw new Error("[builtin/primitives] engine.surface().destroy(...) or remove(...) is required for destroy()");
-        }
     }
 
     function unshadedColor(rgba) {
@@ -223,50 +163,150 @@ module.exports = function primitivesFactory(K) {
         return p;
     }
 
+    // ------------------- NEW: Surface wrapper with applyImpulse -------------------
+
+    function _readNum(v, fb) {
+        const n = +v;
+        return Number.isFinite(n) ? n : (fb || 0);
+    }
+
+    function _resolveMassFromCfg(cfg) {
+        const p = cfg && cfg.physics;
+        if (p && typeof p === "object" && p.mass != null) return _readNum(p.mass, 0);
+        if (cfg && cfg.mass != null) return _readNum(cfg.mass, 0); // fallback
+        return 0;
+    }
+
+    function wrapSurface(handle, cfg) {
+        if (handle && handle.__isPrimitiveWrapper) return handle;
+
+        const eng = requireEngine();
+        const massHint = _resolveMassFromCfg(cfg);
+
+        function _bodyHandle() {
+            // IMPORTANT: physics.body caches per surfaceId, so calling it again is safe.
+            return eng.physics().body({ surface: handle, mass: massHint });
+        }
+
+        const proxy = new Proxy(Object.create(null), {
+            get(_t, prop) {
+                if (prop === "__isPrimitiveWrapper") return true;
+                if (prop === "__surface") return handle;
+
+                if (prop === "applyImpulse") {
+                    return function applyImpulse(vec3) {
+                        const b = _bodyHandle();
+                        eng.physics().applyImpulse(b, vec3);
+                    };
+                }
+                if (prop === "applyCentralForce") {
+                    return function applyCentralForce(vec3) {
+                        const b = _bodyHandle();
+                        eng.physics().applyCentralForce(b, vec3);
+                    };
+                }
+                if (prop === "velocity") {
+                    return function velocity(v) {
+                        const b = _bodyHandle();
+                        if (arguments.length === 0) return eng.physics().velocity(b);
+                        eng.physics().velocity(b, v);
+                    };
+                }
+                if (prop === "position") {
+                    return function position(p) {
+                        const b = _bodyHandle();
+                        if (arguments.length === 0) return eng.physics().position(b);
+                        eng.physics().position(b, p);
+                    };
+                }
+                if (prop === "lockRotation") {
+                    return function lockRotation(lock) {
+                        const b = _bodyHandle();
+                        eng.physics().lockRotation(b, !!lock);
+                    };
+                }
+
+                const v = handle[prop];
+                if (typeof v === "function") return v.bind(handle);
+                return v;
+            },
+            set(_t, prop, value) {
+                _t[prop] = value;
+                return true;
+            },
+            has(_t, prop) {
+                if (prop in _t) return true;
+                return prop in handle;
+            },
+            ownKeys(_t) {
+                const keys = new Set(Object.keys(_t));
+                try { Object.keys(handle).forEach(k => keys.add(k)); } catch (_) {}
+                keys.add("applyImpulse");
+                keys.add("applyCentralForce");
+                keys.add("velocity");
+                keys.add("position");
+                keys.add("lockRotation");
+                return Array.from(keys);
+            },
+            getOwnPropertyDescriptor(_t, prop) {
+                if (prop in _t) return Object.getOwnPropertyDescriptor(_t, prop);
+                return { configurable: true, enumerable: true, writable: true, value: this.get(_t, prop) };
+            }
+        });
+
+        return proxy;
+    }
+
+    // ------------------- factory API (wrap results) -------------------
+
     function create(cfg) {
-        const c = normalizeCfg(cfg);
-        const type = String(c.type || "");
-        const h = meshApi().create(c);
-        return new Primitive(h, type);
+        cfg = normalizeCfg(cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function box(cfg) {
-        const c = withType("box", cfg);
-        return new Primitive(meshApi().create(c), "box");
+        cfg = withType("box", cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function cube(cfg) {
-        const c = withType("box", cfg);
-        return new Primitive(meshApi().create(c), "box");
+        cfg = withType("box", cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function sphere(cfg) {
-        const c = withType("sphere", cfg);
-        return new Primitive(meshApi().create(c), "sphere");
+        cfg = withType("sphere", cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function cylinder(cfg) {
-        const c = withType("cylinder", cfg);
-        return new Primitive(meshApi().create(c), "cylinder");
+        cfg = withType("cylinder", cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function capsule(cfg) {
-        const c = withType("capsule", cfg);
-        return new Primitive(meshApi().create(c), "capsule");
+        cfg = withType("capsule", cfg);
+        const h = mesh().create(cfg);
+        return wrapSurface(h, cfg);
     }
 
     function many(list) {
         if (!Array.isArray(list)) throw new Error("[builtin/primitives] many(list): array required");
+        const m = mesh();
         const out = new Array(list.length);
         for (let i = 0; i < list.length; i++) {
-            const c = normalizeCfg(list[i]);
-            out[i] = new Primitive(meshApi().create(c), String(c.type || ""));
+            const cfg = normalizeCfg(list[i]);
+            out[i] = wrapSurface(m.create(cfg), cfg);
         }
         return out;
     }
 
-    return Object.freeze({
-        Primitive,
+    const api = Object.freeze({
         create,
         box,
         cube,
@@ -277,4 +317,6 @@ module.exports = function primitivesFactory(K) {
         unshadedColor,
         physics
     });
+
+    return api;
 };

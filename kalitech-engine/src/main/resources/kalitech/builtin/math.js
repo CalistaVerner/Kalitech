@@ -106,6 +106,19 @@ function damp(current, target, lambda, dt) {
     return lerp(current, target, 1 - Math.exp(-lambda * dt));
 }
 
+function randNum(min, max) {
+    min = +min;
+    max = +max;
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        throw new Error("randNum(min, max): min/max must be numbers");
+    }
+    if (max < min) {
+        const t = min; min = max; max = t;
+    }
+    return min + Math.random() * (max - min);
+}
+
+
 // ---------- deterministic hashes (no randomness) ----------
 function hash1i(x) {
     // 32-bit integer hash -> [0..1)
