@@ -7,6 +7,7 @@ import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
 import com.jme3.bullet.collision.shapes.CollisionShape;
 import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
@@ -82,10 +83,41 @@ public final class PhysicsApiImpl implements PhysicsApi {
             if (h != null) return h;
         }
 
-        Object colliderCfg = PhysicsValueParsers.member(cfg, "collider");
-        CollisionShape shape = PhysicsColliderFactory.create(colliderCfg, spatial);
-
+        // ✅ mass FIRST (важно!)
         float mass = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "mass"), 0.0);
+
+        Object colliderCfg = PhysicsValueParsers.member(cfg, "collider");
+
+        // ✅ default collider: for dynamic bodies use dynamicMesh, for static use mesh
+        CollisionShape shape;
+        if (colliderCfg == null) {
+            shape = (mass > 0f) ? CollisionShapeFactory.createDynamicMeshShape(spatial) : CollisionShapeFactory.createMeshShape(spatial);
+        } else {
+            // ✅ if user explicitly requested "mesh" with mass>0 -> hard error with clear message
+            // Value
+            if (colliderCfg instanceof Value v && v.hasMembers() && v.hasMember("type")) {
+                String t = String.valueOf(v.getMember("type"));
+                if ("mesh".equalsIgnoreCase(t) && mass > 0f) {
+                    throw new IllegalArgumentException(
+                            "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
+                                    "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
+                    );
+                }
+            }
+            // Map
+            if (colliderCfg instanceof java.util.Map<?, ?> m) {
+                Object tObj = m.get("type");
+                String t = (tObj != null) ? String.valueOf(tObj) : "";
+                if ("mesh".equalsIgnoreCase(t) && mass > 0f) {
+                    throw new IllegalArgumentException(
+                            "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
+                                    "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
+                    );
+                }
+            }
+
+            shape = PhysicsColliderFactory.create(colliderCfg, spatial);
+        }
 
         RigidBodyControl rb = new RigidBodyControl(shape, mass);
 
@@ -115,7 +147,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
         byId.put(id, handle);
         bodyIdBySurface.put(surfaceId, id);
 
-        log.debug("[physics] body created id={} surfaceId={} mass={} kinematic={} lockRotation={}", id, surfaceId, mass, kinematic, lockRot);
+        log.debug("[physics] body created id={} surfaceId={} mass={} kinematic={} lockRotation={}",
+                id, surfaceId, mass, kinematic, lockRot);
+
         return handle;
     }
 

@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+import com.jme3.asset.AssetManager;
 import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingSphere;
 import com.jme3.bounding.BoundingVolume;
@@ -12,12 +13,16 @@ import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.Geometry;
-import com.jme3.scene.Node;
-import com.jme3.scene.Spatial;
+import com.jme3.scene.*;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.material.MaterialUtils;
+import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
+import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
+import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -26,14 +31,27 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.str;
+
 public final class SurfaceApiImpl implements SurfaceApi {
 
     private final EngineApiImpl engine;
     private final SurfaceRegistry registry;
+    private static final String UD_UV_SCALE = "__kt_uvScale";
+    private final AssetManager assets;
+    private final MeshApi meshApi;
+    private final PhysicsApi physicsApi;
+    private final MaterialApi materialApi;
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.registry = Objects.requireNonNull(registry, "registry");
+        this.engine = engine;
+        this.registry = registry;
+        this.assets = engine.getAssets();
+        this.physicsApi = engine.physics();
+        this.meshApi = engine.mesh();
+        this.materialApi = engine.material();
+        this.registry.bindSurfaceApi(this);
+
     }
 
     @HostAccess.Export
@@ -49,9 +67,10 @@ public final class SurfaceApiImpl implements SurfaceApi {
         Spatial s = requireSpatial(target);
 
         Material mat = unwrapMaterial(materialHandleOrCfg);
+        Value cfg = null;
 
-        // если это не handle, но пришёл JS object {def, params} — создадим material через engine.material()
-        if (mat == null && materialHandleOrCfg instanceof Value v && v != null && v.hasMembers() && v.hasMember("def")) {
+        if (mat == null && materialHandleOrCfg instanceof Value v && v.hasMembers() && v.hasMember("def")) {
+            cfg = v;
             MaterialApiImpl.MaterialHandle mh = engine.material().create(v);
             mat = mh.__material();
         }
@@ -60,11 +79,116 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
         if (s instanceof TerrainQuad tq) {
             tq.setMaterial(mat);
-        } else if (s instanceof Geometry g) {
-            g.setMaterial(mat);
-        } else {
-            throw new IllegalStateException("surface.setMaterial: unsupported Spatial type=" + s.getClass().getName());
+            return;
         }
+
+        if (s instanceof Geometry g) {
+            g.setMaterial(mat);
+            if (cfg != null) {
+                try { applyTileWorldToGeometryIfAny(g, cfg); } catch (Throwable ignored) {}
+            }
+            return;
+        }
+
+        if (s instanceof Node n) {
+            applyMaterialRecursiveWithTileWorld(n, mat, cfg);
+            return;
+        }
+
+        throw new IllegalStateException("surface.setMaterial: unsupported Spatial type=" + s.getClass().getName());
+    }
+
+    private static void applyMaterialRecursiveWithTileWorld(Spatial s, Material mat, Value cfgOrNull) {
+        if (s instanceof Geometry g) {
+            g.setMaterial(mat);
+            if (cfgOrNull != null) {
+                try { applyTileWorldToGeometryIfAny(g, cfgOrNull); } catch (Throwable ignored) {}
+            }
+            return;
+        }
+        if (s instanceof TerrainQuad tq) {
+            tq.setMaterial(mat);
+            return;
+        }
+        if (s instanceof Node n) {
+            for (Spatial child : n.getChildren()) applyMaterialRecursiveWithTileWorld(child, mat, cfgOrNull);
+        }
+    }
+
+
+    private static void applyTileWorldToGeometryIfAny(Geometry g, Value materialCfg) {
+        if (g == null || materialCfg == null || materialCfg.isNull()) return;
+
+        Value params = member(materialCfg, "params");
+        if (params == null || params.isNull() || !params.hasMembers()) return;
+
+        // 1) найти tileWorld в любом texture-параметре (приоритет BaseColorMap/ColorMap)
+        MaterialUtils.TextureDesc td = null;
+
+        td = tryTex(params, "BaseColorMap");
+        if (td == null) td = tryTex(params, "ColorMap");
+
+        if (td == null) {
+            // fallback: любой параметр-текстура
+            for (String k : params.getMemberKeys()) {
+                td = MaterialUtils.parseTextureDesc(params.getMember(k));
+                if (td != null && td.tileWorld() != null) break;
+                td = null;
+            }
+        }
+
+        if (td == null || td.tileWorld() == null) return;
+
+        // 2) размеры геометрии в world units (берём X/Z из world bound)
+        BoundingVolume bv = g.getWorldBound();
+        if (!(bv instanceof BoundingBox bb)) return;
+
+        float worldX = bb.getXExtent() * 2f;
+        float worldZ = bb.getZExtent() * 2f;
+
+        // если геометрия “тонкая” по Z (например плоскость лежит в XY) — попробуем Y вместо Z
+        if (worldZ < 1e-4f) worldZ = bb.getYExtent() * 2f;
+        if (worldX < 1e-4f || worldZ < 1e-4f) return;
+
+        float tileX = td.tileWorld().x();
+        float tileZ = td.tileWorld().z();
+        if (tileX <= 0f || tileZ <= 0f) return;
+
+        // сколько повторов на размер поверхности
+        float u = worldX / tileX;
+        float v = worldZ / tileZ;
+
+        applyUvScaleNonAccumulating(g, u, v);
+    }
+
+    private static MaterialUtils.TextureDesc tryTex(Value params, String name) {
+        if (params == null || params.isNull() || !params.hasMember(name)) return null;
+        MaterialUtils.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
+        return (td != null && td.tileWorld() != null) ? td : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyUvScaleNonAccumulating(Geometry g, float u, float v) {
+        if (u <= 0f || v <= 0f) return;
+
+        Mesh mesh = g.getMesh();
+        if (mesh == null) return;
+
+        VertexBuffer vb = mesh.getBuffer(VertexBuffer.Type.TexCoord);
+        if (vb == null) return;
+
+        // читаем предыдущий scale
+        Vector2f prev = g.getUserData(UD_UV_SCALE);
+        if (prev == null) prev = new Vector2f(1f, 1f);
+
+        // ratio чтобы не копить масштаб при повторном setMaterial
+        float ru = u / prev.x;
+        float rv = v / prev.y;
+
+        if (Math.abs(ru - 1f) < 1e-6f && Math.abs(rv - 1f) < 1e-6f) return;
+
+        mesh.scaleTextureCoordinates(new Vector2f(ru, rv));
+        g.setUserData(UD_UV_SCALE, new Vector2f(u, v));
     }
 
     @HostAccess.Export

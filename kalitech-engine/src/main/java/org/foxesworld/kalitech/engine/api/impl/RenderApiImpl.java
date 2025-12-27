@@ -21,6 +21,7 @@ import com.jme3.util.SkyFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.graalvm.polyglot.HostAccess;

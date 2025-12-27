@@ -32,6 +32,12 @@ public interface EngineApi {
     @HostAccess.Export
     PhysicsApi physics();
 
+    @HostAccess.Export
+    LightApi light();
+
+    @HostAccess.Export
+    DebugDrawApi debug();
+
     // ✅ new unified surface layer
     @HostAccess.Export
     SurfaceApi surface();

@@ -43,6 +43,7 @@ public final class RuntimeAppState extends BaseAppState {
 
     private GraalScriptRuntime runtime;
     private HotReloadWatcher watcher;
+    private SimpleApplication sa;
 
     private SystemRegistry registry;
     private WorldAppState worldState;
@@ -67,7 +68,8 @@ public final class RuntimeAppState extends BaseAppState {
 
     @Override
     protected void initialize(Application app) {
-        SimpleApplication sa = (SimpleApplication) app;
+        this.sa = (SimpleApplication) app;
+
 
         // --- PHYSICS: one per RuntimeAppState (stable across world rebuilds) ---
         bullet = new BulletAppState();
@@ -93,7 +95,7 @@ public final class RuntimeAppState extends BaseAppState {
         });
 
         // 4) stable API for JS
-        engineApi = new EngineApiImpl(sa, sa.getAssetManager(), bus, ecs);
+        engineApi = new EngineApiImpl(this);
         // give PhysicsSpace to EngineApiImpl (so engine.physics() uses this space)
         engineApi.__setPhysicsSpace(space);
         runtime.initBuiltIns(engineApi);
@@ -345,6 +347,10 @@ public final class RuntimeAppState extends BaseAppState {
 
     public EcsWorld getEcs() {
         return ecs;
+    }
+
+    public SimpleApplication getSa() {
+        return sa;
     }
 
     public GraalScriptRuntime getRuntime() {

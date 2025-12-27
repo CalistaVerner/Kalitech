@@ -7,17 +7,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
+import org.foxesworld.kalitech.engine.api.impl.debug.DebugDrawApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.hud.HudApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.input.InputApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.light.LightApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
+import org.foxesworld.kalitech.engine.app.RuntimeAppState;
+import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-
-import java.util.Objects;
 
 public final class EngineApiImpl implements EngineApi {
 
@@ -29,6 +32,7 @@ public final class EngineApiImpl implements EngineApi {
     private final EcsWorld ecs;
     private final Thread jmeThread;
     private volatile PhysicsSpace physicsSpace;
+    private final GraalScriptRuntime runtime;
 
     private final CameraState cameraState;
     private final LogApi logApi;
@@ -46,6 +50,8 @@ public final class EngineApiImpl implements EngineApi {
     private final PhysicsApiImpl physicsApi;
     private final HudApiImpl hudApi;
     private final MeshApi mesh;
+    private final LightApiImpl light;
+    private final DebugDrawApiImpl debug;
 
     // ✅ new: unified surface registry + apis
     private final SurfaceRegistry surfaceRegistry;
@@ -53,29 +59,35 @@ public final class EngineApiImpl implements EngineApi {
     private final TerrainApi terrainApi;
     private final TerrainSplatApi terrainSplatApi;
 
-    public EngineApiImpl(SimpleApplication app, AssetManager assets, ScriptEventBus bus, EcsWorld ecs) {
-        this.app = Objects.requireNonNull(app, "app");
-        this.assets = Objects.requireNonNull(assets, "assets");
-        this.bus = Objects.requireNonNull(bus, "bus");
-        this.ecs = Objects.requireNonNull(ecs, "ecs");
+    public EngineApiImpl(RuntimeAppState runtimeAppState) {
+        this.app = runtimeAppState.getSa();
+        this.assets = runtimeAppState.getSa().getAssetManager();
+        this.bus = runtimeAppState.getBus();
+        this.ecs = runtimeAppState.getEcs();
+        this.runtime = runtimeAppState.getRuntime();
 
         this.logApi = new LogApiImpl(this);
         this.assetsApi = new AssetsApiImpl(this);
+        this.light = new LightApiImpl(this);
         this.eventsApi = new EventsApiImpl(this);
-        this.materialApi = new MaterialApiImpl(this);
+
         this.jmeThread = Thread.currentThread();
         //this.ui = new UiApiImpl();
 
         // ✅ registry must be created early
         this.surfaceRegistry = new SurfaceRegistry(this.app);
-        this.surfaceApi = new SurfaceApiImpl(this, surfaceRegistry);
+
         this.terrainApi = new TerrainApiImpl(this, surfaceRegistry);
         this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
         this.editorLinesApi = new EditorLinesApiImpl(this, surfaceRegistry);
+
         this.physicsApi = new PhysicsApiImpl(this, surfaceRegistry);
+        this.materialApi = new MaterialApiImpl(this);
         this.mesh = new MeshApiImpl(this, assets, surfaceRegistry);
+        this.surfaceApi = new SurfaceApiImpl(this, surfaceRegistry);
 
 
+        this.debug = new DebugDrawApiImpl(this);
         this.entityApi = new EntityApiImpl(this);
         this.renderApi = new RenderApiImpl(this);
         this.hudApi = new HudApiImpl(this);
@@ -99,6 +111,8 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public PhysicsApi physics() { return physicsApi; }
     @HostAccess.Export @Override public HudApi hud() { return hudApi; }
     @HostAccess.Export @Override public MeshApi mesh() { return mesh; }
+    @HostAccess.Export @Override public LightApi light() { return light; }
+    @HostAccess.Export @Override public DebugDrawApi debug() { return debug; }
 
 
 
@@ -121,6 +135,7 @@ public final class EngineApiImpl implements EngineApi {
     public void __updateTime(double tpf) {
         timeApi.update(tpf);
         this.hudApi.__tick();
+        this.debug.tick(tpf);
     }
     public void __endFrameInput() { inputApi.endFrame(); }
 
@@ -183,6 +198,11 @@ public final class EngineApiImpl implements EngineApi {
                 p.__clearAll();
             }
         } catch (Throwable ignored) {}
+    }
+
+
+    public GraalScriptRuntime getRuntime() {
+        return runtime;
     }
 
     public void __tickHud() { hudApi.__tick(); }

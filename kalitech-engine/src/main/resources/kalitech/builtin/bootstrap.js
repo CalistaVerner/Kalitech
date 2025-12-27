@@ -21,7 +21,8 @@ const DEFAULT_CONFIG = {
             paths: "@builtin/paths",
             math: "@builtin/math",
             editorPreset: "@builtin/editorPreset",
-            materials: "@builtin/MaterialsRegistry"
+            materials: "@builtin/Material/Material",
+            primitives: "@builtin/Primitives/Primitives"
         },
         exposeGlobals: true,
         globalAliases: { M: "materials" }
@@ -35,6 +36,41 @@ const K = globalThis[ROOT_KEY];
 function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
 function clamp(x, a, b) { x = +x; return x < a ? a : (x > b ? b : x); }
 function isObjectLike(x) { const t = typeof x; return x != null && (t === "object" || t === "function"); }
+
+function isFactoryBuiltin(x) {
+    return typeof x === "function";
+}
+
+function makeLazyBuiltinProxy(root, name) {
+    const handler = {
+        get(_t, prop) {
+            const builtins = root.builtins || Object.create(null);
+            let cur = builtins[name];
+
+            if (typeof cur === "function") {
+                const eng = (builtins && builtins.engine) || root._engine || globalThis.engine;
+                if (eng) {
+                    try {
+                        const api = cur(root);
+                        if (api != null) {
+                            builtins[name] = api;
+                            cur = api;
+                            root.builtins = builtins;
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            const v = cur && cur[prop];
+            if (typeof v === "function") return v.bind(cur);
+
+            return v;
+        }
+    };
+
+    return new Proxy(Object.create(null), handler);
+}
+
 
 function ensureRootState(root) {
     if (!root.builtins) root.builtins = Object.create(null);
@@ -145,7 +181,14 @@ class BuiltinRegistry {
         if (exp != null) this.root.builtins[n] = exp;
 
         const cfg = this.getConfig();
-        if (cfg.builtins && cfg.builtins.exposeGlobals) this.globals.set(n, exp, false);
+        if (cfg.builtins && cfg.builtins.exposeGlobals) {
+            if (isFactoryBuiltin(exp) && (n === "materials" || n === "primitives")) {
+                this.globals.set(n, makeLazyBuiltinProxy(this.root, n), true);
+            } else {
+                this.globals.set(n, exp, false);
+            }
+        }
+
         return exp;
     }
 

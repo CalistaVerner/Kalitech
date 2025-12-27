@@ -1,5 +1,5 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/MaterialApiImpl.java
-package org.foxesworld.kalitech.engine.api.impl;
+// Author: Calista Verner
+package org.foxesworld.kalitech.engine.api.impl.material;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
@@ -11,27 +11,36 @@ import org.graalvm.polyglot.Value;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.*;
-import static org.foxesworld.kalitech.engine.api.util.MaterialUtils.*;
+import static org.foxesworld.kalitech.engine.api.impl.material.MaterialUtils.applyParam;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.str;
 
+/**
+ * Material factory for JS configs {def, params}.
+ */
 public final class MaterialApiImpl implements MaterialApi {
 
+    private final EngineApiImpl engine;
     private final AssetManager assets;
     private final AtomicInteger ids = new AtomicInteger(1);
 
-    public MaterialApiImpl(EngineApiImpl engineApi) {
-        this.assets = Objects.requireNonNull(engineApi, "engineApi").getAssets();
+    public MaterialApiImpl(EngineApiImpl engine) {
+        this.engine = Objects.requireNonNull(engine, "engine");
+        this.assets = engine.getAssets();
     }
 
+    /**
+     * Creates a new MaterialHandle from {def, params}.
+     */
     @HostAccess.Export
     @Override
     public MaterialHandle create(Value cfg) {
-        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("material.create(cfg): cfg is null");
+        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("material.create(cfg): cfg is required");
 
         String def = str(cfg, "def", null);
-        if (def == null || def.isBlank()) throw new IllegalArgumentException("material.create: def is required");
+        if (def == null || def.isBlank()) throw new IllegalArgumentException("material.create: cfg.def is required");
 
-        Material m = new Material(assets, def.trim());
+        Material m = new Material(assets, def);
 
         Value params = member(cfg, "params");
         if (params != null && !params.isNull() && params.hasMembers()) {
@@ -43,25 +52,28 @@ public final class MaterialApiImpl implements MaterialApi {
         return new MaterialHandle(ids.getAndIncrement(), m);
     }
 
-    /** Update params without recreating material */
+    @Override
+    public void destroy(MaterialHandle handle) {
+
+    }
+
+    /**
+     * Updates params on an existing handle.
+     */
     @HostAccess.Export
+    @Override
     public void set(MaterialHandle handle, Value params) {
-        if (handle == null || handle.__material() == null) throw new IllegalArgumentException("material.set: handle is null");
+        if (handle == null || handle.material == null) throw new IllegalArgumentException("material.set: handle is required");
         if (params == null || params.isNull() || !params.hasMembers()) return;
 
-        Material m = handle.__material();
         for (String key : params.getMemberKeys()) {
-            applyParam(assets, m, key, params.getMember(key));
+            applyParam(assets, handle.material, key, params.getMember(key));
         }
     }
 
-    @HostAccess.Export
-    @Override
-    public void destroy(MaterialHandle handle) {
-        // Сейчас у вас handle просто обёртка над JME Material.
-        // Можно оставить noop, либо позже добавить пул/рефкаунт.
-    }
-
+    /**
+     * Stable host object handle.
+     */
     public static final class MaterialHandle {
         private final int id;
         private final Material material;
@@ -71,7 +83,9 @@ public final class MaterialApiImpl implements MaterialApi {
             this.material = material;
         }
 
+        @HostAccess.Export
         public int id() { return id; }
-        public Material __material() { return material; } // engine internal only
+
+        public Material __material() { return material; }
     }
 }

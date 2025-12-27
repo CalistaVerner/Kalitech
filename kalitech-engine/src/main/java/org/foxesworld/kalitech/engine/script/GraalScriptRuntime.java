@@ -4,7 +4,6 @@ package org.foxesworld.kalitech.engine.script;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.script.cache.ScriptCaches;
 import org.foxesworld.kalitech.engine.script.resolve.*;
 import org.graalvm.polyglot.Context;
@@ -33,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Security: host class lookup is disabled; host access is restricted to
  * members annotated with {@link HostAccess.Export}.</p>
- *
+ * <p>
  * Author: Calista Verner
  */
 public final class GraalScriptRuntime implements Closeable {
@@ -62,43 +61,67 @@ public final class GraalScriptRuntime implements Closeable {
 
     private final Context ctx;
     private final ScriptCaches caches;
+    private final ThreadLocal<ArrayDeque<String>> requireStack = ThreadLocal.withInitial(ArrayDeque::new);
+    private long invalidateEpoch = 0L;
 
     private volatile Thread ownerThread;
 
-    /** External stream loader used to fetch module source. */
+    /**
+     * External stream loader used to fetch module source.
+     */
     private volatile ModuleStreamProvider streamLoader;
 
-    /** CommonJS exports cache (source of truth for loaded modules & cyclic deps). */
+    /**
+     * CommonJS exports cache (source of truth for loaded modules & cyclic deps).
+     */
     private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
 
-    /** Version counter per module id. */
+    /**
+     * Version counter per module id.
+     */
     private final Map<String, AtomicLong> moduleVersions = new ConcurrentHashMap<>();
 
-    /** Dependency graph for hot reload. */
+    /**
+     * Dependency graph for hot reload.
+     */
     private final Map<String, Set<String>> forwardDeps = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> reverseDeps = new ConcurrentHashMap<>();
 
-    /** Global require in JS. */
+    /**
+     * Global require in JS.
+     */
     private final Value requireFn;
     private final MutableAliasResolver aliasResolver;
 
-    /** Job queue. */
+    /**
+     * Job queue.
+     */
     private final ScriptJobQueue jobs = new ScriptJobQueue();
 
-    /** Optional host handles registry. */
+    /**
+     * Optional host handles registry.
+     */
     private final Map<String, MethodHandle> hostHandles = new ConcurrentHashMap<>();
 
-    /** Module id resolver chain. */
+    /**
+     * Module id resolver chain.
+     */
     private final ResolverChain resolver;
 
-    /** Built-in bootstrap module id. */
+    /**
+     * Built-in bootstrap module id.
+     */
     private final String builtinBootstrapId = "@builtin/bootstrap";
 
-    /** Built-in prefix and resources directory. */
+    /**
+     * Built-in prefix and resources directory.
+     */
     private static final String BUILTIN_PREFIX = "@builtin/";
     private static final String BUILTIN_RES_DIR = "kalitech/builtin/";
 
-    /** Guard to ensure builtins init happens once. */
+    /**
+     * Guard to ensure builtins init happens once.
+     */
     private volatile boolean builtinsInitialized = false;
 
     public GraalScriptRuntime() {
@@ -115,22 +138,9 @@ public final class GraalScriptRuntime implements Closeable {
         // - then namespace kalitech:ui -> Mods/kalitech/ui/index.js
         // - then aliases (loaded from bootstrap)
         // - then pass-through
-        this.resolver = new ResolverChain()
-                .add(new BuiltinResolver(BUILTIN_PREFIX))
-                .add(new RelativeResolver())
-                .add(new NamespaceResolver("Mods"))
-                .add(aliasResolver)
-                .add(new PassThroughResolver());
+        this.resolver = new ResolverChain().add(new BuiltinResolver(BUILTIN_PREFIX)).add(new RelativeResolver()).add(new NamespaceResolver("Mods")).add(aliasResolver).add(new PassThroughResolver());
 
-        this.ctx = Context.newBuilder("js")
-                .allowExperimentalOptions(true)
-                .option("engine.WarnInterpreterOnly", "false")
-                .allowHostAccess(HostAccess.newBuilder(HostAccess.NONE)
-                        .allowAccessAnnotatedBy(HostAccess.Export.class)
-                        .build())
-                .allowHostClassLookup(className -> false)
-                .allowAllAccess(false)
-                .build();
+        this.ctx = Context.newBuilder("js").allowExperimentalOptions(true).option("engine.WarnInterpreterOnly", "false").allowHostAccess(HostAccess.newBuilder(HostAccess.NONE).allowAccessAnnotatedBy(HostAccess.Export.class).build()).allowHostClassLookup(className -> false).allowAllAccess(false).build();
 
         // install global require() dispatcher (CommonJS)
         // IMPORTANT: do NOT normalize/resolve here; requireFrom() will do it.
@@ -152,9 +162,44 @@ public final class GraalScriptRuntime implements Closeable {
         assertOwnerThread();
     }
 
+    private String formatRequireStack() {
+        ArrayDeque<String> st = requireStack.get();
+        if (st == null || st.isEmpty()) return "[]";
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        Iterator<String> it = st.descendingIterator(); // root -> leaf
+        boolean first = true;
+        while (it.hasNext()) {
+            if (!first) sb.append(" -> ");
+            first = false;
+            sb.append('\'').append(it.next()).append('\'');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private void rollbackDepsOnEvalFail(String moduleId, Set<String> addedChildren) {
+        if (moduleId == null || moduleId.isEmpty()) return;
+
+        // remove forward deps for this module
+        forwardDeps.remove(moduleId);
+
+        // remove reverse links created during this failed evaluation
+        if (addedChildren != null) {
+            for (String child : addedChildren) {
+                Set<String> rev = reverseDeps.get(child);
+                if (rev != null) {
+                    rev.remove(moduleId);
+                    if (rev.isEmpty()) reverseDeps.remove(child);
+                }
+            }
+        }
+    }
+
     /**
      * Legacy setter: wraps text provider into stream provider (UTF-8).
      */
+    @Deprecated
     public GraalScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
         if (loader == null) {
             this.streamLoader = null;
@@ -189,8 +234,7 @@ public final class GraalScriptRuntime implements Closeable {
             return;
         }
         if (owner != t) {
-            throw new IllegalStateException("GraalScriptRuntime is thread confined. Owner=" + owner.getName()
-                    + ", current=" + t.getName());
+            throw new IllegalStateException("GraalScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
         }
     }
 
@@ -218,11 +262,11 @@ public final class GraalScriptRuntime implements Closeable {
 
     /**
      * Loads built-in modules BEFORE user scripts:
-     *  - @builtin/bootstrap (must exist)
-     *  - optionally: other builtins (assert/deepMerge/events/paths/schema)
-     *
+     * - @builtin/bootstrap (must exist)
+     * - optionally: other builtins (assert/deepMerge/events/paths/schema)
+     * <p>
      * Also loads aliases from bootstrap exports.config.aliases into MutableAliasResolver.
-     *
+     * <p>
      * Safe to call multiple times.
      */
     public void initBuiltIns(EngineApi api) {
@@ -232,8 +276,7 @@ public final class GraalScriptRuntime implements Closeable {
         builtinsInitialized = true;
 
         if (this.streamLoader == null) {
-            String msg = "ModuleStreamProvider not set before initBuiltIns(). " +
-                    "Call setModuleStreamProvider(...) with your project/asset loader first.";
+            String msg = "ModuleStreamProvider not set before initBuiltIns(). " + "Call setModuleStreamProvider(...) with your project/asset loader first.";
             log.error("[script] {}", msg);
             throw new IllegalStateException(msg);
         }
@@ -293,7 +336,7 @@ public final class GraalScriptRuntime implements Closeable {
 
     /**
      * Loads aliases from bootstrap exports:
-     *  module.exports = { config: { aliases: { "@core":"Scripts/core", ... } } }
+     * module.exports = { config: { aliases: { "@core":"Scripts/core", ... } } }
      */
     private void applyBootstrapAliases(Value bootExports) {
         try {
@@ -456,29 +499,43 @@ public final class GraalScriptRuntime implements Closeable {
     private Value requireFrom(String parentModuleId, String requestRaw) {
         assertOwnerThread();
 
-        // MUST load builtins before resolving/loading any user scripts.
         ensureBuiltInsBeforeUserScripts(parentModuleId, requestRaw);
 
         final String parent = normalizeId(parentModuleId);
         final String request = (requestRaw == null) ? "" : requestRaw;
 
-        // 1) Resolve base id using your resolver chain (pure, no IO)
         final String baseId = resolveToModuleId(parent, request);
-
-        // 2) Expand into strict candidates:
-        //    - if baseId is builtin or already has extension -> [baseId]
-        //    - else -> [baseId/index.js, baseId.js]
         final String[] candidates = expandRequireCandidates(baseId);
 
-        // 3) Fast path: already loaded under any candidate id
+        // 1) Fast path: already cached
         for (String id : candidates) {
             ModuleRecord existing = moduleCache.get(id);
-            if (existing != null) {
+            if (existing == null) continue;
+
+            // CommonJS cycle support:
+            // if module is LOADING, return current exports immediately
+            if (existing.state == ModuleState.LOADING) {
                 return existing.exportsObj;
             }
+
+            // If FAILED and not invalidated since, rethrow without re-eval
+            if (existing.state == ModuleState.FAILED && existing.failedAtEpoch == invalidateEpoch) {
+                String msg = existing.lastErrorMessage != null
+                        ? existing.lastErrorMessage
+                        : ("Failed to evaluate module (cached FAILED). resolved='" + existing.id + "'");
+                throw new RuntimeException(msg, existing.lastError);
+            }
+
+            // LOADED (or FAILED but invalidated since) => return exports or allow retry
+            if (existing.state == ModuleState.LOADED) {
+                return existing.exportsObj;
+            }
+
+            // NEW/FAILED-but-retry -> fallthrough to load attempt below using resolved id
+            break;
         }
 
-        // 4) We must pick the first candidate that actually exists (stream != null / code != null)
+        // 2) Find source code (first existing candidate)
         ModuleStreamProvider l = this.streamLoader;
         if (l == null) {
             String msg =
@@ -488,18 +545,11 @@ public final class GraalScriptRuntime implements Closeable {
             throw new IllegalStateException(msg);
         }
 
-        String moduleId = null; // final chosen id (candidate)
+        String moduleId = null;
         String code = null;
 
         try {
             for (String id : candidates) {
-                // Debug-log what exactly we are loading for built-ins
-                if (id.startsWith(BUILTIN_PREFIX)) {
-                    log.debug("[script] builtins: require {}", id);
-                }
-
-                // Load source text (via InputStream) with caching
-                // IMPORTANT: cache key is candidate id, not base id
                 String maybe = caches.moduleText().get(id, key -> {
                     try (InputStream in = l.openStream(key)) {
                         if (in == null) return null;
@@ -524,7 +574,6 @@ public final class GraalScriptRuntime implements Closeable {
                 log.error("[script] {}", msg);
                 throw new IllegalStateException(msg);
             }
-
         } catch (RuntimeException re) {
             Throwable cause = re.getCause();
 
@@ -537,29 +586,77 @@ public final class GraalScriptRuntime implements Closeable {
                 log.error("[script] {} cause={}", base, cause.toString());
                 throw new RuntimeException(base, cause);
             }
-
             log.error("[script] {}", base, re);
             throw re;
         }
 
-        // 5) Now we have a deterministic final moduleId (candidate).
-        //    Create record BEFORE evaluation for cyclic deps
-        ModuleRecord rec = new ModuleRecord(moduleId, ctx);
-        moduleCache.put(moduleId, rec);
+        // 3) Create or reuse record (to avoid races in same owner-thread context)
+        ModuleRecord rec = moduleCache.get(moduleId);
+        if (rec != null) {
+            // If currently LOADING => cycle
+            if (rec.state == ModuleState.LOADING) return rec.exportsObj;
 
+            // If FAILED and still same epoch => rethrow
+            if (rec.state == ModuleState.FAILED && rec.failedAtEpoch == invalidateEpoch) {
+                String msg = rec.lastErrorMessage != null
+                        ? rec.lastErrorMessage
+                        : ("Failed to evaluate module (cached FAILED). resolved='" + rec.id + "'");
+                throw new RuntimeException(msg, rec.lastError);
+            }
+
+            // If LOADED => return
+            if (rec.state == ModuleState.LOADED) return rec.exportsObj;
+
+            // else retry (FAILED but invalidated)
+        } else {
+            rec = new ModuleRecord(moduleId, ctx);
+            moduleCache.put(moduleId, rec);
+        }
+
+        // 4) Mark loading BEFORE eval (cycle-safe)
+        rec.state = ModuleState.LOADING;
+
+        // track deps created during eval for rollback
+        final Set<String> addedChildren = new HashSet<>();
+
+        // require stack push (better diagnostics)
+        requireStack.get().push(moduleId);
         try {
-            evalCommonJsInto(moduleId, code, rec);
+            evalCommonJsInto(moduleId, code, rec, addedChildren);
+
             rec.loaded = true;
+            rec.state = ModuleState.LOADED;
+
+            // cleanup failure memo
+            rec.lastErrorMessage = null;
+            rec.lastError = null;
+            rec.failedAtEpoch = -1L;
+
             return rec.exportsObj;
         } catch (Exception e) {
-            moduleCache.remove(moduleId);
+            // module stays in cache as FAILED (so we can rethrow fast)
+            rec.loaded = false;
+            rec.state = ModuleState.FAILED;
+            rec.failedAtEpoch = invalidateEpoch;
+
             String msg =
                     "Failed to evaluate module. " +
-                            "resolved='" + moduleId + "', parent='" + parent + "', request='" + request + "'";
+                            "resolved='" + moduleId + "', parent='" + parent + "', request='" + request + "', requireStack=" + formatRequireStack();
+
+            rec.lastErrorMessage = msg;
+            rec.lastError = e;
+
+            // rollback deps created during THIS eval
+            rollbackDepsOnEvalFail(moduleId, addedChildren);
+
             log.error("[script] {}", msg, e);
             throw new RuntimeException(msg, e);
+        } finally {
+            ArrayDeque<String> st = requireStack.get();
+            if (st != null && !st.isEmpty()) st.pop();
         }
     }
+
 
     /**
      * Strict rule:
@@ -571,20 +668,22 @@ public final class GraalScriptRuntime implements Closeable {
 
         // builtins: never expand (keep existing semantics)
         if (base.startsWith(BUILTIN_PREFIX)) {
-            return new String[] { base };
+            return new String[]{base};
         }
 
         // if request already has extension (.js, .json, etc) -> exact only
         if (hasExtension(base)) {
-            return new String[] { base };
+            return new String[]{base};
         }
 
         // strict directory-first rule:
         // require("./dir") -> try dir/index.js first (dir module), then dir.js
-        return new String[] { base + "/index.js", base + ".js" };
+        return new String[]{base + "/index.js", base + ".js"};
     }
 
-    /** Extension exists only if dot is in the last path segment. */
+    /**
+     * Extension exists only if dot is in the last path segment.
+     */
     private boolean hasExtension(String id) {
         if (id == null || id.isEmpty()) return false;
         String s = id.replace('\\', '/');
@@ -622,7 +721,7 @@ public final class GraalScriptRuntime implements Closeable {
         return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    private void evalCommonJsInto(String moduleId, String code, ModuleRecord rec) {
+    private void evalCommonJsInto(String moduleId, String code, ModuleRecord rec, Set<String> addedChildren) {
         String wrapped = caches.wrappedCode().get(
                 ScriptCaches.SourceKey.of(moduleId, code),
                 k -> "(function(module, exports, require, __filename, __dirname) {\n" +
@@ -648,7 +747,11 @@ public final class GraalScriptRuntime implements Closeable {
         ProxyExecutable localReq = args -> {
             String request = args.length > 0 ? args[0].asString() : "";
             String childId = resolveToModuleId(moduleId, request);
+
+            // record deps + remember additions for rollback (only for THIS eval)
             recordDependency(moduleId, childId);
+            if (addedChildren != null) addedChildren.add(childId);
+
             return requireFrom(moduleId, childId);
         };
         Value localRequire = ctx.asValue(localReq);
@@ -733,17 +836,23 @@ public final class GraalScriptRuntime implements Closeable {
 
     public int invalidatePrefixWithReason(String prefix, String reason) {
         assertOwnerThread();
+        nextInvalidateEpoch();
         String p = normalizeId(prefix);
         if (p.isEmpty()) return 0;
 
         // protect builtins
         if (p.startsWith(BUILTIN_PREFIX)) return 0;
 
-        List<String> keys = new ArrayList<>(moduleCache.keySet());
+        // Union keys from cache + graphs to avoid "dangling graph keys" issues
+        Set<String> keys = new HashSet<>();
+        keys.addAll(moduleCache.keySet());
+        keys.addAll(forwardDeps.keySet());
+        keys.addAll(reverseDeps.keySet());
+
         int total = 0;
         Set<String> visited = new HashSet<>();
         for (String id : keys) {
-            if (id.startsWith(p) && !id.startsWith(BUILTIN_PREFIX)) {
+            if (id != null && id.startsWith(p) && !id.startsWith(BUILTIN_PREFIX)) {
                 total += removeModuleAndDependents(id, visited);
             }
         }
@@ -753,6 +862,7 @@ public final class GraalScriptRuntime implements Closeable {
         }
         return total;
     }
+
 
     private int removeModuleAndDependents(String id, Set<String> visited) {
         if (!visited.add(id)) return 0;
@@ -839,19 +949,43 @@ public final class GraalScriptRuntime implements Closeable {
     // ---------------------------------------------------------------------
     // Internal module record
     // ---------------------------------------------------------------------
+    private enum ModuleState {
+        NEW,
+        LOADING,
+        LOADED,
+        FAILED
+    }
 
     private static final class ModuleRecord {
         final String id;
-        boolean loaded;
 
-        Value moduleObj;
+        // CommonJS objects
+        final Value moduleObj;
         Value exportsObj;
+
+        volatile boolean loaded; // keep legacy semantics if you already rely on it
+        volatile ModuleState state = ModuleState.NEW;
+
+        // failure memoization
+        volatile long failedAtEpoch = -1L;
+        volatile String lastErrorMessage = null;
+        volatile Throwable lastError = null;
 
         ModuleRecord(String id, Context ctx) {
             this.id = id;
-            this.loaded = false;
-            this.moduleObj = ctx.eval("js", "({ exports: {} })");
-            this.exportsObj = moduleObj.getMember("exports");
+
+            // module = { exports: {} }
+            Value module = ctx.eval("js", "({ exports: {} })");
+            this.moduleObj = module;
+            this.exportsObj = module.getMember("exports");
         }
+    }
+
+    public Context getCtx() {
+        return ctx;
+    }
+
+    private long nextInvalidateEpoch() {
+        return ++invalidateEpoch;
     }
 }

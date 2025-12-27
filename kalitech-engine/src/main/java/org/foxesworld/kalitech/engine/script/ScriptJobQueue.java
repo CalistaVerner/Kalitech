@@ -24,6 +24,7 @@ public final class ScriptJobQueue {
 
     private static final AtomicLong IDS = new AtomicLong(1);
     private final Queue<Job> q = new ConcurrentLinkedQueue<>();
+    private volatile java.util.function.Consumer<Throwable> onError;
 
     private record Job(long id, Runnable run) {}
 
@@ -45,6 +46,15 @@ public final class ScriptJobQueue {
             }
         });
         return f;
+    }
+
+    /**
+     * Optional error hook for jobs. If set, drainBudgeted will forward thrown exceptions here.
+     * Keep it light; it runs on the owner thread.
+     */
+    public ScriptJobQueue setOnError(java.util.function.Consumer<Throwable> onError) {
+        this.onError = onError;
+        return this;
     }
 
     /**
@@ -74,8 +84,12 @@ public final class ScriptJobQueue {
 
             try {
                 j.run.run();
-            } catch (Throwable ignored) {
-                // jobs must never crash engine; errors are handled at posting site
+            } catch (Throwable t) {
+                // jobs must never crash engine
+                java.util.function.Consumer<Throwable> h = this.onError;
+                if (h != null) {
+                    try { h.accept(t); } catch (Throwable ignored) {}
+                }
             }
             n++;
 
@@ -83,6 +97,7 @@ public final class ScriptJobQueue {
         }
         return n;
     }
+
 
     public void clear() {
         q.clear();
