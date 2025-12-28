@@ -45,7 +45,7 @@ class PlayerController {
         try { this.bodyId = (ids && typeof ids.bodyId === "number") ? (ids.bodyId | 0) : (ids | 0); } catch (_) { this.bodyId = 0; }
 
         try { if (this.input) this.input.bind(); } catch (_) {}
-        try { engine.log().info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
+        try { LOG.info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
         return this;
     }
 
@@ -84,7 +84,7 @@ class PlayerController {
             this._f = (this._f + 1) | 0;
             if ((this._f % (this._debugEvery | 0)) === 0) {
                 try {
-                    engine.log().info(
+                    LOG.debug(
                         "[player][in] ax=" + state.ax + " az=" + state.az +
                         " run=" + (state.run ? "1" : "0") +
                         " jump=" + (state.jump ? "1" : "0") +

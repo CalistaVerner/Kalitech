@@ -37,7 +37,7 @@ class MainWorldEntrypoint {
             if (fn) return fn.call(obj, arg);
             return undefined;
         } catch (e) {
-            engine.log().error("[main] " + where + " failed: " + e);
+            LOG.error("[main] " + where + " failed: " + e);
             throw e;
         }
     }

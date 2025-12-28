@@ -25,7 +25,7 @@ class LightRig {
         };
 
         this._dbgAcc = 0;
-        this._dbgEvery = 0.0; // 0 = every frame (ttl-driven). Set to e.g. 0.1 to throttle.
+        this._dbgEvery = 0.0;
     }
 
     applyCfg(cfg) {
@@ -97,7 +97,7 @@ class LightRig {
                 intensity: 1.2
             });
         } catch (e) {
-            engine.log().error("[sky] failed to create sun light: " + e);
+            try { LOG.error("[sky] failed to create sun light: " + e); } catch (_) {}
         }
 
         try {
@@ -109,9 +109,10 @@ class LightRig {
                 intensity: Math.max(this.minAmbient, this.ambientDay.intensity)
             });
         } catch (e) {
-            engine.log().error("[sky] failed to create ambient light: " + e);
+            try { LOG.error("[sky] failed to create ambient light: " + e); } catch (_) {}
         }
-        this.test();
+
+        this.test(engine);
     }
 
     setEnabled(enabled) {
@@ -128,7 +129,7 @@ class LightRig {
                     intensity: sunEval.intensity
                 });
             } catch (e) {
-                engine.log().warn("[sky] sun light set failed: " + e);
+                try { LOG.warn("[sky] sun light set failed: " + e); } catch (_) {}
             }
         }
 
@@ -144,7 +145,7 @@ class LightRig {
                     intensity: Math.max(this.minAmbient, ambI)
                 });
             } catch (e) {
-                engine.log().warn("[sky] ambient light set failed: " + e);
+                try { LOG.warn("[sky] ambient light set failed: " + e); } catch (_) {}
             }
         }
 
@@ -164,9 +165,7 @@ class LightRig {
         const ttl = this.debug.ttl;
         const ox = this.debug.origin.x, oy = this.debug.origin.y, oz = this.debug.origin.z;
 
-        try {
-            this.dbg.tick(dt);
-        } catch (_) {}
+        try { this.dbg.tick(dt); } catch (_) {}
 
         if (this.debug.axes) {
             this.dbg.axes({
@@ -228,21 +227,20 @@ class LightRig {
         this.dbg = null;
     }
 
-    test() {
+    test(engine) {
         const light = engine.light();
 
         const testLight = light.create({
             type: "point",
             attach: true,
             enabled: true,
-
             pos: [200, 8, -300],
-            radius: 120,                 // ВАЖНО: без радиуса света может "не быть"
+            radius: 120,
             color: [1.0, 1.0, 1.0],
-            intensity: 6.0               // ВАЖНО: PBR требует сильный свет
+            intensity: 6.0
         });
 
-        engine.render().ensureScene(); // на всякий
+        engine.render().ensureScene();
 
         const torch = light.create({
             type: "point",
@@ -254,11 +252,10 @@ class LightRig {
             intensity: 8.0
         });
 
-        engine.log().info("[TEST] torch id=" + torch.id());
-        //engine.render().debugViewports();
-        for (let i = 0; i < 160; i++) {
+        try { LOG.info("[sky] torch id=" + torch.id()); } catch (_) {}
 
-            const g = MSH
+        for (let i = 0; i < 160; i++) {
+            MSH
                 .box$()
                 .size(this.randNum(1, 5))
                 .name("box-" + i)
@@ -266,16 +263,12 @@ class LightRig {
                 .material(MAT.getMaterial("box"))
                 .physics(10000, { lockRotation: false })
                 .create();
+        }
 
+        try { LOG.info("[sky] cubes created at (200, 8, -300)"); } catch (_) {}
     }
 
-
-        engine.log().info("[TEST] cube created at (200, 8, -300)");
-
-
-    }
-
-     randNum(min, max) {
+    randNum(min, max) {
         min = +min;
         max = +max;
         if (!Number.isFinite(min) || !Number.isFinite(max)) {
@@ -286,7 +279,6 @@ class LightRig {
         }
         return min + Math.random() * (max - min);
     }
-
 }
 
 module.exports = LightRig;

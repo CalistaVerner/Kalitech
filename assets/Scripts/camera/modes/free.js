@@ -28,12 +28,10 @@ class FreeCameraMode {
         const my = ctx.input.my;
         const mz = ctx.input.mz;
 
-        // desired direction in local camera space
         let dx = mx, dy = my, dz = mz;
         const len = Math.hypot(dx, dy, dz) || 0;
         if (len > 0) { dx /= len; dy /= len; dz /= len; }
 
-        // accelerate towards target velocity
         const tvx = dx * this.speed;
         const tvy = dy * this.speed;
         const tvz = dz * this.speed;
@@ -43,11 +41,9 @@ class FreeCameraMode {
         this._vy += (tvy - this._vy) * a;
         this._vz += (tvz - this._vz) * a;
 
-        // drag
         const d = Math.exp(-this.drag * dt);
         this._vx *= d; this._vy *= d; this._vz *= d;
 
-        // move in camera local space
         cam.moveLocal(this._vx * dt, this._vy * dt, this._vz * dt);
     }
 }

@@ -210,7 +210,7 @@ class Player {
         } catch (_) {}
 
         this.alive = true;
-        engine.log().info("[player] init entity=" + (this.entityId | 0) + " bodyId=" + (this.bodyId | 0));
+        LOG.info("[player] init entity=" + (this.entityId | 0) + " bodyId=" + (this.bodyId | 0));
     }
 
     update(tpf) {
@@ -284,7 +284,7 @@ class Player {
         try { this.ctx.state().remove("player"); } catch (_) {}
 
         this.alive = false;
-        engine.log().info("[player] destroy");
+        LOG.info("[player] destroy");
     }
 }
 

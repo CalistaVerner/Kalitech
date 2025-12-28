@@ -1,3 +1,4 @@
+// FILE: Scripts/camera/modes/third.js
 "use strict";
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -32,10 +33,8 @@ class ThirdPersonCameraMode {
 
         this.zoomSpeed = 1.0;
 
-        // follow smoothing (lag)
         this.follow = { smoothing: 10.0, _x: 0, _y: 0, _z: 0, _inited: false };
 
-        // cyberpunk tuning
         this.dynamic = { runDistAdd: 0.7, strafeShoulder: 0.18 };
 
         this.debug = { enabled: false, everyFrames: 60, _f: 0 };
@@ -70,7 +69,6 @@ class ThirdPersonCameraMode {
     update(ctx) {
         if (!ctx.bodyPos) return;
 
-        // zoom
         if (ctx.input && ctx.input.wheel) {
             this.distance = clamp(this.distance - ctx.input.wheel * this.zoomSpeed, this.minDistance, this.maxDistance);
         }
@@ -82,7 +80,6 @@ class ThirdPersonCameraMode {
 
         const dt = (ctx.input && ctx.input.dt) ? ctx.input.dt : 0.016;
 
-        // dynamic distance (slightly farther when running fast)
         const m = ctx.motion || null;
         const sp = m ? (m.speed || 0) : 0;
         const run = m ? !!m.running : false;
@@ -91,11 +88,9 @@ class ThirdPersonCameraMode {
         const distAdd = run ? (this.dynamic.runDistAdd * k) : 0;
         const dist = clamp(this.distance + distAdd, this.minDistance, this.maxDistance);
 
-        // backward vector by yaw
         const bx = -sin * dist;
         const bz = -cos * dist;
 
-        // shoulder shift from strafe
         const strafe = ctx.input ? (ctx.input.mx || 0) : 0;
         const shoulder = this.side + (strafe * this.dynamic.strafeShoulder);
 
@@ -106,7 +101,6 @@ class ThirdPersonCameraMode {
         const ty = vy(ctx.bodyPos, 0) + this.height;
         const tz = vz(ctx.bodyPos, 0) + bz + rz;
 
-        // follow smoothing (lag) — keeps it cinematic
         const f = this.follow;
         if (!f._inited) {
             f._x = tx; f._y = ty; f._z = tz;
@@ -118,14 +112,14 @@ class ThirdPersonCameraMode {
         f._y += (ty - f._y) * a;
         f._z += (tz - f._z) * a;
 
-        // Set desired location; collision resolution is done in orchestrator (final pass)
         ctx.cam.setLocation(f._x, f._y, f._z);
 
         if (this.debug.enabled) {
             this.debug._f++;
             if ((this.debug._f % this.debug.everyFrames) === 0) {
                 try {
-                    engine.log().info("[cam:third] bodyId=" + (ctx.bodyId | 0) +
+                    LOG.info(
+                        "cam.third bodyId=" + (ctx.bodyId | 0) +
                         " dist=" + dist.toFixed(2) +
                         " speed=" + sp.toFixed(2) +
                         " run=" + (run ? 1 : 0) +

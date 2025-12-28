@@ -32,17 +32,14 @@ class SkySystem {
     }
 
     init(ctx) {
-        this.engine.log().info("[sky] init");
+        try { LOG.info("[sky] init"); } catch (_) {}
         try {
             const c = ctx.get("config");
             const sh = c && c.shadows;
-            this.engine.log().info("[sky] cfg.shadows exists=" + !!sh + " mapSize=" + (sh ? sh.mapSize : "null"));
+            try { LOG.info("[sky] cfg.shadows exists=" + !!sh + " mapSize=" + (sh ? sh.mapSize : "null")); } catch (_) {}
         } catch (e) {
-            this.engine.log().warn("[sky] cfg dump failed: " + e);
+            try { LOG.warn("[sky] cfg dump failed: " + e); } catch (_) {}
         }
-
-
-
 
         const cfg = this.readCfg(ctx);
         this.applyConfigIfChanged(cfg);
@@ -59,7 +56,6 @@ class SkySystem {
         const cfg = this.readCfg(ctx);
         this.applyConfigIfChanged(cfg);
 
-        // allow live-updates if config object changes (or if events are used)
         this.applyRenderCfgIfPresent(cfg);
 
         const dt = this.getTpf(ctx, tpf);
@@ -76,11 +72,13 @@ class SkySystem {
         this.dbgAcc += dt;
         if (this.dbgAcc > 2.0) {
             this.dbgAcc = 0.0;
-            this.engine.log().debug(
-                "[sky] phase=" + this.clock.time01.toFixed(3) +
-                " t=" + this.clock.t.toFixed(2) +
-                " dt=" + dt.toFixed(4)
-            );
+            try {
+                LOG.debug(
+                    "[sky] phase=" + this.clock.time01.toFixed(3) +
+                    " t=" + this.clock.t.toFixed(2) +
+                    " dt=" + dt.toFixed(4)
+                );
+            } catch (_) {}
         }
     }
 
@@ -103,8 +101,6 @@ class SkySystem {
     readCfg(ctx) {
         if (!ctx) return null;
 
-        // SystemContext is strict: dynamic values live in ctx state via get/put.
-        // We store config there from JsWorldSystemProvider.
         try {
             if (typeof ctx.get === "function") {
                 const c = ctx.get("config");
@@ -116,16 +112,12 @@ class SkySystem {
             }
         } catch (_) {}
 
-        // fallback (if someday ctx exposes direct config props)
         try { if (ctx.system && ctx.system.config) return ctx.system.config; } catch (_) {}
         if (ctx.config) return ctx.config;
         if (ctx.cfg) return ctx.cfg;
 
         return null;
     }
-
-
-
 
     applyConfigIfChanged(cfg) {
         if (!cfg) return;
@@ -138,7 +130,6 @@ class SkySystem {
         this.skybox.applyCfg(cfg);
         this.fog.applyCfg(cfg);
 
-        // apply render side-effects on cfg change
         this.applyRenderCfgIfPresent(cfg);
     }
 
@@ -154,22 +145,12 @@ class SkySystem {
         const initSun = this.sun.evaluate(0.18);
         this.skybox.update(this.render, initSun);
 
-        // IMPORTANT: enable shadows even without cfg
         this.applyRenderCfgIfPresent(cfg, true);
     }
 
-    /**
-     * Applies render primitives.
-     * If forceDefaults=true, will enable default shadows even when cfg is null/missing.
-     */
     applyRenderCfgIfPresent(cfg, forceDefaults) {
-        // always safe: ensure render is alive before toggling stuff
         try { this.render.ensureScene(); } catch (_) {}
 
-        // ---- Shadows (NEW API: only mapSize) ----
-        // Rules:
-        //  - if cfg.shadows.mapSize is set: use it (0 disables)
-        //  - else if forceDefaults: enable 2048
         let ms = null;
 
         const sh = cfg && cfg.shadows ? cfg.shadows : null;
@@ -183,20 +164,19 @@ class SkySystem {
             if (ms !== this._lastShadowMapSize) {
                 this._lastShadowMapSize = ms;
                 try {
-                    this.engine.log().info("[sky] apply shadows mapSize=" + ms);
+                    try { LOG.info("[sky] apply shadows mapSize=" + ms); } catch (_) {}
                     this.render.sunShadows(ms);
                 } catch (e) {
-                    this.engine.log().warn("[sky] render.sunShadows failed: " + e);
+                    try { LOG.warn("[sky] render.sunShadows failed: " + e); } catch (_) {}
                 }
             }
         }
 
-        // ---- Post ----
         const pp = cfg && cfg.post ? cfg.post : null;
         if (pp && pp !== this._lastPostRef) {
             this._lastPostRef = pp;
             try { this.render.postCfg(pp); } catch (e) {
-                this.engine.log().warn("[sky] render.postCfg failed: " + e);
+                try { LOG.warn("[sky] render.postCfg failed: " + e); } catch (_) {}
             }
         }
     }
@@ -272,23 +252,22 @@ class SkySystem {
                 if (p.enabled === false) this.clock.enabled = false;
             });
 
-            // render controls
             on("render:shadows", (p) => {
                 const ms = this.clampInt(p && p.mapSize, 0, 8192, 2048);
-                this._lastShadowMapSize = null; // force apply
+                this._lastShadowMapSize = null;
                 this.applyRenderCfgIfPresent({ shadows: { mapSize: ms } }, false);
             });
 
             on("render:post", (p) => {
                 if (!p) return;
-                this._lastPostRef = null; // force apply
+                this._lastPostRef = null;
                 try { this.render.postCfg(p); } catch (e) {
-                    this.engine.log().warn("[sky] render:post failed: " + e);
+                    try { LOG.warn("[sky] render:post failed: " + e); } catch (_) {}
                 }
             });
 
         } catch (e) {
-            this.engine.log().warn("[sky] events wiring skipped: " + e);
+            try { LOG.warn("[sky] events wiring skipped: " + e); } catch (_) {}
         }
     }
 }

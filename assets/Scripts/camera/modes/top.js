@@ -55,7 +55,6 @@ class TopDownCameraMode {
     onExit() {}
 
     update(ctx) {
-        // zoom height by wheel
         if (ctx.input && ctx.input.wheel) {
             this.height = clamp(this.height - ctx.input.wheel * this.zoomSpeed, this.minHeight, this.maxHeight);
         }
@@ -65,14 +64,12 @@ class TopDownCameraMode {
             const z = vz(ctx.bodyPos, 0);
             ctx.cam.setLocation(x, this.height, z);
         } else {
-            // no attachment -> keep XZ from current cam location, enforce height
             const p = ctx.cam.location();
             const x = vx(p, 0);
             const z = vz(p, 0);
             ctx.cam.setLocation(x, this.height, z);
         }
 
-        // lock pitch
         try {
             ctx.cam.setYawPitch(ctx.look ? (ctx.look._yawS || 0) : 0, this.pitch);
         } catch (_) {}
@@ -82,7 +79,8 @@ class TopDownCameraMode {
             if ((this.debug._f % this.debug.everyFrames) === 0) {
                 try {
                     const p = ctx.cam.location();
-                    engine.log().info("[cam:top] bodyId=" + (ctx.bodyId | 0) +
+                    LOG.info(
+                        "cam.top bodyId=" + (ctx.bodyId | 0) +
                         " height=" + this.height.toFixed(2) +
                         " cam=(" + vx(p, 0).toFixed(2) + "," + vy(p, 0).toFixed(2) + "," + vz(p, 0).toFixed(2) + ")"
                     );

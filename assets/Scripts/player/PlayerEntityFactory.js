@@ -1,8 +1,7 @@
 // FILE: Scripts/player/PlayerEntityFactory.js
-// Author: Calista Verner
 "use strict";
 
-function idOf(h, kind /* "body"|"surface" */) {
+function idOf(h, kind) {
     if (h == null) return 0;
     if (typeof h === "number") return h | 0;
 
@@ -42,27 +41,23 @@ class PlayerEntity {
     constructor() {
         this.entityId = 0;
         this.surface = null;
-        this.body = null;      // can be a PHYS.ref wrapper OR Java handle
+        this.body = null;
 
         this.surfaceId = 0;
         this.bodyId = 0;
 
-        // ✅ optional cached wrapper
         this.bodyRef = null;
     }
 
     _ensureBodyRef() {
-        // prefer explicit wrapper if already stored
         if (this.bodyRef) return this.bodyRef;
 
-        // if body itself looks like wrapper (has position/velocity/yaw)
         const b = this.body;
         if (b && typeof b.position === "function" && typeof b.velocity === "function") {
             this.bodyRef = b;
             return this.bodyRef;
         }
 
-        // fallback: build wrapper from id
         const id = this.bodyId | 0;
         if (!id) return null;
 
@@ -77,35 +72,31 @@ class PlayerEntity {
     warp(pos) {
         if (!pos) return;
 
-        // 1) if Java handle has teleport()
         const h = this.body;
         if (h && typeof h.teleport === "function") {
-            try { h.teleport(pos); } catch (e) { try { engine.log().error("[player] warp.teleport failed: " + e); } catch (_) {} }
+            try { h.teleport(pos); }
+            catch (e) { try { LOG.error("[player] warp.teleport failed: " + e); } catch (_) {} }
             return;
         }
 
-        // 2) canonical: wrapper
         const b = this._ensureBodyRef();
         if (b && typeof b.warp === "function") {
-            try { b.warp(pos); } catch (e) { try { engine.log().error("[player] warp.body.warp failed: " + e); } catch (_) {} }
+            try { b.warp(pos); }
+            catch (e) { try { LOG.error("[player] warp.body.warp failed: " + e); } catch (_) {} }
             return;
         }
 
-        // 3) last resort: PHYS.warp by id
         const bodyId = this.bodyId | 0;
         if (!bodyId) return;
-        try { PHYS.warp(bodyId, pos); } catch (e) {
-            try { engine.log().error("[player] warp.PHYS.warp failed: " + e); } catch (_) {}
-        }
+        try { PHYS.warp(bodyId, pos); }
+        catch (e) { try { LOG.error("[player] warp.PHYS.warp failed: " + e); } catch (_) {} }
     }
 
     destroy() {
-        // ✅ canonical remove
         const b = this._ensureBodyRef();
         if (b && typeof b.remove === "function") {
             try { b.remove(); } catch (_) {}
         } else if ((this.bodyId | 0) > 0) {
-            // fallback to PHYS.remove (still not engine.physics)
             try { PHYS.remove(this.bodyId | 0); } catch (_) {}
         }
 
@@ -167,7 +158,6 @@ class PlayerEntityFactory {
         e.surfaceId = h.surfaceId | 0;
         e.bodyId = h.bodyId | 0;
 
-        // ✅ сразу даём удобный wrapper
         try { if ((e.bodyId | 0) > 0) e.bodyRef = PHYS.ref(e.bodyId | 0); } catch (_) {}
 
         return e;

@@ -1,19 +1,12 @@
 // Author: Calista Verner
 "use strict";
 
-/**
- * CameraOrchestrator — AAA++ PIPELINE:
- *  - DOES NOT read engine.input() for data (no consume*, no keyDown, no mouseDown)
- *  - receives snapshot from Plr.js: update(dt, snap)
- *  - may still CONTROL cursor/grab (engine.input().grabMouse/cursorVisible) — that's output, not polling
- */
-
 const FreeCam  = require("./modes/free.js");
 const FirstCam = require("./modes/first.js");
 const ThirdCam = require("./modes/third.js");
 const TopCam   = require("./modes/top.js");
 
-const Dynamics = require("../Camera/CameraDynamicsCyberpunk.js"); // note: orchestrator is in Scripts/Camera, dynamics is in Scripts/camera
+const Dynamics = require("../Camera/CameraDynamicsCyberpunk.js");
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function wrapAngle(a) {
@@ -25,7 +18,6 @@ function num(v, fallback) {
     const n = +v;
     return Number.isFinite(n) ? n : (fallback || 0);
 }
-// read v.x or v.x()
 function vx(v, fb) {
     if (!v) return fb || 0;
     try { const x = v.x; if (typeof x === "function") return num(x.call(v), fb); if (typeof x === "number") return x; } catch (_) {}
@@ -42,7 +34,6 @@ function vz(v, fb) {
     return fb || 0;
 }
 
-// Graal Java int[] helper
 function arrHas(arr, code) {
     if (!arr) return false;
     const n = arr.length | 0;
@@ -87,18 +78,15 @@ class CameraOrchestrator {
         this.input = { dx: 0, dy: 0, mx: 0, my: 0, mz: 0, wheel: 0, dt: 0 };
 
         this.mouseGrab = {
-            mode: "always",     // "always" | "rmb" | "never"
-            rmbButtonIndex: 1,  // 0=LMB, 1=RMB, 2=MMB
+            mode: "always",
+            rmbButtonIndex: 1,
             _grabbed: false
         };
 
-        // keyCode cache (host call, cached)
         this._kc = Object.create(null);
 
-        // Cyberpunk dynamics layer
         this.dynamics = new Dynamics();
 
-        // cached motion state
         this.motion = {
             speed: 0,
             grounded: true,
@@ -164,7 +152,6 @@ class CameraOrchestrator {
             }
         }
 
-        // dynamics config (optional): cfg.dynamics
         if (cfg.dynamics && this.dynamics && this.dynamics.configure) {
             this.dynamics.configure(cfg.dynamics);
         }
@@ -177,9 +164,10 @@ class CameraOrchestrator {
         }
 
         this._kc = Object.create(null);
+
+        LOG.info("camera configured type=" + this.type + " keys=" + JSON.stringify(this.keys));
     }
 
-    // control only (not polling)
     grabMouse(grab) {
         const g = !!grab;
         try {
@@ -189,7 +177,6 @@ class CameraOrchestrator {
         this.mouseGrab._grabbed = g;
     }
 
-    // hooks for gameplay events (called by Player / events core)
     onJump(strength) { try { this.dynamics.onJump(strength); } catch (_) {} }
     onLand(strength) { try { this.dynamics.onLand(strength); } catch (_) {} }
 
@@ -212,7 +199,6 @@ class CameraOrchestrator {
             try { bodyPos = engine.physics().position(this.bodyId); } catch (_) { bodyPos = null; }
         }
 
-        // motion state for dynamics + optional mode usage
         this._updateMotionFromSnapshotOrPhysics(snap, bodyPos, this.input.dt);
 
         mode.update({
@@ -224,7 +210,6 @@ class CameraOrchestrator {
             motion: this.motion
         });
 
-        // Cyberpunk post-pass dynamics (apply AFTER base mode placement)
         const isGameplay = (this.type === "first" || this.type === "third" || this.type === "free");
         if (isGameplay && this.type !== "top") {
             try {
@@ -240,7 +225,6 @@ class CameraOrchestrator {
             } catch (_) {}
         }
 
-        // clear one-frame deltas for modes
         this.input.dx = 0;
         this.input.dy = 0;
         this.input.wheel = 0;
@@ -280,7 +264,6 @@ class CameraOrchestrator {
         this._active = next;
         this._activeKey = this.type;
 
-        // init yaw/pitch from current camera (avoid snap on switch)
         try {
             const cam = engine.camera();
             const y = +cam.yaw() || 0;
@@ -295,12 +278,11 @@ class CameraOrchestrator {
             this.look._inited = false;
         }
 
-        // reset motion derivation (avoid spike)
         this.motion._hasLast = false;
 
         try { if (next && next.onEnter) next.onEnter(); } catch (_) {}
 
-        engine.log().info("[camera.js] type=" + this.type + " body=" + (this.bodyId | 0));
+        LOG.info("camera type=" + this.type + " body=" + (this.bodyId | 0));
 
         if (this.type === "top") this.grabMouse(false);
     }
@@ -323,7 +305,6 @@ class CameraOrchestrator {
             return;
         }
 
-        // mode === "rmb": read RMB from snapshot.mouseMask (no input polling)
         const btn = this.mouseGrab.rmbButtonIndex | 0;
         const bit = (btn >= 0 && btn < 31) ? (1 << btn) : 0;
         const rmbDown = bit ? ((snap.mouseMask & bit) !== 0) : false;
@@ -356,15 +337,15 @@ class CameraOrchestrator {
         const dy = +snap.dy || 0;
 
         this.input.dx += dx;
-        this.input.dy += -dy; // screen Y up => look up
+        this.input.dy += -dy;
 
         this.input.wheel += (+snap.wheel || 0);
 
         if (this.debug.enabled) {
             this.debug._frame++;
             if ((this.debug._frame % this.debug.everyFrames) === 0) {
-                engine.log().info(
-                    "[camera.js][input] type=" + this.type +
+                LOG.info(
+                    "camera input type=" + this.type +
                     " body=" + (this.bodyId | 0) +
                     " keys(mx,my,mz)=(" + this.input.mx + "," + this.input.my + "," + this.input.mz + ")" +
                     " snap(dx,dy)=(" + dx + "," + dy + ")" +
@@ -395,13 +376,8 @@ class CameraOrchestrator {
         const dy = L.invertY ? -this.input.dy : this.input.dy;
 
         L.yaw   -= dx * L.sensitivity;
-        L.pitch = clamp(
-            L.pitch + dy * L.sensitivity,
-            -L.pitchLimit,
-            L.pitchLimit
-        );
+        L.pitch = clamp(L.pitch + dy * L.sensitivity, -L.pitchLimit, L.pitchLimit);
 
-        // smoothing
         const s = clamp(L.smoothing, 0, 1);
         const a = 1 - Math.exp(-(1 - s) * 30 * dt);
 
@@ -415,7 +391,6 @@ class CameraOrchestrator {
     }
 
     _updateMotionFromSnapshotOrPhysics(snap, bodyPos, dt) {
-        // 1) snapshot fields (best)
         const sSpeed = +snap.speed;
         if (Number.isFinite(sSpeed)) this.motion.speed = Math.max(0, sSpeed);
 
@@ -425,7 +400,6 @@ class CameraOrchestrator {
         const sGround = snap.grounded;
         if (typeof sGround === "boolean") this.motion.grounded = sGround;
 
-        // 2) fallback: physics velocity
         if ((!Number.isFinite(sSpeed) || this.motion.speed <= 0.0001) && this.bodyId) {
             try {
                 const v = engine.physics().velocity(this.bodyId);
@@ -434,7 +408,6 @@ class CameraOrchestrator {
             } catch (_) {}
         }
 
-        // 3) ultra-fallback: derive from position delta
         if ((!Number.isFinite(sSpeed) || this.motion.speed <= 0.0001) && bodyPos) {
             const x = vx(bodyPos, 0), y = vy(bodyPos, 0), z = vz(bodyPos, 0);
             if (this.motion._hasLast) {

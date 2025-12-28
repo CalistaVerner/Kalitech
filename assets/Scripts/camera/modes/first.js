@@ -1,3 +1,4 @@
+// FILE: Scripts/camera/modes/first.js
 "use strict";
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -7,7 +8,6 @@ function num(v, fallback) {
     return Number.isFinite(n) ? n : (fallback || 0);
 }
 
-// read v.x or v.x()
 function vx(v, fb) {
     if (!v) return fb || 0;
     try {
@@ -40,7 +40,6 @@ class FirstPersonCameraMode {
     constructor() {
         this.offset = { x: 0.0, y: 1.65, z: 0.0 };
 
-        // cyberpunk-ish micro biases (base layer; dynamics adds bob/sway afterwards)
         this.style = {
             shoulder: 0.035,
             forward: 0.015,
@@ -81,7 +80,6 @@ class FirstPersonCameraMode {
         const baseY = vy(ctx.bodyPos, 0) + this.offset.y;
         const baseZ = vz(ctx.bodyPos, 0) + this.offset.z;
 
-        // cyberpunk subtle shoulder/forward bias
         const yaw = ctx.look ? (ctx.look._yawS || 0) : 0;
         const pitch = ctx.look ? (ctx.look._pitchS || 0) : 0;
 
@@ -106,7 +104,8 @@ class FirstPersonCameraMode {
             this.debug._f++;
             if ((this.debug._f % this.debug.everyFrames) === 0) {
                 try {
-                    engine.log().info("[cam:first] bodyId=" + (ctx.bodyId | 0) +
+                    LOG.info(
+                        "cam.first bodyId=" + (ctx.bodyId | 0) +
                         " bodyPos=(" + vx(ctx.bodyPos, 0).toFixed(2) + "," + vy(ctx.bodyPos, 0).toFixed(2) + "," + vz(ctx.bodyPos, 0).toFixed(2) + ")" +
                         " cam=(" + x.toFixed(2) + "," + y.toFixed(2) + "," + z.toFixed(2) + ")"
                     );

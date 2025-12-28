@@ -10,7 +10,7 @@ class Index {
     }
 
     init(ctx) {
-        engine.log().info("[scene] init");
+        LOG.info("[scene] init");
 
         const st = ctx.state();
 

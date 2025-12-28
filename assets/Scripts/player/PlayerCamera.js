@@ -127,7 +127,7 @@ class PlayerCamera {
         // ✅ single log: config applied
         const look = this.cfg.look || {};
         const keys = this.cfg.keys || {};
-        engine.log().info(
+        LOG.debug(
             "[camera] cfg applied path=" + CAMERA_CFG_JSON +
             " type=" + this.type +
             " sens=" + (+look.sensitivity || 0) +
