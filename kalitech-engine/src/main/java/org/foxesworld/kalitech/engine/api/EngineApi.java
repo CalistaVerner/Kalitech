@@ -23,6 +23,9 @@ public interface EngineApi {
     EntityApi entity();
 
     @HostAccess.Export
+    SoundApi sound();
+
+    @HostAccess.Export
     RenderApi render();
 
     @HostAccess.Export

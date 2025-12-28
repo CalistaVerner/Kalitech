@@ -13,6 +13,7 @@ import org.foxesworld.kalitech.engine.api.impl.input.InputApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.light.LightApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.sound.SoundApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
@@ -51,6 +52,7 @@ public final class EngineApiImpl implements EngineApi {
     private final HudApiImpl hudApi;
     private final MeshApi mesh;
     private final LightApiImpl light;
+    private final SoundApiImpl sound;
     private final DebugDrawApiImpl debug;
 
     // ✅ new: unified surface registry + apis
@@ -69,6 +71,7 @@ public final class EngineApiImpl implements EngineApi {
         this.logApi = new LogApiImpl(this);
         this.assetsApi = new AssetsApiImpl(this);
         this.light = new LightApiImpl(this);
+        this.sound = new SoundApiImpl(this);
         this.eventsApi = new EventsApiImpl(this);
 
         this.jmeThread = Thread.currentThread();
@@ -106,6 +109,8 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public EventsApi events() { return eventsApi; }
     @HostAccess.Export @Override public MaterialApi material() { return materialApi; }
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
+    @HostAccess.Export @Override public SoundApi sound() { return sound; }
+
     @HostAccess.Export @Override public RenderApi render() { return renderApi; }
     @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
     @HostAccess.Export @Override public PhysicsApi physics() { return physicsApi; }

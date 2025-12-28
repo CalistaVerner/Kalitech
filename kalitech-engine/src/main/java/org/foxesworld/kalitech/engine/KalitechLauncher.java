@@ -1,8 +1,6 @@
 package org.foxesworld.kalitech.engine;
 
 import com.jme3.system.AppSettings;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.core.ICOParser;
 import org.foxesworld.kalitech.core.KalitechVersion;
 
@@ -12,7 +10,10 @@ import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+import static org.foxesworld.kalitech.core.Theme.setupTheme;
 
 public final class KalitechLauncher {
 
@@ -23,7 +24,7 @@ public final class KalitechLauncher {
         // 1) Если ещё не перезапускались — читаем vmoptions и перезапускаем JVM
         if (!Boolean.getBoolean(RELAUNCH_FLAG)) {
             Path vmoptions = resolveVmOptionsPath();
-            if (vmoptions != null && Files.isRegularFile(vmoptions)) {
+            if (Files.isRegularFile(vmoptions)) {
                 List<String> opts = readVmOptions(vmoptions);
                 if (!opts.isEmpty()) {
                     relaunchWithVmOptions(opts, args);
@@ -31,12 +32,13 @@ public final class KalitechLauncher {
                 }
             }
         }
-
+        setupTheme(System.getProperty("theme.path"));
         KalitechApplication app = new KalitechApplication();
         AppSettings settings = KalitechWindowSettings.build(KalitechLauncher.class.getClassLoader());
         var screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-        settings.setResolution((int)(screen.width * 0.85), (int)(screen.height * 0.85)
-        );
+        settings.setResolution((int)(screen.width * 0.85), (int)(screen.height * 0.85));
+        //settings.setCustomRenderer(AWTSettingsDialog.class);
+        settings.setSettingsDialogImage(System.getProperty("banner.path"));
         app.setShowSettings(true);
         app.setSettings(settings);
 
@@ -48,7 +50,7 @@ public final class KalitechLauncher {
         private KalitechWindowSettings() {}
 
         static AppSettings build(ClassLoader cl) {
-            AppSettings s = new AppSettings(true);
+            AppSettings s = new AppSettings(false);
             s.setTitle(KalitechVersion.NAME + " " + KalitechVersion.VERSION);
             s.setResizable(true);
             s.setVSync(true);
@@ -56,10 +58,8 @@ public final class KalitechLauncher {
 
             try {
                 ICOParser ico = new ICOParser();
-                var icons = ico.loadAppIcons(
-                        "theme/icon/engineLogo.ico",
-                        Path.of(KalitechVersion.ASSETSDIR),
-                        cl
+                var icons = ico.parse(
+                KalitechLauncher.class.getClassLoader().getResourceAsStream("engine/engineLogo.ico")
                 );
                 s.setIcons(icons);
             } catch (Exception e) {
@@ -71,13 +71,10 @@ public final class KalitechLauncher {
     }
 
     private static Path resolveVmOptionsPath() {
-        // 1) Если пользователь явно указал: -Dkalitech.vmoptions=path
         String explicit = System.getProperty(VMOPTIONS_PROP);
         if (explicit != null && !explicit.isBlank()) {
             return Path.of(explicit).toAbsolutePath().normalize();
         }
-
-        // 2) По умолчанию: ./Kalitech.vmoptions рядом с запуском
         Path local = Path.of("Kalitech.vmoptions").toAbsolutePath().normalize();
         return local;
     }
@@ -91,7 +88,6 @@ public final class KalitechLauncher {
                 if (s.isEmpty()) continue;
                 if (s.startsWith("#")) continue;
 
-                // IntelliJ vmoptions иногда использует комментарии после опции: "-Xmx2g # comment"
                 int hash = s.indexOf('#');
                 if (hash >= 0) s = s.substring(0, hash).trim();
                 if (s.isEmpty()) continue;
@@ -116,35 +112,25 @@ public final class KalitechLauncher {
             String classPath = System.getProperty("java.class.path");
             String mainClass = KalitechLauncher.class.getName();
 
-            // Собираем команду
             List<String> cmd = new ArrayList<>();
             cmd.add(javaExe.getAbsolutePath());
 
-            // Добавляем vmoptions из файла
             cmd.addAll(vmopts);
-
-            // Маркер, чтобы не уйти в бесконечный перезапуск
             cmd.add("-D" + RELAUNCH_FLAG + "=true");
-
-            // Сохраняем полезные системные свойства, если нужно (можно расширить)
-            // cmd.add("-Dlog.level=" + System.getProperty("log.level", "DEBUG"));
 
             cmd.add("-cp");
             cmd.add(classPath);
 
             cmd.add(mainClass);
 
-            // Прокидываем args приложения
-            for (String a : args) cmd.add(a);
+            cmd.addAll(Arrays.asList(args));
 
             System.out.println("[KalitechLauncher] Relaunching JVM with VMOPTIONS:");
             for (String o : vmopts) System.out.println("  " + o);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.inheritIO(); // чтобы лог/консоль оставались теми же
+            pb.inheritIO();
             Process p = pb.start();
-
-            // Не ждём завершения — просто выходим, новый процесс продолжит
             System.exit(0);
         } catch (Exception e) {
             System.err.println("[KalitechLauncher] Relaunch failed; continuing without vmoptions.");
