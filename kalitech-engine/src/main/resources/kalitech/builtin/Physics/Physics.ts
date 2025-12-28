@@ -2,6 +2,10 @@
 // Author: Calista Verner
 
 declare namespace KalitechPhysics {
+    // ------------------------------------
+    // Basic types
+    // ------------------------------------
+
     export type Vec3 =
         | [number, number, number]
         | { x: number; y: number; z: number };
@@ -94,10 +98,20 @@ declare namespace KalitechPhysics {
         to: Vec3Like;
     }
 
+    export interface RaycastExCfg extends RaycastCfg {
+        // future-proof / optional host flags
+        ignoreBody?: BodyRef;
+        mask?: number;
+        group?: number;
+        [k: string]: unknown;
+    }
+
     export interface PhysicsRayHit {
+        hit?: boolean; // some builds may expose hit boolean
         bodyId: number;
         surfaceId: number;
-        fraction: number;
+        fraction?: number;
+        distance?: number;
         point: { x: number; y: number; z: number };
         normal: { x: number; y: number; z: number };
         [k: string]: unknown;
@@ -109,6 +123,10 @@ declare namespace KalitechPhysics {
         [k: string]: unknown;
     }
 
+    // ------------------------------------
+    // Helpers
+    // ------------------------------------
+
     export interface PhysicsColliderHelpers {
         box(halfExtents: Vec3Like): ColliderBoxCfg;
         sphere(radius: number): ColliderSphereCfg;
@@ -118,11 +136,59 @@ declare namespace KalitechPhysics {
         dynamicMesh(): ColliderDynamicMeshCfg;
     }
 
+    // Wrapper returned by PHYS.ref(...)
+    export interface PhysicsBodyRef {
+        id(): number;
+
+        // transforms
+        position(): { x: number; y: number; z: number };
+        position(pos: Vec3Like): void;
+
+        warp(pos: Vec3Like): void;
+
+        velocity(): { x: number; y: number; z: number };
+        velocity(vel: Vec3Like): void;
+
+        yaw(yawRad: number): void;
+
+        // forces
+        applyImpulse(impulse: Vec3Like): void;
+        applyCentralForce(force: Vec3Like): void;
+        applyTorque(torque: Vec3Like): void;
+
+        angularVelocity(): { x: number; y: number; z: number };
+        angularVelocity(v: Vec3Like): void;
+
+        clearForces(): void;
+
+        // flags
+        lockRotation(lock: boolean): void;
+        collisionGroups(group: number, mask: number): void;
+
+        // world queries (convenience passthrough)
+        raycast(cfg: RaycastCfg): PhysicsRayHit | null;
+        raycastEx(cfg: RaycastExCfg): PhysicsRayHit | null;
+        raycastAll(cfg: RaycastCfg): PhysicsRayHit[]; // or unknown[] depending on host; wrapper intends array
+
+        // lifecycle
+        remove(): void;
+    }
+
+    // ------------------------------------
+    // Main API
+    // ------------------------------------
+
     export interface PhysicsApi {
+        // core
         body(cfg: PhysicsBodyCfg): PhysicsBodyHandle;
         remove(handleOrId: BodyRef): void;
-        raycast(cfg: RaycastCfg): PhysicsRayHit | null;
 
+        // world queries
+        raycast(cfg: RaycastCfg): PhysicsRayHit | null;
+        raycastEx(cfg: RaycastExCfg): PhysicsRayHit | null;
+        raycastAll(cfg: RaycastCfg): PhysicsRayHit[];
+
+        // transforms
         position(handleOrId: BodyRef): { x: number; y: number; z: number };
         position(handleOrId: BodyRef, pos: Vec3Like): void;
 
@@ -132,12 +198,26 @@ declare namespace KalitechPhysics {
         velocity(handleOrId: BodyRef, vel: Vec3Like): void;
 
         yaw(handleOrId: BodyRef, yawRad: number): void;
-        applyImpulse(handleOrId: BodyRef, impulse: Vec3Like): void;
-        lockRotation(handleOrId: BodyRef, lock: boolean): void;
 
+        // forces
+        applyImpulse(handleOrId: BodyRef, impulse: Vec3Like): void;
+        applyCentralForce(handleOrId: BodyRef, force: Vec3Like): void;
+        applyTorque(handleOrId: BodyRef, torque: Vec3Like): void;
+
+        angularVelocity(handleOrId: BodyRef): { x: number; y: number; z: number };
+        angularVelocity(handleOrId: BodyRef, vel: Vec3Like): void;
+
+        clearForces(handleOrId: BodyRef): void;
+
+        // flags
+        lockRotation(handleOrId: BodyRef, lock: boolean): void;
+        collisionGroups(handleOrId: BodyRef, group: number, mask: number): void;
+
+        // debug/world
         debug(enabled: boolean): void;
         gravity(g: Vec3Like): void;
 
+        // helpers
         collider: PhysicsColliderHelpers;
 
         idOf(handleOrId: BodyRef): number;
@@ -148,6 +228,9 @@ declare namespace KalitechPhysics {
             surface: SurfaceRef,
             cfg?: Omit<PhysicsBodyCfg, "surface">
         ): PhysicsBodyHandle;
+
+        // ✅ new: bind handle/id once and work with methods (no ids everywhere)
+        ref(handleOrId: BodyRef): PhysicsBodyRef;
     }
 
     export interface BuiltinMeta {

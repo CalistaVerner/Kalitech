@@ -32,7 +32,8 @@ const DEFAULT_CONFIG = {
             mesh: "@builtin/Mesh/Mesh",
             sound: "@builtin/Sound/Sound",
             entity: "@builtin/Entity/Entity",
-            physics: "@builtin/Physics/Physics"
+            physics: "@builtin/Physics/Physics",
+            log: "@builtin/Log/Log"
         }
     }
 };
