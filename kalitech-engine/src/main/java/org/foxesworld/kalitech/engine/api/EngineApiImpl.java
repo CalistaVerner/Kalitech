@@ -73,19 +73,17 @@ public final class EngineApiImpl implements EngineApi {
         this.light = new LightApiImpl(this);
         this.sound = new SoundApiImpl(this);
         this.eventsApi = new EventsApiImpl(this);
-
+        this.materialApi = new MaterialApiImpl(this);
         this.jmeThread = Thread.currentThread();
         //this.ui = new UiApiImpl();
 
         // ✅ registry must be created early
         this.surfaceRegistry = new SurfaceRegistry(this.app);
-
-        this.terrainApi = new TerrainApiImpl(this, surfaceRegistry);
-        this.terrainSplatApi = new TerrainSplatApiImpl(this, surfaceRegistry);
+        //ALL ABOVE REQUIRE surfaceRegistry
+        this.terrainApi = new TerrainApiImpl(this);
+        this.terrainSplatApi = new TerrainSplatApiImpl(this);
         this.editorLinesApi = new EditorLinesApiImpl(this, surfaceRegistry);
-
         this.physicsApi = new PhysicsApiImpl(this, surfaceRegistry);
-        this.materialApi = new MaterialApiImpl(this);
         this.mesh = new MeshApiImpl(this, assets, surfaceRegistry);
         this.surfaceApi = new SurfaceApiImpl(this, surfaceRegistry);
 
@@ -208,6 +206,10 @@ public final class EngineApiImpl implements EngineApi {
 
     public GraalScriptRuntime getRuntime() {
         return runtime;
+    }
+
+    public SurfaceRegistry getSurfaceRegistry() {
+        return surfaceRegistry;
     }
 
     public void __tickHud() { hudApi.__tick(); }

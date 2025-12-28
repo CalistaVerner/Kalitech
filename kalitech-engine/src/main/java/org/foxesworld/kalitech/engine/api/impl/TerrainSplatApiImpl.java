@@ -24,10 +24,10 @@ public final class TerrainSplatApiImpl implements TerrainSplatApi {
     private final AssetManager assets;
     private final SurfaceRegistry registry;
 
-    public TerrainSplatApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
+    public TerrainSplatApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.assets = engine.getAssets();
-        this.registry = Objects.requireNonNull(registry, "registry");
+        this.registry = engine.getSurfaceRegistry();
     }
 
     @HostAccess.Export
