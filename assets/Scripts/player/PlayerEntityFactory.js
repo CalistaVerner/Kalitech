@@ -42,32 +42,74 @@ class PlayerEntity {
     constructor() {
         this.entityId = 0;
         this.surface = null;
-        this.body = null;
+        this.body = null;      // can be a PHYS.ref wrapper OR Java handle
 
         this.surfaceId = 0;
         this.bodyId = 0;
+
+        // ✅ optional cached wrapper
+        this.bodyRef = null;
+    }
+
+    _ensureBodyRef() {
+        // prefer explicit wrapper if already stored
+        if (this.bodyRef) return this.bodyRef;
+
+        // if body itself looks like wrapper (has position/velocity/yaw)
+        const b = this.body;
+        if (b && typeof b.position === "function" && typeof b.velocity === "function") {
+            this.bodyRef = b;
+            return this.bodyRef;
+        }
+
+        // fallback: build wrapper from id
+        const id = this.bodyId | 0;
+        if (!id) return null;
+
+        try {
+            this.bodyRef = PHYS.ref(id);
+            return this.bodyRef;
+        } catch (_) {
+            return null;
+        }
     }
 
     warp(pos) {
         if (!pos) return;
 
+        // 1) if Java handle has teleport()
         const h = this.body;
         if (h && typeof h.teleport === "function") {
             try { h.teleport(pos); } catch (e) { try { engine.log().error("[player] warp.teleport failed: " + e); } catch (_) {} }
             return;
         }
 
-        // fallback: old api (may be no-op in your engine)
+        // 2) canonical: wrapper
+        const b = this._ensureBodyRef();
+        if (b && typeof b.warp === "function") {
+            try { b.warp(pos); } catch (e) { try { engine.log().error("[player] warp.body.warp failed: " + e); } catch (_) {} }
+            return;
+        }
+
+        // 3) last resort: PHYS.warp by id
         const bodyId = this.bodyId | 0;
         if (!bodyId) return;
-        try { engine.physics().position(bodyId, pos); } catch (e) {
-            try { engine.log().error("[player] warp.physics.position failed: " + e); } catch (_) {}
+        try { PHYS.warp(bodyId, pos); } catch (e) {
+            try { engine.log().error("[player] warp.PHYS.warp failed: " + e); } catch (_) {}
         }
     }
 
-
     destroy() {
-        try { if (this.bodyId > 0) engine.physics().remove(this.bodyId); } catch (_) {}
+        // ✅ canonical remove
+        const b = this._ensureBodyRef();
+        if (b && typeof b.remove === "function") {
+            try { b.remove(); } catch (_) {}
+        } else if ((this.bodyId | 0) > 0) {
+            // fallback to PHYS.remove (still not engine.physics)
+            try { PHYS.remove(this.bodyId | 0); } catch (_) {}
+        }
+
+        this.bodyRef = null;
         this.body = null;
         this.surface = null;
         this.entityId = 0;
@@ -82,64 +124,51 @@ class PlayerEntityFactory {
     }
 
     create(cfg) {
-        // If cfg not provided — take from player
         if (cfg == null && this.player) cfg = (this.player.cfg && this.player.cfg.spawn) || {};
         cfg = cfg || {};
 
-        const e = new PlayerEntity();
-
-        // 1) entity
-        e.entityId = engine.entity().create(cfg.name || "player");
-
-        // 2) surface
-        e.surface = engine.mesh().create({
-            type: "capsule",
-
-            name: cfg.surfaceName ?? "player.body",
-            radius: cfg.radius ?? 0.35,
-            height: cfg.height ?? 1.8,
-
-            pos: cfg.pos ?? { x: 0, y: 3, z: 0 },
-            attach: true,
-
-            physics: {
-                mass: cfg.mass ?? 80,
-                lockRotation: true
-                // collider автогенерируется как capsule (см. MeshApiImpl)
-            }
-        });
-
-        e.surfaceId = idOf(e.surface, "surface");
-        try { engine.surface().attach(e.surface, e.entityId); } catch (_) {}
-
-        // 3) physics body
-        e.body = engine.physics().body({
-            surface: e.surface,
-            mass: cfg.mass != null ? cfg.mass : 80.0,
-            friction: cfg.friction != null ? cfg.friction : 0.9,
-            restitution: cfg.restitution != null ? cfg.restitution : 0.0,
-            damping: cfg.damping || { linear: 0.15, angular: 0.95 },
-            lockRotation: true,
-            collider: {
+        const h = ENT.create({
+            name: cfg.name ?? "player",
+            surface: {
                 type: "capsule",
-                radius: cfg.radius != null ? cfg.radius : 0.35,
-                height: cfg.height != null ? cfg.height : 1.8
-            }
+                name: cfg.surfaceName,
+                radius: cfg.radius ?? 0.35,
+                height: cfg.height ?? 1.8,
+                pos: cfg.pos ?? { x: 0, y: 3, z: 0 },
+                attach: true,
+                physics: { mass: cfg.mass ?? 80, lockRotation: true }
+            },
+            body: {
+                mass: cfg.mass ?? 80.0,
+                friction: cfg.friction ?? 0.9,
+                restitution: cfg.restitution ?? 0.0,
+                damping: cfg.damping ?? { linear: 0.15, angular: 0.95 },
+                lockRotation: true,
+                collider: {
+                    type: "capsule",
+                    radius: cfg.radius,
+                    height: cfg.height
+                }
+            },
+            components: {
+                Player: (ctx) => ({
+                    entityId: ctx.entityId,
+                    surfaceId: ctx.surfaceId,
+                    bodyId: ctx.bodyId
+                })
+            },
+            debug: true
         });
-        e.bodyId = idOf(e.body, "body");
 
-        // ECS component once
-        engine.entity().setComponent(e.entityId, "Player", {
-            entityId: e.entityId,
-            surfaceId: e.surfaceId,
-            bodyId: e.bodyId
-        });
+        const e = new PlayerEntity();
+        e.entityId = h.entityId | 0;
+        e.surface = h.surface;
+        e.body = h.body;
+        e.surfaceId = h.surfaceId | 0;
+        e.bodyId = h.bodyId | 0;
 
-        engine.log().info(
-            "[player] handles entity=" + (e.entityId | 0) +
-            " surfaceId=" + (e.surfaceId | 0) +
-            " bodyId=" + (e.bodyId | 0)
-        );
+        // ✅ сразу даём удобный wrapper
+        try { if ((e.bodyId | 0) > 0) e.bodyRef = PHYS.ref(e.bodyId | 0); } catch (_) {}
 
         return e;
     }

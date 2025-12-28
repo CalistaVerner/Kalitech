@@ -1,4 +1,3 @@
-// FILE: Scripts/player/PlayerCamera.js
 // Author: Calista Verner
 "use strict";
 
@@ -36,6 +35,7 @@ function defaults() {
         type: "third",
         debug: { enabled: true, everyFrames: 60 },
         keys: { free: "F1", first: "F2", third: "F3", top: "F4" },
+
         look: {
             sensitivity: 0.002,
             smoothing: 0.12,
@@ -43,6 +43,43 @@ function defaults() {
             invertX: false,
             invertY: false
         },
+
+        // --- cyberpunk dynamics defaults (safe + subtle) ---
+        dynamics: {
+            bob: {
+                walkFreq: 7.2,
+                runFreq: 10.2,
+                walkAmpY: 0.030,
+                runAmpY: 0.060,
+                walkAmpX: 0.020,
+                runAmpX: 0.040,
+                smooth: 14.0
+            },
+            sway: {
+                yawMul: 0.045,
+                pitchMul: 0.035,
+                smooth: 18.0
+            },
+            handheld: {
+                amp: 0.006,
+                freq: 1.2,
+                smooth: 6.0
+            },
+            spring: {
+                stiffness: 55.0,
+                damping: 11.0
+            },
+            kick: {
+                stiffness: 45.0,
+                damping: 10.0
+            },
+            fov: {
+                enabled: true,
+                runAdd: 8.0,
+                smooth: 10.0
+            }
+        },
+
         free:  { speed: 90, accel: 18, drag: 6.5 },
         first: { offset: { x: 0, y: 1.65, z: 0 } },
         third: { distance: 3.4, height: 1.55, side: 0.25, zoomSpeed: 1.0 },
@@ -61,7 +98,7 @@ function merge(dst, src) {
 }
 
 function shallowPick(cfg) {
-    // отдаем orchestrator только ожидаемые секции
+    // отдаём orchestrator только ожидаемые секции
     return {
         debug: cfg.debug,
         keys:  cfg.keys,
@@ -69,7 +106,8 @@ function shallowPick(cfg) {
         free:  cfg.free,
         first: cfg.first,
         third: cfg.third,
-        top:   cfg.top
+        top:   cfg.top,
+        dynamics: cfg.dynamics
     };
 }
 
@@ -113,18 +151,19 @@ class PlayerCamera {
         catch (_) { try { engine.input().cursorVisible(!enable); } catch (_) {} }
     }
 
+    // ✅ gameplay hooks (forwarded into orchestrator)
+    onJump(strength) {
+        try { if (camModes && typeof camModes.onJump === "function") camModes.onJump(strength); } catch (_) {}
+    }
+    onLand(strength) {
+        try { if (camModes && typeof camModes.onLand === "function") camModes.onLand(strength); } catch (_) {}
+    }
+
     update(tpf, snap) {
         if (!this.ready) return;
 
         this.bodyId = this.player.bodyId | 0;
         camModes.attachTo(this.bodyId);
-
-        // временный фикс: инверсия на входе (пока не поправим orchestrator)
-        const look = this.cfg.look;
-        if (snap) {
-            //if (look.invertX) snap.dx = -(snap.dx || 0);
-            //if (look.invertY) snap.dy = -(snap.dy || 0);
-        }
 
         camModes.update(tpf, snap);
     }
@@ -136,7 +175,6 @@ class PlayerCamera {
     syncDomain(dom) {
         if (!dom) return;
 
-        // These are the *actual* angles used by the orchestrator.
         try {
             if (camModes && camModes.look) {
                 dom.view.yaw = +camModes.look._yawS || 0;

@@ -258,14 +258,15 @@ class LightRig {
         //engine.render().debugViewports();
         for (let i = 0; i < 160; i++) {
 
-            const g = primitives.create({
-                type: "box",
-                size: this.randNum(1, 5),
-                name: 'box-'+i,
-                pos: [120, 3, -300],
-                physics: { mass: 80, lockRotation: false }
-            });
-            g.setMaterial(M.getMaterial('box'));
+            const g = MSH
+                .box$()
+                .size(this.randNum(1, 5))
+                .name("box-" + i)
+                .pos(120, 3, -300)
+                .material(MAT.getMaterial("box"))
+                .physics(10000, { lockRotation: false })
+                .create();
+
     }
 
 

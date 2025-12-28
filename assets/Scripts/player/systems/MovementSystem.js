@@ -39,9 +39,9 @@ class MovementSystem {
     constructor(cfg) {
         cfg = cfg || {};
 
-        this.speed      = (cfg.speed      !== undefined) ? num(cfg.speed, 6.0) : 6.0;
-        this.runSpeed   = (cfg.runSpeed   !== undefined) ? num(cfg.runSpeed, 10.0) : 10.0;
-        this.airControl = (cfg.airControl !== undefined) ? clamp(num(cfg.airControl, 0.35), 0, 1) : 0.35;
+        this.speed       = (cfg.speed      !== undefined) ? num(cfg.speed, 6.0) : 6.0;
+        this.runSpeed    = (cfg.runSpeed   !== undefined) ? num(cfg.runSpeed, 10.0) : 10.0;
+        this.airControl  = (cfg.airControl !== undefined) ? clamp(num(cfg.airControl, 0.35), 0, 1) : 0.35;
         this.jumpImpulse = (cfg.jumpImpulse !== undefined) ? num(cfg.jumpImpulse, 320.0) : 320.0;
 
         this.groundRay   = (cfg.groundRay   !== undefined) ? num(cfg.groundRay, 1.2) : 1.2;
@@ -70,17 +70,21 @@ class MovementSystem {
         return this;
     }
 
-    _grounded(bodyId) {
+    _grounded(body /* PHYS.ref */) {
+        if (!body) return false;
+
         let p = null;
-        try { p = engine.physics().position(bodyId); } catch (_) {}
+        try { p = body.position(); } catch (_) {}
         if (!p) return false;
 
         const px = vx(p, 0), py = vy(p, 0), pz = vz(p, 0);
-        this._tmpFrom.x = px; this._tmpFrom.y = py; this._tmpFrom.z = pz;
+
+        // небольшой подъём старта: стабильнее на ступеньках/наклонах
+        this._tmpFrom.x = px; this._tmpFrom.y = py + 0.05; this._tmpFrom.z = pz;
         this._tmpTo.x   = px; this._tmpTo.y   = py - this.groundRay; this._tmpTo.z = pz;
 
         let hit = null;
-        try { hit = engine.physics().raycast({ from: this._tmpFrom, to: this._tmpTo }); } catch (_) {}
+        try { hit = body.raycast({ from: this._tmpFrom, to: this._tmpTo }); } catch (_) {}
         if (!hit || !hit.hit) return false;
 
         const n = hit.normal || null;
@@ -91,9 +95,11 @@ class MovementSystem {
         return dist <= (this.groundRay - this.groundEps);
     }
 
-    _applyPlanarVelocity(bodyId, vxNew, vzNew) {
+    _applyPlanarVelocity(body /* PHYS.ref */, vxNew, vzNew) {
+        if (!body) return;
+
         let vel = null;
-        try { vel = engine.physics().velocity(bodyId); } catch (_) {}
+        try { vel = body.velocity(); } catch (_) {}
         if (!vel) return;
 
         const vyOld = vy(vel, 0);
@@ -101,22 +107,24 @@ class MovementSystem {
         this._tmpVel.y = vyOld;
         this._tmpVel.z = vzNew;
 
-        try { engine.physics().velocity(bodyId, this._tmpVel); } catch (_) {}
+        try { body.velocity(this._tmpVel); } catch (_) {}
     }
 
-    update(tpf, bodyId, inputState, yaw) {
+    update(tpf, body /* PHYS.ref */, inputState, yaw) {
+        if (!body || !inputState) return;
+
         const ax = inputState.ax | 0;
         const az = inputState.az | 0;
         const run = !!inputState.run;
         const wantJump = !!inputState.jump;
 
-        const grounded = this._grounded(bodyId);
+        const grounded = this._grounded(body);
 
         // no move input
         if (ax === 0 && az === 0) {
             if (grounded && wantJump) {
                 this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
-                try { engine.physics().applyImpulse(bodyId, this._tmpJump); } catch (_) {}
+                try { body.applyImpulse(this._tmpJump); } catch (_) {}
             }
             return;
         }
@@ -130,7 +138,7 @@ class MovementSystem {
         const sp = run ? this.runSpeed : this.speed;
 
         let vel = null;
-        try { vel = engine.physics().velocity(bodyId); } catch (_) {}
+        try { vel = body.velocity(); } catch (_) {}
         const vxOld = vx(vel, 0);
         const vzOld = vz(vel, 0);
 
@@ -141,11 +149,11 @@ class MovementSystem {
         const vxNew = vxOld + (vxT - vxOld) * k;
         const vzNew = vzOld + (vzT - vzOld) * k;
 
-        this._applyPlanarVelocity(bodyId, vxNew, vzNew);
+        this._applyPlanarVelocity(body, vxNew, vzNew);
 
         if (grounded && wantJump) {
             this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
-            try { engine.physics().applyImpulse(bodyId, this._tmpJump); } catch (_) {}
+            try { body.applyImpulse(this._tmpJump); } catch (_) {}
         }
     }
 }

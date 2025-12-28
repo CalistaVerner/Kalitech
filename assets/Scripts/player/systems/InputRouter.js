@@ -79,7 +79,7 @@ class InputRouter {
 
             dx: 0, dy: 0, wheel: 0,
 
-            // new: view
+            // view
             yaw: 0,
             pitch: 0
         };
@@ -187,38 +187,6 @@ class InputRouter {
 
         const ddy = (m.invertY ? -dy : dy);
         this._pitch = clamp(this._pitch + ddy * s, m.pitchMin, m.pitchMax);
-    }
-
-    /**
-     * Single explicit hook to rotate player body.
-     * Replace internals with your real API call.
-     */
-    _setPlayerYaw(bodyId, yaw) {
-        const phy = engine.physics();
-        if (phy && typeof phy.yaw === "function") {
-            phy.yaw(bodyId, yaw);
-            return;
-        }
-    }
-
-
-    /**
-     * Call this each frame after read(snap) if you want player to rotate with mouse.
-     */
-    applyToPlayer(bodyId) {
-        if (!bodyId) return;
-
-        // rotate player (yaw only)
-        this._setPlayerYaw(bodyId, this._yaw);
-
-        // keep camera angles aligned too (so center-of-screen aiming matches)
-        try {
-            const cam = engine.camera();
-            if (cam) {
-                if (typeof cam.yaw === "function") cam.yaw(this._yaw);
-                if (typeof cam.pitch === "function") cam.pitch(this._pitch);
-            }
-        } catch (_) {}
     }
 
     read(snap) {

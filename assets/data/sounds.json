@@ -1,0 +1,4 @@
+{
+  "adventure": { "soundFile": "Sounds/adventure.ogg", "volume": 1.0, "pitch": 1.0, "looping": true },
+  "boom": { "soundFile": "Sounds/boom.ogg", "volume": 0.9, "pitch": 1.0, "looping": false }
+}

@@ -10,9 +10,63 @@
     "invertX": false,
     "invertY": false
   },
+  "collision": {
+    "enabled": true,
+    "staticOnly": true,
+    "padding": 0.18,
+    "minPivotDistance": 0.62,
+    "pivot": { "x": 0, "y": 1.62, "z": 0 },
+    "mask": 0,
+    "debug": { "enabled": false, "everyFrames": 90 }
+  },
+
+"dynamics": {
+    "bob": {
+      "walkFreq": 7.2,
+      "runFreq": 10.2,
+      "walkAmpY": 0.030,
+      "runAmpY": 0.060,
+      "walkAmpX": 0.020,
+      "runAmpX": 0.040,
+      "smooth": 14.0
+    },
+    "sway": {
+      "yawMul": 0.045,
+      "pitchMul": 0.035,
+      "smooth": 18.0
+    },
+    "handheld": {
+      "amp": 0.006,
+      "freq": 1.2,
+      "smooth": 6.0
+    },
+    "spring": {
+      "stiffness": 55.0,
+      "damping": 11.0
+    },
+    "kick": {
+      "stiffness": 45.0,
+      "damping": 10.0
+    },
+    "fov": {
+      "enabled": true,
+      "runAdd": 8.0,
+      "smooth": 10.0
+    }
+  },
 
   "free":  { "speed": 90, "accel": 18, "drag": 6.5 },
-  "first": { "offset": { "x": 0, "y": 1.65, "z": 0 } },
+
+  "first": {
+    "offset": { "x": 0, "y": 1.65, "z": 0 },
+    "style": {
+      "shoulder": 0.035,
+      "forward": 0.015,
+      "pitchForwardMul": 0.010,
+      "strafeLeanMul": 1.0
+    }
+  },
+
   "third": { "distance": 3.4, "height": 1.55, "side": 0.25, "zoomSpeed": 1.0 },
   "top":   { "height": 18, "panSpeed": 14, "zoomSpeed": 2, "pitch": -1.5393804002589986 }
 }

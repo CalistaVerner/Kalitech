@@ -1,4 +1,3 @@
-// FILE: Scripts/Camera/CameraOrchestrator.js
 // Author: Calista Verner
 "use strict";
 
@@ -14,11 +13,33 @@ const FirstCam = require("./modes/first.js");
 const ThirdCam = require("./modes/third.js");
 const TopCam   = require("./modes/top.js");
 
+const Dynamics = require("../Camera/CameraDynamicsCyberpunk.js"); // note: orchestrator is in Scripts/Camera, dynamics is in Scripts/camera
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function wrapAngle(a) {
     while (a > Math.PI) a -= Math.PI * 2;
     while (a < -Math.PI) a += Math.PI * 2;
     return a;
+}
+function num(v, fallback) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fallback || 0);
+}
+// read v.x or v.x()
+function vx(v, fb) {
+    if (!v) return fb || 0;
+    try { const x = v.x; if (typeof x === "function") return num(x.call(v), fb); if (typeof x === "number") return x; } catch (_) {}
+    return fb || 0;
+}
+function vy(v, fb) {
+    if (!v) return fb || 0;
+    try { const y = v.y; if (typeof y === "function") return num(y.call(v), fb); if (typeof y === "number") return y; } catch (_) {}
+    return fb || 0;
+}
+function vz(v, fb) {
+    if (!v) return fb || 0;
+    try { const z = v.z; if (typeof z === "function") return num(z.call(v), fb); if (typeof z === "number") return z; } catch (_) {}
+    return fb || 0;
 }
 
 // Graal Java int[] helper
@@ -73,6 +94,20 @@ class CameraOrchestrator {
 
         // keyCode cache (host call, cached)
         this._kc = Object.create(null);
+
+        // Cyberpunk dynamics layer
+        this.dynamics = new Dynamics();
+
+        // cached motion state
+        this.motion = {
+            speed: 0,
+            grounded: true,
+            running: false,
+            _lastX: 0,
+            _lastY: 0,
+            _lastZ: 0,
+            _hasLast: false
+        };
     }
 
     setType(type) {
@@ -129,6 +164,11 @@ class CameraOrchestrator {
             }
         }
 
+        // dynamics config (optional): cfg.dynamics
+        if (cfg.dynamics && this.dynamics && this.dynamics.configure) {
+            this.dynamics.configure(cfg.dynamics);
+        }
+
         if (cfg.keys) {
             this.keys.free = cfg.keys.free || this.keys.free;
             this.keys.first = cfg.keys.first || this.keys.first;
@@ -149,6 +189,10 @@ class CameraOrchestrator {
         this.mouseGrab._grabbed = g;
     }
 
+    // hooks for gameplay events (called by Player / events core)
+    onJump(strength) { try { this.dynamics.onJump(strength); } catch (_) {} }
+    onLand(strength) { try { this.dynamics.onLand(strength); } catch (_) {} }
+
     update(dt, snap) {
         this.input.dt = +dt || 0.016;
         if (!snap) return;
@@ -168,13 +212,33 @@ class CameraOrchestrator {
             try { bodyPos = engine.physics().position(this.bodyId); } catch (_) { bodyPos = null; }
         }
 
+        // motion state for dynamics + optional mode usage
+        this._updateMotionFromSnapshotOrPhysics(snap, bodyPos, this.input.dt);
+
         mode.update({
             cam: engine.camera(),
             bodyId: this.bodyId,
             bodyPos,
             look: this.look,
-            input: this.input
+            input: this.input,
+            motion: this.motion
         });
+
+        // Cyberpunk post-pass dynamics (apply AFTER base mode placement)
+        const isGameplay = (this.type === "first" || this.type === "third" || this.type === "free");
+        if (isGameplay && this.type !== "top") {
+            try {
+                this.dynamics.apply({
+                    cam: engine.camera(),
+                    dt: this.input.dt,
+                    mouseDx: this.input.dx,
+                    mouseDy: this.input.dy,
+                    speed: this.motion.speed,
+                    grounded: this.motion.grounded,
+                    running: this.motion.running
+                });
+            } catch (_) {}
+        }
 
         // clear one-frame deltas for modes
         this.input.dx = 0;
@@ -230,6 +294,9 @@ class CameraOrchestrator {
         } catch (_) {
             this.look._inited = false;
         }
+
+        // reset motion derivation (avoid spike)
+        this.motion._hasLast = false;
 
         try { if (next && next.onEnter) next.onEnter(); } catch (_) {}
 
@@ -324,11 +391,9 @@ class CameraOrchestrator {
             L._inited = true;
         }
 
-        // ⬅⬅⬅ ВОТ ТУТ ВСЯ СУТЬ
         const dx = L.invertX ? -this.input.dx : this.input.dx;
         const dy = L.invertY ? -this.input.dy : this.input.dy;
 
-        // базовое поведение
         L.yaw   -= dx * L.sensitivity;
         L.pitch = clamp(
             L.pitch + dy * L.sensitivity,
@@ -349,6 +414,38 @@ class CameraOrchestrator {
         } catch (_) {}
     }
 
+    _updateMotionFromSnapshotOrPhysics(snap, bodyPos, dt) {
+        // 1) snapshot fields (best)
+        const sSpeed = +snap.speed;
+        if (Number.isFinite(sSpeed)) this.motion.speed = Math.max(0, sSpeed);
+
+        const sRun = snap.run;
+        if (typeof sRun === "boolean") this.motion.running = sRun;
+
+        const sGround = snap.grounded;
+        if (typeof sGround === "boolean") this.motion.grounded = sGround;
+
+        // 2) fallback: physics velocity
+        if ((!Number.isFinite(sSpeed) || this.motion.speed <= 0.0001) && this.bodyId) {
+            try {
+                const v = engine.physics().velocity(this.bodyId);
+                const sp = Math.hypot(vx(v, 0), vy(v, 0), vz(v, 0));
+                if (Number.isFinite(sp)) this.motion.speed = sp;
+            } catch (_) {}
+        }
+
+        // 3) ultra-fallback: derive from position delta
+        if ((!Number.isFinite(sSpeed) || this.motion.speed <= 0.0001) && bodyPos) {
+            const x = vx(bodyPos, 0), y = vy(bodyPos, 0), z = vz(bodyPos, 0);
+            if (this.motion._hasLast) {
+                const sp = Math.hypot(x - this.motion._lastX, y - this.motion._lastY, z - this.motion._lastZ) / Math.max(1e-4, dt);
+                const a = 1 - Math.exp(-12 * dt);
+                this.motion.speed = this.motion.speed + (sp - this.motion.speed) * a;
+            }
+            this.motion._lastX = x; this.motion._lastY = y; this.motion._lastZ = z;
+            this.motion._hasLast = true;
+        }
+    }
 }
 
 module.exports = new CameraOrchestrator();

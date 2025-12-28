@@ -16,9 +16,10 @@ class PlayerController {
         this.player = player;
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
 
+        // legacy ids kept for logs/debug only
         this.bodyId = 0;
 
-        // tiny orchestrator parts
+        // systems
         this.input = new InputRouter(movCfg);
         this.movement = new MovementSystem(movCfg);
         this.shoot = new ShootSystem(rootCfg);
@@ -37,24 +38,11 @@ class PlayerController {
         return this;
     }
 
-    _resolveBodyId(any) {
-        const x = any && (any.bodyId !== undefined ? any.bodyId : any);
-        if (typeof x === "number") return x | 0;
-
-        if (x && typeof x === "object") {
-            try {
-                if (typeof x.id === "function") return (x.id() | 0);
-                if (typeof x.getBodyId === "function") return (x.getBodyId() | 0);
-                if (typeof x.bodyId === "number") return (x.bodyId | 0);
-                if (typeof x.id === "number") return (x.id | 0);
-            } catch (_) {}
-        }
-        return 0;
-    }
-
     bind(ids) {
+        // in new world we bind via player.body; keep bodyId only for debug
         if (ids == null && this.player) ids = this.player;
-        this.bodyId = this._resolveBodyId(ids);
+
+        try { this.bodyId = (ids && typeof ids.bodyId === "number") ? (ids.bodyId | 0) : (ids | 0); } catch (_) { this.bodyId = 0; }
 
         try { if (this.input) this.input.bind(); } catch (_) {}
         try { engine.log().info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
@@ -64,11 +52,15 @@ class PlayerController {
     update(tpf, snap) {
         if (!this.enabled) return;
 
-        // hot reload safe
-        if (this.player) this.bodyId = (this.player.bodyId | 0);
-        if (!(this.bodyId | 0)) return;
+        const p = this.player;
+        if (!p) return;
 
-        const dom = this.player ? this.player.dom : null;
+        // hot reload safe: refresh id + wrapper existence handled by Player (index.js)
+        this.bodyId = (p.bodyId | 0);
+        const body = p.body; // ✅ PHYS.ref(bodyId)
+        if (!body) return;
+
+        const dom = p.dom;
 
         // controller does not interpret input — just routes it
         const state = this.input.read(snap);
@@ -82,6 +74,10 @@ class PlayerController {
             dom.input.lmbDown = !!state.lmbDown;
             dom.input.lmbJustPressed = !!state.lmbJustPressed;
         }
+
+        // ✅ optional: rotate player body to match yaw (if you want)
+        // (InputRouter only computes yaw/pitch; body rotation lives here)
+        try { if (dom && dom.view) body.yaw(dom.view.yaw); } catch (_) {}
 
         // optional debug
         if (this._debugOn) {
@@ -104,20 +100,18 @@ class PlayerController {
         this.shoot.update(tpf, this.bodyId | 0, dom, state);
 
         const yaw = (dom && dom.view) ? dom.view.yaw : state.yaw; // fallback
-        this.movement.update(tpf, this.bodyId | 0, state, yaw);
+        this.movement.update(tpf, body, state, yaw);
     }
 
     warp(pos) {
-        const bodyId = this.bodyId | 0;
-        if (!bodyId || !pos) return;
-        try { engine.physics().position(bodyId, pos); } catch (_) {}
+        const p = this.player;
+        if (!p || !p.body || !pos) return;
+        try { p.body.warp(pos); } catch (_) {}
     }
 
     warpXYZ(x, y, z) {
         this.warp({ x: +x || 0, y: +y || 0, z: +z || 0 });
     }
-
-    getBodyId() { return this.bodyId | 0; }
 }
 
 module.exports = PlayerController;

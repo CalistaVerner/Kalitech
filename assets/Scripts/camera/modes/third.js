@@ -1,4 +1,3 @@
-// FILE: Scripts/camera/modes/third.js
 "use strict";
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -33,6 +32,12 @@ class ThirdPersonCameraMode {
 
         this.zoomSpeed = 1.0;
 
+        // follow smoothing (lag)
+        this.follow = { smoothing: 10.0, _x: 0, _y: 0, _z: 0, _inited: false };
+
+        // cyberpunk tuning
+        this.dynamic = { runDistAdd: 0.7, strafeShoulder: 0.18 };
+
         this.debug = { enabled: false, everyFrames: 60, _f: 0 };
     }
 
@@ -45,13 +50,21 @@ class ThirdPersonCameraMode {
         if (typeof cfg.side === "number") this.side = cfg.side;
         if (typeof cfg.zoomSpeed === "number") this.zoomSpeed = cfg.zoomSpeed;
 
+        if (cfg.follow) {
+            if (typeof cfg.follow.smoothing === "number") this.follow.smoothing = Math.max(0.1, cfg.follow.smoothing);
+        }
+        if (cfg.dynamic) {
+            if (typeof cfg.dynamic.runDistAdd === "number") this.dynamic.runDistAdd = cfg.dynamic.runDistAdd;
+            if (typeof cfg.dynamic.strafeShoulder === "number") this.dynamic.strafeShoulder = cfg.dynamic.strafeShoulder;
+        }
+
         if (cfg.debug) {
             if (typeof cfg.debug.enabled === "boolean") this.debug.enabled = cfg.debug.enabled;
             if (typeof cfg.debug.everyFrames === "number") this.debug.everyFrames = Math.max(1, cfg.debug.everyFrames | 0);
         }
     }
 
-    onEnter() {}
+    onEnter() { this.follow._inited = false; }
     onExit() {}
 
     update(ctx) {
@@ -67,26 +80,56 @@ class ThirdPersonCameraMode {
         const sin = Math.sin(yaw);
         const cos = Math.cos(yaw);
 
-        const bx = -sin * this.distance;
-        const bz = -cos * this.distance;
+        const dt = (ctx.input && ctx.input.dt) ? ctx.input.dt : 0.016;
 
-        const rx =  cos * this.side;
-        const rz = -sin * this.side;
+        // dynamic distance (slightly farther when running fast)
+        const m = ctx.motion || null;
+        const sp = m ? (m.speed || 0) : 0;
+        const run = m ? !!m.running : false;
+        const k = clamp(sp / 8.0, 0, 1);
 
-        const x = vx(ctx.bodyPos, 0) + bx + rx;
-        const y = vy(ctx.bodyPos, 0) + this.height;
-        const z = vz(ctx.bodyPos, 0) + bz + rz;
+        const distAdd = run ? (this.dynamic.runDistAdd * k) : 0;
+        const dist = clamp(this.distance + distAdd, this.minDistance, this.maxDistance);
 
-        ctx.cam.setLocation(x, y, z);
+        // backward vector by yaw
+        const bx = -sin * dist;
+        const bz = -cos * dist;
+
+        // shoulder shift from strafe
+        const strafe = ctx.input ? (ctx.input.mx || 0) : 0;
+        const shoulder = this.side + (strafe * this.dynamic.strafeShoulder);
+
+        const rx =  cos * shoulder;
+        const rz = -sin * shoulder;
+
+        const tx = vx(ctx.bodyPos, 0) + bx + rx;
+        const ty = vy(ctx.bodyPos, 0) + this.height;
+        const tz = vz(ctx.bodyPos, 0) + bz + rz;
+
+        // follow smoothing (lag) — keeps it cinematic
+        const f = this.follow;
+        if (!f._inited) {
+            f._x = tx; f._y = ty; f._z = tz;
+            f._inited = true;
+        }
+        const a = 1 - Math.exp(-f.smoothing * dt);
+
+        f._x += (tx - f._x) * a;
+        f._y += (ty - f._y) * a;
+        f._z += (tz - f._z) * a;
+
+        // Set desired location; collision resolution is done in orchestrator (final pass)
+        ctx.cam.setLocation(f._x, f._y, f._z);
 
         if (this.debug.enabled) {
             this.debug._f++;
             if ((this.debug._f % this.debug.everyFrames) === 0) {
                 try {
                     engine.log().info("[cam:third] bodyId=" + (ctx.bodyId | 0) +
-                        " dist=" + this.distance.toFixed(2) +
-                        " bodyPos=(" + vx(ctx.bodyPos, 0).toFixed(2) + "," + vy(ctx.bodyPos, 0).toFixed(2) + "," + vz(ctx.bodyPos, 0).toFixed(2) + ")" +
-                        " cam=(" + x.toFixed(2) + "," + y.toFixed(2) + "," + z.toFixed(2) + ")"
+                        " dist=" + dist.toFixed(2) +
+                        " speed=" + sp.toFixed(2) +
+                        " run=" + (run ? 1 : 0) +
+                        " cam=(" + f._x.toFixed(2) + "," + f._y.toFixed(2) + "," + f._z.toFixed(2) + ")"
                     );
                 } catch (_) {}
             }

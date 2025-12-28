@@ -18,11 +18,11 @@ class Index {
 
         // --- ground plane ---
         const ground = engine.terrain().plane({w: 1000, h: 1000});
-        ground.setMaterial(M.getMaterial("unshaded.grass"));
+        ground.setMaterial(MAT.getMaterial("unshaded.grass"));
         //ground.setShadowMode("Cast");
         ground.setTransform({ pos:[0,0,0] });
 
-        const groundBody = engine.physics().body({
+        const groundBody = PHYS.body({
             surface: ground,
             mass: 0,
             kinematic: true,
@@ -43,7 +43,7 @@ class Index {
         const phys = st.get(this.KEY_GROUND_PHYS);
         if (phys) {
             try {
-                engine.physics().remove(phys);
+                PHYS.remove(phys);
             } catch (_) {}
         }
         st.remove(this.KEY_GROUND_PHYS);

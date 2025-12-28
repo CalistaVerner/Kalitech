@@ -35,6 +35,8 @@ function vx(v, fb) { return readComp(v, "x", fb); }
 function vy(v, fb) { return readComp(v, "y", fb); }
 function vz(v, fb) { return readComp(v, "z", fb); }
 
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
 function normalize3_into(x, y, z, out) {
     const l2 = x * x + y * y + z * z;
     if (l2 < 1e-12) { out.x = 0; out.y = 0; out.z = 1; return out; }
@@ -48,15 +50,19 @@ const DEFAULT_CFG = Object.freeze({
 
     // projectile
     type: "sphere",
-    radius: 0.35,
-    mass: 80.0,
+    radius: 0.5,
+    mass: 800.0,
     lockRotation: false,
-    materialId: "box",
+    materialId: "grass.debug",
 
     // spawn + flight
     spawnOffset: 2.0,
     eyeHeight: 1.55,
-    speed: 100.0
+    speed: 8.0,
+
+    // input conventions
+    // In your current setup pitch grows when looking DOWN, so we invert it for math.
+    invertPitch: true
 });
 
 function mergeCfg(src) {
@@ -73,7 +79,9 @@ function mergeCfg(src) {
 
         spawnOffset: (src.spawnOffset !== undefined) ? num(src.spawnOffset, b.spawnOffset) : b.spawnOffset,
         eyeHeight: (src.eyeHeight !== undefined) ? num(src.eyeHeight, b.eyeHeight) : b.eyeHeight,
-        speed: (src.speed !== undefined) ? num(src.speed, b.speed) : b.speed
+        speed: (src.speed !== undefined) ? num(src.speed, b.speed) : b.speed,
+
+        invertPitch: (src.invertPitch !== undefined) ? !!src.invertPitch : b.invertPitch
     };
 }
 
@@ -85,7 +93,7 @@ class ShootSystem {
         this._shotId = 0;
         this._prevLmbDown = false;
 
-        // temps
+        // temps (no allocations in update loop)
         this._dir = { x: 0, y: 0, z: 1 };
         this._origin = { x: 0, y: 0, z: 0 };
         this._spawn = { x: 0, y: 0, z: 0 };
@@ -106,7 +114,7 @@ class ShootSystem {
     }
 
     _readOriginFromPlayer_into(bodyId, outOrigin) {
-        const p = engine.physics().position(bodyId);
+        const p = PHYS.position(bodyId);
         outOrigin.x = vx(p, 0);
         outOrigin.y = vy(p, 0) + this.cfg.eyeHeight;
         outOrigin.z = vz(p, 0);
@@ -114,9 +122,25 @@ class ShootSystem {
     }
 
     _dirFromYawPitch_into(yaw, pitch, outDir) {
+        // Convention:
         // yaw=0 -> +Z
+        // pitch positive usually means "look up" for math,
+        // but in your camera system pitch grows when looking DOWN -> invertPitch fixes that.
+        const c = this.cfg;
+
+        yaw = num(yaw, 0);
+        pitch = num(pitch, 0);
+
+        // avoid reaching exactly +/- 90deg (numerical stability)
+        const LIM = (Math.PI * 0.5) - 1e-4;
+        pitch = clamp(pitch, -LIM, LIM);
+
+        if (c.invertPitch) pitch = -pitch;
+
         const sy = Math.sin(yaw), cy = Math.cos(yaw);
         const sp = Math.sin(pitch), cp = Math.cos(pitch);
+
+        // forward direction
         return normalize3_into(sy * cp, sp, cy * cp, outDir);
     }
 
@@ -128,7 +152,7 @@ class ShootSystem {
         this._readOriginFromPlayer_into(bodyId, this._origin);
 
         // direction: EXACT current look from PlayerDomain (center of screen)
-        this._dirFromYawPitch_into(num(yaw, 0), num(pitch, 0), this._dir);
+        this._dirFromYawPitch_into(yaw, pitch, this._dir);
 
         // spawn in front of origin
         const off = c.spawnOffset;
@@ -138,22 +162,31 @@ class ShootSystem {
 
         const name = "shot-" + ((++this._shotId) | 0);
 
-        const g = primitives.create({
-            type: c.type,
-            radius: c.radius,
+        const g = MSH.loadModel("Models/sharp-boulder-layered.obj", {
+            scale: c.radius,
             name: name,
-            pos: [this._spawn.x, this._dir.y + DEFAULT_CFG.eyeHeight, this._spawn.z],
+            pos: [this._spawn.x, this._spawn.y, this._spawn.z],
             physics: { mass: c.mass, lockRotation: c.lockRotation }
         });
 
-        if (g && g.setMaterial) g.setMaterial(M.getMaterial(c.materialId));
+
+        g.setMaterial(MAT.getMaterial(c.materialId));
+
 
         const speed = c.speed;
-        g.velocity({
-            x: this._dir.x * speed,
-            y: this._dir.y * speed,
-            z: this._dir.z * speed
-        });
+        if (g.velocity) {
+            g.velocity({
+                x: this._dir.x * speed,
+                y: this._dir.y * speed,
+                z: this._dir.z * speed
+            });
+        }
+        SND.create({
+            soundFile: "Sounds/notify.ogg",
+            volume: 1.0,
+            pitch: 1.0,
+            looping: false
+        }).play();
     }
 
     /**
@@ -164,18 +197,18 @@ class ShootSystem {
         if (!this.cfg.enabled) return;
         if (!bodyId) return;
 
-        if (this._lmbJustPressed()) {
-            let yaw = 0, pitch = 0;
-            if (dom && dom.view) {
-                yaw = dom.view.yaw;
-                pitch = dom.view.pitch;
-            } else if (state) {
-                // fallback for older call sites
-                yaw = state.yaw;
-                pitch = state.pitch;
-            }
-            this._fire(bodyId, yaw, pitch);
+        if (!this._lmbJustPressed()) return;
+
+        let yaw = 0, pitch = 0;
+        if (dom && dom.view) {
+            yaw = dom.view.yaw;
+            pitch = dom.view.pitch;
+        } else if (state) {
+            yaw = state.yaw;
+            pitch = state.pitch;
         }
+
+        this._fire(bodyId, yaw, pitch);
     }
 }
 

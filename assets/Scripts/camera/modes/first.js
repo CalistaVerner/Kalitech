@@ -1,5 +1,6 @@
-// FILE: Scripts/camera/modes/first.js
 "use strict";
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function num(v, fallback) {
     const n = +v;
@@ -38,6 +39,15 @@ function vz(v, fb) {
 class FirstPersonCameraMode {
     constructor() {
         this.offset = { x: 0.0, y: 1.65, z: 0.0 };
+
+        // cyberpunk-ish micro biases (base layer; dynamics adds bob/sway afterwards)
+        this.style = {
+            shoulder: 0.035,
+            forward: 0.015,
+            pitchForwardMul: 0.010,
+            strafeLeanMul: 1.0
+        };
+
         this.debug = { enabled: false, everyFrames: 60, _f: 0 };
     }
 
@@ -47,6 +57,13 @@ class FirstPersonCameraMode {
             if (typeof cfg.offset.x === "number") this.offset.x = cfg.offset.x;
             if (typeof cfg.offset.y === "number") this.offset.y = cfg.offset.y;
             if (typeof cfg.offset.z === "number") this.offset.z = cfg.offset.z;
+        }
+        if (cfg.style) {
+            const s = cfg.style;
+            if (typeof s.shoulder === "number") this.style.shoulder = s.shoulder;
+            if (typeof s.forward === "number") this.style.forward = s.forward;
+            if (typeof s.pitchForwardMul === "number") this.style.pitchForwardMul = s.pitchForwardMul;
+            if (typeof s.strafeLeanMul === "number") this.style.strafeLeanMul = s.strafeLeanMul;
         }
         if (cfg.debug) {
             if (typeof cfg.debug.enabled === "boolean") this.debug.enabled = cfg.debug.enabled;
@@ -60,9 +77,28 @@ class FirstPersonCameraMode {
     update(ctx) {
         if (!ctx.bodyPos) return;
 
-        const x = vx(ctx.bodyPos, 0) + this.offset.x;
-        const y = vy(ctx.bodyPos, 0) + this.offset.y;
-        const z = vz(ctx.bodyPos, 0) + this.offset.z;
+        const baseX = vx(ctx.bodyPos, 0) + this.offset.x;
+        const baseY = vy(ctx.bodyPos, 0) + this.offset.y;
+        const baseZ = vz(ctx.bodyPos, 0) + this.offset.z;
+
+        // cyberpunk subtle shoulder/forward bias
+        const yaw = ctx.look ? (ctx.look._yawS || 0) : 0;
+        const pitch = ctx.look ? (ctx.look._pitchS || 0) : 0;
+
+        const sin = Math.sin(yaw);
+        const cos = Math.cos(yaw);
+
+        const strafe = ctx.input ? (ctx.input.mx || 0) : 0;
+
+        const shoulder = this.style.shoulder * clamp(strafe, -1, 1) * this.style.strafeLeanMul;
+        const forward = this.style.forward + Math.abs(pitch) * this.style.pitchForwardMul;
+
+        const bx = (cos * shoulder) + (-sin * forward);
+        const bz = (-sin * shoulder) + (-cos * forward);
+
+        const x = baseX + bx;
+        const y = baseY;
+        const z = baseZ + bz;
 
         ctx.cam.setLocation(x, y, z);
 
