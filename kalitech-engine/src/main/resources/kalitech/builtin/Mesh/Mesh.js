@@ -90,6 +90,20 @@ function normalizeCfg(cfg) {
     if (out.type != null) out.type = String(out.type);
     if (out.name != null) out.name = String(out.name);
 
+    // ---- model path normalization (NEW) ----
+    // Accept:
+    //  - cfg.path
+    //  - cfg.model
+    //  - cfg.asset
+    //  - cfg.url (sometimes scripts call it like that)
+    // Normalize to: cfg.path (string)
+    if (out.path == null) {
+        if (out.model != null) out.path = out.model;
+        else if (out.asset != null) out.path = out.asset;
+        else if (out.url != null) out.path = out.url;
+    }
+    if (out.path != null) out.path = String(out.path);
+
     const p =
         (out.pos != null) ? out.pos :
             (out.position != null) ? out.position :
@@ -377,6 +391,29 @@ function create(engine /*, K */) {
     function cylinder(cfg) { return createOne(withType("cylinder", cfg)); }
     function capsule(cfg) { return createOne(withType("capsule", cfg)); }
 
+    // NEW: loadModel(pathOrCfg, cfg?)
+    // Usage:
+    //   MSH.loadModel("Models/house.obj", { pos:[..], scale:1, physics:{mass:0} })
+    //   MSH.loadModel({ path:"Models/house.obj", pos:[..], physics:{...} })
+    function loadModel(pathOrCfg, cfg) {
+        let c;
+
+        if (typeof pathOrCfg === "string") {
+            c = normalizeCfg(cfg);
+            c.type = "model";
+            c.path = String(pathOrCfg);
+        } else {
+            c = normalizeCfg(pathOrCfg);
+            c.type = "model";
+        }
+
+        if (!c.path || String(c.path).trim() === "") {
+            throw new Error("[MSH] loadModel: path is required (string or cfg.path)");
+        }
+
+        return createOne(c);
+    }
+
     function many(list) {
         if (!Array.isArray(list)) throw new Error("[MSH] many(list): array required");
         const m = mesh();
@@ -400,6 +437,10 @@ function create(engine /*, K */) {
                 return b;
             },
             material(m) { state.material = m; return b; },
+
+            // NEW: model path setter (works for type=model, harmless otherwise)
+            path(v) { state.path = String(v); return b; },
+            model(v) { state.path = String(v); return b; },
 
             // physics builder
             physics(mass, opts) { state.physics = physics(mass, opts || {}); return b; },
@@ -433,6 +474,10 @@ function create(engine /*, K */) {
         sphere,
         cylinder,
         capsule,
+
+        // NEW: models
+        loadModel,
+
         many,
 
         // materials helpers
@@ -447,7 +492,10 @@ function create(engine /*, K */) {
         cube$: () => builder("box"),
         sphere$: () => builder("sphere"),
         cylinder$: () => builder("cylinder"),
-        capsule$: () => builder("capsule")
+        capsule$: () => builder("capsule"),
+
+        // NEW: model builder
+        model$: () => builder("model")
     });
 
     return api;
@@ -455,10 +503,10 @@ function create(engine /*, K */) {
 
 // META (adult contract)
 create.META = {
-    name: "primitives",
+    name: "mesh",
     globalName: "MSH",
-    version: "1.0.0",
-    description: "Mesh primitives factory with physics-aware SurfaceHandle wrapper (velocity/teleport/impulse)",
+    version: "1.1.0",
+    description: "Mesh primitives factory with physics-aware SurfaceHandle wrapper (velocity/teleport/impulse) + model loader",
     engineMin: "0.1.0"
 };
 

@@ -29,8 +29,10 @@ const DEFAULT_CONFIG = {
         exposeGlobals: true,
         modules: {
             materials: "@builtin/Material/Material",
-            primitives: "@builtin/Primitives/Primitives",
-            sound: "@builtin/Sound/Sound"
+            mesh: "@builtin/Mesh/Mesh",
+            sound: "@builtin/Sound/Sound",
+            entity: "@builtin/Entity/Entity",
+            physics: "@builtin/Physics/Physics"
         }
     }
 };
