@@ -12,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * ICOParser — современный, максимально совместимый парсер .ico для десктоп-иконок.
@@ -26,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>Минимум легаси: убраны лишние/мертвые части, API собран в одну точку</li>
  * </ul>
  */
-public class ICOParser extends ByteParser<List<BufferedImage>> {
+public class ICOParser extends ByteParser<BufferedImage[]> {
 
     private static final int MAX_ICO_SIZE_BYTES = 32 * 1024 * 1024; // safety cap
     private static final int DEFAULT_CACHE_SIZE = 32;
@@ -80,10 +79,20 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
 
     /**
      * Parse ICO from InputStream.
+     *
+     * @return decoded frames as array (preferred for AppSettings.setIcons)
      */
-    public List<BufferedImage> parse(InputStream in) throws IOException {
+    public BufferedImage[] parse(InputStream in) throws IOException {
         if (in == null) throw new FileNotFoundException("ICO InputStream is null");
         return parse(readAllBytesLimited(in, MAX_ICO_SIZE_BYTES));
+    }
+
+    /**
+     * Back-compat helper: returns List instead of array.
+     */
+    public List<BufferedImage> parseList(InputStream in) throws IOException {
+        BufferedImage[] arr = parse(in);
+        return Arrays.asList(arr);
     }
 
     /**
@@ -111,7 +120,8 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
 
                 String lower = c.toLowerCase(Locale.ROOT);
                 if (lower.endsWith(".ico")) {
-                    List<BufferedImage> icons = parse(in);
+                    BufferedImage[] icons = parse(in);
+
                     BufferedImage[] picked = pickBestIcons(icons);
                     if (picked.length > 0) return picked;
 
@@ -134,8 +144,9 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
      * Compatibility helper for old usage:
      * icoParser.getBestIcon(icoParser.parse(stream))
      */
-    public BufferedImage getBestIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
+    public BufferedImage getBestIcon(BufferedImage[] icons) {
+        if (icons == null || icons.length == 0) return null;
+
         // Prefer typical "app icon" size first
         BufferedImage best = getBestMatchingIcon(icons, 256, 256);
         if (best != null) return best;
@@ -145,10 +156,18 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
     }
 
     /**
+     * Back-compat overload (List).
+     */
+    public BufferedImage getBestIcon(List<BufferedImage> icons) {
+        if (icons == null || icons.isEmpty()) return null;
+        return getBestIcon(icons.toArray(BufferedImage[]::new));
+    }
+
+    /**
      * Pick best icons for typical OS sizes (for AppSettings.setIcons()).
      */
-    public BufferedImage[] pickBestIcons(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return new BufferedImage[0];
+    public BufferedImage[] pickBestIcons(BufferedImage[] icons) {
+        if (icons == null || icons.length == 0) return new BufferedImage[0];
 
         int[] sizes = new int[]{16, 24, 32, 48, 64, 128, 256};
 
@@ -160,6 +179,14 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         }
 
         return uniq.values().toArray(BufferedImage[]::new);
+    }
+
+    /**
+     * Back-compat overload (List).
+     */
+    public BufferedImage[] pickBestIcons(List<BufferedImage> icons) {
+        if (icons == null || icons.isEmpty()) return new BufferedImage[0];
+        return pickBestIcons(icons.toArray(BufferedImage[]::new));
     }
 
     /**
@@ -203,7 +230,7 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
     // ------------------------------------------------------------
 
     @Override
-    protected List<BufferedImage> parseBytes(byte[] data) throws IOException {
+    protected BufferedImage[] parseBytes(byte[] data) throws IOException {
         if (data == null || data.length < 6) throw new IOException("Invalid ICO: too small");
         this.icoData = data;
 
@@ -247,13 +274,13 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         this.entries = tmp;
 
         // Decode all frames eagerly (common expectation), but uses cache.
-        List<BufferedImage> images = new ArrayList<>(count);
+        ArrayList<BufferedImage> images = new ArrayList<>(count);
         for (IconDirEntry e : entries) {
             BufferedImage img = loadIconImage(e);
             if (img != null) images.add(img);
         }
 
-        return images;
+        return images.toArray(BufferedImage[]::new);
     }
 
     // ------------------------------------------------------------
@@ -515,11 +542,8 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
 
     /**
      * If we decoded indexed/binary and mask exists, it's safer for modern usage to ensure ARGB.
-     * We don't apply the mask (already skipped), but conversion keeps downstream consistent.
      */
     private static BufferedImage ensureArgbIfMasked(BufferedImage img) {
-        // For indexed/binary icons: still return as-is (OS can take indexed),
-        // but ARGB is generally the safest for setIcons().
         return ensureArgb(img);
     }
 
@@ -534,21 +558,21 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
     }
 
     // ------------------------------------------------------------
-    // Selection utilities
+    // Selection utilities (array-based)
     // ------------------------------------------------------------
 
-    public BufferedImage getIconExactSize(List<BufferedImage> icons, int width, int height) {
+    public BufferedImage getIconExactSize(BufferedImage[] icons, int width, int height) {
         if (width < 0 || height < 0) throw new IllegalArgumentException("width/height < 0");
-        if (icons == null || icons.isEmpty()) return null;
+        if (icons == null || icons.length == 0) return null;
         for (BufferedImage icon : icons) {
-            if (icon.getWidth() == width && icon.getHeight() == height) return icon;
+            if (icon != null && icon.getWidth() == width && icon.getHeight() == height) return icon;
         }
         return null;
     }
 
-    public BufferedImage getBestMatchingIcon(List<BufferedImage> icons, int width, int height) {
+    public BufferedImage getBestMatchingIcon(BufferedImage[] icons, int width, int height) {
         if (width < 0 || height < 0) throw new IllegalArgumentException("width/height < 0");
-        if (icons == null || icons.isEmpty()) return null;
+        if (icons == null || icons.length == 0) return null;
 
         BufferedImage exact = getIconExactSize(icons, width, height);
         if (exact != null) return exact;
@@ -557,6 +581,8 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         long bestScore = Long.MAX_VALUE;
 
         for (BufferedImage icon : icons) {
+            if (icon == null) continue;
+
             int iw = icon.getWidth();
             int ih = icon.getHeight();
 
@@ -581,12 +607,13 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         return best;
     }
 
-    public BufferedImage getHighestQualityIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
+    public BufferedImage getHighestQualityIcon(BufferedImage[] icons) {
+        if (icons == null || icons.length == 0) return null;
         BufferedImage best = null;
         long bestScore = Long.MIN_VALUE;
 
         for (BufferedImage icon : icons) {
+            if (icon == null) continue;
             long area = (long) icon.getWidth() * (long) icon.getHeight();
             int depth = getEffectiveBitDepth(icon);
             long score = area * (long) Math.max(1, depth);
@@ -600,11 +627,12 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         return best;
     }
 
-    public BufferedImage getLargestIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
+    public BufferedImage getLargestIcon(BufferedImage[] icons) {
+        if (icons == null || icons.length == 0) return null;
         BufferedImage best = null;
         long bestArea = -1;
         for (BufferedImage icon : icons) {
+            if (icon == null) continue;
             long area = (long) icon.getWidth() * (long) icon.getHeight();
             if (area > bestArea) {
                 bestArea = area;
@@ -612,6 +640,27 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
             }
         }
         return best;
+    }
+
+    // Back-compat overloads for List (optional)
+    public BufferedImage getIconExactSize(List<BufferedImage> icons, int width, int height) {
+        if (icons == null || icons.isEmpty()) return null;
+        return getIconExactSize(icons.toArray(BufferedImage[]::new), width, height);
+    }
+
+    public BufferedImage getBestMatchingIcon(List<BufferedImage> icons, int width, int height) {
+        if (icons == null || icons.isEmpty()) return null;
+        return getBestMatchingIcon(icons.toArray(BufferedImage[]::new), width, height);
+    }
+
+    public BufferedImage getHighestQualityIcon(List<BufferedImage> icons) {
+        if (icons == null || icons.isEmpty()) return null;
+        return getHighestQualityIcon(icons.toArray(BufferedImage[]::new));
+    }
+
+    public BufferedImage getLargestIcon(List<BufferedImage> icons) {
+        if (icons == null || icons.isEmpty()) return null;
+        return getLargestIcon(icons.toArray(BufferedImage[]::new));
     }
 
     private static int getEffectiveBitDepth(BufferedImage image) {
@@ -671,8 +720,7 @@ public class ICOParser extends ByteParser<List<BufferedImage>> {
         InputStream in = cl.getResourceAsStream(r);
         if (in != null) return in;
 
-        in = cl.getResourceAsStream("/" + r);
-        return in;
+        return cl.getResourceAsStream("/" + r);
     }
 
     /**
