@@ -18,7 +18,6 @@ import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.material.MaterialUtils;
-import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
@@ -28,7 +27,7 @@ import org.graalvm.polyglot.Value;
 
 import java.util.*;
 
-import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.str;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 
 public final class SurfaceApiImpl implements SurfaceApi {
 
@@ -47,8 +46,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
         this.materialApi = engine.material();
-        this.registry.bindSurfaceApi(this);
-
+        // ❌ LEGACY REMOVED: registry.bindSurfaceApi(this);
     }
 
     @HostAccess.Export
@@ -112,21 +110,18 @@ public final class SurfaceApiImpl implements SurfaceApi {
         }
     }
 
-
     private static void applyTileWorldToGeometryIfAny(Geometry g, Value materialCfg) {
         if (g == null || materialCfg == null || materialCfg.isNull()) return;
 
         Value params = member(materialCfg, "params");
         if (params == null || params.isNull() || !params.hasMembers()) return;
 
-        // 1) найти tileWorld в любом texture-параметре (приоритет BaseColorMap/ColorMap)
         MaterialUtils.TextureDesc td = null;
 
         td = tryTex(params, "BaseColorMap");
         if (td == null) td = tryTex(params, "ColorMap");
 
         if (td == null) {
-            // fallback: любой параметр-текстура
             for (String k : params.getMemberKeys()) {
                 td = MaterialUtils.parseTextureDesc(params.getMember(k));
                 if (td != null && td.tileWorld() != null) break;
@@ -136,14 +131,12 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
         if (td == null || td.tileWorld() == null) return;
 
-        // 2) размеры геометрии в world units (берём X/Z из world bound)
         BoundingVolume bv = g.getWorldBound();
         if (!(bv instanceof BoundingBox bb)) return;
 
         float worldX = bb.getXExtent() * 2f;
         float worldZ = bb.getZExtent() * 2f;
 
-        // если геометрия “тонкая” по Z (например плоскость лежит в XY) — попробуем Y вместо Z
         if (worldZ < 1e-4f) worldZ = bb.getYExtent() * 2f;
         if (worldX < 1e-4f || worldZ < 1e-4f) return;
 
@@ -151,7 +144,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         float tileZ = td.tileWorld().z();
         if (tileX <= 0f || tileZ <= 0f) return;
 
-        // сколько повторов на размер поверхности
         float u = worldX / tileX;
         float v = worldZ / tileZ;
 
@@ -174,11 +166,9 @@ public final class SurfaceApiImpl implements SurfaceApi {
         VertexBuffer vb = mesh.getBuffer(VertexBuffer.Type.TexCoord);
         if (vb == null) return;
 
-        // читаем предыдущий scale
         Vector2f prev = g.getUserData(UD_UV_SCALE);
         if (prev == null) prev = new Vector2f(1f, 1f);
 
-        // ratio чтобы не копить масштаб при повторном setMaterial
         float ru = u / prev.x;
         float rv = v / prev.y;
 
@@ -206,9 +196,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         applyTransform(s, cfg);
     }
 
-    /**
-     * Legacy-friendly name: setPos(handle, [x,y,z])
-     */
     @HostAccess.Export
     public void setPos(SurfaceHandle target, Object pos) {
         Spatial s = requireSpatial(target);
@@ -216,9 +203,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         s.setLocalTranslation(p);
     }
 
-    /**
-     * Legacy-friendly name: setRot(handle, [degX,degY,degZ])
-     */
     @HostAccess.Export
     public void setRot(SurfaceHandle target, Object rotDeg) {
         Spatial s = requireSpatial(target);
@@ -229,9 +213,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
     }
 
-    /**
-     * Legacy-friendly name: setScale(handle, [sx,sy,sz]) or setScale(handle, number)
-     */
     @HostAccess.Export
     public void setScale(SurfaceHandle target, Object scale) {
         Spatial s = requireSpatial(target);
@@ -249,9 +230,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         s.setLocalScale(sc);
     }
 
-    /**
-     * Optional convenience: setName(handle, "name") if you want Primitive.setName to be live.
-     */
     @HostAccess.Export
     public void setName(SurfaceHandle target, String name) {
         Spatial s = requireSpatial(target);
@@ -297,7 +275,8 @@ public final class SurfaceApiImpl implements SurfaceApi {
     @Override
     public int attachedEntity(SurfaceHandle target) {
         requireHandle(target);
-        return registry.attachedEntity(target.id());
+        Integer e = registry.attachedEntity(target.id());
+        return (e == null) ? 0 : e;
     }
 
     @HostAccess.Export
@@ -312,9 +291,9 @@ public final class SurfaceApiImpl implements SurfaceApi {
     @Override
     public void detachFromEntity(SurfaceHandle target) {
         requireHandle(target);
-        int entityId = registry.attachedEntity(target.id());
+        Integer entityId = registry.attachedEntity(target.id());
         registry.detachSurface(target.id());
-        if (entityId > 0) engine.getEcs().components().removeByName(entityId, "Surface");
+        if (entityId != null && entityId > 0) engine.getEcs().components().removeByName(entityId, "Surface");
     }
 
     @HostAccess.Export
@@ -359,14 +338,9 @@ public final class SurfaceApiImpl implements SurfaceApi {
         return collide(s, ray, onlyClosest, limit);
     }
 
-    // ------------------------------
-    // ✅ pickUnderCursor (camera ray)
-    // ------------------------------
-
     @HostAccess.Export
     @Override
     public Hit[] pickUnderCursor(SurfaceHandle target) {
-        // default config: onlyClosest=true, max=10_000
         return pickUnderCursorCfg(target, null);
     }
 
@@ -378,7 +352,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         Camera cam = engine.getApp().getCamera();
         if (cam == null) return new Hit[0];
 
-        // screen coords: override or use InputApi mouse
         float sx;
         float sy;
 
@@ -395,15 +368,60 @@ public final class SurfaceApiImpl implements SurfaceApi {
         }
 
         boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
-        if (flipY) {
-            sy = cam.getHeight() - sy;
-        }
+        if (flipY) sy = cam.getHeight() - sy;
 
         float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
         int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
         boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
 
-        // JME ray from camera through cursor
+        Vector2f screen = new Vector2f(sx, sy);
+        Vector3f origin = cam.getWorldCoordinates(screen, 0f);
+        Vector3f far = cam.getWorldCoordinates(screen, 1f);
+        Vector3f dir = far.subtract(origin).normalizeLocal();
+
+        Ray ray = new Ray(origin, dir);
+        ray.setLimit(max);
+
+        return collide(s, ray, onlyClosest, limit);
+    }
+
+    @HostAccess.Export
+    @Override
+    public Hit[] pickUnderCursor() {
+        return pickUnderCursorCfg((Value) null);
+    }
+
+    @HostAccess.Export
+    @Override
+    public Hit[] pickUnderCursorCfg(Value cfg) {
+        Spatial s = engine.getApp().getRootNode();
+        if (s == null) return new Hit[0];
+
+        Camera cam = engine.getApp().getCamera();
+        if (cam == null) return new Hit[0];
+
+        float sx;
+        float sy;
+
+        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenX") && cfg.getMember("screenX").isNumber()) {
+            sx = (float) cfg.getMember("screenX").asDouble();
+        } else {
+            sx = (float) engine.input().mouseX();
+        }
+
+        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenY") && cfg.getMember("screenY").isNumber()) {
+            sy = (float) cfg.getMember("screenY").asDouble();
+        } else {
+            sy = (float) engine.input().mouseY();
+        }
+
+        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
+        if (flipY) sy = cam.getHeight() - sy;
+
+        float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
+        int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
+        boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
+
         Vector2f screen = new Vector2f(sx, sy);
         Vector3f origin = cam.getWorldCoordinates(screen, 0f);
         Vector3f far = cam.getWorldCoordinates(screen, 1f);
@@ -453,79 +471,17 @@ public final class SurfaceApiImpl implements SurfaceApi {
         if (o instanceof int[] a && a.length >= 3) return new Vector3f(a[0], a[1], a[2]);
 
         if (o instanceof Value v) {
-            // reuse existing vec3(Value,dx,dy,dz) from this class
             return vec3(v, dx, dy, dz);
         }
 
-        // last resort
         return new Vector3f(dx, dy, dz);
     }
 
-    // --------------------------
-    // Component (host-safe)
-    // --------------------------
     public static final class SurfaceComponent {
         @HostAccess.Export public final int surfaceId;
         @HostAccess.Export public final String kind;
         public SurfaceComponent(int surfaceId, String kind) { this.surfaceId = surfaceId; this.kind = kind; }
     }
-
-    // ------------------------------
-    // ✅ pickUnderCursor (WORLD/root)
-    // ------------------------------
-
-    @HostAccess.Export
-    @Override
-    public Hit[] pickUnderCursor() {
-        return pickUnderCursorCfg((Value) null);
-    }
-
-
-    @HostAccess.Export
-    @Override
-    public Hit[] pickUnderCursorCfg(Value cfg) {
-        Spatial s = engine.getApp().getRootNode();
-        if (s == null) return new Hit[0];
-
-        Camera cam = engine.getApp().getCamera();
-        if (cam == null) return new Hit[0];
-
-        float sx;
-        float sy;
-
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenX") && cfg.getMember("screenX").isNumber()) {
-            sx = (float) cfg.getMember("screenX").asDouble();
-        } else {
-            sx = (float) engine.input().mouseX();
-        }
-
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenY") && cfg.getMember("screenY").isNumber()) {
-            sy = (float) cfg.getMember("screenY").asDouble();
-        } else {
-            sy = (float) engine.input().mouseY();
-        }
-
-        // Many input systems report Y from top-left; JME camera coords expect bottom-left.
-        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
-        if (flipY) {
-            sy = cam.getHeight() - sy;
-        }
-
-        float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
-        int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
-        boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
-
-        Vector2f screen = new Vector2f(sx, sy);
-        Vector3f origin = cam.getWorldCoordinates(screen, 0f);
-        Vector3f far = cam.getWorldCoordinates(screen, 1f);
-        Vector3f dir = far.subtract(origin).normalizeLocal();
-
-        Ray ray = new Ray(origin, dir);
-        ray.setLimit(max);
-
-        return collide(s, ray, onlyClosest, limit);
-    }
-
 
     // --------------------------
     // Helpers
@@ -573,12 +529,11 @@ public final class SurfaceApiImpl implements SurfaceApi {
                 if (g.getMaterial() != mat) g.setMaterial(mat);
                 continue;
             }
-            if (s instanceof com.jme3.terrain.geomipmap.TerrainQuad tq) {
+            if (s instanceof TerrainQuad tq) {
                 if (tq.getMaterial() != mat) tq.setMaterial(mat);
                 continue;
             }
             if (s instanceof Node n) {
-                // children list is stable enough for iteration
                 for (Spatial child : n.getChildren()) {
                     if (child != null) stack.push(child);
                 }
@@ -586,8 +541,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         }
     }
 
-
-    // ---- transform helpers (same style as before) ----
     public static void applyTransform(Spatial s, Value cfg) {
         if (s == null || cfg == null || cfg.isNull()) return;
 
@@ -612,7 +565,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
     private static RenderQueue.ShadowMode parseShadowMode(String mode) {
         if (mode == null) return RenderQueue.ShadowMode.Inherit;
-        String m = mode.trim().toLowerCase();
+        String m = mode.trim().toLowerCase(Locale.ROOT);
         return switch (m) {
             case "off", "none" -> RenderQueue.ShadowMode.Off;
             case "receive" -> RenderQueue.ShadowMode.Receive;
@@ -622,14 +575,9 @@ public final class SurfaceApiImpl implements SurfaceApi {
         };
     }
 
-    // ---- Value helpers ----
-    private static Value member(Value v, String k) {
-        return (v != null && v.hasMember(k)) ? v.getMember(k) : null;
-    }
-
     private static boolean bool(Value v, String k, boolean def) {
         try {
-            Value m = member(v, k);
+            Value m = (v != null && v.hasMember(k)) ? v.getMember(k) : null;
             return (m == null || m.isNull()) ? def : m.asBoolean();
         } catch (Throwable t) {
             return def;
@@ -638,7 +586,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
     private static double num(Value v, String k, double def) {
         try {
-            Value m = member(v, k);
+            Value m = (v != null && v.hasMember(k)) ? v.getMember(k) : null;
             return (m == null || m.isNull()) ? def : m.asDouble();
         } catch (Throwable t) {
             return def;

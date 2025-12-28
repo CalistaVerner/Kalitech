@@ -19,8 +19,6 @@ public final class SurfaceRegistry {
 
     private final SimpleApplication app;
 
-    private volatile SurfaceApi surfaceApi;
-
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> kindById = new ConcurrentHashMap<>();
@@ -30,8 +28,6 @@ public final class SurfaceRegistry {
     private final ConcurrentHashMap<Integer, Integer> entityToSurface = new ConcurrentHashMap<>();
 
     // --- scene attach batching ---
-    // Creating 100+ spatials and attaching them one-by-one can stall the frame due to repeated scenegraph updates.
-    // We keep the JS/Host API intact, but coalesce actual attach operations into a single flush on the render thread.
     private final ConcurrentLinkedQueue<Integer> pendingAttach = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean attachFlushScheduled = new AtomicBoolean(false);
 
@@ -39,27 +35,30 @@ public final class SurfaceRegistry {
         this.app = Objects.requireNonNull(app, "app");
     }
 
-    public void bindSurfaceApi(SurfaceApi api) {
-        Objects.requireNonNull(api, "api");
-        if (this.surfaceApi != null && this.surfaceApi != api) {
-            throw new IllegalStateException("SurfaceRegistry.bindSurfaceApi: already bound to another SurfaceApi instance");
-        }
-        this.surfaceApi = api;
-    }
-
-    public SurfaceApi.SurfaceHandle register(Spatial spatial, String kind) {
+    /**
+     * Register a Spatial and return a host-safe handle.
+     * IMPORTANT: Registry does NOT keep SurfaceApi reference (no bind), caller provides it explicitly.
+     */
+    public SurfaceApi.SurfaceHandle register(Spatial spatial, String kind, SurfaceApi api) {
         Objects.requireNonNull(spatial, "spatial");
+        Objects.requireNonNull(api, "api");
+
         String k = (kind == null || kind.isBlank()) ? "surface" : kind.trim();
-        log.debug("Registered {} of type {} located at {}", spatial.getName(), kind, spatial.getWorldTranslation());
 
         int id = ids.getAndIncrement();
         byId.put(id, spatial);
         kindById.put(id, k);
 
-        SurfaceApi api = this.surfaceApi;
-        if (api == null) {
-            throw new IllegalStateException("SurfaceRegistry.register: SurfaceApi is not bound (call bindSurfaceApi)");
+        if (log.isDebugEnabled()) {
+            try {
+                log.debug("Registered spatial id={} kind={} name={} worldPos={}",
+                        id, k, spatial.getName(), spatial.getWorldTranslation());
+            } catch (Throwable ignored) {
+                log.debug("Registered spatial id={} kind={} name={}", id, k, spatial.getName());
+            }
         }
+
+        // Keep current contract: SurfaceHandle still contains api reference (if your SurfaceHandle class expects it).
         return new SurfaceApi.SurfaceHandle(id, k, api);
     }
 
@@ -80,14 +79,14 @@ public final class SurfaceRegistry {
         surfaceToEntity.put(surfaceId, entityId);
     }
 
-    /** ✅ detach by surface; returns detached entityId (or null) */
+    /** detach by surface; returns detached entityId (or null) */
     public Integer detachSurface(int surfaceId) {
         Integer ent = surfaceToEntity.remove(surfaceId);
         if (ent != null) entityToSurface.remove(ent);
         return ent;
     }
 
-    /** ✅ detach by entity; returns detached surfaceId (or null) */
+    /** detach by entity; returns detached surfaceId (or null) */
     public Integer detachEntity(int entityId) {
         Integer surf = entityToSurface.remove(entityId);
         if (surf != null) surfaceToEntity.remove(surf);
@@ -95,7 +94,6 @@ public final class SurfaceRegistry {
     }
 
     public void attachToRoot(int id) {
-        // NOTE: preserve method semantics for callers, but avoid doing N scene attaches in a tight loop.
         if (!exists(id)) throw new IllegalArgumentException("attachToRoot: unknown surface id=" + id);
         pendingAttach.add(id);
         scheduleAttachFlush();
@@ -104,13 +102,11 @@ public final class SurfaceRegistry {
     private void scheduleAttachFlush() {
         if (!attachFlushScheduled.compareAndSet(false, true)) return;
 
-        // Execute on the render thread at the next safe point.
         app.enqueue(() -> {
             try {
                 flushPendingAttach();
             } finally {
                 attachFlushScheduled.set(false);
-                // If new items arrived while flushing, schedule again.
                 if (!pendingAttach.isEmpty()) scheduleAttachFlush();
             }
             return null;
@@ -136,7 +132,6 @@ public final class SurfaceRegistry {
         Spatial s = byId.remove(id);
         kindById.remove(id);
 
-        // ensure maps are clean (safe even if already detached)
         detachSurface(id);
 
         if (s != null) {

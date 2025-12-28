@@ -181,12 +181,12 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
             root.addControl(new UnderCameraGridControl(engine, step, snapToStep, snapY, worldHalf, yOffset, yAdd, recenterFrac));
         } else {
             // static: just put it at some default "below camera" at creation time
-            var cam = engine.getApp().getCamera().getLocation();
+            Vector3f cam = engine.getApp().getCamera().getLocation();
             root.setLocalTranslation(cam.x, cam.y - yOffset + yAdd, cam.z);
         }
 
-        // Register in SurfaceRegistry
-        SurfaceApi.SurfaceHandle h = surfaces.register(root, "editor.grid");
+        // Register in SurfaceRegistry (NEW signature: pass api explicitly, no legacy bind)
+        SurfaceApi.SurfaceHandle h = surfaces.register(root, "editor.grid", engine.surface());
         surfaces.attachToRoot(h.id());
 
         log.info("EditorLines: grid created handle={} patchHalf={} step={} majorStep={} minorTh={} majorTh={} followCamera={} yOffset={}",
@@ -238,7 +238,7 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         protected void controlUpdate(float tpf) {
             if (spatial == null) return;
 
-            var cam = engine.getApp().getCamera().getLocation();
+            Vector3f cam = engine.getApp().getCamera().getLocation();
 
             // --- Y always under camera ---
             float y = cam.y - yOffset + yAdd;

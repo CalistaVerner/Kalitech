@@ -23,9 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Mesh factory that composes: Surface + Material + Physics using a single JS config object.
- */
 public final class MeshApiImpl implements MeshApi {
 
     private static final Logger log = LogManager.getLogger(MeshApiImpl.class);
@@ -34,8 +31,6 @@ public final class MeshApiImpl implements MeshApi {
     private final AssetManager assets;
     private final SurfaceRegistry registry;
 
-    // Creating a new default material for every mesh is a common source of stutter when creating many meshes.
-    // Cache it (and clone if you ever need per-geometry mutation).
     private volatile Material cachedDefaultMat;
 
     public MeshApiImpl(EngineApiImpl engine, AssetManager assets, SurfaceRegistry registry) {
@@ -166,11 +161,7 @@ public final class MeshApiImpl implements MeshApi {
             default -> throw new IllegalArgumentException("mesh.create: unknown type=" + type);
         };
 
-        // ✅ единое место пост-инициализации
-        if (name != null && !name.isBlank()) {
-            spatial.setName(name);
-        }
-
+        if (name != null && !name.isBlank()) spatial.setName(name);
         return spatial;
     }
 
@@ -292,7 +283,8 @@ public final class MeshApiImpl implements MeshApi {
     private SurfaceApi.SurfaceHandle register(Spatial s, String kind, Value cfg) {
         s.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
 
-        SurfaceApi.SurfaceHandle h = registry.register(s, kind);
+        // ✅ NEW: registry no longer needs bind; provide api explicitly
+        SurfaceApi.SurfaceHandle h = registry.register(s, kind, engine.surface());
 
         boolean attach = bool(cfg, "attach", true);
         if (attach) registry.attachToRoot(h.id());
@@ -303,9 +295,6 @@ public final class MeshApiImpl implements MeshApi {
         return h;
     }
 
-    /**
-     * Universal constructor.
-     */
     @HostAccess.Export
     @Override
     public SurfaceApi.SurfaceHandle create(Value cfg) {

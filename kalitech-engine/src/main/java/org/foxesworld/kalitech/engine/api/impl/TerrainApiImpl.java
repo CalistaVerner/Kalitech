@@ -56,21 +56,17 @@ public final class TerrainApiImpl implements TerrainApi {
         boolean shadows = bool(cfg, "shadows", true);
         tq.setShadowMode(shadows ? RenderQueue.ShadowMode.CastAndReceive : RenderQueue.ShadowMode.Receive);
 
-        // safe default material
         Material defMat = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
         defMat.setColor("Color", new ColorRGBA(0.25f, 0.7f, 0.3f, 1f));
         tq.setMaterial(defMat);
 
-        // apply transforms
         SurfaceApiImpl.applyTransform(tq, cfg);
 
-        SurfaceApi.SurfaceHandle h = registry.register(tq, "terrain");
+        // ✅ NEW: pass api explicitly, no bind legacy
+        SurfaceApi.SurfaceHandle h = registry.register(tq, "terrain", engine.surface());
 
-        // optional material
         Value mh = member(cfg, "material");
-        if (mh != null && !mh.isNull()) {
-            engine.surface().setMaterial(h, mh);
-        }
+        if (mh != null && !mh.isNull()) engine.surface().setMaterial(h, mh);
 
         boolean attach = bool(cfg, "attach", true);
         if (attach) registry.attachToRoot(h.id());
@@ -96,7 +92,7 @@ public final class TerrainApiImpl implements TerrainApi {
 
         SurfaceApiImpl.applyTransform(g, cfg);
 
-        SurfaceApi.SurfaceHandle handle = registry.register(g, "quad");
+        SurfaceApi.SurfaceHandle handle = registry.register(g, "quad", engine.surface());
 
         Value mh = member(cfg, "material");
         if (mh != null && !mh.isNull()) engine.surface().setMaterial(handle, mh);
@@ -119,7 +115,6 @@ public final class TerrainApiImpl implements TerrainApi {
         Geometry g = new Geometry(name, new Quad(w, h));
         g.setShadowMode(RenderQueue.ShadowMode.Receive);
 
-        // rotate XY -> XZ
         g.setLocalRotation(new Quaternion().fromAngles(-(float)(Math.PI * 0.5), 0f, 0f));
 
         Material defMat = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
@@ -128,7 +123,7 @@ public final class TerrainApiImpl implements TerrainApi {
 
         SurfaceApiImpl.applyTransform(g, cfg);
 
-        SurfaceApi.SurfaceHandle handle = registry.register(g, "plane");
+        SurfaceApi.SurfaceHandle handle = registry.register(g, "plane", engine.surface());
 
         Value mh = member(cfg, "material");
         if (mh != null && !mh.isNull()) engine.surface().setMaterial(handle, mh);
