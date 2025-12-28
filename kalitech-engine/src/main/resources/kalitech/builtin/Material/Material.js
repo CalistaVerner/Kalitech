@@ -2,13 +2,51 @@
 // Author: Calista Verner
 "use strict";
 
+function isPlainJsObject(x) {
+    if (!x || typeof x !== "object") return false;
+    const p = Object.getPrototypeOf(x);
+    return p === Object.prototype || p === null;
+}
+
+function shallowClone(obj) {
+    return obj ? Object.assign({}, obj) : Object.create(null);
+}
+
+function stableStringify(obj) {
+    // deterministic stringify for cache keys (shallow-ish but stable)
+    if (!obj || typeof obj !== "object") return String(obj);
+    const keys = Object.keys(obj).sort();
+    let out = "{";
+    for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const v = obj[k];
+        out += (i ? "," : "") + JSON.stringify(k) + ":" + JSON.stringify(v);
+    }
+    out += "}";
+    return out;
+}
+
 class MaterialsRegistry {
     constructor(K) {
         this.K = K;
+
         this.defs = null;
+
+        // base caches (no overrides)
         this.cacheMat = Object.create(null);
         this.cacheHandle = Object.create(null);
+
+        // optional: per-override caches
+        this.cacheMatOv = Object.create(null);     // key -> Material
+        this.cacheHandleOv = Object.create(null);  // key -> handle
+
+        // tuning
+        this._enableOverrideCache = true;
+        this._overrideCacheMax = 256;
+        this._overrideCacheOrder = []; // simple FIFO
     }
+
+    // ---------- core ----------
 
     engine() {
         const e = this.K && this.K._engine;
@@ -23,37 +61,78 @@ class MaterialsRegistry {
 
     loadDefs() {
         if (this.defs) return this.defs;
-        const json = this.engine().assets().readText(this.dbPath());
-        this.defs = JSON.parse(json);
+
+        const path = this.dbPath();
+        let json;
+        try {
+            json = this.engine().assets().readText(path);
+        } catch (e) {
+            throw new Error("[materials] failed to read defs at '" + path + "': " + String(e && e.message ? e.message : e));
+        }
+
+        try {
+            this.defs = JSON.parse(json);
+        } catch (e) {
+            throw new Error("[materials] invalid JSON in '" + path + "': " + String(e && e.message ? e.message : e));
+        }
+
+        if (!this.defs || typeof this.defs !== "object") {
+            throw new Error("[materials] defs must be an object map in '" + path + "'");
+        }
         return this.defs;
+    }
+
+    keys() {
+        try { return Object.keys(this.loadDefs()); } catch (_) { return []; }
     }
 
     base(name) {
         const n = String(name || "");
         const all = this.loadDefs();
         const b = all[n];
-        if (!b) throw new Error("[materials] unknown material: " + n);
+        if (!b) {
+            const sample = this.keys().slice(0, 12).join(", ");
+            throw new Error("[materials] unknown material: " + n + " (db=" + this.dbPath() + ", known=" + sample + (this.keys().length > 12 ? ", ..." : "") + ")");
+        }
         return b;
     }
 
     cloneCfg(base) {
         return {
             def: base.def,
-            params: Object.assign({}, base.params || {}),
-            scales: base.scales ? Object.assign({}, base.scales) : undefined
+            params: shallowClone(base.params || null),
+            scales: base.scales ? shallowClone(base.scales) : undefined
         };
     }
 
-    applyOverrides(cfg, overrides) {
-        if (!overrides) return;
-        if (overrides.params) Object.assign(cfg.params, overrides.params);
-        if (overrides.scales) cfg.scales = Object.assign(cfg.scales || {}, overrides.scales);
+    normalizeOverrides(overrides) {
+        // Accept:
+        //  - null/undefined
+        //  - { params:{...}, scales:{...} } (full form)
+        //  - { Color:[...], Roughness:0.5 } (short form => params)
+        if (!overrides) return null;
+
+        // If someone passes already-normalized
+        if (overrides.params || overrides.scales) {
+            return {
+                params: overrides.params ? shallowClone(overrides.params) : null,
+                scales: overrides.scales ? shallowClone(overrides.scales) : null
+            };
+        }
+
+        // Short form: treat as params
+        if (isPlainJsObject(overrides)) {
+            return { params: shallowClone(overrides), scales: null };
+        }
+
+        // Anything else: keep old behavior (ignore)
+        return null;
     }
 
-    isPlainJsObject(x) {
-        if (!x || typeof x !== "object") return false;
-        const p = Object.getPrototypeOf(x);
-        return p === Object.prototype || p === null;
+    applyOverrides(cfg, normalized) {
+        if (!normalized) return;
+        if (normalized.params) Object.assign(cfg.params, normalized.params);
+        if (normalized.scales) cfg.scales = Object.assign(cfg.scales || {}, normalized.scales);
     }
 
     unwrapMaterial(v) {
@@ -65,50 +144,173 @@ class MaterialsRegistry {
 
         if (!m) throw new Error("[materials] expected Material, got: " + String(m));
 
-        if (this.isPlainJsObject(m)) {
+        if (isPlainJsObject(m)) {
             throw new Error("[materials] expected host Material, got plain JS object");
         }
 
         return m;
     }
 
-    getHandle(name, overrides = null) {
-        if (!overrides && this.cacheHandle[name]) return this.cacheHandle[name];
+    // ---------- caching helpers ----------
 
-        const cfg = this.cloneCfg(this.base(name));
-        this.applyOverrides(cfg, overrides);
+    _ovKey(name, normalized) {
+        if (!normalized) return null;
+        // stable and simple; enough for typical param overrides
+        const p = normalized.params ? stableStringify(normalized.params) : "";
+        const s = normalized.scales ? stableStringify(normalized.scales) : "";
+        return String(name) + "|p=" + p + "|s=" + s;
+    }
+
+    _ovCachePut(map, key, value) {
+        if (!this._enableOverrideCache) return;
+        map[key] = value;
+        this._overrideCacheOrder.push(key);
+
+        // naive FIFO eviction (fast, good enough for small cap)
+        const max = this._overrideCacheMax | 0;
+        while (this._overrideCacheOrder.length > max) {
+            const old = this._overrideCacheOrder.shift();
+            if (old && map[old]) delete map[old];
+            // also clear from the other override cache to avoid growth mismatch
+            if (old && this.cacheMatOv[old]) delete this.cacheMatOv[old];
+            if (old && this.cacheHandleOv[old]) delete this.cacheHandleOv[old];
+        }
+    }
+
+    // ---------- main API (backward compatible) ----------
+
+    getHandle(name, overrides = null) {
+        const n = String(name || "");
+        const ov = this.normalizeOverrides(overrides);
+
+        if (!ov && this.cacheHandle[n]) return this.cacheHandle[n];
+
+        const ovKey = this._ovKey(n, ov);
+        if (ovKey && this.cacheHandleOv[ovKey]) return this.cacheHandleOv[ovKey];
+
+        const cfg = this.cloneCfg(this.base(n));
+        this.applyOverrides(cfg, ov);
 
         const h = this.engine().material().create(cfg);
-        if (!overrides) this.cacheHandle[name] = h;
+
+        if (!ov) this.cacheHandle[n] = h;
+        else this._ovCachePut(this.cacheHandleOv, ovKey, h);
+
         return h;
     }
 
     getMaterial(name, overrides = null) {
-        if (!overrides && this.cacheMat[name]) return this.cacheMat[name];
+        const n = String(name || "");
+        const ov = this.normalizeOverrides(overrides);
 
-        const cfg = this.cloneCfg(this.base(name));
-        this.applyOverrides(cfg, overrides);
+        if (!ov && this.cacheMat[n]) return this.cacheMat[n];
+
+        const ovKey = this._ovKey(n, ov);
+        if (ovKey && this.cacheMatOv[ovKey]) return this.cacheMatOv[ovKey];
+
+        const cfg = this.cloneCfg(this.base(n));
+        this.applyOverrides(cfg, ov);
 
         const created = this.engine().material().create(cfg);
         const mat = this.unwrapMaterial(created);
 
-        if (!overrides) this.cacheMat[name] = mat;
+        if (!ov) this.cacheMat[n] = mat;
+        else this._ovCachePut(this.cacheMatOv, ovKey, mat);
+
         return mat;
+    }
+
+    // ---------- NEW: more declarative sugar ----------
+
+    /**
+     * Default: returns Material.
+     * Alias for getMaterial(name, overrides)
+     */
+    get(name, overrides = null) {
+        return this.getMaterial(name, overrides);
+    }
+
+    /**
+     * Alias for getHandle(name, overrides)
+     */
+    handle(name, overrides = null) {
+        return this.getHandle(name, overrides);
+    }
+
+    /**
+     * Create reusable preset function:
+     * const RedBox = M.preset("box", { Color:[1,0,0,1] });
+     * const mat = RedBox(); // material
+     * const h   = RedBox.handle(); // handle
+     */
+    preset(name, overrides) {
+        const self = this;
+        const n = String(name || "");
+        const ov = this.normalizeOverrides(overrides);
+
+        function fn(moreOverrides) {
+            if (moreOverrides) {
+                // merge overrides (shallow)
+                const a = self.normalizeOverrides(ov) || { params: null, scales: null };
+                const b = self.normalizeOverrides(moreOverrides) || { params: null, scales: null };
+
+                const merged = { params: null, scales: null };
+                if (a.params || b.params) merged.params = Object.assign({}, a.params || null, b.params || null);
+                if (a.scales || b.scales) merged.scales = Object.assign({}, a.scales || null, b.scales || null);
+
+                return self.getMaterial(n, merged);
+            }
+            return self.getMaterial(n, ov);
+        }
+
+        fn.handle = function (moreOverrides) {
+            if (moreOverrides) {
+                const a = self.normalizeOverrides(ov) || { params: null, scales: null };
+                const b = self.normalizeOverrides(moreOverrides) || { params: null, scales: null };
+
+                const merged = { params: null, scales: null };
+                if (a.params || b.params) merged.params = Object.assign({}, a.params || null, b.params || null);
+                if (a.scales || b.scales) merged.scales = Object.assign({}, a.scales || null, b.scales || null);
+
+                return self.getHandle(n, merged);
+            }
+            return self.getHandle(n, ov);
+        };
+
+        fn.name = n;
+        fn.overrides = ov || null;
+        return fn;
+    }
+
+    /**
+     * Convenience for “just params” without wrapping:
+     * M.params("box", { Color:[...] })
+     */
+    params(name, paramsObj) {
+        return this.getMaterial(name, { params: paramsObj || null });
+    }
+
+    /**
+     * Tune behavior (optional)
+     */
+    configure(cfg) {
+        cfg = (cfg && typeof cfg === "object") ? cfg : {};
+        if (cfg.overrideCache !== undefined) this._enableOverrideCache = !!cfg.overrideCache;
+        if (cfg.overrideCacheMax !== undefined) this._overrideCacheMax = Math.max(0, cfg.overrideCacheMax | 0);
+        return this;
     }
 
     reload() {
         this.defs = null;
+
         for (const k in this.cacheMat) delete this.cacheMat[k];
         for (const k in this.cacheHandle) delete this.cacheHandle[k];
-        return true;
-    }
 
-    keys() {
-        try {
-            return Object.keys(this.loadDefs());
-        } catch (_) {
-            return [];
-        }
+        for (const k in this.cacheMatOv) delete this.cacheMatOv[k];
+        for (const k in this.cacheHandleOv) delete this.cacheHandleOv[k];
+        this._overrideCacheOrder.length = 0;
+
+        return true;
     }
 }
 

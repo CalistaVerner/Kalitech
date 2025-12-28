@@ -22,10 +22,11 @@ const DEFAULT_CONFIG = {
             math: "@builtin/math",
             editorPreset: "@builtin/editorPreset",
             materials: "@builtin/Material/Material",
-            primitives: "@builtin/Primitives/Primitives"
+            primitives: "@builtin/Primitives/Primitives",
+            sound: "@builtin/Sound/Sound"
         },
         exposeGlobals: true,
-        globalAliases: { M: "materials" }
+        globalAliases: { M: "materials", S: "sound" }
     }
 };
 
@@ -166,7 +167,12 @@ class BuiltinRegistry {
     loadAll() {
         const cfg = this.getConfig();
         const mods = (cfg.builtins && cfg.builtins.modules) ? cfg.builtins.modules : {};
-        for (const name in mods) this.load(name, mods[name]);
+
+        // Загружаем и регистрируем модули с автоматическим добавлением engine и alias
+        for (const name in mods) {
+            this.load(name, mods[name]);
+            this.registerAlias(name); // Автоматически регистрируем alias
+        }
         this._captureFactories();
         this._applyAliases();
     }
@@ -182,7 +188,7 @@ class BuiltinRegistry {
 
         const cfg = this.getConfig();
         if (cfg.builtins && cfg.builtins.exposeGlobals) {
-            if (isFactoryBuiltin(exp) && (n === "materials" || n === "primitives")) {
+            if (isFactoryBuiltin(exp) && (n === "materials" || n === "primitives" || n === "sound")) {
                 this.globals.set(n, makeLazyBuiltinProxy(this.root, n), true);
             } else {
                 this.globals.set(n, exp, false);
@@ -190,6 +196,15 @@ class BuiltinRegistry {
         }
 
         return exp;
+    }
+
+    registerAlias(name) {
+        // Автоматическая регистрация глобального alias для каждого модуля
+        const aliases = this.root.config.builtins.globalAliases || {};
+        const alias = aliases[name];
+        if (alias) {
+            this.globals.alias(alias, name);
+        }
     }
 
     _captureFactories() {
@@ -205,6 +220,7 @@ class BuiltinRegistry {
         for (const a in aliases) this.globals.alias(a, aliases[a]);
     }
 }
+
 
 class Lifecycle {
     constructor(root) {
@@ -293,6 +309,7 @@ class KalitechBootstrap {
         }
 
         this.globals.alias("M", "materials");
+        this.globals.alias("S", "sound");
 
         if (log && log.info) log.info("[builtin/bootstrap] engine attached");
 

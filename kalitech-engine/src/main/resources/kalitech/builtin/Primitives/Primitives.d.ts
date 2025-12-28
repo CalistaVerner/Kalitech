@@ -52,6 +52,7 @@ export interface PhysicsCfg {
     restitution?: number;
     damping?: PhysicsDampingCfg;
     collider?: ColliderCfg | Record<string, unknown>;
+    [key: string]: unknown;
 }
 
 export type PrimitiveType = "box" | "sphere" | "cylinder" | "capsule";
@@ -118,16 +119,95 @@ export interface SurfaceHandle {
     [key: string]: unknown;
 }
 
+/**
+ * Wrapper returned by Primitives.js (Proxy) that adds physics sugar.
+ * NOTE: All methods are best-effort (can no-op if body isn't linked yet),
+ * but typings expose them for IDE/TS help.
+ */
+export interface PrimitiveHandle extends SurfaceHandle {
+    /**
+     * Markers used by wrapper.
+     */
+    __isPrimitiveWrapper?: true;
+    __surface?: SurfaceHandle;
+
+    /**
+     * Physics sugar (provided by wrapper).
+     */
+    applyImpulse?(v: Vec3): void;
+    applyCentralForce?(v: Vec3): void;
+
+    /**
+     * Getter/setter pattern:
+     *  - g.velocity() -> Vec3 | undefined
+     *  - g.velocity(v) -> void
+     */
+    velocity?(): Vec3 | undefined;
+    velocity?(v: Vec3): void;
+
+    position?(): Vec3 | undefined;
+    position?(p: Vec3): void;
+
+    teleport?(p: Vec3): void;
+
+    lockRotation?(lock: boolean): void;
+}
+
+/**
+ * Fluent builder interface.
+ * Produces final cfg and can create PrimitiveHandle.
+ */
+export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBase> {
+    name(v: string): this;
+
+    pos(x: number, y: number, z: number): this;
+    pos(v: Vec3): this;
+
+    rot(v: Vec3 | Vec4): this;
+    scale(v: Vec3 | number): this;
+
+    material(m: MaterialCfg | unknown): this;
+
+    /**
+     * Physics sugar. Writes to cfg.physics.
+     */
+    physics(mass?: number, opts?: Omit<PhysicsCfg, "mass"> & Record<string, unknown>): this;
+    mass(v: number): this;
+    lockRotation(v: boolean): this;
+    kinematic(v: boolean): this;
+
+    /**
+     * Common geometry sugar.
+     * Some fields may be ignored depending on primitive type.
+     */
+    size(v: number): this;
+    radius(v: number): this;
+    height(v: number): this;
+
+    attach(v?: boolean): this;
+
+    /**
+     * Expose assembled cfg (copy).
+     */
+    cfg(): TCfg;
+
+    /**
+     * Finalize: call primitives.create(cfg)
+     */
+    create(): PrimitiveHandle;
+}
+
 export interface PrimitivesApi {
-    create(cfg: PrimitiveCfgBase): SurfaceHandle;
+    // Declarative API (existing)
+    create(cfg: PrimitiveCfgBase): PrimitiveHandle;
 
-    box(cfg?: BoxCfg): SurfaceHandle;
-    cube(cfg?: BoxCfg): SurfaceHandle;
-    sphere(cfg?: SphereCfg): SurfaceHandle;
-    cylinder(cfg?: CylinderCfg): SurfaceHandle;
-    capsule(cfg?: CapsuleCfg): SurfaceHandle;
+    box(cfg?: BoxCfg): PrimitiveHandle;
+    cube(cfg?: BoxCfg): PrimitiveHandle;
+    sphere(cfg?: SphereCfg): PrimitiveHandle;
+    cylinder(cfg?: CylinderCfg): PrimitiveHandle;
+    capsule(cfg?: CapsuleCfg): PrimitiveHandle;
 
-    many(list: PrimitiveCfgBase[]): SurfaceHandle[];
+    many(list: PrimitiveCfgBase[]): PrimitiveHandle[];
 
     unshadedColor(rgba?: [number, number, number, number]): MaterialCfg;
 
@@ -144,6 +224,18 @@ export interface PrimitivesApi {
             [key: string]: unknown;
         }
     ): PhysicsCfg;
+
+    // NEW: fluent builder API
+    builder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBase>(type: PrimitiveType | string): PrimitiveBuilder<TCfg>;
+
+    /**
+     * Sugar aliases (if you add them in Primitives.js export):
+     */
+    box$(): PrimitiveBuilder<BoxCfg>;
+    cube$(): PrimitiveBuilder<BoxCfg>;
+    sphere$(): PrimitiveBuilder<SphereCfg>;
+    cylinder$(): PrimitiveBuilder<CylinderCfg>;
+    capsule$(): PrimitiveBuilder<CapsuleCfg>;
 }
 
 /**
