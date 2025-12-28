@@ -1,6 +1,13 @@
-// FILE: resources/kalitech/builtin/MaterialsRegistry.js
+// FILE: resources/kalitech/builtin/Material.js
 // Author: Calista Verner
 "use strict";
+
+/**
+ * Materials registry builtin.
+ * Contract:
+ *   module.exports(engine, K) => api
+ *   module.exports.META = { name, globalName, version, description, engineMin }
+ */
 
 function isPlainJsObject(x) {
     if (!x || typeof x !== "object") return false;
@@ -27,8 +34,9 @@ function stableStringify(obj) {
 }
 
 class MaterialsRegistry {
-    constructor(K) {
-        this.K = K;
+    constructor(engine, K) {
+        this.engineRef = engine;
+        this.K = K || (globalThis.__kalitech || Object.create(null));
 
         this.defs = null;
 
@@ -36,7 +44,7 @@ class MaterialsRegistry {
         this.cacheMat = Object.create(null);
         this.cacheHandle = Object.create(null);
 
-        // optional: per-override caches
+        // per-override caches
         this.cacheMatOv = Object.create(null);     // key -> Material
         this.cacheHandleOv = Object.create(null);  // key -> handle
 
@@ -49,8 +57,8 @@ class MaterialsRegistry {
     // ---------- core ----------
 
     engine() {
-        const e = this.K && this.K._engine;
-        if (!e) throw new Error("[materials] engine not attached");
+        const e = this.engineRef;
+        if (!e) throw new Error("[MAT] engine not attached");
         return e;
     }
 
@@ -65,19 +73,23 @@ class MaterialsRegistry {
         const path = this.dbPath();
         let json;
         try {
-            json = this.engine().assets().readText(path);
+            const assets = this.engine().assets && this.engine().assets();
+            if (!assets || typeof assets.readText !== "function") {
+                throw new Error("engine.assets().readText missing");
+            }
+            json = assets.readText(path);
         } catch (e) {
-            throw new Error("[materials] failed to read defs at '" + path + "': " + String(e && e.message ? e.message : e));
+            throw new Error("[MAT] failed to read defs at '" + path + "': " + String(e && e.message ? e.message : e));
         }
 
         try {
             this.defs = JSON.parse(json);
         } catch (e) {
-            throw new Error("[materials] invalid JSON in '" + path + "': " + String(e && e.message ? e.message : e));
+            throw new Error("[MAT] invalid JSON in '" + path + "': " + String(e && e.message ? e.message : e));
         }
 
         if (!this.defs || typeof this.defs !== "object") {
-            throw new Error("[materials] defs must be an object map in '" + path + "'");
+            throw new Error("[MAT] defs must be an object map in '" + path + "'");
         }
         return this.defs;
     }
@@ -92,7 +104,7 @@ class MaterialsRegistry {
         const b = all[n];
         if (!b) {
             const sample = this.keys().slice(0, 12).join(", ");
-            throw new Error("[materials] unknown material: " + n + " (db=" + this.dbPath() + ", known=" + sample + (this.keys().length > 12 ? ", ..." : "") + ")");
+            throw new Error("[MAT] unknown material: " + n + " (db=" + this.dbPath() + ", known=" + sample + (this.keys().length > 12 ? ", ..." : "") + ")");
         }
         return b;
     }
@@ -112,7 +124,6 @@ class MaterialsRegistry {
         //  - { Color:[...], Roughness:0.5 } (short form => params)
         if (!overrides) return null;
 
-        // If someone passes already-normalized
         if (overrides.params || overrides.scales) {
             return {
                 params: overrides.params ? shallowClone(overrides.params) : null,
@@ -120,12 +131,10 @@ class MaterialsRegistry {
             };
         }
 
-        // Short form: treat as params
         if (isPlainJsObject(overrides)) {
             return { params: shallowClone(overrides), scales: null };
         }
 
-        // Anything else: keep old behavior (ignore)
         return null;
     }
 
@@ -142,10 +151,10 @@ class MaterialsRegistry {
             if (m && typeof m.__material === "function") m = m.__material();
         } catch (_) {}
 
-        if (!m) throw new Error("[materials] expected Material, got: " + String(m));
+        if (!m) throw new Error("[MAT] expected Material, got: " + String(m));
 
         if (isPlainJsObject(m)) {
-            throw new Error("[materials] expected host Material, got plain JS object");
+            throw new Error("[MAT] expected host Material, got plain JS object");
         }
 
         return m;
@@ -155,7 +164,6 @@ class MaterialsRegistry {
 
     _ovKey(name, normalized) {
         if (!normalized) return null;
-        // stable and simple; enough for typical param overrides
         const p = normalized.params ? stableStringify(normalized.params) : "";
         const s = normalized.scales ? stableStringify(normalized.scales) : "";
         return String(name) + "|p=" + p + "|s=" + s;
@@ -166,18 +174,16 @@ class MaterialsRegistry {
         map[key] = value;
         this._overrideCacheOrder.push(key);
 
-        // naive FIFO eviction (fast, good enough for small cap)
         const max = this._overrideCacheMax | 0;
         while (this._overrideCacheOrder.length > max) {
             const old = this._overrideCacheOrder.shift();
             if (old && map[old]) delete map[old];
-            // also clear from the other override cache to avoid growth mismatch
             if (old && this.cacheMatOv[old]) delete this.cacheMatOv[old];
             if (old && this.cacheHandleOv[old]) delete this.cacheHandleOv[old];
         }
     }
 
-    // ---------- main API (backward compatible) ----------
+    // ---------- main API ----------
 
     getHandle(name, overrides = null) {
         const n = String(name || "");
@@ -191,7 +197,12 @@ class MaterialsRegistry {
         const cfg = this.cloneCfg(this.base(n));
         this.applyOverrides(cfg, ov);
 
-        const h = this.engine().material().create(cfg);
+        const matApi = this.engine().material && this.engine().material();
+        if (!matApi || typeof matApi.create !== "function") {
+            throw new Error("[MAT] engine.material().create(cfg) is required");
+        }
+
+        const h = matApi.create(cfg);
 
         if (!ov) this.cacheHandle[n] = h;
         else this._ovCachePut(this.cacheHandleOv, ovKey, h);
@@ -211,7 +222,12 @@ class MaterialsRegistry {
         const cfg = this.cloneCfg(this.base(n));
         this.applyOverrides(cfg, ov);
 
-        const created = this.engine().material().create(cfg);
+        const matApi = this.engine().material && this.engine().material();
+        if (!matApi || typeof matApi.create !== "function") {
+            throw new Error("[MAT] engine.material().create(cfg) is required");
+        }
+
+        const created = matApi.create(cfg);
         const mat = this.unwrapMaterial(created);
 
         if (!ov) this.cacheMat[n] = mat;
@@ -220,29 +236,11 @@ class MaterialsRegistry {
         return mat;
     }
 
-    // ---------- NEW: more declarative sugar ----------
+    // ---------- sugar ----------
 
-    /**
-     * Default: returns Material.
-     * Alias for getMaterial(name, overrides)
-     */
-    get(name, overrides = null) {
-        return this.getMaterial(name, overrides);
-    }
+    get(name, overrides = null) { return this.getMaterial(name, overrides); }
+    handle(name, overrides = null) { return this.getHandle(name, overrides); }
 
-    /**
-     * Alias for getHandle(name, overrides)
-     */
-    handle(name, overrides = null) {
-        return this.getHandle(name, overrides);
-    }
-
-    /**
-     * Create reusable preset function:
-     * const RedBox = M.preset("box", { Color:[1,0,0,1] });
-     * const mat = RedBox(); // material
-     * const h   = RedBox.handle(); // handle
-     */
     preset(name, overrides) {
         const self = this;
         const n = String(name || "");
@@ -250,7 +248,6 @@ class MaterialsRegistry {
 
         function fn(moreOverrides) {
             if (moreOverrides) {
-                // merge overrides (shallow)
                 const a = self.normalizeOverrides(ov) || { params: null, scales: null };
                 const b = self.normalizeOverrides(moreOverrides) || { params: null, scales: null };
 
@@ -282,17 +279,10 @@ class MaterialsRegistry {
         return fn;
     }
 
-    /**
-     * Convenience for “just params” without wrapping:
-     * M.params("box", { Color:[...] })
-     */
     params(name, paramsObj) {
         return this.getMaterial(name, { params: paramsObj || null });
     }
 
-    /**
-     * Tune behavior (optional)
-     */
     configure(cfg) {
         cfg = (cfg && typeof cfg === "object") ? cfg : {};
         if (cfg.overrideCache !== undefined) this._enableOverrideCache = !!cfg.overrideCache;
@@ -314,6 +304,19 @@ class MaterialsRegistry {
     }
 }
 
-module.exports = function createMaterialsBuiltin(K) {
-    return new MaterialsRegistry(K);
+// factory(engine, K) => api
+function create(engine, K) {
+    if (!engine) throw new Error("[MAT] engine is required");
+    return new MaterialsRegistry(engine, K);
+}
+
+// META (adult contract)
+create.META = {
+    name: "materials",
+    globalName: "MAT",
+    version: "1.0.0",
+    description: "Materials registry with JSON DB, caching, overrides and presets",
+    engineMin: "0.1.0"
 };
+
+module.exports = create;

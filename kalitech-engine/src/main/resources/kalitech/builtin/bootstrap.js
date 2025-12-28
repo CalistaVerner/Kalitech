@@ -2,6 +2,17 @@
 // Author: Calista Verner
 "use strict";
 
+/**
+ * Bootstrap goals:
+ *  - KEEP require-resolver config: aliases/packageStyle/materials.dbPath.
+ *  - No globalAliases.
+ *  - Module contract: export function create(engine, K) => api
+ *  - Module meta: create.META = { name, globalName, version, description, engineMin }
+ *  - Globals exist early via deferred proxies (MSH/MAT/SND).
+ *  - On attachEngine: instantiate all modules and replace proxies with real APIs.
+ *  - IMPORTANT: never mutate API objects (they may be Object.freeze()).
+ */
+
 const DEFAULT_CONFIG = {
     aliases: {
         "@core": "Scripts/core",
@@ -13,81 +24,38 @@ const DEFAULT_CONFIG = {
     },
     packageStyle: { enabled: false, roots: {} },
     materials: { dbPath: "data/materials.json" },
+
     builtins: {
+        exposeGlobals: true,
         modules: {
-            assert: "@builtin/assert",
-            deepMerge: "@builtin/deepMerge",
-            schema: "@builtin/schema",
-            paths: "@builtin/paths",
-            math: "@builtin/math",
-            editorPreset: "@builtin/editorPreset",
             materials: "@builtin/Material/Material",
             primitives: "@builtin/Primitives/Primitives",
             sound: "@builtin/Sound/Sound"
-        },
-        exposeGlobals: true,
-        globalAliases: { M: "materials", S: "sound" }
+        }
     }
 };
 
+// root
 const ROOT_KEY = "__kalitech";
 if (!globalThis[ROOT_KEY]) globalThis[ROOT_KEY] = Object.create(null);
 const K = globalThis[ROOT_KEY];
 
-function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
-function clamp(x, a, b) { x = +x; return x < a ? a : (x > b ? b : x); }
-function isObjectLike(x) { const t = typeof x; return x != null && (t === "object" || t === "function"); }
-
-function isFactoryBuiltin(x) {
-    return typeof x === "function";
-}
-
-function makeLazyBuiltinProxy(root, name) {
-    const handler = {
-        get(_t, prop) {
-            const builtins = root.builtins || Object.create(null);
-            let cur = builtins[name];
-
-            if (typeof cur === "function") {
-                const eng = (builtins && builtins.engine) || root._engine || globalThis.engine;
-                if (eng) {
-                    try {
-                        const api = cur(root);
-                        if (api != null) {
-                            builtins[name] = api;
-                            cur = api;
-                            root.builtins = builtins;
-                        }
-                    } catch (_) {}
-                }
-            }
-
-            const v = cur && cur[prop];
-            if (typeof v === "function") return v.bind(cur);
-
-            return v;
-        }
-    };
-
-    return new Proxy(Object.create(null), handler);
-}
-
-
 function ensureRootState(root) {
-    if (!root.builtins) root.builtins = Object.create(null);
-    if (!root._deferred) root._deferred = [];
-    if (!root._onceKeys) root._onceKeys = Object.create(null);
-    if (!root._engineAttached) root._engineAttached = false;
+    if (!root.modules) root.modules = Object.create(null);         // raw exports
+    if (!root.instances) root.instances = Object.create(null);     // instantiated apis
+    if (!root.meta) root.meta = Object.create(null);               // meta by name
+    if (!root.instancesMeta) root.instancesMeta = Object.create(null); // meta for instances
     if (!root._engine) root._engine = null;
+    if (!root._engineAttached) root._engineAttached = false;
+    if (!root._deferred) root._deferred = [];
+    if (!root._once) root._once = Object.create(null);
+    if (!root.config) root.config = Object.create(null);
     return root;
 }
+ensureRootState(K);
 
-function assignIfMissing(dst, src) {
-    for (const k in src) {
-        if (!(k in dst)) dst[k] = src[k];
-    }
-    return dst;
-}
+// utils
+function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
 
 function deepMergePlain(dst, src) {
     if (!src || typeof src !== "object") return dst;
@@ -95,284 +63,201 @@ function deepMergePlain(dst, src) {
     for (const k of Object.keys(src)) {
         const sv = src[k];
         const dv = dst[k];
-        if (sv && typeof sv === "object" && !Array.isArray(sv)) {
-            dst[k] = deepMergePlain(dv && typeof dv === "object" && !Array.isArray(dv) ? dv : {}, sv);
-        } else {
-            dst[k] = sv;
-        }
+        if (sv && typeof sv === "object" && !Array.isArray(sv)) dst[k] = deepMergePlain(dv, sv);
+        else dst[k] = sv;
     }
     return dst;
 }
 
-class ConfigStore {
-    constructor(root, defaults) {
-        this.root = root;
+function parseSemver(v) {
+    if (!v || typeof v !== "string") return null;
+    const m = v.trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!m) return null;
+    return [m[1] | 0, m[2] | 0, m[3] | 0];
+}
+function semverGte(a, b) {
+    const A = parseSemver(String(a || "")); const B = parseSemver(String(b || ""));
+    if (!A || !B) return true; // can't parse => don't block
+    if (A[0] !== B[0]) return A[0] > B[0];
+    if (A[1] !== B[1]) return A[1] > B[1];
+    return A[2] >= B[2];
+}
+function readEngineVersion(engine) {
+    try {
+        if (!engine) return null;
+        if (typeof engine.version === "function") return String(engine.version());
+        if (typeof engine.version === "string") return engine.version;
+        if (engine.info && typeof engine.info === "function") {
+            const info = engine.info();
+            if (info && info.version) return String(info.version);
+        }
+    } catch (_) {}
+    return null;
+}
+
+// deferred proxy to prevent "x is not a function" before attachEngine
+function createDeferredProxy(resolveFn, label) {
+    const state = { resolved: null };
+
+    function ensureResolved() {
+        if (state.resolved) return state.resolved;
+        const api = resolveFn();
+        if (api) state.resolved = api;
+        return state.resolved;
+    }
+
+    function makeChain(steps) {
+        return new Proxy(function () {}, {
+            get(_t, prop) {
+                if (prop === "__isDeferred") return true;
+                if (prop === "__label") return label;
+                if (prop === "then") return undefined;
+                return makeChain(steps.concat([{ type: "get", key: prop }]));
+            },
+            apply(_t, _thisArg, args) {
+                return makeChain(steps.concat([{ type: "call", args: args || [] }]));
+            }
+        });
+    }
+
+    return new Proxy(Object.create(null), {
+        get(_t, prop) {
+            const api = ensureResolved();
+            if (api) {
+                const v = api[prop];
+                if (typeof v === "function") return v.bind(api);
+                return v;
+            }
+            return makeChain([{ type: "get", key: prop }]);
+        }
+    });
+}
+
+// module contract
+function normalizeMeta(exp, fallbackName) {
+    const m = exp && exp.META ? exp.META : null;
+    const name = (m && m.name) ? String(m.name) : String(fallbackName || "");
+    const globalName = (m && m.globalName) ? String(m.globalName) : "";
+    const version = (m && m.version) ? String(m.version) : "0.0.0";
+    const description = (m && m.description) ? String(m.description) : "";
+    const engineMin = (m && m.engineMin) ? String(m.engineMin) : "";
+    return { name, globalName, version, description, engineMin };
+}
+
+function requireModule(moduleId) {
+    try { return require(moduleId); }
+    catch (e) {
+        throw new Error("[builtin/bootstrap] require failed: " + moduleId + " :: " + (e && e.message ? e.message : e));
+    }
+}
+
+function instantiateModule(exp, engine, meta) {
+    if (typeof exp !== "function") {
+        throw new Error("[builtin/bootstrap] Module export must be a function (engine,K)=>api for: " + meta.name);
+    }
+    const api = exp(engine, K);
+    if (!api || typeof api !== "object") {
+        throw new Error("[builtin/bootstrap] Module factory returned invalid api for: " + meta.name);
+    }
+    // IMPORTANT: do not attach meta onto api; it may be frozen
+    return api;
+}
+
+// bootstrap
+class KalitechBootstrap {
+    constructor(defaults) {
         this.defaults = defaults;
-        this._cfg = null;
+        this.config = deepMergePlain({}, defaults);
+        K.config = this.config;
     }
 
-    get() {
-        if (this._cfg) return this._cfg;
+    init() {
+        const expose = !!(this.config.builtins && this.config.builtins.exposeGlobals);
+        const mods = (this.config.builtins && this.config.builtins.modules) ? this.config.builtins.modules : {};
 
-        const fromUser = this._tryLoadJson();
-        const merged = deepMergePlain(deepMergePlain({}, this.defaults), fromUser || {});
+        for (const key of Object.keys(mods)) {
+            const exp = requireModule(mods[key]);
+            const meta = normalizeMeta(exp, key);
 
-        this.root.config = merged;
-        this._cfg = merged;
-        return merged;
-    }
+            K.modules[meta.name] = exp;
+            K.meta[meta.name] = meta;
 
-    _tryLoadJson() {
-        try {
-            if (!this.root._engineAttached || !this.root._engine) return null;
-            const assets = this.root._engine.assets && this.root._engine.assets();
-            if (!assets || typeof assets.readText !== "function") return null;
-            const txt = assets.readText("kalitech.config.json");
-            if (!txt) return null;
-            return JSON.parse(txt);
-        } catch (_) {
-            return null;
-        }
-    }
-}
-
-class GlobalScope {
-    constructor(root) {
-        this.root = root;
-    }
-
-    set(name, value, overwrite) {
-        if (!isObjectLike(value)) return value;
-        if (!overwrite && globalThis[name]) return value;
-        globalThis[name] = value;
-        return value;
-    }
-
-    alias(aliasName, targetName) {
-        if (globalThis[aliasName]) return false;
-        const t = globalThis[targetName] || this.root.builtins[targetName];
-        if (!t) return false;
-        globalThis[aliasName] = t;
-        return true;
-    }
-}
-
-class BuiltinRegistry {
-    constructor(root, globals, getConfig) {
-        this.root = root;
-        this.globals = globals;
-        this.getConfig = getConfig;
-    }
-
-    loadAll() {
-        const cfg = this.getConfig();
-        const mods = (cfg.builtins && cfg.builtins.modules) ? cfg.builtins.modules : {};
-
-        // Загружаем и регистрируем модули с автоматическим добавлением engine и alias
-        for (const name in mods) {
-            this.load(name, mods[name]);
-            this.registerAlias(name); // Автоматически регистрируем alias
-        }
-        this._captureFactories();
-        this._applyAliases();
-    }
-
-    load(name, moduleId) {
-        const n = String(name || "").trim();
-        if (!n) return null;
-        if (this.root.builtins[n]) return this.root.builtins[n];
-
-        let exp = null;
-        try { exp = require(moduleId); } catch (_) { exp = null; }
-        if (exp != null) this.root.builtins[n] = exp;
-
-        const cfg = this.getConfig();
-        if (cfg.builtins && cfg.builtins.exposeGlobals) {
-            if (isFactoryBuiltin(exp) && (n === "materials" || n === "primitives" || n === "sound")) {
-                this.globals.set(n, makeLazyBuiltinProxy(this.root, n), true);
-            } else {
-                this.globals.set(n, exp, false);
+            if (expose) {
+                globalThis[meta.name] = createDeferredProxy(() => K.instances[meta.name] || null, meta.name);
+                if (meta.globalName) {
+                    globalThis[meta.globalName] = createDeferredProxy(() => K.instances[meta.name] || null, meta.globalName);
+                }
             }
         }
 
-        return exp;
+        return this;
     }
 
-    registerAlias(name) {
-        // Автоматическая регистрация глобального alias для каждого модуля
-        const aliases = this.root.config.builtins.globalAliases || {};
-        const alias = aliases[name];
-        if (alias) {
-            this.globals.alias(alias, name);
+    attachEngine(engine) {
+        if (!engine) return false;
+        if (K._engineAttached && K._engine === engine) return true;
+
+        K._engine = engine;
+        K._engineAttached = true;
+
+        const expose = !!(this.config.builtins && this.config.builtins.exposeGlobals);
+        const engVer = readEngineVersion(engine);
+
+        for (const name of Object.keys(K.modules)) {
+            const exp = K.modules[name];
+            const meta = K.meta[name] || { name: name };
+
+            if (meta.engineMin && engVer && !semverGte(engVer, meta.engineMin)) {
+                throw new Error(
+                    "[builtin/bootstrap] Engine version " + engVer +
+                    " is ниже минимальной " + meta.engineMin +
+                    " для модуля " + name
+                );
+            }
+
+            const api = instantiateModule(exp, engine, meta);
+            K.instances[name] = api;
+            K.instancesMeta[name] = meta;
+
+            if (expose) {
+                globalThis[name] = api;
+                if (meta.globalName) globalThis[meta.globalName] = api;
+            }
         }
-    }
 
-    _captureFactories() {
-        const maybeFactory = this.root.builtins.materials;
-        if (typeof this.root.builtins.materialsFactory !== "function" && typeof maybeFactory === "function") {
-            this.root.builtins.materialsFactory = maybeFactory;
+        const q = K._deferred;
+        K._deferred = [];
+        for (let i = 0; i < q.length; i++) {
+            try { q[i](engine); } catch (_) {}
         }
-    }
 
-    _applyAliases() {
-        const cfg = this.getConfig();
-        const aliases = (cfg.builtins && cfg.builtins.globalAliases) ? cfg.builtins.globalAliases : {};
-        for (const a in aliases) this.globals.alias(a, aliases[a]);
-    }
-}
-
-
-class Lifecycle {
-    constructor(root) {
-        this.root = root;
+        return true;
     }
 
     whenEngine(fn) {
-        if (this.root._engineAttached && this.root._engine) {
-            try { fn(this.root._engine); } catch (_) {}
+        if (K._engineAttached && K._engine) {
+            try { fn(K._engine); } catch (_) {}
             return true;
         }
-        this.root._deferred.push(fn);
+        K._deferred.push(fn);
         return false;
     }
 
     whenEngineOnce(key, fn) {
         const k = String(key || "");
         if (!k) return this.whenEngine(fn);
-        if (this.root._onceKeys[k]) return false;
-        this.root._onceKeys[k] = true;
+        if (K._once[k]) return false;
+        K._once[k] = true;
         return this.whenEngine(fn);
     }
-
-    drain(engine) {
-        const q = this.root._deferred;
-        this.root._deferred = [];
-        for (let i = 0; i < q.length; i++) {
-            try { q[i](engine); } catch (_) {}
-        }
-    }
 }
 
-class KalitechBootstrap {
-    constructor(root, defaults) {
-        this.K = ensureRootState(root);
-        this.globals = new GlobalScope(this.K);
-        this.lifecycle = new Lifecycle(this.K);
-        this.configStore = new ConfigStore(this.K, defaults);
-
-        this.registry = new BuiltinRegistry(
-            this.K,
-            this.globals,
-            () => this.configStore.get()
-        );
-
-        const cfg = this.configStore.get();
-        assignIfMissing(this.K, { config: cfg });
-    }
-
-    get config() {
-        return this.configStore.get();
-    }
-
-    init() {
-        this.K.builtins.safeJson = safeJson;
-        this.K.builtins.clamp = clamp;
-
-        const cfg = this.config;
-        if (cfg.builtins && cfg.builtins.exposeGlobals) {
-            this.globals.set("safeJson", safeJson, false);
-            this.globals.set("clamp", clamp, false);
-        }
-
-        this.registry.loadAll();
-
-        this.lifecycle.whenEngineOnce("builtin:engine-wiring", (engine) => {
-            this._wireEngine(engine);
-        });
-
-        return this;
-    }
-
-    _wireEngine(engine) {
-        const cfg = this.config;
-
-        const log = engine && engine.log ? engine.log() : null;
-        const events = engine && engine.events ? engine.events() : null;
-
-        this.K.builtins.engine = engine;
-        this.K.builtins.events = events;
-
-        if (cfg.builtins && cfg.builtins.exposeGlobals) {
-            this.globals.set("engine", engine, false);
-            this.globals.set("events", events, false);
-            this.globals.set("eventsUtil", events, false);
-        }
-
-        this.globals.alias("M", "materials");
-        this.globals.alias("S", "sound");
-
-        if (log && log.info) log.info("[builtin/bootstrap] engine attached");
-
-        if (events && typeof events.once === "function") {
-            events.once("world:ready", (payload) => {
-                if (log && log.info) log.info("[builtin] world:ready payload=" + safeJson(payload));
-            });
-        } else {
-            if (log && log.debug) log.debug("[builtin] events.once not available");
-        }
-    }
-
-    attachEngine(engine) {
-        if (!engine) return false;
-        if (this.K._engineAttached && this.K._engine === engine) return true;
-
-        this.K._engine = engine;
-        this.K._engineAttached = true;
-
-        const cfg = this.config;
-
-        if (cfg.builtins && cfg.builtins.exposeGlobals) {
-            this.globals.set("engine", engine, false);
-        }
-
-        let factory = this.K.builtins.materialsFactory;
-        if (typeof factory !== "function" && typeof this.K.builtins.materials === "function") {
-            factory = this.K.builtins.materials;
-            this.K.builtins.materialsFactory = factory;
-        }
-
-        if (typeof factory === "function") {
-            const api = factory(this.K);
-            this.K.builtins.materials = api;
-
-            if (cfg.builtins && cfg.builtins.exposeGlobals) {
-                this.globals.set("materials", api, true);
-                this.globals.set("M", api, true);
-            }
-        }
-
-        this.lifecycle.drain(engine);
-        return true;
-    }
-
-    detachEngine() {
-        this.K._engine = null;
-        this.K._engineAttached = false;
-        return true;
-    }
-
-    whenEngine(fn) { return this.lifecycle.whenEngine(fn); }
-    whenEngineOnce(key, fn) { return this.lifecycle.whenEngineOnce(key, fn); }
-}
-
-const boot = new KalitechBootstrap(K, DEFAULT_CONFIG).init();
+const boot = new KalitechBootstrap(DEFAULT_CONFIG).init();
 
 module.exports = {
     config: boot.config,
-    safeJson,
-    clamp,
+    attachEngine: boot.attachEngine.bind(boot),
     whenEngine: boot.whenEngine.bind(boot),
     whenEngineOnce: boot.whenEngineOnce.bind(boot),
-    attachEngine: boot.attachEngine.bind(boot),
-    detachEngine: boot.detachEngine.bind(boot)
+    safeJson
 };
