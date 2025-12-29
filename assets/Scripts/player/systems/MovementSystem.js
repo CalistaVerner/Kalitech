@@ -3,17 +3,27 @@
 "use strict";
 
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
-function num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
+function num(v, fb) { const n = +v; return Number.isFinite(n) ? n : fb; }
+
+function read(obj, path, fb) {
+    if (!obj) return fb;
+    let v = obj;
+    for (let i = 0; i < path.length; i++) {
+        if (v == null) return fb;
+        v = v[path[i]];
+    }
+    return (typeof v === "number" || typeof v === "string") ? num(v, fb) : fb;
+}
 
 function _readMember(v, key, fb) {
-    if (!v) return fb || 0;
+    if (!v) return fb;
     try {
         const m = v[key];
         if (typeof m === "function") return num(m.call(v), fb);
         if (typeof m === "number") return m;
         if (typeof m === "string") return num(m, fb);
     } catch (_) {}
-    return fb || 0;
+    return fb;
 }
 function vx(v, fb) { return _readMember(v, "x", fb); }
 function vy(v, fb) { return _readMember(v, "y", fb); }
@@ -37,20 +47,11 @@ function rotateByYaw_into(localX, localZ, yaw, out) {
 
 class MovementSystem {
     constructor(cfg) {
-        cfg = cfg || {};
-
-        this.speed       = (cfg.speed      !== undefined) ? num(cfg.speed, 6.0) : 6.0;
-        this.runSpeed    = (cfg.runSpeed   !== undefined) ? num(cfg.runSpeed, 10.0) : 10.0;
-        this.airControl  = (cfg.airControl !== undefined) ? clamp(num(cfg.airControl, 0.35), 0, 1) : 0.35;
-        this.jumpImpulse = (cfg.jumpImpulse !== undefined) ? num(cfg.jumpImpulse, 320.0) : 320.0;
-
-        this.groundRay   = (cfg.groundRay   !== undefined) ? num(cfg.groundRay, 1.2) : 1.2;
-        this.groundEps   = (cfg.groundEps   !== undefined) ? num(cfg.groundEps, 0.08) : 0.08;
-        this.maxSlopeDot = (cfg.maxSlopeDot !== undefined) ? num(cfg.maxSlopeDot, 0.55) : 0.55;
+        this.configure(cfg || {});
 
         // re-use objects
-        this._tmpN = { x: 0, z: 0 };
-        this._tmpDir = { x: 0, z: 0 };
+        this._tmpN    = { x: 0, z: 0 };
+        this._tmpDir  = { x: 0, z: 0 };
         this._tmpFrom = { x: 0, y: 0, z: 0 };
         this._tmpTo   = { x: 0, y: 0, z: 0 };
         this._tmpVel  = { x: 0, y: 0, z: 0 };
@@ -58,19 +59,34 @@ class MovementSystem {
     }
 
     configure(cfg) {
-        cfg = cfg || {};
-        if (cfg.speed !== undefined) this.speed = num(cfg.speed, this.speed);
-        if (cfg.runSpeed !== undefined) this.runSpeed = num(cfg.runSpeed, this.runSpeed);
-        if (cfg.airControl !== undefined) this.airControl = clamp(num(cfg.airControl, this.airControl), 0, 1);
-        if (cfg.jumpImpulse !== undefined) this.jumpImpulse = num(cfg.jumpImpulse, this.jumpImpulse);
+        // --- speed ---
+        this.walkSpeed   = read(cfg, ["speed", "walk"], 6.0);
+        this.runSpeed    = read(cfg, ["speed", "run"], 10.0);
+        this.backwardMul = read(cfg, ["speed", "backwardMul"], 1.0);
+        this.strafeMul   = read(cfg, ["speed", "strafeMul"], 1.0);
 
-        if (cfg.groundRay !== undefined) this.groundRay = num(cfg.groundRay, this.groundRay);
-        if (cfg.groundEps !== undefined) this.groundEps = num(cfg.groundEps, this.groundEps);
-        if (cfg.maxSlopeDot !== undefined) this.maxSlopeDot = num(cfg.maxSlopeDot, this.maxSlopeDot);
+        // --- air ---
+        this.airControl = clamp(read(cfg, ["air", "control"], 0.35), 0, 1);
+
+        // --- jump ---
+        this.jumpImpulse = read(cfg, ["jump", "impulse"], 320.0);
+
+        // --- ground ---
+        this.groundRay   = read(cfg, ["ground", "rayLength"], 1.2);
+        this.groundEps   = read(cfg, ["ground", "eps"], 0.08);
+        this.maxSlopeDot = read(cfg, ["ground", "maxSlopeDot"], 0.55);
+
+        // --- rotation ---
+        this.alignToCamera = !!read(cfg, ["rotation", "alignToCamera"], true);
+
+        // --- debug ---
+        this.debugEnabled = !!read(cfg, ["debug", "enabled"], false);
+        this.debugEvery   = read(cfg, ["debug", "everyFrames"], 120);
+
         return this;
     }
 
-    _grounded(body /* PHYS.ref */) {
+    _grounded(body) {
         if (!body) return false;
 
         let p = null;
@@ -79,80 +95,92 @@ class MovementSystem {
 
         const px = vx(p, 0), py = vy(p, 0), pz = vz(p, 0);
 
-        // небольшой подъём старта: стабильнее на ступеньках/наклонах
-        this._tmpFrom.x = px; this._tmpFrom.y = py + 0.05; this._tmpFrom.z = pz;
-        this._tmpTo.x   = px; this._tmpTo.y   = py - this.groundRay; this._tmpTo.z = pz;
+        this._tmpFrom.x = px;
+        this._tmpFrom.y = py + 0.05;
+        this._tmpFrom.z = pz;
+
+        this._tmpTo.x = px;
+        this._tmpTo.y = py - this.groundRay;
+        this._tmpTo.z = pz;
 
         let hit = null;
         try { hit = body.raycast({ from: this._tmpFrom, to: this._tmpTo }); } catch (_) {}
         if (!hit || !hit.hit) return false;
 
         const n = hit.normal || null;
-        const ny = n ? (num((typeof n.y === "function") ? n.y() : n.y, 1)) : 1;
+        const ny = n ? num((typeof n.y === "function") ? n.y() : n.y, 1) : 1;
         if (ny < this.maxSlopeDot) return false;
 
         const dist = num(hit.distance, 9999);
         return dist <= (this.groundRay - this.groundEps);
     }
 
-    _applyPlanarVelocity(body /* PHYS.ref */, vxNew, vzNew) {
-        if (!body) return;
-
+    _applyPlanarVelocity(body, vxNew, vzNew) {
         let vel = null;
         try { vel = body.velocity(); } catch (_) {}
         if (!vel) return;
 
-        const vyOld = vy(vel, 0);
         this._tmpVel.x = vxNew;
-        this._tmpVel.y = vyOld;
+        this._tmpVel.y = vy(vel, 0);
         this._tmpVel.z = vzNew;
 
         try { body.velocity(this._tmpVel); } catch (_) {}
     }
 
-    update(tpf, body /* PHYS.ref */, inputState, yaw) {
-        if (!body || !inputState) return;
+    update(tpf, body, input, yaw) {
+        if (!body || !input) return;
 
-        const ax = inputState.ax | 0;
-        const az = inputState.az | 0;
-        const run = !!inputState.run;
-        const wantJump = !!inputState.jump;
+        const ax = input.ax | 0;
+        const az = input.az | 0;
+        const run = !!input.run;
+        const wantJump = !!input.jump;
 
         const grounded = this._grounded(body);
 
-        // no move input
         if (ax === 0 && az === 0) {
             if (grounded && wantJump) {
-                this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
+                this._tmpJump.x = 0;
+                this._tmpJump.y = this.jumpImpulse;
+                this._tmpJump.z = 0;
                 try { body.applyImpulse(this._tmpJump); } catch (_) {}
             }
             return;
         }
 
-        // local -> normalize
         norm2_into(ax, az, this._tmpN);
 
-        // rotate by yaw from PlayerDomain (authoritative camera view)
-        rotateByYaw_into(this._tmpN.x, this._tmpN.z, num(yaw, 0), this._tmpDir);
+        rotateByYaw_into(
+            this._tmpN.x,
+            this._tmpN.z,
+            this.alignToCamera ? num(yaw, 0) : 0,
+            this._tmpDir
+        );
 
-        const sp = run ? this.runSpeed : this.speed;
+        let speed = run ? this.runSpeed : this.walkSpeed;
+        if (az < 0) speed *= this.backwardMul;
+        if (ax !== 0) speed *= this.strafeMul;
 
         let vel = null;
         try { vel = body.velocity(); } catch (_) {}
+
         const vxOld = vx(vel, 0);
         const vzOld = vz(vel, 0);
 
-        const vxT = this._tmpDir.x * sp;
-        const vzT = this._tmpDir.z * sp;
+        const vxT = this._tmpDir.x * speed;
+        const vzT = this._tmpDir.z * speed;
 
-        const k = grounded ? 1.0 : clamp(this.airControl, 0, 1);
-        const vxNew = vxOld + (vxT - vxOld) * k;
-        const vzNew = vzOld + (vzT - vzOld) * k;
+        const k = grounded ? 1.0 : this.airControl;
 
-        this._applyPlanarVelocity(body, vxNew, vzNew);
+        this._applyPlanarVelocity(
+            body,
+            vxOld + (vxT - vxOld) * k,
+            vzOld + (vzT - vzOld) * k
+        );
 
         if (grounded && wantJump) {
-            this._tmpJump.x = 0; this._tmpJump.y = this.jumpImpulse; this._tmpJump.z = 0;
+            this._tmpJump.x = 0;
+            this._tmpJump.y = this.jumpImpulse;
+            this._tmpJump.z = 0;
             try { body.applyImpulse(this._tmpJump); } catch (_) {}
         }
     }

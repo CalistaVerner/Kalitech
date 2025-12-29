@@ -6,12 +6,84 @@ const MovementSystem = require("./systems/MovementSystem.js");
 const ShootSystem    = require("./systems/ShootSystem.js");
 const InputRouter    = require("./systems/InputRouter.js");
 
+const MOVEMENT_CFG_JSON = "data/player/movement.config.json";
+
+function isPlainObj(x) {
+    if (!x || typeof x !== "object") return false;
+    const p = Object.getPrototypeOf(x);
+    return p === Object.prototype || p === null;
+}
+
+function deepMerge(dst, src) {
+    if (!isPlainObj(src)) return dst;
+    const out = isPlainObj(dst) ? dst : Object.create(null);
+    const keys = Object.keys(src);
+    for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const sv = src[k];
+        const dv = out[k];
+        if (isPlainObj(sv) && isPlainObj(dv)) out[k] = deepMerge(dv, sv);
+        else if (isPlainObj(sv)) out[k] = deepMerge(Object.create(null), sv);
+        else out[k] = sv;
+    }
+    return out;
+}
+
+function readTextAsset(path) {
+    try {
+        const a = engine.assets && engine.assets();
+        if (a) {
+            if (a.readText) return a.readText(path);
+            if (a.text) return a.text(path);
+            if (a.getText) return a.getText(path);
+        }
+    } catch (_) {}
+    try {
+        // fallback if your runtime exposes fs-like API
+        const fs = engine.fs && engine.fs();
+        if (fs && fs.readText) return fs.readText(path);
+    } catch (_) {}
+    return null;
+}
+
+function readJsonAsset(path, fb) {
+    const txt = readTextAsset(path);
+    if (!txt) return fb || Object.create(null);
+    try {
+        const obj = JSON.parse(String(txt));
+        return isPlainObj(obj) ? obj : (fb || Object.create(null));
+    } catch (_) {
+        return fb || Object.create(null);
+    }
+}
+
+function resolveMovementPath(rootCfg, movCfg) {
+    // Highest priority: explicit path in cfg
+    try {
+        if (movCfg && typeof movCfg.configPath === "string" && movCfg.configPath.length > 0) return movCfg.configPath;
+    } catch (_) {}
+    try {
+        if (rootCfg && typeof rootCfg.movementConfigPath === "string" && rootCfg.movementConfigPath.length > 0) return rootCfg.movementConfigPath;
+    } catch (_) {}
+    return MOVEMENT_CFG_JSON;
+}
+
 class PlayerController {
     constructor(playerOrCfg) {
         const isPlayer = !!(playerOrCfg && typeof playerOrCfg === "object" && (playerOrCfg.cfg || playerOrCfg.getCfg || playerOrCfg.ctx));
         const player = isPlayer ? playerOrCfg : null;
         const rootCfg = isPlayer ? (player.cfg || {}) : (playerOrCfg || {});
-        const movCfg = (rootCfg && rootCfg.movement) || rootCfg || {};
+
+        // legacy behavior: allow movement config to be in rootCfg.movement
+        const movOverrides = (rootCfg && rootCfg.movement) || Object.create(null);
+
+        // load JSON config (like camera.config.json)
+        const movPath = resolveMovementPath(rootCfg, movOverrides);
+        const movFromJson = readJsonAsset(movPath, Object.create(null));
+
+        // effective movement cfg = JSON base + overrides from rootCfg.movement
+        // (overrides win; deep merge keeps nested sections like speed/air/jump/ground)
+        const movCfg = deepMerge(deepMerge(Object.create(null), movFromJson), (isPlainObj(movOverrides) ? movOverrides : Object.create(null)));
 
         this.player = player;
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
@@ -19,7 +91,11 @@ class PlayerController {
         // legacy ids kept for logs/debug only
         this.bodyId = 0;
 
-        // systems
+        // keep for hot reload / inspection
+        this._movementCfgPath = movPath;
+        this._movementCfg = movCfg;
+
+        // systems (now receive JSON cfg)
         this.input = new InputRouter(movCfg);
         this.movement = new MovementSystem(movCfg);
         this.shoot = new ShootSystem(rootCfg);
@@ -29,12 +105,39 @@ class PlayerController {
         this._f = 0;
     }
 
-    configure(cfg) {
-        cfg = cfg || {};
+    // optional: reload JSON at runtime (e.g., on hot-reload key)
+    reloadMovementConfig() {
+        const fresh = readJsonAsset(this._movementCfgPath || DATA_CONFIG.materials.json(), Object.create(null));
+        const overrides = (this.player && this.player.cfg && this.player.cfg.movement) ? this.player.cfg.movement : Object.create(null);
+        this._movementCfg = deepMerge(deepMerge(Object.create(null), fresh), (isPlainObj(overrides) ? overrides : Object.create(null)));
+
+        const cfg = this._movementCfg;
         if (cfg.enabled !== undefined) this.enabled = !!cfg.enabled;
         if (this.input && this.input.configure) this.input.configure(cfg);
         if (this.movement && this.movement.configure) this.movement.configure(cfg);
+
+        this._debugEvery = ((cfg.debug && cfg.debug.everyFrames) | 0) || this._debugEvery || 60;
+        this._debugOn = (cfg.debug && cfg.debug.enabled) !== undefined ? !!cfg.debug.enabled : this._debugOn;
+
+        return this;
+    }
+
+    configure(cfg) {
+        cfg = cfg || Object.create(null);
+        if (cfg.enabled !== undefined) this.enabled = !!cfg.enabled;
+
+        // allow runtime patching (still supports old style)
+        this._movementCfg = deepMerge(deepMerge(Object.create(null), this._movementCfg || Object.create(null)), cfg);
+
+        if (this.input && this.input.configure) this.input.configure(this._movementCfg);
+        if (this.movement && this.movement.configure) this.movement.configure(this._movementCfg);
         if (this.shoot && this.shoot.configure) this.shoot.configure(cfg);
+
+        // refresh debug knobs from effective cfg
+        const mc = this._movementCfg;
+        this._debugEvery = ((mc.debug && mc.debug.everyFrames) | 0) || this._debugEvery || 60;
+        this._debugOn = (mc.debug && mc.debug.enabled) !== undefined ? !!mc.debug.enabled : this._debugOn;
+
         return this;
     }
 
@@ -45,7 +148,7 @@ class PlayerController {
         try { this.bodyId = (ids && typeof ids.bodyId === "number") ? (ids.bodyId | 0) : (ids | 0); } catch (_) { this.bodyId = 0; }
 
         try { if (this.input) this.input.bind(); } catch (_) {}
-        try { LOG.info("[player] bind bodyId=" + (this.bodyId | 0)); } catch (_) {}
+        try { LOG.info("[player] bind bodyId=" + (this.bodyId | 0) + " movementCfg=" + (this._movementCfgPath || MOVEMENT_CFG_JSON)); } catch (_) {}
         return this;
     }
 

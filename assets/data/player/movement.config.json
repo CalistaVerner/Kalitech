@@ -1,0 +1,81 @@
+{
+  "preset": "UE6_SMOOTH_TIGHT",
+
+  "debug": {
+    "enabled": false,
+    "everyFrames": 120
+  },
+
+  "speed": {
+    "walk": 6.6,
+    "run": 10.8,
+    "crouch": 3.2,
+
+    "acceleration": 22.0,
+    "deceleration": 28.0,
+
+    "strafeMul": 0.92,
+    "backwardMul": 0.85
+  },
+
+  "air": {
+    "control": 0.32,
+    "acceleration": 8.5,
+    "maxSpeedMul": 0.92
+  },
+
+  "jump": {
+    "impulse": 320.0,
+    "coyoteTime": 0.12,
+    "bufferTime": 0.14,
+    "cooldown": 0.05
+  },
+
+  "gravity": {
+    "base": 9.8,
+    "fallMul": 1.45,
+    "lowJumpMul": 1.25,
+    "maxFallSpeed": 54.0
+  },
+
+  "ground": {
+    "rayLength": 1.15,
+    "eps": 0.08,
+
+    "stickForce": 18.0,
+    "snapDownSpeed": 22.0,
+
+    "maxSlopeDot": 0.55,
+    "slideOnSteep": true
+  },
+
+  "stepUp": {
+    "enabled": true,
+    "maxHeight": 0.45,
+    "forwardProbe": 0.35,
+    "upProbe": 0.55,
+    "snapUpSpeed": 24.0,
+    "minClearNormalY": 0.35
+  },
+
+  "friction": {
+    "ground": 10.0,
+    "air": 1.2
+  },
+
+  "rotation": {
+    "alignToCamera": true,
+    "turnSmooth": 18.0,
+    "airTurnSmooth": 6.0
+  },
+
+  "animationHints": {
+    "enable": true,
+
+    "walkThreshold": 0.15,
+    "runThreshold": 0.75,
+
+    "landImpactVel": 9.0,
+    "hardLandVel": 18.0
+  }
+}

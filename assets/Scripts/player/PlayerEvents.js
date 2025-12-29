@@ -34,7 +34,7 @@ class PlayerEvents {
         this._spawned = true;
 
         // тестовый телепорт (можешь убрать)
-        this.player.entity.warp({ x: 200, y: 8, z: -300 });
+        //this.player.entity.warp({ x: 200, y: 8, z: -300 });
 
         const sound = SND.create({
             soundFile: "Sounds/adventure.ogg",
@@ -42,7 +42,7 @@ class PlayerEvents {
             pitch: 1.0,
             looping: false
         });
-        sound.play();
+        //sound.play();
     }
 
     /**

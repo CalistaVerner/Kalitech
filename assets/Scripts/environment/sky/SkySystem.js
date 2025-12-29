@@ -5,7 +5,7 @@ const SkyClock = require("./SkyClock.js");
 const SunModel = require("./SunModel.js");
 const LightRig = require("./LightRig.js");
 const SkyBox = require("./SkyBox.js");
-const FogController = require("./FogController.js");
+//const FogController = require("./FogController.js");
 
 class SkySystem {
     constructor(engine) {
@@ -15,7 +15,7 @@ class SkySystem {
         this.sun = new SunModel();
         this.lights = new LightRig();
         this.skybox = new SkyBox();
-        this.fog = new FogController();
+        //this.fog = new FogController();
 
         this.render = engine.render();
 
@@ -95,7 +95,7 @@ class SkySystem {
 
         this.lights.update(this.engine, sunEval);
         this.skybox.update(this.render, sunEval);
-        this.fog.update(this.render, sunEval);
+        //this.fog.update(this.render, sunEval);
     }
 
     readCfg(ctx) {
@@ -128,7 +128,7 @@ class SkySystem {
         this.sun.applyCfg(cfg);
         this.lights.applyCfg(cfg);
         this.skybox.applyCfg(cfg);
-        this.fog.applyCfg(cfg);
+        //this.fog.applyCfg(cfg);
 
         this.applyRenderCfgIfPresent(cfg);
     }
@@ -137,10 +137,10 @@ class SkySystem {
         if (this.staticApplied) return;
         this.staticApplied = true;
 
-        this.render.ensureScene();
+        //this.render.ensureScene();
 
         this.lights.init(this.engine);
-        this.fog.init(this.render);
+        //this.fog.init(this.render);
 
         const initSun = this.sun.evaluate(0.18);
         this.skybox.update(this.render, initSun);
@@ -149,7 +149,7 @@ class SkySystem {
     }
 
     applyRenderCfgIfPresent(cfg, forceDefaults) {
-        try { this.render.ensureScene(); } catch (_) {}
+       // try { this.render.ensureScene(); } catch (_) {}
 
         let ms = null;
 

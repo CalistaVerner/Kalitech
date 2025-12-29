@@ -1,72 +1,141 @@
 {
-  "type": "first",
-  "debug": { "enabled": true, "everyFrames": 60 },
+  "type": "third",
+
+  "debug": { "enabled": false, "everyFrames": 120 },
+
   "keys": { "free": "F1", "first": "F2", "third": "F3", "top": "F4" },
 
   "look": {
-    "sensitivity": 0.0002,
-    "smoothing": 0.52,
-    "pitchLimit": 1.5393804002589986,
+    "sensitivity": 0.00018,
+    "smoothing": 0.22,
+    "pitchLimit": 1.5,
     "invertX": false,
     "invertY": false
   },
+
+  "mouseGrab": {
+    "mode": "always",
+    "rmbButtonIndex": 1
+  },
+
+  "target": {
+    "headOffset": { "x": 0.0, "y": 1.65, "z": 0.0 }
+  },
+
+  "collisionPolicy": {
+    "applyToFirst": false
+  },
+
   "collision": {
     "enabled": true,
-    "staticOnly": true,
-    "padding": 0.18,
-    "minPivotDistance": 0.62,
-    "pivot": { "x": 0, "y": 1.62, "z": 0 },
-    "mask": 0,
-    "debug": { "enabled": false, "everyFrames": 90 }
+
+    "radius": 0.22,
+    "pad": 0.16,
+    "minTargetDist": 0.3,
+
+    "quality": "high",
+    "ringScale": 1.06,
+    "verticalSamples": true,
+    "predictive": true,
+
+    "wallSmooth": 34.0,
+    "freeSmooth": 16.0,
+    "maxPullPerSec": 44.0,
+    "popSuppression": 0.82,
+
+    "slide": { "enabled": true, "strength": 0.9, "minNormalDot": 0.1 },
+
+    "ground": {
+      "enabled": true,
+      "clearance": 0.22,
+      "probeUp": 1.0,
+      "probeDown": 12.0,
+      "smooth": 22.0,
+      "maxRisePerSec": 26.0,
+      "minNormalY": 0.25
+    },
+
+    "debug": { "enabled": false, "everyFrames": 120 }
   },
 
-"dynamics": {
+  "dynamics": {
     "bob": {
-      "walkFreq": 7.2,
-      "runFreq": 10.2,
-      "walkAmpY": 0.030,
-      "runAmpY": 0.060,
-      "walkAmpX": 0.020,
-      "runAmpX": 0.040,
-      "smooth": 14.0
-    },
-    "sway": {
-      "yawMul": 0.045,
-      "pitchMul": 0.035,
+      "walkFreq": 7.0,
+      "runFreq": 9.6,
+      "walkAmpY": 0.016,
+      "runAmpY": 0.03,
+      "walkAmpX": 0.01,
+      "runAmpX": 0.018,
       "smooth": 18.0
     },
+    "sway": {
+      "yawMul": 0.03,
+      "pitchMul": 0.024,
+      "smooth": 20.0
+    },
     "handheld": {
-      "amp": 0.006,
-      "freq": 1.2,
-      "smooth": 6.0
+      "amp": 0.0038,
+      "freq": 1.1,
+      "smooth": 7.0
     },
-    "spring": {
-      "stiffness": 55.0,
-      "damping": 11.0
-    },
-    "kick": {
-      "stiffness": 45.0,
-      "damping": 10.0
-    },
-    "fov": {
-      "enabled": true,
-      "runAdd": 8.0,
-      "smooth": 10.0
-    }
+    "spring": { "stiffness": 62.0, "damping": 13.0 },
+    "kick": { "stiffness": 54.0, "damping": 12.0 },
+    "fov": { "enabled": true, "runAdd": 7.0, "smooth": 12.0 }
   },
 
-  "free":  { "speed": 90, "accel": 18, "drag": 6.5 },
+  "free": { "speed": 90, "accel": 18, "drag": 6.5 },
 
   "first": {
-    "offset": { "x": 0, "y": 1.65, "z": 0 },
+    "offset": { "x": 0.0, "y": 1.65, "z": 0.0 },
+
     "style": {
-      "shoulder": 0.035,
-      "forward": 0.015,
-      "pitchForwardMul": 0.010,
-      "strafeLeanMul": 1.0
+      "shoulder": 0.012,
+      "forward": 0.01,
+      "pitchForwardMul": 0.006,
+      "strafeLeanMul": 0.6
+    },
+
+    "follow": {
+      "smooth": 52.0,
+      "maxPullPerSec": 90.0
     }
   },
 
-  "third": { "distance": 3.4, "height": 1.55, "side": 0.25, "zoomSpeed": 1.0 },
-  "top":   { "height": 18, "panSpeed": 14, "zoomSpeed": 2, "pitch": -1.5393804002589986 }
+  "third": {
+    "distance": 3.15,
+    "minDistance": 0.85,
+    "maxDistance": 6.5,
+
+    "height": 1.62,
+    "side": 0.34,
+
+    "follow": { "smoothing": 12.0 },
+
+    "dynamic": {
+      "runDistAdd": 0.65,
+      "strafeShoulder": 0.18
+    },
+
+    "zoom": { "smooth": 18.0 },
+    "zoomSpeed": 1.15,
+
+    "shoulder": {
+      "enabled": true,
+      "key": "V",
+      "smooth": 16.0,
+      "side": 1
+    },
+
+    "aimAssist": {
+      "enabled": true,
+      "distance": 2.1,
+      "side": 0.16,
+      "height": 1.6,
+      "smooth": 18.0
+    },
+
+    "debug": { "enabled": false, "everyFrames": 120 }
+  },
+
+  "top": { "height": 18, "panSpeed": 14, "zoomSpeed": 2, "pitch": -1.5 }
 }

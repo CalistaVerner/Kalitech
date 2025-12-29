@@ -14,8 +14,6 @@ class Index {
 
         const st = ctx.state();
 
-        render.ensureScene();
-
         // --- ground plane ---
         const ground = engine.terrain().plane({w: 1000, h: 1000});
         ground.setMaterial(MAT.getMaterial("unshaded.grass"));

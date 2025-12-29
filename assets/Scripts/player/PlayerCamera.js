@@ -3,8 +3,6 @@
 
 const camModes = require("../Camera/CameraOrchestrator.js");
 
-const CAMERA_CFG_JSON = "data/camera/camera.config.json";
-
 function readTextAsset(path) {
     try {
         const a = engine.assets && engine.assets();
@@ -23,13 +21,6 @@ function readTextAsset(path) {
     return null;
 }
 
-function loadJson(path) {
-    const txt = readTextAsset(path);
-    if (txt) return JSON.parse(txt);
-    try { return require(path); } catch (_) {}
-    return {};
-}
-
 function defaults() {
     return {
         type: "third",
@@ -44,7 +35,6 @@ function defaults() {
             invertY: false
         },
 
-        // --- cyberpunk dynamics defaults (safe + subtle) ---
         dynamics: {
             bob: {
                 walkFreq: 7.2,
@@ -81,7 +71,10 @@ function defaults() {
         },
 
         free:  { speed: 90, accel: 18, drag: 6.5 },
+
+        // ✅ first-person offset будет пересчитан от капсулы (eyeHeight)
         first: { offset: { x: 0, y: 1.65, z: 0 } },
+
         third: { distance: 3.4, height: 1.55, side: 0.25, zoomSpeed: 1.0 },
         top:   { height: 18, panSpeed: 14, zoomSpeed: 2, pitch: -Math.PI * 0.49 }
     };
@@ -98,7 +91,6 @@ function merge(dst, src) {
 }
 
 function shallowPick(cfg) {
-    // отдаём orchestrator только ожидаемые секции
     return {
         debug: cfg.debug,
         keys:  cfg.keys,
@@ -116,26 +108,11 @@ class PlayerCamera {
         this.player = player;
         this.bodyId = 0;
 
-        // load + apply once
-        const raw = loadJson(CAMERA_CFG_JSON);
-        this.cfg = merge(defaults(), raw);
+        this.cfg = merge(defaults(), DATA_CONFIG.camera.json());
         this.type = this.cfg.type || "third";
 
         camModes.configure(shallowPick(this.cfg));
         camModes.setType(this.type);
-
-        // ✅ single log: config applied
-        const look = this.cfg.look || {};
-        const keys = this.cfg.keys || {};
-        LOG.debug(
-            "[camera] cfg applied path=" + CAMERA_CFG_JSON +
-            " type=" + this.type +
-            " sens=" + (+look.sensitivity || 0) +
-            " smooth=" + (+look.smoothing || 0) +
-            " invertX=" + (!!look.invertX ? "1" : "0") +
-            " invertY=" + (!!look.invertY ? "1" : "0") +
-            " keys=" + JSON.stringify(keys)
-        );
 
         this.ready = true;
     }
@@ -147,16 +124,53 @@ class PlayerCamera {
     }
 
     enableGameplayMouseGrab(enable) {
-        try { engine.input().grabMouse(!!enable); }
-        catch (_) { try { engine.input().cursorVisible(!enable); } catch (_) {} }
+        try { INP.grabMouse(!!enable); }
+        catch (_) { try { INP.cursorVisible(!enable); } catch (_) {} }
     }
 
-    // ✅ gameplay hooks (forwarded into orchestrator)
     onJump(strength) {
         try { if (camModes && typeof camModes.onJump === "function") camModes.onJump(strength); } catch (_) {}
     }
     onLand(strength) {
         try { if (camModes && typeof camModes.onLand === "function") camModes.onLand(strength); } catch (_) {}
+    }
+
+    _calcEyeHeight() {
+        try {
+            const p = this.player;
+
+            // приоритет: cfg.character.eyeHeight
+            const ch = (p && p.cfg && p.cfg.character) ? p.cfg.character : null;
+            if (ch && ch.eyeHeight != null) {
+                const eh = +ch.eyeHeight;
+                if (Number.isFinite(eh) && eh > 0.5) return eh;
+            }
+
+            // иначе: от height (character.height -> spawn.height -> fallback)
+            const h =
+                (ch && ch.height != null) ? +ch.height :
+                    (p && p.cfg && p.cfg.spawn && p.cfg.spawn.height != null) ? +p.cfg.spawn.height :
+                        1.80;
+
+            const hh = (Number.isFinite(h) && h > 0.5) ? h : 1.80;
+
+            // AAA: глаза чуть ниже макушки
+            const eye = Math.min(hh * 0.92, hh - 0.08);
+            return Math.max(1.20, eye);
+        } catch (_) {
+            return 1.65;
+        }
+    }
+
+    _applyFirstPersonOffset() {
+        const eye = this._calcEyeHeight();
+
+        if (!this.cfg.first) this.cfg.first = {};
+        if (!this.cfg.first.offset) this.cfg.first.offset = { x: 0, y: eye, z: 0 };
+        else this.cfg.first.offset.y = eye;
+
+        // важно: orchestration должен получить новый offset
+        try { camModes.configure(shallowPick(this.cfg)); } catch (_) {}
     }
 
     update(tpf, snap) {
@@ -165,13 +179,12 @@ class PlayerCamera {
         this.bodyId = this.player.bodyId | 0;
         camModes.attachTo(this.bodyId);
 
+        // ✅ камера “прикручена” к телу: правильный eyeHeight всегда соответствует капсуле
+        this._applyFirstPersonOffset();
+
         camModes.update(tpf, snap);
     }
 
-    /**
-     * Copies the authoritative view (smoothed yaw/pitch) from CameraOrchestrator into PlayerDomain.
-     * This is the single source of truth for aiming/movement direction for all subsystems.
-     */
     syncDomain(dom) {
         if (!dom) return;
 

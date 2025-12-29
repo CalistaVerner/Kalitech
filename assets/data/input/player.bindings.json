@@ -1,20 +1,23 @@
 {
-  "version": 1,
+  "version": 2,
 
   "actions": {
     "move_forward": ["W", "Z", "UP"],
-    "move_back":    ["S", "DOWN"],
-    "move_left":    ["A", "Q", "LEFT"],
-    "move_right":   ["D", "RIGHT"],
+    "move_back": ["S", "DOWN"],
+    "move_left": ["A", "Q", "LEFT"],
+    "move_right": ["D", "RIGHT"],
 
-    "run":  ["SHIFT", "LSHIFT", "RSHIFT"],
-    "jump": ["SPACE"]
+    "run": ["SHIFT", "LSHIFT", "RSHIFT"],
+    "jump": ["SPACE"],
+
+    "crouch": ["C", "LCTRL", "RCTRL"],
+
+    "aim": ["RMB"],
+    "fire": ["LMB"]
   },
 
   "tuning": {
-    "speed": 6.0,
-    "runSpeed": 10.0,
-    "airControl": 0.35,
+    "airControl": 0.32,
     "jumpImpulse": 320.0
   }
 }

@@ -117,8 +117,7 @@ class InputRouter {
 
         let code = -1;
         try {
-            const inp = engine.input();
-            code = (inp && inp.keyCode) ? (inp.keyCode(k) | 0) : -1;
+            code = (INP.keyCode) ? (INP.keyCode(k) | 0) : -1;
         } catch (_) { code = -1; }
 
         this._kc[k] = code | 0;
@@ -171,11 +170,7 @@ class InputRouter {
     }
 
     _readLmbDown() {
-        try {
-            const inp = engine.input();
-            if (inp && typeof inp.mouseDown === "function") return !!inp.mouseDown(0); // 0 = LMB
-        } catch (_) {}
-        return false;
+        return !!INP.mouseDown(0);
     }
 
     _applyMouseLook(dx, dy) {

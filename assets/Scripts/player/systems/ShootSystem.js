@@ -4,7 +4,7 @@
 
 /**
  * ShootSystem:
- * - Fires on real LMB edge: engine.input().mouseDown(0) 0->1
+ * - Fires on real LMB edge: INP.mouseDown(0) 0->1
  * - Spawn origin = player physics position + eyeHeight (stable)
  * - Aim direction = authoritative view angles from PlayerDomain (yaw/pitch)
  *   => exactly "center of screen" as seen by the player now
@@ -53,12 +53,12 @@ const DEFAULT_CFG = Object.freeze({
     radius: 0.5,
     mass: 800.0,
     lockRotation: false,
-    materialId: "grass.debug",
+    materialId: "unshaded.grass",
 
     // spawn + flight
     spawnOffset: 2.0,
     eyeHeight: 1.55,
-    speed: 8.0,
+    speed: 320.0,
 
     // input conventions
     // In your current setup pitch grows when looking DOWN, so we invert it for math.
@@ -107,7 +107,7 @@ class ShootSystem {
 
     _lmbJustPressed() {
         let down = false;
-        try { down = !!engine.input().mouseDown(0); } catch (_) { down = false; }
+        try { down = !!INP.mouseDown(0); } catch (_) { down = false; }
         const jp = down && !this._prevLmbDown;
         this._prevLmbDown = down;
         return jp;
@@ -166,9 +166,8 @@ class ShootSystem {
             scale: c.radius,
             name: name,
             pos: [this._spawn.x, this._spawn.y, this._spawn.z],
-            physics: { mass: c.mass, lockRotation: c.lockRotation }
+            physics: { mass: c.mass, lockRotation: c.lockRotation, collider: { type: "dynamicMesh", halfExtents: [1.2, 0.6, 2.4] }}
         });
-
 
         g.setMaterial(MAT.getMaterial(c.materialId));
 

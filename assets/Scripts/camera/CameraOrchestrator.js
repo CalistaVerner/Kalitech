@@ -1,4 +1,4 @@
-// Author: Calista Verner
+// Author: Calista Verner (compat + AAA collision integration)
 "use strict";
 
 const FreeCam  = require("./modes/free.js");
@@ -7,6 +7,10 @@ const ThirdCam = require("./modes/third.js");
 const TopCam   = require("./modes/top.js");
 
 const Dynamics = require("../Camera/CameraDynamicsCyberpunk.js");
+
+// Optional collision solver (new)
+let CollisionSolver = null;
+try { CollisionSolver = require("./CameraCollisionSolver.js"); } catch (_) { CollisionSolver = null; }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function wrapAngle(a) {
@@ -75,7 +79,17 @@ class CameraOrchestrator {
         this._active = null;
         this._activeKey = "";
 
-        this.input = { dx: 0, dy: 0, mx: 0, my: 0, mz: 0, wheel: 0, dt: 0 };
+        this.input = {
+            dx: 0, dy: 0,
+            mx: 0, my: 0, mz: 0,
+            wheel: 0,
+            dt: 0,
+
+            // OPTIONAL: for aim detection in modes (best effort)
+            mouseMask: 0,
+            rmb: false,
+            aim: false
+        };
 
         this.mouseGrab = {
             mode: "always",
@@ -95,6 +109,21 @@ class CameraOrchestrator {
             _lastY: 0,
             _lastZ: 0,
             _hasLast: false
+        };
+
+        // --- Target/pivot point (head) for robust attachment
+        this.target = {
+            headOffset: { x: 0.0, y: 1.62, z: 0.0 }
+        };
+
+        // --- Optional collision post-pass
+        this.collision = CollisionSolver ? new CollisionSolver() : null;
+        this._collisionEnabled = false;
+
+        // --- Collision routing policy
+        // For first-person we want strict head lock (no solver pushing camera away).
+        this.collisionPolicy = {
+            applyToFirst: false
         };
     }
 
@@ -117,6 +146,8 @@ class CameraOrchestrator {
 
     attachTo(bodyId) {
         this.bodyId = bodyId | 0;
+        this.motion._hasLast = false;
+        try { if (this.collision && this.collision.reset) this.collision.reset(); } catch (_) {}
     }
 
     configure(cfg) {
@@ -146,6 +177,27 @@ class CameraOrchestrator {
             if (typeof mg.rmbButtonIndex === "number") this.mouseGrab.rmbButtonIndex = mg.rmbButtonIndex | 0;
         }
 
+        // --- Target (new) OR pivot (old) support
+        if (cfg.target && cfg.target.headOffset) {
+            const h = cfg.target.headOffset;
+            if (typeof h.x === "number") this.target.headOffset.x = h.x;
+            if (typeof h.y === "number") this.target.headOffset.y = h.y;
+            if (typeof h.z === "number") this.target.headOffset.z = h.z;
+        }
+        if (cfg.collision && cfg.collision.pivot) {
+            // old name: collision.pivot
+            const p = cfg.collision.pivot;
+            if (typeof p.x === "number") this.target.headOffset.x = p.x;
+            if (typeof p.y === "number") this.target.headOffset.y = p.y;
+            if (typeof p.z === "number") this.target.headOffset.z = p.z;
+        }
+
+        // optional routing: allow enabling collision for first-person if you ever want it
+        if (cfg.collisionPolicy) {
+            const cp = cfg.collisionPolicy;
+            if (typeof cp.applyToFirst === "boolean") this.collisionPolicy.applyToFirst = cp.applyToFirst;
+        }
+
         for (const k in this.modes) {
             if (Object.prototype.hasOwnProperty.call(cfg, k) && this.modes[k] && this.modes[k].configure) {
                 this.modes[k].configure(cfg[k]);
@@ -154,6 +206,22 @@ class CameraOrchestrator {
 
         if (cfg.dynamics && this.dynamics && this.dynamics.configure) {
             this.dynamics.configure(cfg.dynamics);
+        }
+
+        // --- Collision config (compat mapping)
+        // Accept old names:
+        // - padding -> pad
+        // - minPivotDistance -> minTargetDist
+        if (cfg.collision && this.collision && this.collision.configure) {
+            const c = Object.assign({}, cfg.collision);
+
+            if (typeof c.padding === "number" && typeof c.pad !== "number") c.pad = c.padding;
+            if (typeof c.minPivotDistance === "number" && typeof c.minTargetDist !== "number") c.minTargetDist = c.minPivotDistance;
+
+            this.collision.configure(c);
+            this._collisionEnabled = !!c.enabled;
+        } else {
+            this._collisionEnabled = false;
         }
 
         if (cfg.keys) {
@@ -171,8 +239,8 @@ class CameraOrchestrator {
     grabMouse(grab) {
         const g = !!grab;
         try {
-            if (engine.input().grabMouse) engine.input().grabMouse(g);
-            else if (engine.input().cursorVisible) engine.input().cursorVisible(!g);
+            if (INP.grabMouse) INP.grabMouse(g);
+            else if (INP.cursorVisible) INP.cursorVisible(!g);
         } catch (_) {}
         this.mouseGrab._grabbed = g;
     }
@@ -201,15 +269,22 @@ class CameraOrchestrator {
 
         this._updateMotionFromSnapshotOrPhysics(snap, bodyPos, this.input.dt);
 
+        // compute head target point once and pass to modes
+        const headTarget = bodyPos ? this._computeTargetPoint(bodyPos) : null;
+
+        // --- MODE PASS
         mode.update({
             cam: engine.camera(),
             bodyId: this.bodyId,
             bodyPos,
+            target: headTarget,   // <---- NEW: stable head pivot for modes
             look: this.look,
             input: this.input,
-            motion: this.motion
+            motion: this.motion,
+            inputSnap: snap
         });
 
+        // --- DYNAMICS PASS (mode-agnostic)
         const isGameplay = (this.type === "first" || this.type === "third" || this.type === "free");
         if (isGameplay && this.type !== "top") {
             try {
@@ -225,9 +300,45 @@ class CameraOrchestrator {
             } catch (_) {}
         }
 
+        // --- COLLISION PASS
+        // IMPORTANT: for FIRST PERSON we normally do NOT want solver to push camera away from head
+        // (it creates "floating"). Keep it for third/free.
+        const allowCollision =
+            this._collisionEnabled &&
+            this.collision &&
+            bodyPos &&
+            (this.type !== "first" || this.collisionPolicy.applyToFirst);
+
+        if (allowCollision) {
+            const tp = headTarget || this._computeTargetPoint(bodyPos);
+            try {
+                const phys = (typeof PHYS !== "undefined") ? PHYS : null;
+
+                this.collision.solve({
+                    cam: engine.camera(),
+                    dt: this.input.dt,
+                    modeType: this.type,
+                    bodyId: this.bodyId,
+                    target: tp,
+                    physics: phys
+                });
+            } catch (_) {
+                // never break camera
+            }
+        }
+
         this.input.dx = 0;
         this.input.dy = 0;
         this.input.wheel = 0;
+    }
+
+    _computeTargetPoint(bodyPos) {
+        const h = this.target.headOffset;
+        return {
+            x: vx(bodyPos, 0) + (h.x || 0),
+            y: vy(bodyPos, 0) + (h.y || 0),
+            z: vz(bodyPos, 0) + (h.z || 0)
+        };
     }
 
     _keyCode(name) {
@@ -235,7 +346,7 @@ class CameraOrchestrator {
         if (!k) return -1;
         if (this._kc[k] !== undefined) return this._kc[k] | 0;
         let code = -1;
-        try { code = engine.input().keyCode ? (engine.input().keyCode(k) | 0) : -1; } catch (_) { code = -1; }
+        try { code = INP.keyCode ? (INP.keyCode(k) | 0) : -1; } catch (_) { code = -1; }
         this._kc[k] = code | 0;
         return code | 0;
     }
@@ -279,6 +390,7 @@ class CameraOrchestrator {
         }
 
         this.motion._hasLast = false;
+        try { if (this.collision && this.collision.reset) this.collision.reset(); } catch (_) {}
 
         try { if (next && next.onEnter) next.onEnter(); } catch (_) {}
 
@@ -340,6 +452,13 @@ class CameraOrchestrator {
         this.input.dy += -dy;
 
         this.input.wheel += (+snap.wheel || 0);
+
+        // expose RMB/aim hints for modes (best-effort)
+        this.input.mouseMask = (snap.mouseMask | 0) || 0;
+        const btn = this.mouseGrab.rmbButtonIndex | 0;
+        const bit = (btn >= 0 && btn < 31) ? (1 << btn) : 0;
+        this.input.rmb = bit ? ((this.input.mouseMask & bit) !== 0) : false;
+        this.input.aim = this.input.rmb;
 
         if (this.debug.enabled) {
             this.debug._frame++;

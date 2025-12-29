@@ -13,7 +13,7 @@ const worldSystems = [
         config: {
             module: "@env/sky",
             dayLengthSec: 10,
-            skybox: "Textures/Sky/sky_0.dds",
+            skybox: "Textures/Sky/skyBox.dds",
             azimuthDeg: 35,
             shadows: { mapSize: 16384, splits: 4, lambda: 0.65 },
             fog: {

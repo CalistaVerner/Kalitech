@@ -240,7 +240,7 @@ class LightRig {
             intensity: 6.0
         });
 
-        engine.render().ensureScene();
+        //engine.render().ensureScene();
 
         const torch = light.create({
             type: "point",
@@ -254,18 +254,21 @@ class LightRig {
 
         try { LOG.info("[sky] torch id=" + torch.id()); } catch (_) {}
 
-        for (let i = 0; i < 160; i++) {
+        for (let i = 0; i < 10; i++) {
+            let size = this.randNum(1, 5);
+            const density = 4.5;       // базовая плотность
+            const weightBias = 0.6;    // насколько "больше = тяжелее"
+            const mass = density * Math.pow(size, 3) * (1 + size * weightBias);
+
             MSH
                 .box$()
-                .size(this.randNum(1, 5))
+                .size(size)
                 .name("box-" + i)
                 .pos(120, 3, -300)
                 .material(MAT.getMaterial("box"))
-                .physics(10000, { lockRotation: false })
+                .physics(mass, { lockRotation: false })
                 .create();
         }
-
-        try { LOG.info("[sky] cubes created at (200, 8, -300)"); } catch (_) {}
     }
 
     randNum(min, max) {

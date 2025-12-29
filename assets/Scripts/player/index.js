@@ -158,14 +158,10 @@ class Player {
 
         // ---- config (one place) ----
         this.cfg = {
-            spawn: { pos: { x: 0, y: 3, z: 0 } },
-
-            movement: { speed: 6.0, runSpeed: 10.0 },
-
+            spawn: { pos: { x: 129, y: 3, z: -300 } },
+            movement: { speed: 23.0, runSpeed: 30.0 },
             camera: { type: "third", debug: { enabled: true, everyFrames: 60 } },
-
             ui: { crosshair: { size: 22, color: { r: 0.2, g: 1.0, b: 0.4, a: 1.0 } } },
-
             events: { enabled: true, throttleMs: 250 }
         };
 
@@ -218,7 +214,7 @@ class Player {
 
         // ONE snapshot per frame
         let snap = null;
-        try { snap = engine.input().consumeSnapshot(); } catch (_) {}
+        try { snap = INP.consumeSnapshot(); } catch (_) {}
 
         // frame sync
         this.dom.frame.tpf = tpf;
@@ -266,8 +262,7 @@ class Player {
             fallSpeed: motion.fallSpeed
         });
 
-        // end frame
-        try { if (engine.input().endFrame) engine.input().endFrame(); } catch (_) {}
+        INP.endFrame();
     }
 
     destroy() {

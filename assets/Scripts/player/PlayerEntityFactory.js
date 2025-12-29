@@ -37,6 +37,11 @@ function idOf(h, kind) {
     return 0;
 }
 
+function _num(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : fb;
+}
+
 class PlayerEntity {
     constructor() {
         this.entityId = 0;
@@ -118,36 +123,50 @@ class PlayerEntityFactory {
         if (cfg == null && this.player) cfg = (this.player.cfg && this.player.cfg.spawn) || {};
         cfg = cfg || {};
 
+        // --- AAA defaults (human-like) ---
+        const radius = _num(cfg.radius, 0.35);
+        const height = _num(cfg.height, 1.80);   // ✅ вместо 4.8
+        const mass = _num(cfg.mass, 80.0);
+
+        const friction = (cfg.friction != null) ? cfg.friction : 0.9;
+        const restitution = (cfg.restitution != null) ? cfg.restitution : 0.0;
+        const damping = cfg.damping ?? { linear: 0.15, angular: 0.95 };
+
+        const pos = cfg.pos ?? { x: 0, y: 3, z: 0 };
+
         const h = ENT.create({
             name: cfg.name ?? "player",
+
             surface: {
                 type: "capsule",
                 name: cfg.surfaceName,
-                radius: cfg.radius ?? 0.35,
-                height: cfg.height ?? 1.8,
-                pos: cfg.pos ?? { x: 0, y: 3, z: 0 },
+                radius,
+                height,
+                pos,
                 attach: true,
-                physics: { mass: cfg.mass ?? 80, lockRotation: true }
+                physics: { mass, lockRotation: true }
             },
+
             body: {
-                mass: cfg.mass ?? 80.0,
-                friction: cfg.friction ?? 0.9,
-                restitution: cfg.restitution ?? 0.0,
-                damping: cfg.damping ?? { linear: 0.15, angular: 0.95 },
+                mass,
+                friction,
+                restitution,
+                damping,
                 lockRotation: true,
-                collider: {
-                    type: "capsule",
-                    radius: cfg.radius,
-                    height: cfg.height
-                }
+
+                // ✅ collider всегда валиден (никаких cfg.radius/cfg.height undefined)
+                collider: { type: "capsule", radius, height }
             },
+
             components: {
                 Player: (ctx) => ({
                     entityId: ctx.entityId,
                     surfaceId: ctx.surfaceId,
-                    bodyId: ctx.bodyId
+                    bodyId: ctx.bodyId,
+                    capsule: { radius, height, mass }
                 })
             },
+
             debug: true
         });
 
