@@ -4,6 +4,7 @@
 const camModes = require("../Camera/CameraOrchestrator.js");
 
 function readTextAsset(path) {
+    // оставляем безопасный fallback, но без избыточных уровней
     try {
         const a = engine.assets && engine.assets();
         if (a) {
@@ -70,13 +71,12 @@ function defaults() {
             }
         },
 
-        free:  { speed: 90, accel: 18, drag: 6.5 },
+        free: { speed: 90, accel: 18, drag: 6.5 },
 
-        // ✅ first-person offset будет пересчитан от капсулы (eyeHeight)
         first: { offset: { x: 0, y: 1.65, z: 0 } },
 
         third: { distance: 3.4, height: 1.55, side: 0.25, zoomSpeed: 1.0 },
-        top:   { height: 18, panSpeed: 14, zoomSpeed: 2, pitch: -Math.PI * 0.49 }
+        top: { height: 18, panSpeed: 14, zoomSpeed: 2, pitch: -Math.PI * 0.49 }
     };
 }
 
@@ -93,94 +93,132 @@ function merge(dst, src) {
 function shallowPick(cfg) {
     return {
         debug: cfg.debug,
-        keys:  cfg.keys,
-        look:  cfg.look,
-        free:  cfg.free,
+        keys: cfg.keys,
+        look: cfg.look,
+        free: cfg.free,
         first: cfg.first,
         third: cfg.third,
-        top:   cfg.top,
+        top: cfg.top,
         dynamics: cfg.dynamics
     };
+}
+
+function num(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : fb;
 }
 
 class PlayerCamera {
     constructor(player) {
         this.player = player;
-        this.bodyId = 0;
+        this.ready = false;
 
+        // runtime cache
+        this._attachedBodyId = 0;
+        this._lastEyeHeight = NaN;
+        this._lastType = null;
+
+        // load cfg once
         this.cfg = merge(defaults(), DATA_CONFIG.camera.json());
         this.type = this.cfg.type || "third";
 
+        // configure orchestrator ONCE
         camModes.configure(shallowPick(this.cfg));
         camModes.setType(this.type);
 
+        this._lastType = this.type;
         this.ready = true;
     }
 
+    _attachTo(bodyId) {
+        bodyId |= 0;
+        if (!bodyId || bodyId === this._attachedBodyId) return;
+        this._attachedBodyId = bodyId;
+        camModes.attachTo(bodyId);
+    }
+
     attach() {
-        this.bodyId = this.player.bodyId | 0;
-        camModes.attachTo(this.bodyId);
+        this._attachTo(this.player ? (this.player.bodyId | 0) : 0);
         return this;
     }
 
     enableGameplayMouseGrab(enable) {
-        try { INP.grabMouse(!!enable); }
-        catch (_) { try { INP.cursorVisible(!enable); } catch (_) {} }
-    }
-
-    onJump(strength) {
-        try { if (camModes && typeof camModes.onJump === "function") camModes.onJump(strength); } catch (_) {}
-    }
-    onLand(strength) {
-        try { if (camModes && typeof camModes.onLand === "function") camModes.onLand(strength); } catch (_) {}
-    }
-
-    _calcEyeHeight() {
-        try {
-            const p = this.player;
-
-            // приоритет: cfg.character.eyeHeight
-            const ch = (p && p.cfg && p.cfg.character) ? p.cfg.character : null;
-            if (ch && ch.eyeHeight != null) {
-                const eh = +ch.eyeHeight;
-                if (Number.isFinite(eh) && eh > 0.5) return eh;
-            }
-
-            // иначе: от height (character.height -> spawn.height -> fallback)
-            const h =
-                (ch && ch.height != null) ? +ch.height :
-                    (p && p.cfg && p.cfg.spawn && p.cfg.spawn.height != null) ? +p.cfg.spawn.height :
-                        1.80;
-
-            const hh = (Number.isFinite(h) && h > 0.5) ? h : 1.80;
-
-            // AAA: глаза чуть ниже макушки
-            const eye = Math.min(hh * 0.92, hh - 0.08);
-            return Math.max(1.20, eye);
-        } catch (_) {
-            return 1.65;
+        enable = !!enable;
+        // один try/catch достаточно
+        try { INP.grabMouse(enable); }
+        catch (_) {
+            try { INP.cursorVisible(!enable); } catch (_) {}
         }
     }
 
-    _applyFirstPersonOffset() {
+    onJump(strength) {
+        if (camModes && typeof camModes.onJump === "function") camModes.onJump(strength);
+    }
+
+    onLand(strength) {
+        if (camModes && typeof camModes.onLand === "function") camModes.onLand(strength);
+    }
+
+    _calcEyeHeight() {
+        const p = this.player;
+        const ch = (p && p.cfg && p.cfg.character) ? p.cfg.character : null;
+
+        // 1) прямое значение
+        if (ch && ch.eyeHeight != null) {
+            const eh = num(ch.eyeHeight, 0);
+            if (eh > 0.5) return eh;
+        }
+
+        // 2) от роста (character.height -> spawn.height -> fallback)
+        const h = (ch && ch.height != null)
+            ? num(ch.height, 1.80)
+            : (p && p.cfg && p.cfg.spawn && p.cfg.spawn.height != null)
+                ? num(p.cfg.spawn.height, 1.80)
+                : 1.80;
+
+        // AAA: глаза чуть ниже макушки
+        const eye = Math.min(h * 0.92, h - 0.08);
+        return Math.max(1.20, eye);
+    }
+
+    _applyFirstPersonOffsetIfChanged() {
         const eye = this._calcEyeHeight();
+
+        // epsilon чтобы не дергать конфиг из-за микрофлуктуаций
+        const prev = this._lastEyeHeight;
+        if (Number.isFinite(prev) && Math.abs(eye - prev) < 1e-3) return;
+
+        this._lastEyeHeight = eye;
 
         if (!this.cfg.first) this.cfg.first = {};
         if (!this.cfg.first.offset) this.cfg.first.offset = { x: 0, y: eye, z: 0 };
         else this.cfg.first.offset.y = eye;
 
-        // важно: orchestration должен получить новый offset
-        try { camModes.configure(shallowPick(this.cfg)); } catch (_) {}
+        // ВАЖНО: configure только при изменениях (иначе spam "camera configured ...")
+        camModes.configure(shallowPick(this.cfg));
+    }
+
+    _applyTypeIfChanged() {
+        const type = String((this.cfg && this.cfg.type) || this.type || "third");
+        if (type === this._lastType) return;
+        this._lastType = type;
+        this.type = type;
+        camModes.setType(type);
     }
 
     update(tpf, snap) {
         if (!this.ready) return;
 
-        this.bodyId = this.player.bodyId | 0;
-        camModes.attachTo(this.bodyId);
+        const bodyId = this.player ? (this.player.bodyId | 0) : 0;
 
-        // ✅ камера “прикручена” к телу: правильный eyeHeight всегда соответствует капсуле
-        this._applyFirstPersonOffset();
+        // attach только при смене id
+        this._attachTo(bodyId);
+
+        // тип — только если реально поменялся
+        this._applyTypeIfChanged();
+
+        // first-person offset — только если изменился eyeHeight
+        this._applyFirstPersonOffsetIfChanged();
 
         camModes.update(tpf, snap);
     }
@@ -188,20 +226,23 @@ class PlayerCamera {
     syncDomain(dom) {
         if (!dom) return;
 
-        try {
-            if (camModes && camModes.look) {
-                dom.view.yaw = +camModes.look._yawS || 0;
-                dom.view.pitch = +camModes.look._pitchS || 0;
-            }
-        } catch (_) {}
-
-        try { dom.view.type = String(camModes.type || this.type || "third"); }
-        catch (_) { dom.view.type = this.type || "third"; }
+        const look = camModes ? camModes.look : null;
+        if (look) {
+            dom.view.yaw = +look._yawS || 0;
+            dom.view.pitch = +look._pitchS || 0;
+        }
+        dom.view.type = String((camModes && camModes.type) || this.type || "third");
     }
 
     destroy() {
         this.ready = false;
-        try { camModes.attachTo(0); camModes.setType("free"); } catch (_) {}
+        this._attachedBodyId = 0;
+
+        try {
+            camModes.attachTo(0);
+            camModes.setType("free");
+        } catch (_) {}
+
         this.enableGameplayMouseGrab(false);
     }
 }

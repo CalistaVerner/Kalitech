@@ -181,11 +181,16 @@ class ShootSystem {
             });
         }
         SND.create({
-            soundFile: "Sounds/notify.ogg",
+            soundFile: "Sounds/hit.ogg",
             volume: 1.0,
             pitch: 1.0,
             looping: false
         }).play();
+
+        LOG.warn('EVENT');
+        EVENTS.on("engine.physics.collision.begin", (e) => {
+            LOG.info(`BEGIN ${e.a.bodyId} <-> ${e.b.bodyId}`);
+        });
     }
 
     /**

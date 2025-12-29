@@ -39,7 +39,6 @@ function readTextAsset(path) {
         }
     } catch (_) {}
     try {
-        // fallback if your runtime exposes fs-like API
         const fs = engine.fs && engine.fs();
         if (fs && fs.readText) return fs.readText(path);
     } catch (_) {}
@@ -58,7 +57,6 @@ function readJsonAsset(path, fb) {
 }
 
 function resolveMovementPath(rootCfg, movCfg) {
-    // Highest priority: explicit path in cfg
     try {
         if (movCfg && typeof movCfg.configPath === "string" && movCfg.configPath.length > 0) return movCfg.configPath;
     } catch (_) {}
@@ -74,28 +72,20 @@ class PlayerController {
         const player = isPlayer ? playerOrCfg : null;
         const rootCfg = isPlayer ? (player.cfg || {}) : (playerOrCfg || {});
 
-        // legacy behavior: allow movement config to be in rootCfg.movement
         const movOverrides = (rootCfg && rootCfg.movement) || Object.create(null);
 
-        // load JSON config (like camera.config.json)
         const movPath = resolveMovementPath(rootCfg, movOverrides);
         const movFromJson = readJsonAsset(movPath, Object.create(null));
-
-        // effective movement cfg = JSON base + overrides from rootCfg.movement
-        // (overrides win; deep merge keeps nested sections like speed/air/jump/ground)
         const movCfg = deepMerge(deepMerge(Object.create(null), movFromJson), (isPlainObj(movOverrides) ? movOverrides : Object.create(null)));
 
         this.player = player;
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
 
-        // legacy ids kept for logs/debug only
         this.bodyId = 0;
 
-        // keep for hot reload / inspection
         this._movementCfgPath = movPath;
         this._movementCfg = movCfg;
 
-        // systems (now receive JSON cfg)
         this.input = new InputRouter(movCfg);
         this.movement = new MovementSystem(movCfg);
         this.shoot = new ShootSystem(rootCfg);
@@ -105,7 +95,6 @@ class PlayerController {
         this._f = 0;
     }
 
-    // optional: reload JSON at runtime (e.g., on hot-reload key)
     reloadMovementConfig() {
         const fresh = readJsonAsset(this._movementCfgPath || DATA_CONFIG.materials.json(), Object.create(null));
         const overrides = (this.player && this.player.cfg && this.player.cfg.movement) ? this.player.cfg.movement : Object.create(null);
@@ -126,14 +115,12 @@ class PlayerController {
         cfg = cfg || Object.create(null);
         if (cfg.enabled !== undefined) this.enabled = !!cfg.enabled;
 
-        // allow runtime patching (still supports old style)
         this._movementCfg = deepMerge(deepMerge(Object.create(null), this._movementCfg || Object.create(null)), cfg);
 
         if (this.input && this.input.configure) this.input.configure(this._movementCfg);
         if (this.movement && this.movement.configure) this.movement.configure(this._movementCfg);
         if (this.shoot && this.shoot.configure) this.shoot.configure(cfg);
 
-        // refresh debug knobs from effective cfg
         const mc = this._movementCfg;
         this._debugEvery = ((mc.debug && mc.debug.everyFrames) | 0) || this._debugEvery || 60;
         this._debugOn = (mc.debug && mc.debug.enabled) !== undefined ? !!mc.debug.enabled : this._debugOn;
@@ -142,7 +129,6 @@ class PlayerController {
     }
 
     bind(ids) {
-        // in new world we bind via player.body; keep bodyId only for debug
         if (ids == null && this.player) ids = this.player;
 
         try { this.bodyId = (ids && typeof ids.bodyId === "number") ? (ids.bodyId | 0) : (ids | 0); } catch (_) { this.bodyId = 0; }
@@ -158,17 +144,14 @@ class PlayerController {
         const p = this.player;
         if (!p) return;
 
-        // hot reload safe: refresh id + wrapper existence handled by Player (index.js)
         this.bodyId = (p.bodyId | 0);
-        const body = p.body; // ✅ PHYS.ref(bodyId)
+        const body = p.body;
         if (!body) return;
 
         const dom = p.dom;
 
-        // controller does not interpret input — just routes it
         const state = this.input.read(snap);
 
-        // ✅ sync input into domain (single source of truth)
         if (dom && dom.input) {
             dom.input.ax = state.ax | 0;
             dom.input.az = state.az | 0;
@@ -178,11 +161,8 @@ class PlayerController {
             dom.input.lmbJustPressed = !!state.lmbJustPressed;
         }
 
-        // ✅ optional: rotate player body to match yaw (if you want)
-        // (InputRouter only computes yaw/pitch; body rotation lives here)
         try { if (dom && dom.view) body.yaw(dom.view.yaw); } catch (_) {}
 
-        // optional debug
         if (this._debugOn) {
             this._f = (this._f + 1) | 0;
             if ((this._f % (this._debugEvery | 0)) === 0) {
@@ -198,12 +178,15 @@ class PlayerController {
             }
         }
 
-        // systems do all heavy logic
-        // Shoot + movement consume dom.view (authoritative camera angles)
         this.shoot.update(tpf, this.bodyId | 0, dom, state);
 
-        const yaw = (dom && dom.view) ? dom.view.yaw : state.yaw; // fallback
-        this.movement.update(tpf, body, state, yaw);
+        const yaw = (dom && dom.view) ? dom.view.yaw : state.yaw;
+
+        // ✅ avoid double raycast & velocity reads: reuse Player-derived pose where possible
+        const grounded = (dom && dom.pose) ? !!dom.pose.grounded : false;
+        const pose = (dom && dom.pose) ? dom.pose : null;
+
+        this.movement.update(tpf, body, state, yaw, grounded, pose);
     }
 
     warp(pos) {
