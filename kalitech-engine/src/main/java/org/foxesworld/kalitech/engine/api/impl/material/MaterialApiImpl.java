@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.graalvm.polyglot.HostAccess;
@@ -13,17 +15,22 @@ import org.graalvm.polyglot.Value;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.foxesworld.kalitech.engine.api.impl.material.MaterialUtils.applyParam;
+import static org.foxesworld.kalitech.engine.api.impl.material.MaterialUtils.applyParamAsync;
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.str;
 
 public final class MaterialApiImpl implements MaterialApi {
 
+    private static final Logger log = LogManager.getLogger(MaterialApiImpl.class);
+
     private final EngineApiImpl engine;
     private final AssetManager assets;
     private final AtomicInteger ids = new AtomicInteger(1);
 
-    // Template cache: def + stable params hash
+    /**
+     * Template cache: def+alias+paramsHash -> template Material (no heavy IO in template build).
+     * Each create() returns clone() of template.
+     */
     private final Cache<MaterialKey, Material> templateCache = Caffeine.newBuilder()
             .maximumSize(4096)
             .softValues()
@@ -33,76 +40,98 @@ public final class MaterialApiImpl implements MaterialApi {
     public MaterialApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.assets = engine.getAssets();
+        // allow MaterialUtils to schedule render-thread updates
+        MaterialUtils.init(engine, assets);
     }
 
     @HostAccess.Export
     @Override
     public MaterialHandle create(Value cfg) {
-        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("material.create(cfg): cfg is required");
+        if (cfg == null || cfg.isNull()) {
+            throw new IllegalArgumentException("material.create(cfg): cfg is required");
+        }
 
         String def = str(cfg, "def", null);
-        if (def == null || def.isBlank()) throw new IllegalArgumentException("material.create: cfg.def is required");
+        if (def == null || def.isBlank()) {
+            throw new IllegalArgumentException("material.create: cfg.def is required");
+        }
         def = def.trim();
 
-        Value params = member(cfg, "params");
+        final Value params = member(cfg, "params");
 
-        // Optional fast-key (doesn't change API): cfg.id / cfg.name => stable alias
         String alias = null;
         try {
             alias = str(cfg, "id", null);
             if (alias == null || alias.isBlank()) alias = str(cfg, "name", null);
-            if (alias != null) alias = alias.trim();
-            if (alias != null && alias.isBlank()) alias = null;
+            if (alias != null) {
+                alias = alias.trim();
+                if (alias.isBlank()) alias = null;
+            }
         } catch (Throwable ignored) {}
 
-        MaterialKey key = MaterialKey.from(def, alias, params);
+        final MaterialKey key = MaterialKey.from(def, alias, params);
 
         String finalDef = def;
         Material template = templateCache.get(key, k -> buildTemplate(finalDef, params));
 
-        // IMPORTANT: always clone so caller can mutate via material.set(...)
-        Material m = template.clone();
+        Material m;
+        try {
+            m = template.clone();
+        } catch (Throwable e) {
+            log.warn("material.create: template.clone() failed for def='{}' (fallback rebuild). {}", def, e.toString());
+            m = buildTemplate(def, params);
+        }
+
+        // Even if template is cached, some textures might still be pending.
+        // That's ok: MaterialUtils will swap placeholders -> real textures later.
         return new MaterialHandle(ids.getAndIncrement(), m);
     }
 
     private Material buildTemplate(String def, Value params) {
-        Material m = new Material(assets, def);
+        final Material m = new Material(assets, def);
 
         if (params != null && !params.isNull() && params.hasMembers()) {
-            for (String key : sortedKeys(params.getMemberKeys())) {
-                applyParam(assets, m, key, params.getMember(key));
+            List<String> keys = new ArrayList<>(params.getMemberKeys());
+            keys.sort(String::compareTo);
+
+            for (String key : keys) {
+                boolean ok = applyParamAsync(m, key, params.getMember(key));
+                if (!ok && MaterialUtils.isProbablyUnknownParam(m, key)) {
+                    log.warn("material.create: unknown param '{}' for def='{}'", key, def);
+                }
             }
         }
 
         return m;
     }
 
-    private static List<String> sortedKeys(Set<String> keys) {
-        if (keys == null || keys.isEmpty()) return List.of();
-        ArrayList<String> out = new ArrayList<>(keys);
-        out.sort(String::compareTo);
-        return out;
+    @HostAccess.Export
+    @Override
+    public void set(MaterialHandle handle, Value params) {
+        if (handle == null || handle.material == null) {
+            throw new IllegalArgumentException("material.set: handle is required");
+        }
+        if (params == null || params.isNull() || !params.hasMembers()) return;
+
+        List<String> keys = new ArrayList<>(params.getMemberKeys());
+        keys.sort(String::compareTo);
+
+        for (String key : keys) {
+            boolean ok = applyParamAsync(handle.material, key, params.getMember(key));
+            if (!ok && MaterialUtils.isProbablyUnknownParam(handle.material, key)) {
+                log.warn("material.set: unknown param '{}' for materialId={}", key, handle.id);
+            }
+        }
     }
 
     @Override
     public void destroy(MaterialHandle handle) {
-        // no-op: materials are GC-managed; we keep template cache separate
-    }
-
-    @HostAccess.Export
-    @Override
-    public void set(MaterialHandle handle, Value params) {
-        if (handle == null || handle.material == null) throw new IllegalArgumentException("material.set: handle is required");
-        if (params == null || params.isNull() || !params.hasMembers()) return;
-
-        for (String key : sortedKeys(params.getMemberKeys())) {
-            applyParam(assets, handle.material, key, params.getMember(key));
-        }
+        // no-op
     }
 
     public static final class MaterialHandle {
         private final int id;
-        private final Material material;
+        final Material material;
 
         public MaterialHandle(int id, Material material) {
             this.id = id;
@@ -116,7 +145,7 @@ public final class MaterialApiImpl implements MaterialApi {
     }
 
     // ------------------------------------------------------------
-    // Cache key: def + (optional alias) + stable params hash
+    // Cache key
     // ------------------------------------------------------------
 
     private record MaterialKey(String def, String alias, int paramsHash, int hash) {
@@ -127,6 +156,7 @@ public final class MaterialApiImpl implements MaterialApi {
         }
 
         @Override public int hashCode() { return hash; }
+
         @Override public boolean equals(Object o) {
             if (!(o instanceof MaterialKey k)) return false;
             return hash == k.hash &&
@@ -136,7 +166,6 @@ public final class MaterialApiImpl implements MaterialApi {
         }
     }
 
-    // Fast, deterministic hash of params (ordered by key)
     private static int stableParamsHash(Value params) {
         if (params == null || params.isNull() || !params.hasMembers()) return 0;
 
@@ -156,10 +185,12 @@ public final class MaterialApiImpl implements MaterialApi {
 
         try {
             if (v.isBoolean()) return v.asBoolean() ? 1231 : 1237;
+
             if (v.isNumber()) {
                 long bits = Double.doubleToLongBits(v.asDouble());
-                return (int)(bits ^ (bits >>> 32));
+                return (int) (bits ^ (bits >>> 32));
             }
+
             if (v.isString()) {
                 MaterialUtils.ParsedTex pt = MaterialUtils.parseTextureShorthand(v.asString());
                 if (pt.path() != null && !pt.path().isBlank()) {
@@ -175,11 +206,10 @@ public final class MaterialApiImpl implements MaterialApi {
                 for (int i = 0; i < n; i++) {
                     h = 31 * h + stableValueHash(v.getArrayElement(i));
                 }
-                return Objects.hash("a", h, (int)n);
+                return Objects.hash("a", h, (int) n);
             }
 
             if (v.hasMembers()) {
-                // texture object shortcut
                 if (v.hasMember("texture")) {
                     MaterialUtils.TextureDesc td = MaterialUtils.parseTextureDesc(v);
                     if (td != null) {
@@ -196,6 +226,7 @@ public final class MaterialApiImpl implements MaterialApi {
 
                 ArrayList<String> keys = new ArrayList<>(v.getMemberKeys());
                 keys.sort(String::compareTo);
+
                 int h = 1;
                 for (String k : keys) {
                     h = 31 * h + k.hashCode();
@@ -205,6 +236,6 @@ public final class MaterialApiImpl implements MaterialApi {
             }
         } catch (Throwable ignored) {}
 
-        return 777; // fallback deterministic-ish
+        return 777;
     }
 }

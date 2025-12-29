@@ -13,8 +13,12 @@ import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
 import com.jme3.post.filters.ToneMapFilter;
 import com.jme3.renderer.ViewPort;
+import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
+import com.jme3.texture.Texture;
+import com.jme3.util.SkyFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -73,6 +77,10 @@ public final class RenderApiImpl implements RenderApi {
     private boolean _bloomEnabled = false;
     private boolean _tonemapEnabled = false;
     private boolean _ssaoEnabled = false;
+    // skybox
+    private Spatial skybox;
+    private String skyboxAsset = "";
+
 
     public RenderApiImpl(EngineApiImpl engineApi) {
         this.engineApi = engineApi;
@@ -103,12 +111,70 @@ public final class RenderApiImpl implements RenderApi {
         onJme(() -> {
             ensureViewportContract("ensureScene");
             ensureAmbientExists();
-            ensureSunExists();
+            //ensureSunExists();
             ensureMainFpp("ensureScene");
-            ensureFogExists();
+            //ensureFogExists();
             log.info("RenderApi: scene ensured");
         });
     }
+
+    @HostAccess.Export
+    public void skyboxClear() {
+        ensureScene();
+        onJme(() -> {
+            ensureViewportContract("skyboxClear");
+            if (skybox != null) {
+                try { skybox.removeFromParent(); } catch (Throwable ignored) {}
+                skybox = null;
+            }
+            skyboxAsset = "";
+            log.info("RenderApi: skybox cleared");
+        });
+    }
+
+    @HostAccess.Export
+    public void skyboxCube(String asset) {
+        ensureScene();
+        if (asset == null || asset.isBlank()) {
+            skyboxClear();
+            return;
+        }
+        final String a = asset.trim();
+        onJme(() -> {
+            ensureViewportContract("skyboxCube");
+
+            // анти-спам
+            if (a.equals(skyboxAsset) && skybox != null) return;
+
+            // снять предыдущий
+            if (skybox != null) {
+                try { skybox.removeFromParent(); } catch (Throwable ignored) {}
+                skybox = null;
+            }
+
+            try {
+                // ВАЖНО: SkyFactory для DDS cubemap ожидает TextureCubeMap.
+                // loadTexture вернёт нужный тип, если DDS именно cubemap.
+                Texture tex = assets.loadTexture(a);
+
+                Spatial s = SkyFactory.createSky(assets, tex, SkyFactory.EnvMapType.CubeMap);
+                s.setQueueBucket(RenderQueue.Bucket.Sky);
+                s.setCullHint(Spatial.CullHint.Never);
+
+                app.getRootNode().attachChild(s);
+
+                skybox = s;
+                skyboxAsset = a;
+
+                log.info("RenderApi: skybox set asset='{}'", a);
+            } catch (Throwable t) {
+                skybox = null;
+                skyboxAsset = "";
+                log.error("RenderApi: skyboxCube failed asset='{}'", a, t);
+            }
+        });
+    }
+
 
     private void ensureViewportContract(String where) {
         // Ensure MAIN has rootNode, GUI has guiNode. Prevent scene corruption.
@@ -281,7 +347,7 @@ public final class RenderApiImpl implements RenderApi {
     @HostAccess.Export
     @Override
     public void sunShadowsCfg(Value cfg) {
-        int map = intClampR(cfg, "mapSize", 2048, 0, 8192); // 0 disables
+        int map = intClampR(cfg, "mapSize", 2048, 0, 16384); // 0 disables
         sunShadows(map);
     }
 

@@ -17,6 +17,7 @@ import org.foxesworld.kalitech.engine.api.impl.sound.SoundApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
+import org.foxesworld.kalitech.engine.perf.PerfProfiler;
 import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -27,6 +28,8 @@ public final class EngineApiImpl implements EngineApi {
 
     private final Logger log = LogManager.getLogger(EngineApiImpl.class);
 
+
+    private final PerfProfiler perf;
     private final SimpleApplication app;
     private final AssetManager assets;
     private final ScriptEventBus bus;
@@ -62,6 +65,26 @@ public final class EngineApiImpl implements EngineApi {
     private final TerrainSplatApi terrainSplatApi;
 
     public EngineApiImpl(RuntimeAppState runtimeAppState) {
+
+        // Profiler
+        PerfProfiler.Config pcfg = new PerfProfiler.Config();
+
+        pcfg.enabled = true;
+        pcfg.writeToFile = true;
+        pcfg.writeToLog = false;
+
+        pcfg.windowFrames = 900;          // 15 сек истории
+        pcfg.summaryEveryFrames = 60;     // каждую секунду
+        pcfg.spikeThresholdNanos = 500_000; // 0.5ms (жёстко)
+
+
+        // ⬇⬇⬇ ВАЖНО ⬇⬇⬇
+        pcfg.outputFile = "logs/perf-engine.jsonl"; // путь к файлу
+        pcfg.flushEverySummary = true;            // безопасно (можно false)
+        this.perf = new PerfProfiler(log, pcfg);
+
+
+
         this.app = runtimeAppState.getSa();
         this.assets = runtimeAppState.getSa().getAssetManager();
         this.bus = runtimeAppState.getBus();
@@ -136,10 +159,31 @@ public final class EngineApiImpl implements EngineApi {
 
     // internal hooks
     public void __updateTime(double tpf) {
+        perf.beginFrame();
+
+        long t;
+
+        t = perf.begin("time.update");
         timeApi.update(tpf);
+        perf.end("time.update", t);
+
+        // camera flush
+        t = perf.begin("camera.flush");
+        if (cameraApi instanceof CameraApiImpl c) c.__flush();
+        perf.end("camera.flush", t);
+
+        t = perf.begin("hud.tick");
         this.hudApi.__tick();
+        perf.end("hud.tick", t);
+
+        t = perf.begin("debug.tick");
         this.debug.tick(tpf);
+        perf.end("debug.tick", t);
+
+        perf.endFrame(tpf);
     }
+
+
     public void __endFrameInput() { inputApi.endFrame(); }
 
     /** internal: used by RuntimeAppState / WorldBuilder based on world.mode */
