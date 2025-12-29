@@ -1,0 +1,7 @@
+{
+  "name": "Log",
+  "globalName": "LOG",
+  "version": "1.0.0",
+  "description": "Rootkit wrapper for engine.log() with safe formatting + scoped child loggers",
+  "engineMin": "0.1.0"
+}

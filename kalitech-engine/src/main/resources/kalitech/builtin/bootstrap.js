@@ -2,17 +2,6 @@
 // Author: Calista Verner
 "use strict";
 
-/**
- * Bootstrap goals:
- *  - KEEP require-resolver config: aliases/packageStyle/materials.dbPath.
- *  - No globalAliases.
- *  - Module contract: export function create(engine, K) => api
- *  - Module meta: create.META = { name, globalName, version, description, engineMin }
- *  - Globals exist early via deferred proxies (MSH/MAT/SND).
- *  - On attachEngine: instantiate all modules and replace proxies with real APIs.
- *  - IMPORTANT: never mutate API objects (they may be Object.freeze()).
- */
-
 const DEFAULT_CONFIG = {
     aliases: {
         "@core": "Scripts/core",
@@ -22,8 +11,12 @@ const DEFAULT_CONFIG = {
         "@materials": "Scripts/materials",
         "@env": "Scripts/environment"
     },
-    packageStyle: { enabled: false, roots: {} },
-    materials: { dbPath: "data/materials.json" },
+
+    dataConfig: {
+        materials: { path: "data/materials.json" },
+        camera:    { path: "data/camera/camera.config.json" },
+        movement:  { path: "data/player/movement.config.json" }
+    },
 
     builtins: {
         exposeGlobals: true,
@@ -33,31 +26,33 @@ const DEFAULT_CONFIG = {
             sound: "@builtin/Sound/Sound",
             entity: "@builtin/Entity/Entity",
             physics: "@builtin/Physics/Physics",
-            log: "@builtin/Log/Log"
+            log: "@builtin/Log/Log",
+            input: "@builtin/Input/Input"
         }
     }
 };
 
-// root
 const ROOT_KEY = "__kalitech";
 if (!globalThis[ROOT_KEY]) globalThis[ROOT_KEY] = Object.create(null);
 const K = globalThis[ROOT_KEY];
 
 function ensureRootState(root) {
-    if (!root.modules) root.modules = Object.create(null);         // raw exports
-    if (!root.instances) root.instances = Object.create(null);     // instantiated apis
-    if (!root.meta) root.meta = Object.create(null);               // meta by name
-    if (!root.instancesMeta) root.instancesMeta = Object.create(null); // meta for instances
+    if (!root.modules) root.modules = Object.create(null);
+    if (!root.instances) root.instances = Object.create(null);
+    if (!root.meta) root.meta = Object.create(null);
+    if (!root.instancesMeta) root.instancesMeta = Object.create(null);
+    if (!root.moduleIds) root.moduleIds = Object.create(null);
     if (!root._engine) root._engine = null;
     if (!root._engineAttached) root._engineAttached = false;
     if (!root._deferred) root._deferred = [];
     if (!root._once) root._once = Object.create(null);
     if (!root.config) root.config = Object.create(null);
+    if (!root.dataConfig) root.dataConfig = Object.create(null);
+    if (!root.dataConfigApi) root.dataConfigApi = null;
     return root;
 }
 ensureRootState(K);
 
-// utils
 function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
 
 function deepMergePlain(dst, src) {
@@ -80,7 +75,7 @@ function parseSemver(v) {
 }
 function semverGte(a, b) {
     const A = parseSemver(String(a || "")); const B = parseSemver(String(b || ""));
-    if (!A || !B) return true; // can't parse => don't block
+    if (!A || !B) return true;
     if (A[0] !== B[0]) return A[0] > B[0];
     if (A[1] !== B[1]) return A[1] > B[1];
     return A[2] >= B[2];
@@ -98,7 +93,6 @@ function readEngineVersion(engine) {
     return null;
 }
 
-// deferred proxy to prevent "x is not a function" before attachEngine
 function createDeferredProxy(resolveFn, label) {
     const state = { resolved: null };
 
@@ -136,14 +130,172 @@ function createDeferredProxy(resolveFn, label) {
     });
 }
 
-// module contract
-function normalizeMeta(exp, fallbackName) {
-    const m = exp && exp.META ? exp.META : null;
-    const name = (m && m.name) ? String(m.name) : String(fallbackName || "");
-    const globalName = (m && m.globalName) ? String(m.globalName) : "";
-    const version = (m && m.version) ? String(m.version) : "0.0.0";
-    const description = (m && m.description) ? String(m.description) : "";
-    const engineMin = (m && m.engineMin) ? String(m.engineMin) : "";
+function _isPlainObj(x) {
+    if (!x || typeof x !== "object") return false;
+    const p = Object.getPrototypeOf(x);
+    return p === Object.prototype || p === null;
+}
+
+function _readTextAsset(engine, path) {
+    try {
+        const a = engine && engine.assets && engine.assets();
+        if (a) {
+            if (typeof a.readText === "function") return a.readText(path);
+            if (typeof a.text === "function") return a.text(path);
+            if (typeof a.getText === "function") return a.getText(path);
+        }
+    } catch (_) {}
+    try {
+        const fs = engine && engine.fs && engine.fs();
+        if (fs && typeof fs.readText === "function") return fs.readText(path);
+    } catch (_) {}
+    return null;
+}
+
+function _buildDataConfigApi(engine, cfgSection) {
+    const cfg = _isPlainObj(cfgSection) ? cfgSection : Object.create(null);
+
+    const cacheText = Object.create(null);
+    const cacheJson = Object.create(null);
+
+    function list() { return Object.keys(cfg); }
+
+    function pathOf(name) {
+        const k = String(name || "");
+        const e = cfg[k];
+        if (!e) return "";
+        if (typeof e === "string") return e;
+        if (e && typeof e.path === "string") return e.path;
+        return "";
+    }
+
+    function readText(name) {
+        const p = pathOf(name);
+        if (!p) return null;
+        if (cacheText[p] != null) return cacheText[p];
+        const txt = _readTextAsset(engine, p);
+        cacheText[p] = (txt != null) ? String(txt) : null;
+        return cacheText[p];
+    }
+
+    function readJson(name) {
+        const p = pathOf(name);
+        if (!p) return null;
+        if (cacheJson[p] != null) return cacheJson[p];
+        const txt = readText(name);
+        if (!txt) { cacheJson[p] = null; return null; }
+        try {
+            const obj = JSON.parse(String(txt));
+            cacheJson[p] = obj;
+            return obj;
+        } catch (_) {
+            cacheJson[p] = null;
+            return null;
+        }
+    }
+
+    function reload(name) {
+        const p = pathOf(name);
+        if (!p) return false;
+        delete cacheText[p];
+        delete cacheJson[p];
+        return true;
+    }
+
+    function reloadAll() {
+        const ks = list();
+        for (let i = 0; i < ks.length; i++) reload(ks[i]);
+        return true;
+    }
+
+    function get(name) {
+        const k = String(name || "");
+        if (!cfg[k]) return null;
+        return {
+            name: k,
+            get path() { return pathOf(k); },
+            text: function () { return readText(k); },
+            json: function () { return readJson(k); },
+            reload: function () { return reload(k); }
+        };
+    }
+
+    const api = { list, get, pathOf, readText, readJson, reload, reloadAll };
+
+    const keys = Object.keys(cfg);
+    for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        api[k] = get(k);
+    }
+
+    return api;
+}
+
+function _isObj(x) { return x && typeof x === "object"; }
+
+function _readJsonSafe(text) {
+    try { return JSON.parse(String(text == null ? "" : text)); } catch (_) { return null; }
+}
+
+function _dirOf(p) {
+    p = String(p || "");
+    const a = p.lastIndexOf("/");
+    const b = p.lastIndexOf("\\");
+    const i = Math.max(a, b);
+    return i >= 0 ? p.slice(0, i) : "";
+}
+
+function _tryReadKaliModFromFsNearModule(moduleId) {
+    try {
+        if (typeof require !== "function" || typeof require.resolve !== "function") return null;
+        const resolved = require.resolve(moduleId);
+        if (!resolved) return null;
+        const fs = require("fs");
+        const path = require("path");
+        const dir = _dirOf(resolved);
+        const p = path.join(dir, "kaliMod.json");
+        if (!fs.existsSync(p)) return null;
+        const txt = fs.readFileSync(p, "utf8");
+        const obj = _readJsonSafe(txt);
+        return _isObj(obj) ? obj : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function _tryReadKaliModFromAssets(engine, moduleId) {
+    try {
+        if (!engine || !moduleId) return null;
+
+        let rel = String(moduleId || "");
+        if (rel.startsWith("@builtin/")) rel = rel.slice("@builtin/".length);
+
+        const i = Math.max(rel.lastIndexOf("/"), rel.lastIndexOf("\\"));
+        const dirRel = i >= 0 ? rel.slice(0, i) : rel;
+
+        const base = "resources/kalitech/builtin/";
+        const assetPath = base + dirRel.replace(/\\/g, "/") + "/kaliMod.json";
+
+        const txt = _readTextAsset(engine, assetPath);
+        const obj = _readJsonSafe(txt);
+        return _isObj(obj) ? obj : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function normalizeMeta(exp, fallbackName, moduleId, engine) {
+    const fromFs = moduleId ? _tryReadKaliModFromFsNearModule(moduleId) : null;
+    const fromAssets = (!fromFs && engine && moduleId) ? _tryReadKaliModFromAssets(engine, moduleId) : null;
+    const fromExport = (exp && exp.META && _isObj(exp.META)) ? exp.META : null;
+
+    const src = fromFs || fromAssets || fromExport;
+
+    const name = (src && src.name) ? String(src.name) : String(fallbackName || "");
+    const globalName = (src && src.globalName) ? String(src.globalName) : "";
+    const version = (src && src.version) ? String(src.version) : "0.0.0";
+    const description = (src && src.description) ? String(src.description) : "";
+    const engineMin = (src && src.engineMin) ? String(src.engineMin) : "";
     return { name, globalName, version, description, engineMin };
 }
 
@@ -162,28 +314,34 @@ function instantiateModule(exp, engine, meta) {
     if (!api || typeof api !== "object") {
         throw new Error("[builtin/bootstrap] Module factory returned invalid api for: " + meta.name);
     }
-    // IMPORTANT: do not attach meta onto api; it may be frozen
     return api;
 }
 
-// bootstrap
 class KalitechBootstrap {
     constructor(defaults) {
         this.defaults = defaults;
         this.config = deepMergePlain({}, defaults);
         K.config = this.config;
+        K.dataConfig = (this.config && this.config.dataConfig) ? this.config.dataConfig : Object.create(null);
     }
 
     init() {
         const expose = !!(this.config.builtins && this.config.builtins.exposeGlobals);
         const mods = (this.config.builtins && this.config.builtins.modules) ? this.config.builtins.modules : {};
 
+        if (expose) {
+            globalThis.DATA_CONFIG = createDeferredProxy(() => K.dataConfigApi || null, "DATA_CONFIG");
+        }
+
         for (const key of Object.keys(mods)) {
-            const exp = requireModule(mods[key]);
-            const meta = normalizeMeta(exp, key);
+            const moduleId = mods[key];
+            const exp = requireModule(moduleId);
+
+            const meta = normalizeMeta(exp, key, moduleId, null);
 
             K.modules[meta.name] = exp;
             K.meta[meta.name] = meta;
+            K.moduleIds[meta.name] = moduleId;
 
             if (expose) {
                 globalThis[meta.name] = createDeferredProxy(() => K.instances[meta.name] || null, meta.name);
@@ -206,9 +364,21 @@ class KalitechBootstrap {
         const expose = !!(this.config.builtins && this.config.builtins.exposeGlobals);
         const engVer = readEngineVersion(engine);
 
+        try {
+            K.dataConfig = (this.config && this.config.dataConfig) ? this.config.dataConfig : Object.create(null);
+            K.dataConfigApi = _buildDataConfigApi(engine, K.dataConfig);
+            if (expose) globalThis.DATA_CONFIG = K.dataConfigApi;
+        } catch (e) {
+            try { LOG && LOG.error && LOG.error("[builtin/bootstrap] DATA_CONFIG init failed: " + (e && e.message ? e.message : e)); } catch (_) {}
+        }
+
         for (const name of Object.keys(K.modules)) {
             const exp = K.modules[name];
-            const meta = K.meta[name] || { name: name };
+            const moduleId = K.moduleIds[name] || null;
+
+            const meta = normalizeMeta(exp, name, moduleId, engine);
+            K.meta[name] = meta;
+            K.instancesMeta[name] = meta;
 
             if (meta.engineMin && engVer && !semverGte(engVer, meta.engineMin)) {
                 throw new Error(
@@ -220,7 +390,6 @@ class KalitechBootstrap {
 
             const api = instantiateModule(exp, engine, meta);
             K.instances[name] = api;
-            K.instancesMeta[name] = meta;
 
             if (expose) {
                 globalThis[name] = api;
