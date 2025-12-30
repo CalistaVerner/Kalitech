@@ -22,7 +22,10 @@ public final class KeyboardState {
                     .build(KeyboardState::resolveKeyCode);
 
     private final boolean[] down = new boolean[KEY_MAX];
-    private final boolean[] prevDown = new boolean[KEY_MAX];
+
+    // ✅ NEW: event flags for "tap between snapshots"
+    private final boolean[] pressedThisFrame = new boolean[KEY_MAX];
+    private final boolean[] releasedThisFrame = new boolean[KEY_MAX];
 
     private int[] justPressed = new int[0];
     private int[] justReleased = new int[0];
@@ -33,8 +36,14 @@ public final class KeyboardState {
     }
 
     public void onKeyEvent(int keyCode, boolean pressed) {
-        if (keyCode >= 0 && keyCode < down.length) {
-            down[keyCode] = pressed;
+        if (keyCode < 0 || keyCode >= down.length) return;
+
+        if (pressed) {
+            down[keyCode] = true;
+            pressedThisFrame[keyCode] = true;     // ✅ remembers press even if released later before snapshot
+        } else {
+            down[keyCode] = false;
+            releasedThisFrame[keyCode] = true;    // ✅ remembers release
         }
     }
 
@@ -82,12 +91,9 @@ public final class KeyboardState {
         int jrCount = 0;
 
         for (int i = 0; i < down.length; i++) {
-            boolean d = down[i];
-            boolean p = prevDown[i];
-
-            if (d) downCount++;
-            if (d && !p) jpCount++;
-            if (!d && p) jrCount++;
+            if (down[i]) downCount++;
+            if (pressedThisFrame[i]) jpCount++;
+            if (releasedThisFrame[i]) jrCount++;
         }
 
         int[] kd = downCount == 0 ? new int[0] : new int[downCount];
@@ -97,14 +103,13 @@ public final class KeyboardState {
         int id = 0, ip = 0, ir = 0;
 
         for (int i = 0; i < down.length; i++) {
-            boolean d = down[i];
-            boolean p = prevDown[i];
+            if (down[i]) kd[id++] = i;
+            if (pressedThisFrame[i]) jp[ip++] = i;
+            if (releasedThisFrame[i]) jr[ir++] = i;
 
-            if (d) kd[id++] = i;
-            if (d && !p) jp[ip++] = i;
-            if (!d && p) jr[ir++] = i;
-
-            prevDown[i] = d;
+            // ✅ reset per-frame flags
+            pressedThisFrame[i] = false;
+            releasedThisFrame[i] = false;
         }
 
         keysDown = kd;

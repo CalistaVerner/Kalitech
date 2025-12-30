@@ -1,9 +1,9 @@
 package org.foxesworld.kalitech.engine.api.impl.sound;
 
-import com.jme3.audio.AudioNode;
 import com.jme3.audio.AudioData;
+import com.jme3.audio.AudioNode;
 import com.jme3.asset.AssetManager;
-import com.jme3.math.Vector3f;
+import org.foxesworld.kalitech.audio.SpatialStereoAudioNode;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -26,27 +26,68 @@ public final class SoundApiImpl implements SoundApi {
     public AudioNode create(Value cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("sound.create(cfg): cfg is required");
 
-        String soundFile = str(cfg, "soundFile", "");
-        float volume = (float) num(cfg, "volume", 1.0f);
-        float pitch = (float) num(cfg, "pitch", 1.0f);
+        // Common params
+        float volume = (float) num(cfg, "volume", 1.0);
+        float pitch = (float) num(cfg, "pitch", 1.0);
         boolean looping = bool(cfg, "looping", false);
         boolean is3D = bool(cfg, "is3D", false);
 
-        AudioNode audioNode = new AudioNode(assetManager, soundFile, AudioData.DataType.Buffer);
-        audioNode.setVolume(volume);
-        audioNode.setPitch(pitch);
-        audioNode.setLooping(looping);
-        audioNode.setPositional(false);
+        // Data type
+        AudioData.DataType type = parseType(str(cfg, "type", "buffer"));
 
-        if (is3D) {
-            audioNode.setPositional(true);
-            float x = (float) num(cfg, "x", 0.0f);
-            float y = (float) num(cfg, "y", 0.0f);
-            float z = (float) num(cfg, "z", 0.0f);
-            audioNode.setLocalTranslation(x, y, z);
+        // Spatial Stereo params (new, optional)
+        String leftFile = str(cfg, "leftFile", "");
+        String rightFile = str(cfg, "rightFile", "");
+        float separation = (float) num(cfg, "separation", 0.20); // meters
+
+        // Legacy mono/stereo file param (old)
+        String soundFile = str(cfg, "soundFile", "");
+
+        final AudioNode node;
+
+        // Rule:
+        // - If left/right provided => SpatialStereoAudioNode (true spatial stereo)
+        // - Else => regular AudioNode (old behavior)
+        if (hasText(leftFile) && hasText(rightFile)) {
+            // Spatial stereo is meaningful only for 3D use-cases.
+            // If is3D=false we still allow creation but keep it non-positional (headspace),
+            // by using a regular AudioNode as fallback (since spatial stereo is not needed).
+            if (!is3D) {
+                // fallback headspace: pick leftFile (mono) or soundFile
+                String f = hasText(soundFile) ? soundFile : leftFile;
+                node = new AudioNode(assetManager, f, type);
+                node.setPositional(false);
+            } else {
+                SpatialStereoAudioNode s = new SpatialStereoAudioNode(assetManager, leftFile, rightFile, type);
+                s.setSeparation(separation);
+                node = s;
+                node.setPositional(true); // 3D spatial stereo
+            }
+        } else {
+            // Legacy path: single file
+            if (!hasText(soundFile)) {
+                throw new IllegalArgumentException("sound.create(cfg): soundFile is required (or leftFile+rightFile)");
+            }
+            node = new AudioNode(assetManager, soundFile, type);
+
+            // Old behavior: default headspace, becomes positional if is3D
+            node.setPositional(is3D);
         }
 
-        return audioNode;
+        // Apply common params
+        node.setVolume(volume);
+        node.setPitch(pitch);
+        node.setLooping(looping);
+
+        // Position (only meaningful for 3D)
+        if (is3D) {
+            float x = (float) num(cfg, "x", 0.0);
+            float y = (float) num(cfg, "y", 0.0);
+            float z = (float) num(cfg, "z", 0.0);
+            node.setLocalTranslation(x, y, z);
+        }
+
+        return node;
     }
 
     @HostAccess.Export
@@ -120,24 +161,49 @@ public final class SoundApiImpl implements SoundApi {
         audioNode.setDryFilter((com.jme3.audio.Filter) filter);
     }
 
+    // -------------------- helpers --------------------
+
+    private static boolean hasText(String s) {
+        return s != null && !s.isEmpty() && !s.isBlank();
+    }
+
+    private static AudioData.DataType parseType(String s) {
+        if (s == null) return AudioData.DataType.Buffer;
+        String v = s.trim().toLowerCase();
+        return switch (v) {
+            case "stream" -> AudioData.DataType.Stream;
+            case "buffer" -> AudioData.DataType.Buffer;
+            default -> AudioData.DataType.Buffer;
+        };
+    }
+
     private static String str(Value v, String key, String def) {
-        if (v.hasMember(key)) {
-            return v.getMember(key).asString();
-        }
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asString();
+            }
+        } catch (Exception e) { /* ignore */ }
         return def;
     }
 
     private static double num(Value v, String key, double def) {
-        if (v.hasMember(key)) {
-            return v.getMember(key).asDouble();
-        }
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asDouble();
+            }
+        } catch (Exception e) { /* ignore */ }
         return def;
     }
 
     private static boolean bool(Value v, String key, boolean def) {
-        if (v.hasMember(key)) {
-            return v.getMember(key).asBoolean();
-        }
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asBoolean();
+            }
+        } catch (Exception e) { /* ignore */ }
         return def;
     }
 }

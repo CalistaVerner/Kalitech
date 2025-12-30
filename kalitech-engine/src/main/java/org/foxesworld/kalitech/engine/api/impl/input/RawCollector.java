@@ -1,5 +1,7 @@
+// FILE: RawCollector.java
 package org.foxesworld.kalitech.engine.api.impl.input;
 
+import com.jme3.input.KeyInput;
 import com.jme3.input.RawInputListener;
 import com.jme3.input.event.*;
 
@@ -24,16 +26,17 @@ public final class RawCollector implements RawInputListener {
 
     @Override
     public void onKeyEvent(KeyInputEvent evt) {
-        // JME может слать повтор (repeat) отдельно. Повтор = клавиша всё ещё нажата.
-        // Сбрасываем состояние ТОЛЬКО на явном release.
         int code = evt.getKeyCode();
+
+        if (code == 0 && evt.getKeyChar() == ' ') {
+            code = KeyInput.KEY_SPACE;
+        }
 
         if (evt.isPressed() || evt.isRepeating()) {
             keyboard.onKeyEvent(code, true);
         } else if (evt.isReleased()) {
             keyboard.onKeyEvent(code, false);
         } else {
-            // fallback
             keyboard.onKeyEvent(code, evt.isPressed());
         }
     }

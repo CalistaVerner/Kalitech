@@ -87,8 +87,7 @@ public final class RuntimeAppState extends BaseAppState {
 
             AssetManager am = app.getAssetManager();
             try {
-                InputStream in = am.locateAsset(new AssetKey<>(id)).openStream();
-                return in;
+                return am.locateAsset(new AssetKey<>(id)).openStream();
             } catch (Exception e) {
                 return null;
             }

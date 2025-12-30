@@ -5,6 +5,7 @@ import com.jme3.asset.AssetManager;
 import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.audio.KalitechAudioBridge;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
 import org.foxesworld.kalitech.engine.api.impl.debug.DebugDrawApiImpl;
@@ -127,7 +128,7 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export @Override public LogApi log() { return logApi; }
     @HostAccess.Export @Override public AssetsApi assets() { return assetsApi; }
-    @HostAccess.Export @Override public EventsApi events() { return eventsApi; }
+    @HostAccess.Export @Override public EventsApi bus() { return eventsApi; }
     @HostAccess.Export @Override public MaterialApi material() { return materialApi; }
     @HostAccess.Export @Override public EntityApi entity() { return entityApi; }
     @HostAccess.Export @Override public SoundApi sound() { return sound; }
@@ -179,6 +180,9 @@ public final class EngineApiImpl implements EngineApi {
         t = perf.begin("debug.tick");
         this.debug.tick(tpf);
         perf.end("debug.tick", t);
+
+        var cam = this.app.getCamera();
+        KalitechAudioBridge.syncListener(cam.getLocation(), cam.getRotation());
 
         perf.endFrame(tpf);
     }

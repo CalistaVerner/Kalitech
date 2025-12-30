@@ -7,18 +7,27 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
+import java.util.Objects;
+
 public final class EventsApiImpl implements EventsApi {
 
     private final ScriptEventBus bus;
 
     public EventsApiImpl(EngineApiImpl engineApi) {
-        this.bus = engineApi.getBus();
+        Objects.requireNonNull(engineApi, "engineApi");
+        this.bus = Objects.requireNonNull(engineApi.getBus(), "engineApi.getBus()");
     }
 
     @HostAccess.Export
     @Override
     public void emit(String topic, Object payload) {
         bus.emit(topic, payload);
+    }
+
+    /** Convenience: emit without payload (JS: EVENTS.emit("topic")). */
+    @HostAccess.Export
+    public void emit(String topic) {
+        bus.emit(topic, null);
     }
 
     @HostAccess.Export
@@ -42,7 +51,12 @@ public final class EventsApiImpl implements EventsApi {
     @HostAccess.Export
     @Override
     public void clear(String topic) {
-        //INCORRECT
-        bus.emit(topic);
+        bus.clear(topic);
+    }
+
+    /** Optional: clear all topics (not part of EventsApi interface). */
+    @HostAccess.Export
+    public void clearAll() {
+        bus.clearAll();
     }
 }

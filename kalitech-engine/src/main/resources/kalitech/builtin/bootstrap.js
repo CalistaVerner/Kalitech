@@ -15,7 +15,8 @@ const DEFAULT_CONFIG = {
     dataConfig: {
         materials: { path: "data/materials.json" },
         camera:    { path: "data/camera/camera.config.json" },
-        movement:  { path: "data/player/movement.config.json" }
+        movement:  { path: "data/player/movement.config.json" },
+        player: { path: "data/player.json" }
     },
 
     builtins: {
@@ -27,7 +28,8 @@ const DEFAULT_CONFIG = {
             entity: "@builtin/Entity/Entity",
             physics: "@builtin/Physics/Physics",
             log: "@builtin/Log/Log",
-            input: "@builtin/Input/Input"
+            input: "@builtin/Input/Input",
+            events: "@builtin/Events/Events"
         }
     }
 };

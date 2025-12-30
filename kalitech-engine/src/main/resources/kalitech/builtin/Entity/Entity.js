@@ -12,7 +12,8 @@
  * Goals:
  *  - simple + declarative entity creation: entity + surface + body + components
  *  - player-like use cases out-of-the-box, but no hardcoding to Player
- *  - safe id extraction for graal handles
+ *  - explicit ids for Java interop (avoid lossy coercion)
+ *  - NO silent try/catch: fail loudly with context
  */
 
 function _isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -44,70 +45,81 @@ function _deepMerge(dst, src) {
 
 /**
  * Extract numeric id from various handle shapes.
+ * NO silent catches: if some handle misbehaves, you'll see it.
  */
 function idOf(h, kind /* "body"|"surface"|"entity" */) {
     if (h == null) return 0;
     if (typeof h === "number") return h | 0;
 
-    try {
-        if (typeof h.valueOf === "function") {
-            const v = h.valueOf();
-            if (typeof v === "number" && isFinite(v)) return v | 0;
-        }
-    } catch (_) {}
+    // coercion helpers (may throw -> that's OK)
+    if (typeof h.valueOf === "function") {
+        const v = h.valueOf();
+        if (typeof v === "number" && isFinite(v)) return v | 0;
+    }
 
-    try {
-        if (typeof h.id === "number") return h.id | 0;
-        if (typeof h.bodyId === "number") return h.bodyId | 0;
-        if (typeof h.surfaceId === "number") return h.surfaceId | 0;
-        if (typeof h.entityId === "number") return h.entityId | 0;
-    } catch (_) {}
+    // direct fields
+    if (typeof h.id === "number") return h.id | 0;
+    if (typeof h.bodyId === "number") return h.bodyId | 0;
+    if (typeof h.surfaceId === "number") return h.surfaceId | 0;
+    if (typeof h.entityId === "number") return h.entityId | 0;
 
     const bodyFns = ["id", "getId", "bodyId", "getBodyId", "handle"];
     const surfFns = ["id", "getId", "surfaceId", "getSurfaceId", "handle"];
-    const entFns = ["id", "getId", "entityId", "getEntityId"];
+    const entFns  = ["id", "getId", "entityId", "getEntityId"];
 
     const fnNames = kind === "body" ? bodyFns : (kind === "surface" ? surfFns : entFns);
 
     for (let i = 0; i < fnNames.length; i++) {
         const n = fnNames[i];
-        try {
-            const fn = h[n];
-            if (typeof fn === "function") {
-                const v = fn.call(h);
-                if (typeof v === "number" && isFinite(v)) return v | 0;
-            }
-        } catch (_) {}
+        const fn = h[n];
+        if (typeof fn === "function") {
+            const v = fn.call(h);
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
     }
 
     return 0;
 }
 
-function _logInfo(engine, msg) { try { engine && engine.log && engine.log().info(msg); } catch (_) {} }
-function _logWarn(engine, msg) { try { engine && engine.log && engine.log().warn(msg); } catch (_) {} }
-function _logErr(engine, msg) { try { engine && engine.log && engine.log().error(msg); } catch (_) {} }
+function _req(cond, msg) {
+    if (!cond) throw new Error(msg);
+}
+
+function _errCtx(msg, e) {
+    const m = (e && e.stack) ? e.stack : String(e);
+    return msg + " :: " + m;
+}
+
+// ------------------------ EntityHandle ------------------------
 
 class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
-        // store ONLY primitives in ids (avoid lossy coercion issues)
-        this.entityId = (ctx.entityId | 0);
-        this.surface = ctx.surface || null;
-        this.body = ctx.body || null;
-
+        // primitives only
+        this.entityId  = (ctx.entityId | 0);
+        this.surface   = ctx.surface || null;
+        this.body      = ctx.body || null;
         this.surfaceId = (ctx.surfaceId | 0);
-        this.bodyId = (ctx.bodyId | 0);
+        this.bodyId    = (ctx.bodyId | 0);
 
         this._destroyers = Array.isArray(ctx._destroyers) ? ctx._destroyers : [];
+
+        // cache (lazy) for ref wrapper if you want it
+        this._bodyRef = null;
+        this._refId = 0;
+
+        // logger (strict)
+        _req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
+        this._log = engine.log();
+        _req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
     }
 
-    // --- explicit numeric id getter (best practice for Java interop) ---
+    // --- ids ---
     id() { return (this.entityId | 0); }
     surfaceHandleId() { return (this.surfaceId | 0); }
     bodyHandleId() { return (this.bodyId | 0); }
 
-    // --- best-effort JS coercion helpers (handy in JS; Graal may still prefer explicit id()) ---
     valueOf() { return (this.entityId | 0); }
     toString() { return String(this.entityId | 0); }
     [Symbol.toPrimitive](hint) {
@@ -115,77 +127,246 @@ class EntityHandle {
         return String(this.entityId | 0);
     }
 
-    warp(pos) {
-        if (!pos) return;
-        const p = pos;
+    // ---------------- physics helpers ----------------
 
-        const h = this.body;
-        if (h && typeof h.teleport === "function") {
-            try { h.teleport(p); }
-            catch (e) { _logErr(this._engine, "[ENT] warp.teleport failed: " + e); }
-            return;
+    hasBody() { return (this.bodyId | 0) > 0; }
+
+    requireBodyId(opName) {
+        const id = (this.bodyId | 0);
+        if (id <= 0) throw new Error("[ENT] " + opName + ": entity has no bodyId (entityId=" + (this.entityId | 0) + ")");
+        return id;
+    }
+
+    physApi() {
+        const p = this._engine.physics();
+        _req(p, "[ENT] engine.physics() returned null");
+        return p;
+    }
+
+    // Optional: use PHYS.ref if available globally (fast + clean API)
+    // Falls back to engine.physics() direct calls.
+    bodyRef() {
+        const id = this.requireBodyId("bodyRef()");
+        if (this._bodyRef && (this._refId | 0) === id) return this._bodyRef;
+
+        if (globalThis.PHYS && typeof globalThis.PHYS.ref === "function") {
+            this._bodyRef = globalThis.PHYS.ref(id);
+            this._refId = id;
+            return this._bodyRef;
         }
 
-        const bodyId = (this.bodyId | 0);
-        if (!bodyId) return;
+        // fallback wrapper bound to engine.physics()
+        const phys = this.physApi();
+        const self = Object.freeze({
+            id: () => id,
+            position: (v) => (v === undefined ? phys.position(id) : phys.warp(id, v)),
+            warp: (v) => phys.warp(id, v),
+            velocity: (v) => (v === undefined ? phys.velocity(id) : phys.velocity(id, v)),
+            yaw: (yawRad) => phys.yaw(id, +yawRad || 0),
+            applyImpulse: (imp) => phys.applyImpulse(id, imp),
+            applyCentralForce: (f) => phys.applyCentralForce(id, f),
+            applyTorque: (t) => phys.applyTorque(id, t),
+            angularVelocity: (v) => (v === undefined ? phys.angularVelocity(id) : phys.angularVelocity(id, v)),
+            clearForces: () => phys.clearForces(id),
+            lockRotation: (lock) => phys.lockRotation(id, !!lock),
+            collisionGroups: (g, m) => phys.collisionGroups(id, g | 0, m | 0),
+            remove: () => phys.remove(id)
+        });
 
-        try { this._engine.physics().position(bodyId, p); }
-        catch (e) { _logErr(this._engine, "[ENT] warp.physics.position failed: " + e); }
+        this._bodyRef = self;
+        this._refId = id;
+        return self;
+    }
+
+    // --- transforms ---
+    position(v) {
+        const id = this.requireBodyId("position()");
+        const phys = this.physApi();
+        try {
+            if (v === undefined) return phys.position(id);
+            return phys.warp(id, v);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] position failed bodyId=" + id, e));
+        }
+    }
+
+    warp(pos) {
+        const id = this.requireBodyId("warp()");
+        const phys = this.physApi();
+        try {
+            return phys.warp(id, pos);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] warp failed bodyId=" + id, e));
+        }
     }
 
     velocity(v) {
-        const h = this.body;
-        if (h && typeof h.velocity === "function") {
-            try {
-                if (arguments.length === 0) return h.velocity();
-                return h.velocity(v);
-            } catch (_) {}
+        const id = this.requireBodyId("velocity()");
+        const phys = this.physApi();
+        try {
+            if (v === undefined) return phys.velocity(id);
+            return phys.velocity(id, v);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] velocity failed bodyId=" + id, e));
         }
+    }
 
-        const id = (this.bodyId | 0);
-        if (!id) return undefined;
+    yaw(yawRad) {
+        const id = this.requireBodyId("yaw()");
+        const phys = this.physApi();
+        try {
+            return phys.yaw(id, +yawRad || 0);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] yaw failed bodyId=" + id, e));
+        }
+    }
+
+    // --- forces ---
+    applyImpulse(impulse) {
+        const id = this.requireBodyId("applyImpulse()");
+        const phys = this.physApi();
+        try {
+            return phys.applyImpulse(id, impulse);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] applyImpulse failed bodyId=" + id, e));
+        }
+    }
+
+    applyCentralForce(force) {
+        const id = this.requireBodyId("applyCentralForce()");
+        const phys = this.physApi();
+        _req(typeof phys.applyCentralForce === "function", "[ENT] engine.physics().applyCentralForce missing");
+        try {
+            return phys.applyCentralForce(id, force);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] applyCentralForce failed bodyId=" + id, e));
+        }
+    }
+
+    applyTorque(torque) {
+        const id = this.requireBodyId("applyTorque()");
+        const phys = this.physApi();
+        _req(typeof phys.applyTorque === "function", "[ENT] engine.physics().applyTorque missing");
+        try {
+            return phys.applyTorque(id, torque);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] applyTorque failed bodyId=" + id, e));
+        }
+    }
+
+    angularVelocity(v) {
+        const id = this.requireBodyId("angularVelocity()");
+        const phys = this.physApi();
+        _req(typeof phys.angularVelocity === "function", "[ENT] engine.physics().angularVelocity missing");
+        try {
+            if (v === undefined) return phys.angularVelocity(id);
+            return phys.angularVelocity(id, v);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] angularVelocity failed bodyId=" + id, e));
+        }
+    }
+
+    clearForces() {
+        const id = this.requireBodyId("clearForces()");
+        const phys = this.physApi();
+        _req(typeof phys.clearForces === "function", "[ENT] engine.physics().clearForces missing");
+        try {
+            return phys.clearForces(id);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] clearForces failed bodyId=" + id, e));
+        }
+    }
+
+    // --- flags / collision ---
+    lockRotation(lock = true) {
+        const id = this.requireBodyId("lockRotation()");
+        const phys = this.physApi();
+        try {
+            return phys.lockRotation(id, !!lock);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] lockRotation failed bodyId=" + id, e));
+        }
+    }
+
+    collisionGroups(group, mask) {
+        const id = this.requireBodyId("collisionGroups()");
+        const phys = this.physApi();
+        _req(typeof phys.collisionGroups === "function", "[ENT] engine.physics().collisionGroups missing");
+        try {
+            return phys.collisionGroups(id, group | 0, mask | 0);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] collisionGroups failed bodyId=" + id, e));
+        }
+    }
+
+    // --- world queries convenience ---
+    raycast(cfg) {
+        const phys = this.physApi();
+        _req(typeof phys.raycast === "function", "[ENT] engine.physics().raycast missing");
+        try {
+            return phys.raycast(cfg);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] raycast failed", e));
+        }
+    }
+
+    // quick ray straight down from body position
+    raycastDown(distance = 2.0, startOffsetY = 0.15) {
+        const id = this.requireBodyId("raycastDown()");
+        const phys = this.physApi();
+        _req(typeof phys.position === "function", "[ENT] engine.physics().position missing");
+        _req(typeof phys.raycast === "function", "[ENT] engine.physics().raycast missing");
+
+        const p = phys.position(id);
+        _req(p, "[ENT] raycastDown: position() returned null for bodyId=" + id);
+
+        // accept Java vec3 with x/y/z or x()/y()/z()
+        const px = (typeof p.x === "function") ? _num(p.x(), 0) : _num(p.x, 0);
+        const py = (typeof p.y === "function") ? _num(p.y(), 0) : _num(p.y, 0);
+        const pz = (typeof p.z === "function") ? _num(p.z(), 0) : _num(p.z, 0);
+
+        const from = { x: px, y: py + _num(startOffsetY, 0.15), z: pz };
+        const to   = { x: px, y: py - _num(distance, 2.0), z: pz };
 
         try {
-            if (arguments.length === 0) return this._engine.physics().velocity(id);
-            return this._engine.physics().velocity(id, v);
-        } catch (_) {}
-
-        return undefined;
+            return phys.raycast({ from, to });
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] raycastDown failed bodyId=" + id, e));
+        }
     }
+
+    // ---------------- ECS components ----------------
 
     component(name, data) {
         const n = String(name || "");
         if (!n) return this;
 
-        // IMPORTANT: always pass an int to Java
         const id = (this.entityId | 0);
+        _req(id > 0, "[ENT] component(): entityId=0");
 
-        try { this._engine.entity().setComponent(id, n, data); }
-        catch (e) { _logErr(this._engine, "[ENT] setComponent failed id=" + id + " name=" + n + " err=" + e); }
-
+        try {
+            this._engine.entity().setComponent(id, n, data);
+        } catch (e) {
+            throw new Error(_errCtx("[ENT] setComponent failed id=" + id + " name=" + n, e));
+        }
         return this;
     }
 
-    // convenience: set multiple components at once
     components(mapOrFn) {
         if (!mapOrFn) return this;
+
         const id = (this.entityId | 0);
-        if (!id) return this;
+        _req(id > 0, "[ENT] components(): entityId=0");
 
         let map = mapOrFn;
         if (typeof mapOrFn === "function") {
-            try {
-                map = mapOrFn({
-                    entityId: id,
-                    surface: this.surface,
-                    body: this.body,
-                    surfaceId: (this.surfaceId | 0),
-                    bodyId: (this.bodyId | 0)
-                });
-            } catch (e) {
-                _logErr(this._engine, "[ENT] components(builder) failed: " + e);
-                return this;
-            }
+            map = mapOrFn({
+                entityId: id,
+                surface: this.surface,
+                body: this.body,
+                surfaceId: (this.surfaceId | 0),
+                bodyId: (this.bodyId | 0)
+            });
         }
 
         if (!map || typeof map !== "object") return this;
@@ -193,36 +374,52 @@ class EntityHandle {
         for (const k of Object.keys(map)) {
             const n = String(k || "");
             if (!n) continue;
-            try { this._engine.entity().setComponent(id, n, map[k]); }
-            catch (e) { _logErr(this._engine, "[ENT] setComponent failed id=" + id + " name=" + n + " err=" + e); }
+            try {
+                this._engine.entity().setComponent(id, n, map[k]);
+            } catch (e) {
+                throw new Error(_errCtx("[ENT] setComponent failed id=" + id + " name=" + n, e));
+            }
         }
 
         return this;
     }
 
+    // ---------------- lifecycle ----------------
+
     destroy() {
-        // custom destroyers (reverse order)
+        // custom destroyers (reverse order) – errors must be visible
         for (let i = this._destroyers.length - 1; i >= 0; i--) {
-            try { this._destroyers[i](); } catch (_) {}
+            this._destroyers[i]();
         }
         this._destroyers.length = 0;
 
-        try { if ((this.bodyId | 0) > 0) this._engine.physics().remove(this.bodyId | 0); } catch (_) {}
+        // remove body if exists
+        const bid = (this.bodyId | 0);
+        if (bid > 0) {
+            this._engine.physics().remove(bid);
+        }
 
         this.body = null;
         this.surface = null;
-
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
+
+        this._bodyRef = null;
+        this._refId = 0;
     }
 }
 
+// ------------------------ ENT API ------------------------
 
 class EntApi {
     constructor(engine, K) {
         this.engine = engine;
         this.K = K || (globalThis.__kalitech || Object.create(null));
+
+        _req(engine && engine.entity && engine.mesh && engine.surface && engine.physics, "[ENT] engine missing required subsystems");
+        _req(typeof engine.entity === "function" || typeof engine.entity === "object", "[ENT] engine.entity missing");
+        _req(typeof engine.physics === "function" || typeof engine.physics === "object", "[ENT] engine.physics missing");
 
         // presets are mutable configs (user can override via ENT.preset)
         this._presets = Object.create(null);
@@ -252,42 +449,23 @@ class EntApi {
 
         this._presets.capsule = {
             name: "entity",
-            surface: {
-                type: "capsule",
-                name: "entity.capsule",
-                radius: 0.35,
-                height: 1.8,
-                pos: [0, 3, 0],
-                attach: true
-            },
+            surface: { type: "capsule", name: "entity.capsule", radius: 0.35, height: 1.8, pos: [0, 3, 0], attach: true },
             attachSurface: true
         };
 
         this._presets.box = {
             name: "entity",
-            surface: {
-                type: "box",
-                name: "entity.box",
-                size: 1,
-                pos: [0, 3, 0],
-                attach: true
-            },
+            surface: { type: "box", name: "entity.box", size: 1, pos: [0, 3, 0], attach: true },
             attachSurface: true
         };
 
         this._presets.sphere = {
             name: "entity",
-            surface: {
-                type: "sphere",
-                name: "entity.sphere",
-                radius: 0.5,
-                pos: [0, 3, 0],
-                attach: true
-            },
+            surface: { type: "sphere", name: "entity.sphere", radius: 0.5, pos: [0, 3, 0], attach: true },
             attachSurface: true
         };
 
-        // body defaults (used when cfg.body exists and doesn't specify values)
+        // body defaults
         this._bodyDefaults = {
             mass: 1,
             friction: 0.9,
@@ -295,14 +473,19 @@ class EntApi {
             damping: { linear: 0.15, angular: 0.95 },
             lockRotation: false
         };
+
+        // strict log
+        _req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
+        this._log = engine.log();
+        _req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
     }
 
     // ---------- configuration ----------
 
     preset(name, cfg) {
         const n = String(name || "");
-        if (!n) return this;
-        if (!cfg || typeof cfg !== "object") return this;
+        if (!n) throw new Error("[ENT] preset(name,cfg): name is required");
+        if (!cfg || typeof cfg !== "object") throw new Error("[ENT] preset(name,cfg): cfg object is required");
         this._presets[n] = _deepMerge(_deepMerge({}, this._presets[n] || {}), cfg);
         return this;
     }
@@ -312,15 +495,11 @@ class EntApi {
         return this;
     }
 
-    presets() {
-        return Object.keys(this._presets);
-    }
+    presets() { return Object.keys(this._presets); }
 
     // ---------- builder ----------
 
-    $(presetName) {
-        return new EntBuilder(this, presetName ? String(presetName) : "");
-    }
+    $(presetName) { return new EntBuilder(this, presetName ? String(presetName) : ""); }
 
     player$(cfg) { return this.$("player").merge(cfg); }
     capsule$(cfg) { return this.$("capsule").merge(cfg); }
@@ -351,17 +530,14 @@ class EntApi {
         if (surfCfg) {
             const sCfg = _deepMerge({}, surfCfg);
 
-            // normalize pos
             if (sCfg.pos != null) sCfg.pos = _vec3(sCfg.pos, 0, 0, 0);
 
             ctx.surface = this.engine.mesh().create(sCfg);
             ctx.surfaceId = idOf(ctx.surface, "surface");
 
-            // attach surface -> entity
             const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
             if (attachSurface) {
-                try { this.engine.surface().attach(ctx.surface, ctx.entityId); }
-                catch (e) { _logWarn(this.engine, "[ENT] surface.attach failed: " + e); }
+                this.engine.surface().attach(ctx.surface, ctx.entityId);
             }
         }
 
@@ -376,15 +552,10 @@ class EntApi {
             if (!bCfg.collider && surfCfg && surfCfg.type) {
                 const t = String(surfCfg.type);
                 if (t === "capsule") {
-                    bCfg.collider = {
-                        type: "capsule",
-                        radius: (surfCfg.radius != null) ? surfCfg.radius : 0.35,
-                        height: (surfCfg.height != null) ? surfCfg.height : 1.8
-                    };
+                    bCfg.collider = { type: "capsule", radius: (surfCfg.radius != null) ? surfCfg.radius : 0.35, height: (surfCfg.height != null) ? surfCfg.height : 1.8 };
                 } else if (t === "sphere") {
                     bCfg.collider = { type: "sphere", radius: (surfCfg.radius != null) ? surfCfg.radius : 0.5 };
                 } else if (t === "box") {
-                    // engine collider box may be size or halfExtents; keep your style
                     bCfg.collider = { type: "box", size: (surfCfg.size != null) ? surfCfg.size : 1 };
                 }
             }
@@ -401,29 +572,22 @@ class EntApi {
                 let data = v;
 
                 if (typeof v === "function") {
-                    try {
-                        data = v({
-                            entityId: ctx.entityId,
-                            surface: ctx.surface,
-                            body: ctx.body,
-                            surfaceId: ctx.surfaceId,
-                            bodyId: ctx.bodyId,
-                            cfg: cfg
-                        });
-                    } catch (e) {
-                        _logErr(this.engine, "[ENT] component builder failed: " + key + " err=" + e);
-                        continue;
-                    }
+                    data = v({
+                        entityId: ctx.entityId,
+                        surface: ctx.surface,
+                        body: ctx.body,
+                        surfaceId: ctx.surfaceId,
+                        bodyId: ctx.bodyId,
+                        cfg
+                    });
                 }
 
-                try { this.engine.entity().setComponent(ctx.entityId, key, data); }
-                catch (e) { _logErr(this.engine, "[ENT] setComponent failed: " + key + " err=" + e); }
+                this.engine.entity().setComponent(ctx.entityId, key, data);
             }
         }
 
         if (debug) {
-            _logInfo(
-                this.engine,
+            this._log.info(
                 "[ENT] created name=" + name +
                 " entityId=" + (ctx.entityId | 0) +
                 " surfaceId=" + (ctx.surfaceId | 0) +
@@ -434,8 +598,7 @@ class EntApi {
         return new EntityHandle(this.engine, ctx);
     }
 
-    // ---------- helpers for scripts ----------
-
+    // ---------- helpers ----------
     idOf(h, kind) { return idOf(h, kind); }
 }
 
@@ -458,7 +621,7 @@ class EntBuilder {
 
     component(name, dataOrFn) {
         const n = String(name || "");
-        if (!n) return this;
+        if (!n) throw new Error("[ENT] builder.component(name,data): name required");
         if (!this._cfg.components) this._cfg.components = Object.create(null);
         this._cfg.components[n] = dataOrFn;
         return this;
@@ -478,11 +641,10 @@ class EntBuilder {
 // ------------------- factory(engine,K) => api -------------------
 
 function create(engine, K) {
-    if (!engine) throw new Error("[ENT] engine is required");
+    _req(engine, "[ENT] engine is required");
 
     const api = new EntApi(engine, K);
 
-    // freeze like other builtins
     return Object.freeze({
         // creation
         create: api.create.bind(api),
@@ -504,12 +666,11 @@ function create(engine, K) {
     });
 }
 
-// META (adult contract)
 create.META = {
     name: "entity",
     globalName: "ENT",
-    version: "1.0.0",
-    description: "Declarative entity builder (entity + surface + body + components) with builder presets",
+    version: "1.1.0",
+    description: "Declarative entity builder (entity + surface + body + components) + physics methods on EntityHandle",
     engineMin: "0.1.0"
 };
 

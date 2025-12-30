@@ -10,9 +10,12 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -27,12 +30,21 @@ public final class AssetsApiImpl implements AssetsApi {
     private final EngineApiImpl engine;
     private final AssetManager assets;
     private final SurfaceRegistry surfaceRegistry;
+    private final ScriptEventBus bus;
 
     public AssetsApiImpl(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.assets = Objects.requireNonNull(engineApi.getAssets(), "assets");
         this.surfaceRegistry = engineApi.getSurfaceRegistry();
+        this.bus = Objects.requireNonNull(engineApi.getBus(), "engineApi.getBus()");
         ensureModelLoadersRegistered();
+    }
+
+    private static Map<String, Object> m(Object... kv) {
+        Map<String, Object> out = new HashMap<>();
+        if (kv == null) return out;
+        for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
+        return out;
     }
 
     private void ensureModelLoadersRegistered() {
@@ -81,6 +93,11 @@ public final class AssetsApiImpl implements AssetsApi {
         }
         String path = assetPath.trim();
 
+        bus.emit("engine.assets.model.load.before", m(
+                "path", path,
+                "cfg", (cfg == null || cfg.isNull()) ? null : cfg
+        ));
+
         // Ensure loaders exist (in case API was constructed before dependencies were ready).
         ensureModelLoadersRegistered();
 
@@ -88,6 +105,10 @@ public final class AssetsApiImpl implements AssetsApi {
         try {
             model = assets.loadModel(path);
         } catch (Throwable t) {
+            bus.emit("engine.assets.model.load.error", m(
+                    "path", path,
+                    "error", String.valueOf(t)
+            ));
             throw new IllegalStateException("assets.loadModel: failed to load model path='" + path + "'", t);
         }
 
@@ -159,6 +180,12 @@ public final class AssetsApiImpl implements AssetsApi {
                 }
             } catch (Throwable ignored) {}
         }
+
+        bus.emit("engine.assets.model.load.after", m(
+                "path", path,
+                "surfaceId", h.id(),
+                "name", model.getName()
+        ));
 
         return h;
     }

@@ -1,0 +1,7 @@
+{
+  "name": "events",
+  "globalName": "EVENTS",
+  "version": "1.0.0",
+  "description": "ScriptEventBus wrapper: on/off/once/emit + scoped topics",
+  "engineMin": "0.1.0"
+}

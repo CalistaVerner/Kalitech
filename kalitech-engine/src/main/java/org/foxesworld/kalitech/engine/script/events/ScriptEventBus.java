@@ -21,8 +21,6 @@ public final class ScriptEventBus {
 
     private record Event(String name, Object payload) {}
 
-    // inside ScriptEventBus
-
     private static final class Sub {
         final int id;
         final Value fn;
@@ -62,8 +60,7 @@ public final class ScriptEventBus {
         }
 
         Sub get(int i) {
-            // caller guarantees bounds
-            return arr[i];
+            return arr[i]; // caller guarantees bounds
         }
 
         /** @return true if removed */
@@ -81,7 +78,6 @@ public final class ScriptEventBus {
             return false;
         }
 
-        /** Optional: clear all subs (useful for reset). */
         void clear() {
             Arrays.fill(arr, 0, size, null);
             size = 0;
@@ -93,20 +89,26 @@ public final class ScriptEventBus {
     private final Queue<Event> queue = new ConcurrentLinkedQueue<>();
 
     public void emit(String name, Object payload) {
-        if (name == null || name.isBlank()) return;
-        queue.add(new Event(name.trim(), payload));
+        if (name == null) return;
+        String key = name.trim();
+        if (key.isEmpty()) return;
+        queue.add(new Event(key, payload));
     }
 
-    public void emit(String name) { emit(name, null); }
+    public void emit(String name) {
+        emit(name, null);
+    }
 
     public int on(String name, Value fn) { return on(name, fn, false); }
     public int once(String name, Value fn) { return on(name, fn, true); }
 
     private int on(String name, Value fn, boolean once) {
-        if (name == null || name.isBlank()) return 0;
+        if (name == null) return 0;
+        String key = name.trim();
+        if (key.isEmpty()) return 0;
+
         if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
 
-        String key = name.trim();
         SubList list = handlers.computeIfAbsent(key, k -> new SubList());
         int id = nextSubId.getAndIncrement();
         list.add(new Sub(id, fn, once));
@@ -130,7 +132,13 @@ public final class ScriptEventBus {
         return removed;
     }
 
-
+    /** Снять все подписки с конкретного топика (очередь событий не трогаем). */
+    public void clear(String name) {
+        if (name == null) return;
+        String key = name.trim();
+        if (key.isEmpty()) return;
+        handlers.remove(key);
+    }
 
     /** Pump with defaults and return processed count. */
     public int pump() {
@@ -139,10 +147,19 @@ public final class ScriptEventBus {
 
     public int pump(int maxEventsPerFrame, long timeBudgetNanos) {
         int limit = Math.max(0, maxEventsPerFrame);
-        long deadline = (timeBudgetNanos > 0L) ? (System.nanoTime() + timeBudgetNanos) : Long.MAX_VALUE;
+
+        // защита от переполнения deadline при очень больших значениях
+        long now = System.nanoTime();
+        long deadline;
+        if (timeBudgetNanos <= 0L) {
+            deadline = Long.MAX_VALUE;
+        } else {
+            long sum = now + timeBudgetNanos;
+            deadline = (sum < now) ? Long.MAX_VALUE : sum;
+        }
 
         int processed = 0;
-        int checkMask = 0x3F;
+        int checkMask = 0x3F; // проверять время раз в 64 события
 
         while (processed < limit) {
             Event e = queue.poll();
@@ -160,25 +177,37 @@ public final class ScriptEventBus {
         SubList list = handlers.get(e.name());
         if (list == null || list.isEmpty()) return;
 
-        int n = list.size();
-        for (int i = 0; i < n; i++) {
+        // ВАЖНО: удаление once делаем безопасно, не пропуская элементы.
+        // removeById делает swap с последним, поэтому при удалении НЕ увеличиваем i.
+        for (int i = 0; i < list.size(); ) {
             Sub s = list.get(i);
-            if (s == null) continue;
+            if (s == null) {
+                i++;
+                continue;
+            }
 
             try {
                 if (e.payload() == null) s.fn.execute();
                 else s.fn.execute(e.payload());
             } catch (Throwable t) {
                 log.error("Event handler failed: {} (subId={})", e.name(), s.id, t);
-            } finally {
-                if (s.once) list.removeById(s.id);
             }
+
+            if (s.once) {
+                // removeById может переместить в i последний элемент -> повторяем индекс i
+                list.removeById(s.id);
+                continue;
+            }
+
+            i++;
         }
 
         if (list.isEmpty()) handlers.remove(e.name(), list);
     }
 
-    public int queuedEventsApprox() { return queue.size(); }
+    public int queuedEventsApprox() {
+        return queue.size();
+    }
 
     public void clearAll() {
         handlers.clear();
