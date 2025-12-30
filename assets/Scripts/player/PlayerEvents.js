@@ -1,5 +1,8 @@
+// FILE: Scripts/player/PlayerEvents.js
 // Author: Calista Verner
 "use strict";
+
+const U = require("./util.js");
 
 function nowMs() { return Date.now(); }
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -17,7 +20,6 @@ class PlayerEvents {
         this._tAir = 0;
         this._tGround = 0;
 
-        // jump/land bookkeeping
         this._wasJumpInput = false;
     }
 
@@ -33,24 +35,16 @@ class PlayerEvents {
         if (!this.enabled || this._spawned) return;
         this._spawned = true;
 
-        // тестовый телепорт (можешь убрать)
-        //this.player.entity.warp({ x: 200, y: 8, z: -300 });
-
-        const sound = SND.create({
-            soundFile: "Sounds/adventure.ogg",
-            volume: 1.0,
-            pitch: 1.0,
-            looping: false
-        });
-        //sound.play();
+        // Example sound hook (keep disabled by default)
+        // const sound = SND.create({ soundFile: "Sounds/adventure.ogg", volume: 1.0, pitch: 1.0, looping: false });
+        // sound.play();
     }
 
     /**
      * state: {
      *   grounded: boolean,
-     *   bodyId?: number,
-     *   jump?: boolean,      // input (optional)
-     *   fallSpeed?: number   // positive when falling down (optional)
+     *   jump?: boolean,
+     *   fallSpeed?: number
      * }
      */
     onState(state) {
@@ -65,19 +59,20 @@ class PlayerEvents {
         if (grounded !== this._wasGrounded) {
             const p = this.player;
 
-            // landed
             if (grounded) {
-                // map fallSpeed to impact strength
-                // (tune: 0..~20 => 0.4..4.0)
                 const strength = clamp(0.4 + (fallSpeed / 6.0), 0.4, 4.0);
-
-                try { if (p && p.camera && typeof p.camera.onLand === "function") p.camera.onLand(strength); } catch (_) {}
-                //engine.log().info("[player] land strength=" + strength.toFixed(2));
+                const cam = p && p.camera;
+                if (cam && typeof cam.onLand === "function") {
+                    try { cam.onLand(strength); }
+                    catch (e) { if (LOG && LOG.error) LOG.error("[player] camera.onLand failed: " + U.errStr(e)); }
+                }
             } else {
-                // left ground (jump start if jump input was pressed)
                 if (jumpIn || this._wasJumpInput) {
-                    try { if (p && p.camera && typeof p.camera.onJump === "function") p.camera.onJump(1.0); } catch (_) {}
-                    //engine.log().info("[player] jump");
+                    const cam = p && p.camera;
+                    if (cam && typeof cam.onJump === "function") {
+                        try { cam.onJump(1.0); }
+                        catch (e) { if (LOG && LOG.error) LOG.error("[player] camera.onJump failed: " + U.errStr(e)); }
+                    }
                 }
             }
 
@@ -86,17 +81,11 @@ class PlayerEvents {
 
         this._wasJumpInput = jumpIn;
 
-        // optional throttled continuous logs
+        // throttled "heartbeat" (optional)
         if (grounded) {
-            if ((t - this._tGround) >= this.throttleMs) {
-                this._tGround = t;
-                //engine.log().info("[player] ground");
-            }
+            if ((t - this._tGround) >= this.throttleMs) this._tGround = t;
         } else {
-            if ((t - this._tAir) >= this.throttleMs) {
-                this._tAir = t;
-                //engine.log().info("[player] air");
-            }
+            if ((t - this._tAir) >= this.throttleMs) this._tAir = t;
         }
     }
 }

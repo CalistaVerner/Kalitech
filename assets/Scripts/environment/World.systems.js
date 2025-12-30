@@ -41,6 +41,4 @@ const worldSystems = [
         }
     }
 ];
-
-// ✅ Single export (canonical)
 exports.worldSystems = worldSystems;

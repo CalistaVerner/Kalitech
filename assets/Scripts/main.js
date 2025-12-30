@@ -47,6 +47,9 @@ class MainWorldEntrypoint {
     }
 
     update(tpfOrCtx) {
+
+        const p = ctx.state().get("player");
+        if (p) p.update(tpf);
     }
 
     destroy(reason) {

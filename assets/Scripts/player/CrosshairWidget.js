@@ -3,15 +3,14 @@
 
 class CrosshairWidget {
     constructor(playerOrCtx) {
-        const isPlayer = !!(playerOrCtx && typeof playerOrCtx === "object" && (playerOrCtx.cfg || playerOrCtx.getCfg || playerOrCtx.ctx));
-        this.player = isPlayer ? playerOrCtx : null;
-        this.ctx = isPlayer ? (this.player && this.player.ctx) : playerOrCtx;
+        this.player = (playerOrCtx && typeof playerOrCtx === "object" && playerOrCtx.ctx) ? playerOrCtx : null;
+        this.ctx = this.player ? this.player.ctx : playerOrCtx;
 
         this.root = null;
         this.img = null;
 
         this.style = {
-            size: 256,                         // размер изображения
+            size: 256,
             texture: "Textures/ui/crosshair.png",
             color: { r: 1, g: 1, b: 1, a: 1 }
         };
@@ -32,17 +31,10 @@ class CrosshairWidget {
         this.img = hud.create({
             kind: "image",
             parent: this.root,
-
             anchor: "center",
             pivot: "center",
-
             image: this.style.texture,
-
-            size: {
-                w: this.style.size,
-                h: this.style.size
-            },
-
+            size: { w: this.style.size, h: this.style.size },
             color: this.style.color
         });
 
@@ -51,7 +43,7 @@ class CrosshairWidget {
 
     destroy() {
         if (!this.root) return;
-        try { engine.hud().destroy(this.root); } catch (_) {}
+        engine.hud().destroy(this.root);
         this.root = this.img = null;
     }
 }

@@ -28,10 +28,13 @@ class PlayerUI {
     }
 
     destroy() {
-        if (this.crosshair) {
-            try { this.crosshair.destroy(); } catch (_) {}
-            this.crosshair = null;
+        if (!this.crosshair) return;
+        try { this.crosshair.destroy(); }
+        catch (e) {
+            if (typeof LOG !== "undefined" && LOG && LOG.error) LOG.error("[ui] crosshair.destroy failed: " + (e && (e.stack || e.message) ? (e.stack || e.message) : e));
+            else throw e;
         }
+        this.crosshair = null;
     }
 }
 

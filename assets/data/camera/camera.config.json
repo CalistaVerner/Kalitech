@@ -8,6 +8,10 @@
   "look": {
     "sensitivity": 0.00018,
     "smoothing": 0.22,
+
+    "mouseFilter": 18.0,
+    "outputSmooth": 14.0,
+
     "pitchLimit": 1.5,
     "invertX": false,
     "invertY": false
@@ -38,10 +42,10 @@
     "verticalSamples": true,
     "predictive": true,
 
-    "wallSmooth": 34.0,
+    "wallSmooth": 26.0,
     "freeSmooth": 16.0,
-    "maxPullPerSec": 44.0,
-    "popSuppression": 0.82,
+    "maxPullPerSec": 34.0,
+    "popSuppression": 0.90,
 
     "slide": { "enabled": true, "strength": 0.9, "minNormalDot": 0.1 },
 
@@ -50,8 +54,8 @@
       "clearance": 0.22,
       "probeUp": 1.0,
       "probeDown": 12.0,
-      "smooth": 22.0,
-      "maxRisePerSec": 26.0,
+      "smooth": 18.0,
+      "maxRisePerSec": 18.0,
       "minNormalY": 0.25
     },
 

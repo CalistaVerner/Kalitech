@@ -216,7 +216,7 @@ class SkySystem {
         this.wiredEvents = true;
 
         try {
-            const ev = this.engine.events();
+            const ev = EVENTS;
 
             const on = (name, fn) => {
                 const ret = ev.on(name, fn);
