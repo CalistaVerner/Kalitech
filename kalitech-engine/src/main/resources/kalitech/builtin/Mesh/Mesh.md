@@ -10,8 +10,10 @@
 > * `position()` / `position(vec3)`
 > * `teleport(vec3)`
 > * `lockRotation(true|false)`
+> * `bodyId()` / `bodyRef()` (доступ к id‑based физике)
 >
 > При этом **физическое тело создаётся на Java‑стороне** (через `mesh.create({ physics: ... })`).
+> JS‑обёртка НЕ создаёт второе тело и работает через **bodyId** (через `PHYS.ref(bodyId)` либо `engine.physics()` id‑API).
 
 ---
 
@@ -35,10 +37,10 @@ const Mesh = require("@builtin/Mesh")(engine, K);
 
 ```js
 const box = Mesh.cube({
-  name: "box01",
-  size: 2,
-  pos: [0, 5, 0],
-  physics: { mass: 10, lockRotation: false }
+    name: "box01",
+    size: 2,
+    pos: [0, 5, 0],
+    physics: { mass: 10, lockRotation: false }
 });
 
 box.applyImpulse({ x: 0, y: 6, z: 0 });
@@ -48,10 +50,10 @@ box.applyImpulse({ x: 0, y: 6, z: 0 });
 
 ```js
 const ground = Mesh.box({
-  name: "ground",
-  hx: 50, hy: 1, hz: 50,
-  pos: [0, -1, 0],
-  physics: { mass: 0 }
+    name: "ground",
+    hx: 50, hy: 1, hz: 50,
+    pos: [0, -1, 0],
+    physics: { mass: 0 }
 });
 ```
 
@@ -67,10 +69,10 @@ const ground = Mesh.box({
 
 ```js
 const g = Mesh.create({
-  type: "sphere",
-  radius: 0.5,
-  pos: [1, 3, 0],
-  physics: { mass: 1 }
+    type: "sphere",
+    radius: 0.5,
+    pos: [1, 3, 0],
+    physics: { mass: 1 }
 });
 ```
 
@@ -144,9 +146,9 @@ engine.mesh().create({ type: "model", path: "...", ... })
 
 ```js
 const house = Mesh.loadModel("Models/house.obj", {
-  pos: [10, 0, -5],
-  scale: 1,
-  physics: { mass: 0 }
+    pos: [10, 0, -5],
+    scale: 1,
+    physics: { mass: 0 }
 });
 ```
 
@@ -154,10 +156,10 @@ const house = Mesh.loadModel("Models/house.obj", {
 
 ```js
 const npc = Mesh.loadModel({
-  path: "Models/npc.fbx",
-  pos: [0, 0, 0],
-  scale: 0.01,
-  physics: { mass: 60 }
+    path: "Models/npc.fbx",
+    pos: [0, 0, 0],
+    scale: 0.01,
+    physics: { mass: 60 }
 });
 ```
 
@@ -197,9 +199,9 @@ pos: { x, y, z }
 
 ```js
 const m = Mesh.loadModel("Models/thing.obj", {
-  pos: [0,0,0],
-  rot: [0, 90, 0],
-  scale: 1.5
+    pos: [0,0,0],
+    rot: [0, 90, 0],
+    scale: 1.5
 });
 ```
 
@@ -230,15 +232,15 @@ const s = Mesh.sphere({ radius: 0.3, pos: [0, 2, 0], physics: 1 }); // mass=1
 
 ```js
 const body = Mesh.box({
-  size: 1,
-  pos: [0, 5, 0],
-  physics: {
-    mass: 5,
-    friction: 0.8,
-    restitution: 0.05,
-    damping: { linear: 0.1, angular: 0.2 },
-    lockRotation: false
-  }
+    size: 1,
+    pos: [0, 5, 0],
+    physics: {
+        mass: 5,
+        friction: 0.8,
+        restitution: 0.05,
+        damping: { linear: 0.1, angular: 0.2 },
+        lockRotation: false
+    }
 });
 ```
 
@@ -274,12 +276,12 @@ const b = Mesh.box({ size: 1, pos: [0, 4, 0], mass: 2, friction: 0.9 });
 
 ```js
 const car = Mesh.loadModel({
-  path: "Models/car.fbx",
-  scale: 0.01,
-  physics: {
-    mass: 1200,
-    collider: { type: "box", halfExtents: [1.2, 0.6, 2.4] }
-  }
+    path: "Models/car.fbx",
+    scale: 0.01,
+    physics: {
+        mass: 1200,
+        collider: { type: "box", halfExtents: [1.2, 0.6, 2.4] }
+    }
 });
 ```
 
@@ -305,9 +307,9 @@ const b = Mesh.box({ size: 1, pos: [0, 2, 0], material: red });
 
 ```js
 const arr = Mesh.many([
-  { type: "box", size: 1, pos: [0,2,0], physics: 1 },
-  { type: "sphere", radius: 0.5, pos: [2,2,0], physics: 2 },
-  { type: "model", path: "Models/house.obj", pos: [10,0,-5], physics: 0 }
+    { type: "box", size: 1, pos: [0,2,0], physics: 1 },
+    { type: "sphere", radius: 0.5, pos: [2,2,0], physics: 2 },
+    { type: "model", path: "Models/house.obj", pos: [10,0,-5], physics: 0 }
 ]);
 
 arr[0].applyImpulse({ x: 1, y: 0, z: 0 });
@@ -323,22 +325,22 @@ Builder удобен для цепочек.
 
 ```js
 const b = Mesh.box$()
-  .name("box")
-  .size(1)
-  .pos(0, 5, 0)
-  .physics(3, { lockRotation: false })
-  .create();
+    .name("box")
+    .size(1)
+    .pos(0, 5, 0)
+    .physics(3, { lockRotation: false })
+    .create();
 ```
 
 ### Модель
 
 ```js
 const npc = Mesh.model$()
-  .name("npc")
-  .path("Models/npc.fbx")
-  .pos([0,0,0])
-  .physics(60, { lockRotation: true })
-  .create();
+    .name("npc")
+    .path("Models/npc.fbx")
+    .pos([0,0,0])
+    .physics(60, { lockRotation: true })
+    .create();
 ```
 
 ---
@@ -406,13 +408,13 @@ obj.lockRotation(true);
 
 ```js
 const npc = Mesh.loadModel({
-  path: "Models/npc.fbx",
-  scale: 0.01,
-  physics: {
-    mass: 80,
-    collider: { type: "capsule", radius: 0.35, height: 1.2 },
-    lockRotation: true
-  }
+    path: "Models/npc.fbx",
+    scale: 0.01,
+    physics: {
+        mass: 80,
+        collider: { type: "capsule", radius: 0.35, height: 1.2 },
+        lockRotation: true
+    }
 });
 ```
 
@@ -420,7 +422,7 @@ const npc = Mesh.loadModel({
 
 ```js
 Mesh.loadModel({
-  path: "Models/level.obj",
-  physics: { mass: 0 } // static mesh collider
+    path: "Models/level.obj",
+    physics: { mass: 0 } // static mesh collider
 });
 ```

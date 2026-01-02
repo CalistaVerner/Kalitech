@@ -182,15 +182,49 @@ declare namespace KalitechEntity {
         surfaceHandleId(): number;
         bodyHandleId(): number;
 
-        // movement helpers (legacy-friendly; internally uses body.teleport or engine.physics() fallbacks)
-        warp(pos: Vec3): void;
-
         /**
-         * If called with no args returns current velocity (if available).
-         * If called with arg sets velocity (if available).
+         * Preferred physics access: returns PHYS.ref(bodyId) if available,
+         * otherwise an id-based wrapper around engine.physics().
          */
+        bodyRef(): {
+            id(): number;
+            position(v?: Vec3): unknown;
+            warp(v: Vec3): unknown;
+            velocity(v?: Vec3): unknown;
+            yaw(yawRad: number): unknown;
+            applyImpulse(imp: Vec3): unknown;
+            applyCentralForce(f: Vec3): unknown;
+            applyTorque(t: Vec3): unknown;
+            angularVelocity(v?: Vec3): unknown;
+            clearForces(): unknown;
+            lockRotation(lock: boolean): unknown;
+            collisionGroups(group: number, mask: number): unknown;
+            remove(): unknown;
+        };
+
+        // transforms
+        position(): unknown;
+        position(v: Vec3): unknown;
+        warp(pos: Vec3): unknown;
         velocity(): unknown;
         velocity(v: Vec3): unknown;
+        yaw(yawRad: number): unknown;
+
+        // forces
+        applyImpulse(imp: Vec3): unknown;
+        applyCentralForce(force: Vec3): unknown;
+        applyTorque(torque: Vec3): unknown;
+        angularVelocity(): unknown;
+        angularVelocity(v: Vec3): unknown;
+        clearForces(): unknown;
+
+        // flags / collision
+        lockRotation(lock?: boolean): unknown;
+        collisionGroups(group: number, mask: number): unknown;
+
+        // queries
+        raycast(cfg: unknown): unknown;
+        raycastDown(distance?: number, startOffsetY?: number): unknown;
 
         /**
          * Set one component on ECS entity: engine.entity().setComponent(entityId, name, data)
@@ -220,7 +254,6 @@ declare namespace KalitechEntity {
         // JS coercion helpers (for Graal)
         valueOf(): number;
         toString(): string;
-        toString(): number | string;
     }
 
     // ------------------------------------

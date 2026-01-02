@@ -117,6 +117,40 @@ declare namespace KalitechPhysics {
         [k: string]: unknown;
     }
 
+    // ------------------------------------
+    // Collision events (begin/stay/end)
+    // ------------------------------------
+
+    export interface CollisionFilter {
+        a?: BodyRef;         // match if either side has this bodyId
+        b?: BodyRef;         // match if either side has this bodyId
+        bodyId?: BodyRef;    // match if either side has this bodyId
+        surfaceId?: SurfaceRef; // match if either side has this surfaceId
+    }
+
+    export interface CollisionContact {
+        maxImpulse: number;
+        points: number;
+        point: { x: number; y: number; z: number };
+        normal: { x: number; y: number; z: number };
+    }
+
+    export interface CollisionSide {
+        bodyId: number;
+        surfaceId: number;
+    }
+
+    export interface CollisionEvent {
+        step: number;
+        dt: number;
+        a: CollisionSide;
+        b: CollisionSide;
+        contact: CollisionContact;
+        [k: string]: unknown;
+    }
+
+    export type OffFn = () => boolean;
+
     export interface PhysicsBodyHandle {
         id: number;
         surfaceId: number;
@@ -174,51 +208,6 @@ declare namespace KalitechPhysics {
         remove(): void;
     }
 
-
-// ------------------------------------
-// Collision events (engine.physics.collision.*)
-// ------------------------------------
-
-    export interface CollisionBodyRef {
-        bodyId: number;
-        surfaceId: number;
-        [k: string]: unknown;
-    }
-
-    export interface CollisionContact {
-        /** maximum applied impulse seen during this step */
-        maxImpulse: number;
-        /** number of contact samples aggregated */
-        points: number;
-        /** averaged contact point (world) */
-        point: { x: number; y: number; z: number };
-        /** averaged, normalized contact normal (world) */
-        normal: { x: number; y: number; z: number };
-        [k: string]: unknown;
-    }
-
-    export interface CollisionEventPayload {
-        /** physics step counter (monotonic) */
-        step: number;
-        /** Bullet timestep for this step (seconds) */
-        dt: number;
-
-        a: CollisionBodyRef;
-        b: CollisionBodyRef;
-
-        /** contact aggregate for this step (may be null) */
-        contact?: CollisionContact | null;
-
-        [k: string]: unknown;
-    }
-
-    export interface CollisionFilter {
-        body?: BodyRef;
-        bodyId?: number;
-        surface?: SurfaceRef;
-        surfaceId?: number;
-    }
-
     // ------------------------------------
     // Main API
     // ------------------------------------
@@ -262,20 +251,7 @@ declare namespace KalitechPhysics {
         debug(enabled: boolean): void;
         gravity(g: Vec3Like): void;
 
-// events
-        onCollisionBegin(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
-        onCollisionBegin(fn: (e: CollisionEventPayload) => void): () => boolean | void;
-
-        onCollisionStay(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
-        onCollisionStay(fn: (e: CollisionEventPayload) => void): () => boolean | void;
-
-        onCollisionEnd(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
-        onCollisionEnd(fn: (e: CollisionEventPayload) => void): () => boolean | void;
-
-        onPostStep(fn: (e: { step: number; dt: number }) => void): () => boolean | void;
-
-// helpers
-
+        // helpers
         collider: PhysicsColliderHelpers;
 
         idOf(handleOrId: BodyRef): number;
@@ -286,6 +262,19 @@ declare namespace KalitechPhysics {
             surface: SurfaceRef,
             cfg?: Omit<PhysicsBodyCfg, "surface">
         ): PhysicsBodyHandle;
+
+
+        // events
+        onCollisionBegin(handler: (e: CollisionEvent) => void): OffFn;
+        onCollisionBegin(filter: CollisionFilter, handler: (e: CollisionEvent) => void): OffFn;
+
+        onCollisionStay(handler: (e: CollisionEvent) => void): OffFn;
+        onCollisionStay(filter: CollisionFilter, handler: (e: CollisionEvent) => void): OffFn;
+
+        onCollisionEnd(handler: (e: CollisionEvent) => void): OffFn;
+        onCollisionEnd(filter: CollisionFilter, handler: (e: CollisionEvent) => void): OffFn;
+
+        onPostStep(handler: (e: { step: number; dt: number }) => void): OffFn;
 
         // ✅ new: bind handle/id once and work with methods (no ids everywhere)
         ref(handleOrId: BodyRef): PhysicsBodyRef;

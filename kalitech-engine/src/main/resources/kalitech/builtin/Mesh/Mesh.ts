@@ -132,6 +132,30 @@ export interface PrimitiveHandle extends SurfaceHandle {
     __surface?: SurfaceHandle;
 
     /**
+     * Body id bound to this surface, if physics was created.
+     * (0 if not bound / not yet resolved)
+     */
+    bodyId?(): number;
+
+    /**
+     * Preferred physics access: PHYS.ref(bodyId) if available,
+     * otherwise an id-based wrapper around engine.physics().
+     */
+    bodyRef?(): {
+        id(): number;
+        position(v?: Vec3): unknown;
+        warp(v: Vec3): unknown;
+        velocity(v?: Vec3): unknown;
+        yaw?(yawRad: number): unknown;
+        applyImpulse(v: Vec3): unknown;
+        applyCentralForce?(v: Vec3): unknown;
+        applyTorque?(v: Vec3): unknown;
+        angularVelocity?(v?: Vec3): unknown;
+        clearForces?(): unknown;
+        lockRotation?(lock: boolean): unknown;
+    };
+
+    /**
      * Physics sugar (provided by wrapper).
      */
     applyImpulse?(v: Vec3): void;
@@ -207,6 +231,12 @@ export interface PrimitivesApi {
     cylinder(cfg?: CylinderCfg): PrimitiveHandle;
     capsule(cfg?: CapsuleCfg): PrimitiveHandle;
 
+    /**
+     * Load model via engine.mesh().create({type:"model", path:"..."}).
+     */
+    loadModel(path: string, cfg?: PrimitiveCfgBase): PrimitiveHandle;
+    loadModel(cfg: PrimitiveCfgBase & { path: string }): PrimitiveHandle;
+
     many(list: PrimitiveCfgBase[]): PrimitiveHandle[];
 
     unshadedColor(rgba?: [number, number, number, number]): MaterialCfg;
@@ -236,6 +266,9 @@ export interface PrimitivesApi {
     sphere$(): PrimitiveBuilder<SphereCfg>;
     cylinder$(): PrimitiveBuilder<CylinderCfg>;
     capsule$(): PrimitiveBuilder<CapsuleCfg>;
+
+    /** Model builder (type="model"). */
+    model$(): PrimitiveBuilder<PrimitiveCfgBase>;
 }
 
 /**

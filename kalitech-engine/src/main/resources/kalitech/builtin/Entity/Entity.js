@@ -90,6 +90,83 @@ function _errCtx(msg, e) {
     return msg + " :: " + m;
 }
 
+// ---------------- physics binding helpers ----------------
+
+function _bodyIdFromHandle(bodyOrId) {
+    if (bodyOrId == null) return 0;
+    if (typeof bodyOrId === "number") return bodyOrId | 0;
+    try {
+        if (typeof bodyOrId.valueOf === "function") {
+            const v = bodyOrId.valueOf();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+    } catch (_) {}
+    try {
+        if (typeof bodyOrId.id === "number") return bodyOrId.id | 0;
+        if (typeof bodyOrId.bodyId === "number") return bodyOrId.bodyId | 0;
+    } catch (_) {}
+    try {
+        if (typeof bodyOrId.id === "function") {
+            const v = bodyOrId.id();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+        if (typeof bodyOrId.bodyId === "function") {
+            const v = bodyOrId.bodyId();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+        if (typeof bodyOrId.getId === "function") {
+            const v = bodyOrId.getId();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+    } catch (_) {}
+    return 0;
+}
+
+function _surfaceId(handleOrId) {
+    if (handleOrId == null) return 0;
+    if (typeof handleOrId === "number") return handleOrId | 0;
+    try {
+        if (typeof handleOrId.id === "number") return handleOrId.id | 0;
+        if (typeof handleOrId.surfaceId === "number") return handleOrId.surfaceId | 0;
+    } catch (_) {}
+    try {
+        if (typeof handleOrId.id === "function") {
+            const v = handleOrId.id();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+        if (typeof handleOrId.surfaceId === "function") {
+            const v = handleOrId.surfaceId();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+    } catch (_) {}
+    return 0;
+}
+
+function _resolveBodyIdBySurface(engine, surfaceHandleOrId) {
+    const sid = _surfaceId(surfaceHandleOrId);
+    if (!sid) return 0;
+
+    // preferred: SurfaceApi knows the binding
+    try {
+        const s = engine.surface && engine.surface();
+        if (s && typeof s.attachedBody === "function") {
+            const bid = s.attachedBody(sid);
+            if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
+        }
+    } catch (_) {}
+
+    // fallback: PhysicsApi mapping
+    try {
+        const p = engine.physics && engine.physics();
+        if (p && typeof p.bodyOfSurface === "function") {
+            const bid = p.bodyOfSurface(sid);
+            if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
+        }
+    } catch (_) {}
+
+    return 0;
+}
+
 // ------------------------ EntityHandle ------------------------
 
 class EntityHandle {
@@ -527,10 +604,24 @@ class EntApi {
 
         // 2) surface (optional)
         const surfCfg = cfg.surface || null;
+        const bodyCfg = cfg.body || null;
+        let surfaceHadPhysics = false;
+
         if (surfCfg) {
             const sCfg = _deepMerge({}, surfCfg);
-
             if (sCfg.pos != null) sCfg.pos = _vec3(sCfg.pos, 0, 0, 0);
+
+            // IMPORTANT:
+            // - If user provided cfg.body, physics must be created ONLY once (via PhysicsApi.body).
+            // - If user provided surface.physics but no cfg.body, we allow Java mesh.create to create the body.
+            if (sCfg.physics != null) {
+                surfaceHadPhysics = true;
+                if (bodyCfg) {
+                    // prevent double body creation
+                    delete sCfg.physics;
+                    surfaceHadPhysics = false;
+                }
+            }
 
             ctx.surface = this.engine.mesh().create(sCfg);
             ctx.surfaceId = idOf(ctx.surface, "surface");
@@ -542,7 +633,7 @@ class EntApi {
         }
 
         // 3) body (optional)
-        const bodyCfg = cfg.body || null;
+        // Case A: cfg.body exists -> create body here (ONLY here)
         if (bodyCfg) {
             const bCfg = _deepMerge(_deepMerge({}, this._bodyDefaults), bodyCfg);
 
@@ -562,6 +653,14 @@ class EntApi {
 
             ctx.body = this.engine.physics().body(bCfg);
             ctx.bodyId = idOf(ctx.body, "body");
+        } else if (surfaceHadPhysics && ctx.surface) {
+            // Case B: body was created by Java mesh.create({ physics: ... })
+            // Resolve bodyId and expose it on handle.
+            const bid = _resolveBodyIdBySurface(this.engine, ctx.surfaceId || ctx.surface);
+            if (bid > 0) {
+                ctx.bodyId = bid;
+                ctx.body = null; // prefer PHYS.ref via EntityHandle.bodyRef()
+            }
         }
 
         // 4) components (optional)

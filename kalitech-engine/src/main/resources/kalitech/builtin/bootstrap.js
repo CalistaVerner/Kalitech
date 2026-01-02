@@ -29,7 +29,8 @@ const DEFAULT_CONFIG = {
             physics: "@builtin/Physics/Physics",
             log: "@builtin/Log/Log",
             input: "@builtin/Input/Input",
-            events: "@builtin/Events/Events"
+            events: "@builtin/Events/Events",
+            terrain: "@builtin/Terrain/Terrain"
         }
     }
 };

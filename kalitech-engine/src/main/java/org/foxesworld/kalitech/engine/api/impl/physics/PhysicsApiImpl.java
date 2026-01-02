@@ -6,7 +6,6 @@ import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingVolume;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
-import com.jme3.bullet.PhysicsTickListener;
 import com.jme3.bullet.collision.PhysicsCollisionEvent;
 import com.jme3.bullet.collision.PhysicsCollisionListener;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
@@ -35,6 +34,7 @@ import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +66,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final AtomicLong physicsStepCounter = new AtomicLong(0);
 
     // ------------------------------------------------------------
-    // Collision begin/end buffers
+    // Collision pipeline (AAA contract): begin / stay / end + contact aggregation
     // ------------------------------------------------------------
     private final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
     private final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
@@ -80,73 +80,169 @@ public final class PhysicsApiImpl implements PhysicsApi {
      */
     private final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>(1024);
 
-    private LongHashSet prevPairs = new LongHashSet(2048);
-    private LongHashSet currPairs = new LongHashSet(2048);
+    /**
+     * Collision pair presence tracking. Allocation-light, no boxing.
+     * prevPairs = pairs from previous physics step
+     * currPairs = pairs observed in current physics step (collected from Bullet collision callbacks)
+     */
+    private LongHashSet prevPairs = new LongHashSet(4096);
+    private LongHashSet currPairs = new LongHashSet(4096);
 
-
-    /** Per-step contact aggregate for a body pair (sorted by bodyId in key). */
-    private static final class ContactAgg {
-        int aId; int bId;
-        int aSurfaceId; int bSurfaceId;
-        float maxImpulse;
-        float sumPx, sumPy, sumPz;
-        float sumNx, sumNy, sumNz;
-        int count;
-
-        void addSample(float impulse, Vector3f pointOnB, Vector3f normalOnB) {
-            if (Float.isFinite(impulse) && impulse > maxImpulse) maxImpulse = impulse;
-
-            if (pointOnB != null) {
-                sumPx += pointOnB.x;
-                sumPy += pointOnB.y;
-                sumPz += pointOnB.z;
-            }
-
-            if (normalOnB != null) {
-                sumNx += normalOnB.x;
-                sumNy += normalOnB.y;
-                sumNz += normalOnB.z;
-            }
-
-            count++;
-        }
-
-        Map<String, Object> toContactObj() {
-            float inv = (count > 0) ? (1f / count) : 0f;
-            Map<String, Object> out = new HashMap<>();
-            out.put("maxImpulse", (double) maxImpulse);
-            out.put("points", count);
-
-            out.put("point", new PhysicsRayHit.Vec3(sumPx * inv, sumPy * inv, sumPz * inv));
-
-            // normalize averaged normal
-            float nx = sumNx * inv, ny = sumNy * inv, nz = sumNz * inv;
-            float nl = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
-            if (!Float.isFinite(nl) || nl < 1e-6f) { nx = 0; ny = 1; nz = 0; }
-            else { nx /= nl; ny /= nl; nz /= nl; }
-
-            out.put("normal", new PhysicsRayHit.Vec3(nx, ny, nz));
-            return out;
-        }
-    }
-
-    /** Contacts seen this step (keyed by pairKey). */
-    private ConcurrentHashMap<Long, ContactAgg> currContacts = new ConcurrentHashMap<>(2048);
-    /** Contacts seen previous step, for stable 'end' payloads. */
-    private ConcurrentHashMap<Long, ContactAgg> prevContacts = new ConcurrentHashMap<>(2048);
-
-    /** last bullet timestep passed to physicsTick (seconds). */
-    private volatile float lastTimeStep = 0f;
+    /**
+     * Contact aggregation for the current step.
+     * Key = pairKey(minBodyId,maxBodyId)
+     */
+    private final LongContactMap currContacts = new LongContactMap(4096);
 
     private static long pairKey(int a, int b) {
         if (a <= 0 || b <= 0) return 0L;
         int min = (a < b) ? a : b;
         int max = (a < b) ? b : a;
-        return ((long) min << 32) | (max & 0xFFFFFFFFL);
+        long k = ((long) min << 32) | (max & 0xFFFFFFFFL);
+        // IMPORTANT: our LongHashSet uses 0 as EMPTY sentinel; body ids start from 1, so k != 0.
+        return k;
     }
 
     private static int keyA(long k) { return (int) (k >>> 32); }
     private static int keyB(long k) { return (int) (k & 0xFFFFFFFFL); }
+
+    /**
+     * Allocation-light contact accumulator.
+     * We aggregate all contact points of the same pair within one physics step:
+     *  - maxImpulse (max over contacts)
+     *  - avgPoint (average of contact points)
+     *  - avgNormal (average normal, normalized at emit time)
+     *  - points (samples count)
+     */
+    private static final class ContactAgg {
+        float maxImpulse;
+        float sumPx, sumPy, sumPz;
+        float sumNx, sumNy, sumNz;
+        int points;
+
+        void clear() {
+            maxImpulse = 0f;
+            sumPx = sumPy = sumPz = 0f;
+            sumNx = sumNy = sumNz = 0f;
+            points = 0;
+        }
+
+        void add(float impulse, Vector3f point, Vector3f normal) {
+            if (Float.isFinite(impulse) && impulse > maxImpulse) maxImpulse = impulse;
+
+            if (point != null) {
+                sumPx += point.x;
+                sumPy += point.y;
+                sumPz += point.z;
+            }
+            if (normal != null) {
+                sumNx += normal.x;
+                sumNy += normal.y;
+                sumNz += normal.z;
+            }
+            points++;
+        }
+    }
+
+    /**
+     * Open-addressing long->ContactAgg map (no boxing, stable memory).
+     * Uses 0 as EMPTY sentinel in keys table.
+     */
+    private static final class LongContactMap {
+        private static final long EMPTY = 0L;
+
+        private long[] keys;
+        private ContactAgg[] values;
+        private int size;
+        private int mask;
+        private int resizeAt;
+
+        LongContactMap(int initialCapacityPow2) {
+            int cap = 1;
+            while (cap < initialCapacityPow2) cap <<= 1;
+            if (cap < 16) cap = 16;
+            keys = new long[cap];
+            values = new ContactAgg[cap];
+            mask = cap - 1;
+            resizeAt = (int) (cap * 0.65f);
+            size = 0;
+        }
+
+        void clear() {
+            Arrays.fill(keys, EMPTY);
+            // values array kept; entries will be reused
+            size = 0;
+        }
+
+        ContactAgg getOrCreate(long k) {
+            if (k == EMPTY) return null;
+            if (size >= resizeAt) rehash(keys.length << 1);
+
+            int i = mix64to32(k) & mask;
+            while (true) {
+                long kk = keys[i];
+                if (kk == EMPTY) {
+                    keys[i] = k;
+                    ContactAgg a = values[i];
+                    if (a == null) values[i] = (a = new ContactAgg());
+                    a.clear();
+                    size++;
+                    return a;
+                }
+                if (kk == k) {
+                    ContactAgg a = values[i];
+                    if (a == null) values[i] = (a = new ContactAgg());
+                    return a;
+                }
+                i = (i + 1) & mask;
+            }
+        }
+
+        ContactAgg get(long k) {
+            if (k == EMPTY) return null;
+            int i = mix64to32(k) & mask;
+            while (true) {
+                long kk = keys[i];
+                if (kk == EMPTY) return null;
+                if (kk == k) return values[i];
+                i = (i + 1) & mask;
+            }
+        }
+
+        private void rehash(int newCap) {
+            long[] ok = keys;
+            ContactAgg[] ov = values;
+
+            long[] nk = new long[newCap];
+            ContactAgg[] nv = new ContactAgg[newCap];
+            int nm = newCap - 1;
+
+            for (int i = 0; i < ok.length; i++) {
+                long k = ok[i];
+                if (k == EMPTY) continue;
+
+                int idx = mix64to32(k) & nm;
+                while (nk[idx] != EMPTY) idx = (idx + 1) & nm;
+                nk[idx] = k;
+                nv[idx] = ov[i];
+            }
+
+            keys = nk;
+            values = nv;
+            mask = nm;
+            resizeAt = (int) (newCap * 0.65f);
+            // size unchanged
+        }
+
+        private static int mix64to32(long z) {
+            z ^= (z >>> 33);
+            z *= 0xff51afd7ed558ccdL;
+            z ^= (z >>> 33);
+            z *= 0xc4ceb9fe1a85ec53L;
+            z ^= (z >>> 33);
+            return (int) z;
+        }
+    }
 
     // ------------------------------------------------------------
     // Collision object indexing (FIXED)
@@ -199,17 +295,13 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private void indexCollisionObject(PhysicsBodyHandle h) {
-        try {
-            Object key = collisionKeyFromHandle(h);
-            if (key != null) bodyIdByCollisionObject.put(key, h.id);
-        } catch (Throwable ignored) {}
+        Object key = collisionKeyFromHandle(h);
+        if (key != null) bodyIdByCollisionObject.put(key, h.id);
     }
 
     private void unindexCollisionObject(PhysicsBodyHandle h) {
-        try {
-            Object key = collisionKeyFromHandle(h);
-            if (key != null) bodyIdByCollisionObject.remove(key, h.id);
-        } catch (Throwable ignored) {}
+        Object key = collisionKeyFromHandle(h);
+        if (key != null) bodyIdByCollisionObject.remove(key, h.id);
     }
 
     private int bodyIdFromCollisionObject(Object obj) {
@@ -236,22 +328,70 @@ public final class PhysicsApiImpl implements PhysicsApi {
         return out;
     }
 
+    private Map<String, Object> contactPayload(ContactAgg agg) {
+        if (agg == null || agg.points <= 0) {
+            return evt(
+                    "maxImpulse", 0f,
+                    "points", 0,
+                    "point", new PhysicsRayHit.Vec3(0, 0, 0),
+                    "normal", new PhysicsRayHit.Vec3(0, 1, 0)
+            );
+        }
+
+        float inv = 1f / Math.max(1, agg.points);
+        float px = agg.sumPx * inv;
+        float py = agg.sumPy * inv;
+        float pz = agg.sumPz * inv;
+
+        float nx = agg.sumNx * inv;
+        float ny = agg.sumNy * inv;
+        float nz = agg.sumNz * inv;
+        float nLen2 = nx * nx + ny * ny + nz * nz;
+        if (nLen2 > 1e-12f) {
+            float invN = 1f / (float) Math.sqrt(nLen2);
+            nx *= invN; ny *= invN; nz *= invN;
+        } else {
+            nx = 0f; ny = 1f; nz = 0f;
+        }
+
+        return evt(
+                "maxImpulse", agg.maxImpulse,
+                "points", agg.points,
+                "point", new PhysicsRayHit.Vec3(px, py, pz),
+                "normal", new PhysicsRayHit.Vec3(nx, ny, nz)
+        );
+    }
+
+    private void emitCollision(String topic, long step, float dt, long k, ContactAgg agg) {
+        int aId = keyA(k);
+        int bId = keyB(k);
+
+        PhysicsBodyHandle a = byId.get(aId);
+        PhysicsBodyHandle b = byId.get(bId);
+        if (a == null || b == null) return;
+
+        bus.emit(topic, evt(
+                "step", step,
+                "dt", dt,
+                "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
+                "contact", contactPayload(agg)
+        ));
+    }
+
     private final LongHashSet.LongConsumer emitBeginConsumer = new LongHashSet.LongConsumer() {
         @Override public void accept(long k) {
             if (k == 0L) return;
             if (prevPairs.contains(k)) return;
+            // begin includes contact state from current step (available)
+            emitCollision("engine.physics.collision.begin", physicsStepCounter.get() + 1, lastDt, k, currContacts.get(k));
+        }
+    };
 
-            int aId = keyA(k);
-            int bId = keyB(k);
-
-            PhysicsBodyHandle a = byId.get(aId);
-            PhysicsBodyHandle b = byId.get(bId);
-            if (a == null || b == null) return;
-
-            bus.emit("engine.physics.collision.begin", evt(
-                    "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                    "b", evt("bodyId", b.id, "surfaceId", b.surfaceId)
-            ));
+    private final LongHashSet.LongConsumer emitStayConsumer = new LongHashSet.LongConsumer() {
+        @Override public void accept(long k) {
+            if (k == 0L) return;
+            emitCollision("engine.physics.collision.stay", physicsStepCounter.get() + 1, lastDt, k, currContacts.get(k));
         }
     };
 
@@ -259,20 +399,16 @@ public final class PhysicsApiImpl implements PhysicsApi {
         @Override public void accept(long k) {
             if (k == 0L) return;
             if (currPairs.contains(k)) return;
-
-            int aId = keyA(k);
-            int bId = keyB(k);
-
-            PhysicsBodyHandle a = byId.get(aId);
-            PhysicsBodyHandle b = byId.get(bId);
-            if (a == null || b == null) return;
-
-            bus.emit("engine.physics.collision.end", evt(
-                    "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                    "b", evt("bodyId", b.id, "surfaceId", b.surfaceId)
-            ));
+            // end has no meaningful contact for this step
+            emitCollision("engine.physics.collision.end", physicsStepCounter.get() + 1, lastDt, k, null);
         }
     };
+
+    /**
+     * Stored timestep from PhysicsTickListener for payload.
+     * Accessed only on render/physics thread.
+     */
+    private volatile float lastDt = 0f;
 
     private void ensureCollisionListenerBound(PhysicsSpace sp) {
         if (sp == null) return;
@@ -281,146 +417,71 @@ public final class PhysicsApiImpl implements PhysicsApi {
         sp.addCollisionListener(new PhysicsCollisionListener() {
             @Override
             public void collision(PhysicsCollisionEvent e) {
+                if (e == null) return;
+
+                int a = bodyIdFromCollisionObject(e.getObjectA());
+                int b = bodyIdFromCollisionObject(e.getObjectB());
+                long key = pairKey(a, b);
+                if (key == 0L) return;
+
+                currPairs.add(key);
+
+                // Aggregate contact
+                ContactAgg agg = currContacts.getOrCreate(key);
+                if (agg == null) return;
+
+                float impulse = 0f;
+                Vector3f point = null;
+                Vector3f normal = null;
+
+                try { impulse = e.getAppliedImpulse(); } catch (Throwable ignored) { /* older bullet */ }
+
                 try {
-                    if (e == null) return;
+                    Vector3f pa = e.getPositionWorldOnA();
+                    Vector3f pb = e.getPositionWorldOnB();
+                    if (pa != null && pb != null) point = pa.add(pb).multLocal(0.5f);
+                    else point = (pa != null) ? pa : pb;
+                } catch (Throwable ignored) { }
 
-                    int a = bodyIdFromCollisionObject(e.getObjectA());
-                    int b = bodyIdFromCollisionObject(e.getObjectB());
+                try { normal = e.getNormalWorldOnB(); } catch (Throwable ignored) { }
 
-                    long key = pairKey(a, b);
-                    if (key == 0L) return;
-
-                    currPairs.add(key);
-
-                    // contact info (aggregated per-step per pair)
-                    final int ka = keyA(key);
-                    final int kb = keyB(key);
-                    ContactAgg agg = currContacts.computeIfAbsent(key, k -> {
-                        ContactAgg ca = new ContactAgg();
-                        ca.aId = ka;
-                        ca.bId = kb;
-                        PhysicsBodyHandle ha = byId.get(ka);
-                        PhysicsBodyHandle hb = byId.get(kb);
-                        ca.aSurfaceId = (ha != null) ? ha.surfaceId : 0;
-                        ca.bSurfaceId = (hb != null) ? hb.surfaceId : 0;
-                        return ca;
-                    });
-
-                    // Bullet/jME provides contact info on event:
-                    float impulse = 0f;
-                    try { impulse = e.getAppliedImpulse(); } catch (Throwable ignored) {}
-                    Vector3f pointOnB = null;
-                    Vector3f normalOnB = null;
-                    try { pointOnB = e.getPositionWorldOnB(); } catch (Throwable ignored) {}
-                    try { normalOnB = e.getNormalWorldOnB(); } catch (Throwable ignored) {}
-
-                    agg.addSample(impulse, pointOnB, normalOnB);
-                } catch (Throwable t) {
-                    log.error("[physics] collision listener failed", t);
-                }
+                agg.add(impulse, point, normal);
             }
         });
     }
 
     /**
-     * ✅ Internal commit: swap buffers + emit begin/end + postStep.
+     * Commit collision sets for the step:
+     *  - begin = curr - prev
+     *  - stay  = curr (every step while contact exists)
+     *  - end   = prev - curr
+     * Also emits engine.physics.postStep({step, dt})
+     *
      * Must be called AFTER physics step when collision callbacks already fired.
      */
-    private void flushCollisionBeginEndInternal() {
-        final long step = physicsStepCounter.incrementAndGet();
-        final float dt = lastTimeStep;
+    private void flushCollisionInternal(float timeStep) {
+        lastDt = timeStep;
+
+        // step increments once per flush
+        long step = physicsStepCounter.incrementAndGet();
 
         // begin: curr - prev
-        currPairs.forEach(new LongHashSet.LongConsumer() {
-            @Override public void accept(long k) {
-                if (k == 0L) return;
-                if (prevPairs.contains(k)) return;
-
-                int aId = keyA(k);
-                int bId = keyB(k);
-
-                PhysicsBodyHandle a = byId.get(aId);
-                PhysicsBodyHandle b = byId.get(bId);
-                if (a == null || b == null) return;
-
-                ContactAgg c = currContacts.get(k);
-
-                bus.emit("engine.physics.collision.begin", evt(
-                        "step", step,
-                        "dt", (double) dt,
-                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
-                        "contact", (c == null ? null : c.toContactObj())
-                ));
-            }
-        });
-
-        // stay: curr
-        currPairs.forEach(new LongHashSet.LongConsumer() {
-            @Override public void accept(long k) {
-                if (k == 0L) return;
-
-                int aId = keyA(k);
-                int bId = keyB(k);
-
-                PhysicsBodyHandle a = byId.get(aId);
-                PhysicsBodyHandle b = byId.get(bId);
-                if (a == null || b == null) return;
-
-                ContactAgg c = currContacts.get(k);
-
-                bus.emit("engine.physics.collision.stay", evt(
-                        "step", step,
-                        "dt", (double) dt,
-                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
-                        "contact", (c == null ? null : c.toContactObj())
-                ));
-            }
-        });
-
+        currPairs.forEach(emitBeginConsumer);
+        // stay: all curr
+        currPairs.forEach(emitStayConsumer);
         // end: prev - curr
-        prevPairs.forEach(new LongHashSet.LongConsumer() {
-            @Override public void accept(long k) {
-                if (k == 0L) return;
-                if (currPairs.contains(k)) return;
+        prevPairs.forEach(emitEndConsumer);
 
-                int aId = keyA(k);
-                int bId = keyB(k);
-
-                PhysicsBodyHandle a = byId.get(aId);
-                PhysicsBodyHandle b = byId.get(bId);
-                if (a == null || b == null) return;
-
-                ContactAgg c = prevContacts.get(k);
-
-                bus.emit("engine.physics.collision.end", evt(
-                        "step", step,
-                        "dt", (double) dt,
-                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
-                        "contact", (c == null ? null : c.toContactObj())
-                ));
-            }
-        });
-
-        // swap + clear pairs
+        // swap + clear
         LongHashSet tmp = prevPairs;
         prevPairs = currPairs;
         currPairs = tmp;
         currPairs.clear();
-
-        // swap + clear contacts (for deterministic end payloads)
-        ConcurrentHashMap<Long, ContactAgg> ct = prevContacts;
-        prevContacts = currContacts;
-        currContacts = ct;
         currContacts.clear();
 
-        bus.emit("engine.physics.postStep", evt(
-                "step", step,
-                "dt", (double) dt
-        ));
+        bus.emit("engine.physics.postStep", evt("step", step, "dt", timeStep));
     }
+
     private void ensureTickListenerBound(PhysicsSpace sp) {
         if (sp == null) return;
         if (!tickListenerBound.compareAndSet(false, true)) return;
@@ -428,24 +489,22 @@ public final class PhysicsApiImpl implements PhysicsApi {
         sp.addTickListener(new com.jme3.bullet.PhysicsTickListener() {
             @Override
             public void prePhysicsTick(PhysicsSpace space, float timeStep) {
-                // ✅ тела (ground/player/etc) должны попасть в space ДО шага
+                // тела (ground/player/etc) должны попасть в space ДО шага
                 flushPendingAdd();
             }
 
             @Override
             public void physicsTick(PhysicsSpace space, float timeStep) {
-                // ✅ этот колбэк в твоём интерфейсе = "после шага"
-                lastTimeStep = timeStep;
+                // после шага: коммитим begin/stay/end
                 try {
-                    // collisions уже собраны bullet'ом в этом шаге -> коммитим begin/end
-                    flushCollisionBeginEndInternal();
+                    flushCollisionInternal(timeStep);
                 } catch (Throwable t) {
-                    log.error("[physics] physicsTick flush failed", t);
+                    log.error("[physics] physicsTick collision flush failed", t);
                 }
             }
         });
 
-        log.info("[physics] tick listener bound (auto flush begin/end + postStep)");
+        log.info("[physics] tick listener bound (collision begin/stay/end + postStep)");
     }
 
     // ------------------------------------------------------------
@@ -1262,8 +1321,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         currPairs.clear();
         prevPairs.clear();
-        currContacts.clear();
-        prevContacts.clear();
         bodyIdByCollisionObject.clear();
 
         PhysicsSpace s = engine.__getPhysicsSpaceOrNull();

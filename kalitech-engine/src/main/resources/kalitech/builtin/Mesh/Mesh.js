@@ -25,7 +25,8 @@
  *  1) Try resolve existing body by surfaceId (preferred):
  *      - engine.surface().attachedBody(surfaceId)  -> bodyId
  *      - engine.physics().bodyOfSurface(surfaceId) -> bodyId
- *      - engine.physics().handle(bodyId)           -> bodyHandle
+ *      - globalThis.PHYS.ref(bodyId)              -> bodyRef (preferred)
+ *      - engine.physics().handle(bodyId)          -> bodyHandle (legacy)
  *  2) If not available (old engine build), fallback ONCE to:
  *      engine.physics().body({ surface: handle, mass: massHint })
  *     This is safe only if PhysicsApiImpl caches body per surfaceId.
@@ -215,6 +216,15 @@ function _resolveBodyHandleById(engine, bodyId) {
     const bid = bodyId | 0;
     if (!bid) return null;
 
+    // best: PHYS.ref(id)
+    try {
+        if (globalThis.PHYS && typeof globalThis.PHYS.ref === "function") {
+            const r = globalThis.PHYS.ref(bid);
+            if (r != null) return r;
+        }
+    } catch (_) {}
+
+    // legacy: engine.physics().handle(id)
     try {
         const p = engine.physics && engine.physics();
         if (p && typeof p.handle === "function") {
@@ -223,8 +233,38 @@ function _resolveBodyHandleById(engine, bodyId) {
         }
     } catch (_) {}
 
-    // last resort: some engines may accept id directly in physics ops
+    // last resort: physics ops might accept id directly
     return bid;
+}
+
+function _bodyIdFromHandle(bodyOrId) {
+    if (bodyOrId == null) return 0;
+    if (typeof bodyOrId === "number") return bodyOrId | 0;
+    try {
+        if (typeof bodyOrId.valueOf === "function") {
+            const v = bodyOrId.valueOf();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+    } catch (_) {}
+    try {
+        if (typeof bodyOrId.id === "number") return bodyOrId.id | 0;
+        if (typeof bodyOrId.bodyId === "number") return bodyOrId.bodyId | 0;
+    } catch (_) {}
+    try {
+        if (typeof bodyOrId.id === "function") {
+            const v = bodyOrId.id();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+        if (typeof bodyOrId.bodyId === "function") {
+            const v = bodyOrId.bodyId();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+        if (typeof bodyOrId.getId === "function") {
+            const v = bodyOrId.getId();
+            if (typeof v === "number" && isFinite(v)) return v | 0;
+        }
+    } catch (_) {}
+    return 0;
 }
 
 // ------------------- Surface wrapper with physics sugar -------------------
@@ -235,15 +275,21 @@ function wrapSurface(engine, handle, cfg) {
     const massHint = _resolveMassFromCfg(cfg);
 
     let cachedBodyId = 0;
-    let cachedBody = null;
+    let cachedBody = null; // ref or legacy handle
     let triedFallbackCreate = false;
+
+    function _bodyId() {
+        if (cachedBodyId) return cachedBodyId;
+        cachedBodyId = _resolveBodyIdBySurface(engine, handle) | 0;
+        return cachedBodyId;
+    }
 
     function _bodyHandle() {
         if (cachedBody != null) return cachedBody;
 
-        if (!cachedBodyId) cachedBodyId = _resolveBodyIdBySurface(engine, handle);
-        if (cachedBodyId) {
-            cachedBody = _resolveBodyHandleById(engine, cachedBodyId);
+        const bid = _bodyId();
+        if (bid) {
+            cachedBody = _resolveBodyHandleById(engine, bid);
             if (cachedBody != null) return cachedBody;
         }
 
@@ -255,6 +301,9 @@ function wrapSurface(engine, handle, cfg) {
                 if (p && typeof p.body === "function") {
                     const b = p.body({ surface: handle, mass: massHint });
                     cachedBody = b || null;
+                    // if body() returned handle, try extract id for id-based physics
+                    const id = _bodyIdFromHandle(cachedBody);
+                    if (id) cachedBodyId = id;
                     return cachedBody;
                 }
             } catch (_) {}
@@ -263,18 +312,38 @@ function wrapSurface(engine, handle, cfg) {
         return null;
     }
 
+    function _phys() {
+        return (engine.physics && engine.physics()) || null;
+    }
+
+    function _requireBodyId(op) {
+        const bid = _bodyId();
+        if (!bid) throw new Error("[MSH] " + op + ": no body for surfaceId=" + (_surfaceId(handle) | 0));
+        return bid;
+    }
+
     const proxy = new Proxy(Object.create(null), {
         get(_t, prop) {
             if (prop === "__isPrimitiveWrapper") return true;
             if (prop === "__surface") return handle;
+            if (prop === "bodyId") return function bodyId() { return _bodyId() | 0; };
+            if (prop === "bodyRef") return function bodyRef() {
+                const bid = _requireBodyId("bodyRef()");
+                // ensure cachedBody becomes the ref where possible
+                cachedBody = _resolveBodyHandleById(engine, bid);
+                return cachedBody;
+            };
 
             if (prop === "applyImpulse") {
                 return function applyImpulse(vec3) {
                     const b = _bodyHandle();
                     if (!b) return;
-                    try { if (b && typeof b.applyImpulse === "function") return b.applyImpulse(vec3); } catch (_) {}
-                    const p = engine.physics && engine.physics();
-                    if (p && typeof p.applyImpulse === "function") return p.applyImpulse(b, vec3);
+                    // prefer ref/handle method
+                    try { if (typeof b.applyImpulse === "function") return b.applyImpulse(vec3); } catch (_) {}
+                    // id-based physics api (new)
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
+                    const p = _phys();
+                    if (p && typeof p.applyImpulse === "function" && bid) return p.applyImpulse(bid, vec3);
                 };
             }
 
@@ -282,9 +351,10 @@ function wrapSurface(engine, handle, cfg) {
                 return function applyCentralForce(vec3) {
                     const b = _bodyHandle();
                     if (!b) return;
-                    try { if (b && typeof b.applyCentralForce === "function") return b.applyCentralForce(vec3); } catch (_) {}
-                    const p = engine.physics && engine.physics();
-                    if (p && typeof p.applyCentralForce === "function") return p.applyCentralForce(b, vec3);
+                    try { if (typeof b.applyCentralForce === "function") return b.applyCentralForce(vec3); } catch (_) {}
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
+                    const p = _phys();
+                    if (p && typeof p.applyCentralForce === "function" && bid) return p.applyCentralForce(bid, vec3);
                 };
             }
 
@@ -292,14 +362,15 @@ function wrapSurface(engine, handle, cfg) {
                 return function velocity(v) {
                     const b = _bodyHandle();
                     if (!b) return undefined;
-                    const p = engine.physics && engine.physics();
+                    const p = _phys();
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
                     if (arguments.length === 0) {
                         try { if (b && typeof b.velocity === "function") return b.velocity(); } catch (_) {}
-                        if (p && typeof p.velocity === "function") return p.velocity(b);
+                        if (p && typeof p.velocity === "function" && bid) return p.velocity(bid);
                         return undefined;
                     }
                     try { if (b && typeof b.velocity === "function") return b.velocity(v); } catch (_) {}
-                    if (p && typeof p.velocity === "function") return p.velocity(b, v);
+                    if (p && typeof p.velocity === "function" && bid) return p.velocity(bid, v);
                 };
             }
 
@@ -307,15 +378,17 @@ function wrapSurface(engine, handle, cfg) {
                 return function position(v) {
                     const b = _bodyHandle();
                     if (!b) return undefined;
-                    const p = engine.physics && engine.physics();
+                    const p = _phys();
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
                     if (arguments.length === 0) {
                         try { if (b && typeof b.position === "function") return b.position(); } catch (_) {}
-                        if (p && typeof p.position === "function") return p.position(b);
+                        if (p && typeof p.position === "function" && bid) return p.position(bid);
                         return undefined;
                     }
                     // setter
                     try { if (b && typeof b.teleport === "function") return b.teleport(v); } catch (_) {}
-                    if (p && typeof p.position === "function") return p.position(b, v);
+                    if (p && typeof p.warp === "function" && bid) return p.warp(bid, v);
+                    if (p && typeof p.position === "function" && bid) return p.position(bid, v);
                 };
             }
 
@@ -323,9 +396,11 @@ function wrapSurface(engine, handle, cfg) {
                 return function teleport(v) {
                     const b = _bodyHandle();
                     if (!b) return;
-                    const p = engine.physics && engine.physics();
+                    const p = _phys();
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
                     try { if (b && typeof b.teleport === "function") return b.teleport(v); } catch (_) {}
-                    if (p && typeof p.position === "function") return p.position(b, v);
+                    if (p && typeof p.warp === "function" && bid) return p.warp(bid, v);
+                    if (p && typeof p.position === "function" && bid) return p.position(bid, v);
                 };
             }
 
@@ -333,9 +408,10 @@ function wrapSurface(engine, handle, cfg) {
                 return function lockRotation(lock) {
                     const b = _bodyHandle();
                     if (!b) return;
-                    const p = engine.physics && engine.physics();
+                    const p = _phys();
+                    const bid = _bodyIdFromHandle(b) || _bodyId();
                     try { if (b && typeof b.lockRotation === "function") return b.lockRotation(!!lock); } catch (_) {}
-                    if (p && typeof p.lockRotation === "function") return p.lockRotation(b, !!lock);
+                    if (p && typeof p.lockRotation === "function" && bid) return p.lockRotation(bid, !!lock);
                 };
             }
 
@@ -355,6 +431,8 @@ function wrapSurface(engine, handle, cfg) {
             keys.add("position");
             keys.add("teleport");
             keys.add("lockRotation");
+            keys.add("bodyId");
+            keys.add("bodyRef");
             return Array.from(keys);
         },
         getOwnPropertyDescriptor(_t, prop) {
