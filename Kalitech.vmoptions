@@ -1,14 +1,40 @@
-# JUL → Log4j2 bridge (ДОЛЖНО быть VM option)
 -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
--Dkalitech.jcef.userdata=cache/jcef-userdata
--Dkalitech.hotreload.ignore.dirs=Default,Cache,Code Cache,GPUCache,BrowserMetrics,Dictionaries,Safe Browsing,GCM Store,segmentation_platform,component_crx_cache,extensions_crx_cache,Variations,Local Storage,Network,blob_storage,Download Service,Crashpad,GrShaderCache,ShaderCache,ClientCertificates,chrome_cart_db,shared_proto_db,optimization_guide_hint_cache_store,AutofillAiModelCache,AutofillStrikeDatabase,BudgetDatabase,BrowsingTopicsSiteData,BrowsingTopicsState,DIPS,Network Action Predictor,BookmarkMergedSurfaceOrdering,Top Sites
--Dkalitech.hotreload.ignore.files=Local State,Last Browser,lockfile,Preferences,Secure Preferences,First Run
--Dkalitech.hotreload.extensions=.js,.json,.glsl,.html,.css
+-DphysicsDebug=true
+-Dhud.debug=false
+-Dtheme.path=engine/calista.properties
+-Dbanner.path=engine/banner.png
 
 # logging
 -Dlog.level=DEBUG
 -Dlog.dir=.
 
-# memory
--Xms4096m
+# ===== Memory =====
+-Xms8g
 -Xmx8g
+-XX:MaxMetaspaceSize=512m
+-XX:+AlwaysPreTouch
+
+# ===== GC =====
+-XX:+UseZGC
+-XX:ZUncommitDelay=300
+-XX:+DisableExplicitGC
+
+# ===== Performance =====
+-XX:+UnlockExperimentalVMOptions
+-XX:+TrustFinalNonStaticFields
+-XX:+UseFastUnorderedTimeStamps
+
+# ===== Threads =====
+-XX:ThreadStackSize=1024
+
+# ===== Logging (минимум) =====
+#-Xlog:gc*,gc+heap=info
+
+# ===== Encoding =====
+-Dfile.encoding=UTF-8
+
+# ===== Graal =====
+-Dpolyglot.engine.WarnInterpreterOnly=false
+-Dgraal.CompilationFailureAction=Silent
+-Dgraal.TruffleCompilationExceptionsAreFatal=false
+-Dgraal.TraceTruffleCompilation=false

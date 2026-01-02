@@ -174,6 +174,51 @@ declare namespace KalitechPhysics {
         remove(): void;
     }
 
+
+// ------------------------------------
+// Collision events (engine.physics.collision.*)
+// ------------------------------------
+
+    export interface CollisionBodyRef {
+        bodyId: number;
+        surfaceId: number;
+        [k: string]: unknown;
+    }
+
+    export interface CollisionContact {
+        /** maximum applied impulse seen during this step */
+        maxImpulse: number;
+        /** number of contact samples aggregated */
+        points: number;
+        /** averaged contact point (world) */
+        point: { x: number; y: number; z: number };
+        /** averaged, normalized contact normal (world) */
+        normal: { x: number; y: number; z: number };
+        [k: string]: unknown;
+    }
+
+    export interface CollisionEventPayload {
+        /** physics step counter (monotonic) */
+        step: number;
+        /** Bullet timestep for this step (seconds) */
+        dt: number;
+
+        a: CollisionBodyRef;
+        b: CollisionBodyRef;
+
+        /** contact aggregate for this step (may be null) */
+        contact?: CollisionContact | null;
+
+        [k: string]: unknown;
+    }
+
+    export interface CollisionFilter {
+        body?: BodyRef;
+        bodyId?: number;
+        surface?: SurfaceRef;
+        surfaceId?: number;
+    }
+
     // ------------------------------------
     // Main API
     // ------------------------------------
@@ -217,7 +262,20 @@ declare namespace KalitechPhysics {
         debug(enabled: boolean): void;
         gravity(g: Vec3Like): void;
 
-        // helpers
+// events
+        onCollisionBegin(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
+        onCollisionBegin(fn: (e: CollisionEventPayload) => void): () => boolean | void;
+
+        onCollisionStay(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
+        onCollisionStay(fn: (e: CollisionEventPayload) => void): () => boolean | void;
+
+        onCollisionEnd(filter: CollisionFilter, fn: (e: CollisionEventPayload) => void): () => boolean | void;
+        onCollisionEnd(fn: (e: CollisionEventPayload) => void): () => boolean | void;
+
+        onPostStep(fn: (e: { step: number; dt: number }) => void): () => boolean | void;
+
+// helpers
+
         collider: PhysicsColliderHelpers;
 
         idOf(handleOrId: BodyRef): number;

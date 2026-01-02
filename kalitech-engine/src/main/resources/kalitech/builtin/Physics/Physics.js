@@ -5,7 +5,7 @@
 const META = {
     name: "Physics",
     globalName: "PHYS",
-    version: "1.0.2",
+    version: "1.1.0",
     engineMin: "0.1.0",
 };
 
@@ -183,6 +183,103 @@ function makeApi(engine) {
         return Object.freeze(self);
     }
 
+
+
+// ------------------------------------------------------------
+// Collision events (engine.physics.collision.*)
+// ------------------------------------------------------------
+
+    function _resolveEventsApi() {
+        // Preferred: global EVENTS (RootKit wrapper)
+        try {
+            if (typeof EVENTS !== "undefined" && EVENTS && typeof EVENTS.on === "function") return EVENTS;
+        } catch (_) {}
+
+        // Fallback: direct engine.events() (Java API)
+        try {
+            if (engine && typeof engine.events === "function") return engine.events();
+        } catch (_) {}
+
+        return null;
+    }
+
+    function _onTopic(topic, handler) {
+        const ev = _resolveEventsApi();
+        if (!ev) throw new Error("[PHYS] collision events require EVENTS bus (EVENTS not available)");
+
+        // RootKit EVENTS.on(...) => offFn
+        if (typeof ev.on === "function" && typeof ev.off !== "function") {
+            return ev.on(topic, handler);
+        }
+
+        // Java EventsApiImpl: on(topic, handler) => token; off(topic, token)
+        if (typeof ev.on === "function" && typeof ev.off === "function") {
+            const token = ev.on(topic, handler);
+            return function off() { try { return ev.off(topic, token); } catch (_) { return false; } };
+        }
+
+        throw new Error("[PHYS] unknown EVENTS api shape");
+    }
+
+    function _involves(payload, bodyId, surfaceId) {
+        if (!payload) return false;
+        const a = payload.a, b = payload.b;
+        if (bodyId > 0) {
+            return (a && (a.bodyId | 0) === bodyId) || (b && (b.bodyId | 0) === bodyId);
+        }
+        if (surfaceId > 0) {
+            return (a && (a.surfaceId | 0) === surfaceId) || (b && (b.surfaceId | 0) === surfaceId);
+        }
+        return true;
+    }
+
+    /**
+     * Subscribe to collision events with optional filter.
+     *
+     * Examples:
+     *   const off = PHYS.onCollisionBegin({ body: playerBody }, (e) => {...});
+     *   const off = PHYS.onCollisionStay({ surfaceId: groundId }, (e) => {...});
+     */
+    function onCollisionBegin(opts, fn) {
+        if (typeof opts === "function") { fn = opts; opts = null; }
+        if (typeof fn !== "function") throw new Error("PHYS.onCollisionBegin(opts?, fn): fn required");
+        opts = (opts && typeof opts === "object") ? opts : {};
+        const bodyId = bodyIdOf(opts.body || opts.bodyId || 0);
+        const surfaceId = surfaceIdOf(opts.surface || opts.surfaceId || 0);
+
+        return _onTopic("engine.physics.collision.begin", (e) => {
+            if (_involves(e, bodyId, surfaceId)) return fn(e);
+        });
+    }
+
+    function onCollisionStay(opts, fn) {
+        if (typeof opts === "function") { fn = opts; opts = null; }
+        if (typeof fn !== "function") throw new Error("PHYS.onCollisionStay(opts?, fn): fn required");
+        opts = (opts && typeof opts === "object") ? opts : {};
+        const bodyId = bodyIdOf(opts.body || opts.bodyId || 0);
+        const surfaceId = surfaceIdOf(opts.surface || opts.surfaceId || 0);
+
+        return _onTopic("engine.physics.collision.stay", (e) => {
+            if (_involves(e, bodyId, surfaceId)) return fn(e);
+        });
+    }
+
+    function onCollisionEnd(opts, fn) {
+        if (typeof opts === "function") { fn = opts; opts = null; }
+        if (typeof fn !== "function") throw new Error("PHYS.onCollisionEnd(opts?, fn): fn required");
+        opts = (opts && typeof opts === "object") ? opts : {};
+        const bodyId = bodyIdOf(opts.body || opts.bodyId || 0);
+        const surfaceId = surfaceIdOf(opts.surface || opts.surfaceId || 0);
+
+        return _onTopic("engine.physics.collision.end", (e) => {
+            if (_involves(e, bodyId, surfaceId)) return fn(e);
+        });
+    }
+
+    function onPostStep(fn) {
+        if (typeof fn !== "function") throw new Error("PHYS.onPostStep(fn): fn required");
+        return _onTopic("engine.physics.postStep", fn);
+    }
     return Object.freeze({
         body,
         remove,
@@ -208,7 +305,13 @@ function makeApi(engine) {
         surfaceIdOf,
         vec3: vec3Obj,
         ensureBodyForSurface,
-        ref
+        ref,
+
+        // collisions/events
+        onCollisionBegin,
+        onCollisionStay,
+        onCollisionEnd,
+        onPostStep
     });
 }
 

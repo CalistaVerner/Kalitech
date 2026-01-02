@@ -2,6 +2,7 @@ package org.foxesworld.kalitech.engine.api;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
+import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +41,7 @@ public final class EngineApiImpl implements EngineApi {
     private final GraalScriptRuntime runtime;
 
     private final CameraState cameraState;
+    private final BulletAppState bullet;
     private final LogApi logApi;
     private final AssetsApi assetsApi;
     private final EventsApi eventsApi;
@@ -66,7 +68,7 @@ public final class EngineApiImpl implements EngineApi {
     private final TerrainSplatApi terrainSplatApi;
 
     public EngineApiImpl(RuntimeAppState runtimeAppState) {
-
+        this.bullet = runtimeAppState.getBullet();
         // Profiler
         PerfProfiler.Config pcfg = new PerfProfiler.Config();
 
@@ -258,6 +260,10 @@ public final class EngineApiImpl implements EngineApi {
 
     public SurfaceRegistry getSurfaceRegistry() {
         return surfaceRegistry;
+    }
+
+    public BulletAppState getBullet() {
+        return bullet;
     }
 
     public void __tickHud() { hudApi.__tick(); }

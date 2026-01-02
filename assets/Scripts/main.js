@@ -50,6 +50,14 @@ class MainWorldEntrypoint {
 
         const p = ctx.state().get("player");
         if (p) p.update(tpf);
+
+        const PH = EVENTS.scope("engine.physics");
+
+        PH.once("postStep", () => {
+            LOG.info('Player Snap to ground!');
+            player.snapToGround(); // твоя функция/логика
+        });
+
     }
 
     destroy(reason) {

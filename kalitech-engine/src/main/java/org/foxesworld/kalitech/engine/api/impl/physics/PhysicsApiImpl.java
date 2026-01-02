@@ -6,9 +6,13 @@ import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingVolume;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
+import com.jme3.bullet.PhysicsTickListener;
+import com.jme3.bullet.collision.PhysicsCollisionEvent;
+import com.jme3.bullet.collision.PhysicsCollisionListener;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
-import com.jme3.bullet.collision.shapes.*;
+import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.bullet.collision.shapes.*;
 import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
@@ -24,9 +28,12 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.foxesworld.kalitech.engine.util.LongHashSet;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class PhysicsApiImpl implements PhysicsApi {
 
@@ -44,34 +52,420 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final EngineApiImpl engine;
     private final SimpleApplication app;
     private final SurfaceRegistry surfaces;
+    private final ScriptEventBus bus;
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> bodyIdBySurface = new ConcurrentHashMap<>();
+    private static final Field RBC_BODY_FIELD = findRbcBodyField();
 
     // ------------------------------------------------------------
-    // ✅ Batched add to PhysicsSpace (NO JS/API changes)
+    // Events: body lifecycle + deterministic "physics stepped"
+    // ------------------------------------------------------------
+    private final ConcurrentHashMap<RigidBodyControl, Integer> idByControl = new ConcurrentHashMap<>(1024);
+    private final AtomicLong physicsStepCounter = new AtomicLong(0);
+
+    // ------------------------------------------------------------
+    // Collision begin/end buffers
+    // ------------------------------------------------------------
+    private final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
+    private final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
+
+    /**
+     * IMPORTANT: keys in this map MUST match objects returned by:
+     *  - PhysicsCollisionEvent.getObjectA/B()
+     *  - PhysicsRayTestResult.getCollisionObject()
+     *
+     * Therefore we index PhysicsRigidBody (preferred), fallback to RigidBodyControl.
+     */
+    private final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>(1024);
+
+    private LongHashSet prevPairs = new LongHashSet(2048);
+    private LongHashSet currPairs = new LongHashSet(2048);
+
+
+    /** Per-step contact aggregate for a body pair (sorted by bodyId in key). */
+    private static final class ContactAgg {
+        int aId; int bId;
+        int aSurfaceId; int bSurfaceId;
+        float maxImpulse;
+        float sumPx, sumPy, sumPz;
+        float sumNx, sumNy, sumNz;
+        int count;
+
+        void addSample(float impulse, Vector3f pointOnB, Vector3f normalOnB) {
+            if (Float.isFinite(impulse) && impulse > maxImpulse) maxImpulse = impulse;
+
+            if (pointOnB != null) {
+                sumPx += pointOnB.x;
+                sumPy += pointOnB.y;
+                sumPz += pointOnB.z;
+            }
+
+            if (normalOnB != null) {
+                sumNx += normalOnB.x;
+                sumNy += normalOnB.y;
+                sumNz += normalOnB.z;
+            }
+
+            count++;
+        }
+
+        Map<String, Object> toContactObj() {
+            float inv = (count > 0) ? (1f / count) : 0f;
+            Map<String, Object> out = new HashMap<>();
+            out.put("maxImpulse", (double) maxImpulse);
+            out.put("points", count);
+
+            out.put("point", new PhysicsRayHit.Vec3(sumPx * inv, sumPy * inv, sumPz * inv));
+
+            // normalize averaged normal
+            float nx = sumNx * inv, ny = sumNy * inv, nz = sumNz * inv;
+            float nl = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (!Float.isFinite(nl) || nl < 1e-6f) { nx = 0; ny = 1; nz = 0; }
+            else { nx /= nl; ny /= nl; nz /= nl; }
+
+            out.put("normal", new PhysicsRayHit.Vec3(nx, ny, nz));
+            return out;
+        }
+    }
+
+    /** Contacts seen this step (keyed by pairKey). */
+    private ConcurrentHashMap<Long, ContactAgg> currContacts = new ConcurrentHashMap<>(2048);
+    /** Contacts seen previous step, for stable 'end' payloads. */
+    private ConcurrentHashMap<Long, ContactAgg> prevContacts = new ConcurrentHashMap<>(2048);
+
+    /** last bullet timestep passed to physicsTick (seconds). */
+    private volatile float lastTimeStep = 0f;
+
+    private static long pairKey(int a, int b) {
+        if (a <= 0 || b <= 0) return 0L;
+        int min = (a < b) ? a : b;
+        int max = (a < b) ? b : a;
+        return ((long) min << 32) | (max & 0xFFFFFFFFL);
+    }
+
+    private static int keyA(long k) { return (int) (k >>> 32); }
+    private static int keyB(long k) { return (int) (k & 0xFFFFFFFFL); }
+
+    // ------------------------------------------------------------
+    // Collision object indexing (FIXED)
+    // ------------------------------------------------------------
+
+    private static Field findRbcBodyField() {
+        try {
+            Field f = RigidBodyControl.class.getDeclaredField("body");
+            f.setAccessible(true);
+            return f;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object collisionKeyFromHandle(PhysicsBodyHandle h) {
+        if (h == null) return null;
+
+        Object raw = h.__raw(); // typically RigidBodyControl
+        if (raw instanceof RigidBodyControl rb) {
+            PhysicsRigidBody prb = extractPhysicsRigidBody(rb);
+            return (prb != null) ? prb : rb;
+        }
+        return raw;
+    }
+
+    private static PhysicsRigidBody extractPhysicsRigidBody(RigidBodyControl rb) {
+        if (rb == null) return null;
+
+        if (RBC_BODY_FIELD != null) {
+            try {
+                Object v = RBC_BODY_FIELD.get(rb);
+                if (v instanceof PhysicsRigidBody prb) return prb;
+            } catch (Throwable ignored) {}
+        }
+
+        try {
+            var m = rb.getClass().getMethod("getRigidBody");
+            Object v = m.invoke(rb);
+            if (v instanceof PhysicsRigidBody prb) return prb;
+        } catch (Throwable ignored) {}
+
+        try {
+            var m = rb.getClass().getMethod("getBody");
+            Object v = m.invoke(rb);
+            if (v instanceof PhysicsRigidBody prb) return prb;
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    private void indexCollisionObject(PhysicsBodyHandle h) {
+        try {
+            Object key = collisionKeyFromHandle(h);
+            if (key != null) bodyIdByCollisionObject.put(key, h.id);
+        } catch (Throwable ignored) {}
+    }
+
+    private void unindexCollisionObject(PhysicsBodyHandle h) {
+        try {
+            Object key = collisionKeyFromHandle(h);
+            if (key != null) bodyIdByCollisionObject.remove(key, h.id);
+        } catch (Throwable ignored) {}
+    }
+
+    private int bodyIdFromCollisionObject(Object obj) {
+        if (obj == null) return 0;
+
+        Integer id = bodyIdByCollisionObject.get(obj);
+        if (id != null) return id;
+
+        if (obj instanceof RigidBodyControl rb) {
+            PhysicsRigidBody prb = extractPhysicsRigidBody(rb);
+            if (prb != null) {
+                Integer id2 = bodyIdByCollisionObject.get(prb);
+                if (id2 != null) return id2;
+            }
+        }
+
+        return 0;
+    }
+
+    private static Map<String, Object> evt(Object... kv) {
+        HashMap<String, Object> out = new HashMap<>();
+        if (kv == null) return out;
+        for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
+        return out;
+    }
+
+    private final LongHashSet.LongConsumer emitBeginConsumer = new LongHashSet.LongConsumer() {
+        @Override public void accept(long k) {
+            if (k == 0L) return;
+            if (prevPairs.contains(k)) return;
+
+            int aId = keyA(k);
+            int bId = keyB(k);
+
+            PhysicsBodyHandle a = byId.get(aId);
+            PhysicsBodyHandle b = byId.get(bId);
+            if (a == null || b == null) return;
+
+            bus.emit("engine.physics.collision.begin", evt(
+                    "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                    "b", evt("bodyId", b.id, "surfaceId", b.surfaceId)
+            ));
+        }
+    };
+
+    private final LongHashSet.LongConsumer emitEndConsumer = new LongHashSet.LongConsumer() {
+        @Override public void accept(long k) {
+            if (k == 0L) return;
+            if (currPairs.contains(k)) return;
+
+            int aId = keyA(k);
+            int bId = keyB(k);
+
+            PhysicsBodyHandle a = byId.get(aId);
+            PhysicsBodyHandle b = byId.get(bId);
+            if (a == null || b == null) return;
+
+            bus.emit("engine.physics.collision.end", evt(
+                    "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                    "b", evt("bodyId", b.id, "surfaceId", b.surfaceId)
+            ));
+        }
+    };
+
+    private void ensureCollisionListenerBound(PhysicsSpace sp) {
+        if (sp == null) return;
+        if (!collisionListenerBound.compareAndSet(false, true)) return;
+
+        sp.addCollisionListener(new PhysicsCollisionListener() {
+            @Override
+            public void collision(PhysicsCollisionEvent e) {
+                try {
+                    if (e == null) return;
+
+                    int a = bodyIdFromCollisionObject(e.getObjectA());
+                    int b = bodyIdFromCollisionObject(e.getObjectB());
+
+                    long key = pairKey(a, b);
+                    if (key == 0L) return;
+
+                    currPairs.add(key);
+
+                    // contact info (aggregated per-step per pair)
+                    final int ka = keyA(key);
+                    final int kb = keyB(key);
+                    ContactAgg agg = currContacts.computeIfAbsent(key, k -> {
+                        ContactAgg ca = new ContactAgg();
+                        ca.aId = ka;
+                        ca.bId = kb;
+                        PhysicsBodyHandle ha = byId.get(ka);
+                        PhysicsBodyHandle hb = byId.get(kb);
+                        ca.aSurfaceId = (ha != null) ? ha.surfaceId : 0;
+                        ca.bSurfaceId = (hb != null) ? hb.surfaceId : 0;
+                        return ca;
+                    });
+
+                    // Bullet/jME provides contact info on event:
+                    float impulse = 0f;
+                    try { impulse = e.getAppliedImpulse(); } catch (Throwable ignored) {}
+                    Vector3f pointOnB = null;
+                    Vector3f normalOnB = null;
+                    try { pointOnB = e.getPositionWorldOnB(); } catch (Throwable ignored) {}
+                    try { normalOnB = e.getNormalWorldOnB(); } catch (Throwable ignored) {}
+
+                    agg.addSample(impulse, pointOnB, normalOnB);
+                } catch (Throwable t) {
+                    log.error("[physics] collision listener failed", t);
+                }
+            }
+        });
+    }
+
+    /**
+     * ✅ Internal commit: swap buffers + emit begin/end + postStep.
+     * Must be called AFTER physics step when collision callbacks already fired.
+     */
+    private void flushCollisionBeginEndInternal() {
+        final long step = physicsStepCounter.incrementAndGet();
+        final float dt = lastTimeStep;
+
+        // begin: curr - prev
+        currPairs.forEach(new LongHashSet.LongConsumer() {
+            @Override public void accept(long k) {
+                if (k == 0L) return;
+                if (prevPairs.contains(k)) return;
+
+                int aId = keyA(k);
+                int bId = keyB(k);
+
+                PhysicsBodyHandle a = byId.get(aId);
+                PhysicsBodyHandle b = byId.get(bId);
+                if (a == null || b == null) return;
+
+                ContactAgg c = currContacts.get(k);
+
+                bus.emit("engine.physics.collision.begin", evt(
+                        "step", step,
+                        "dt", (double) dt,
+                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
+                        "contact", (c == null ? null : c.toContactObj())
+                ));
+            }
+        });
+
+        // stay: curr
+        currPairs.forEach(new LongHashSet.LongConsumer() {
+            @Override public void accept(long k) {
+                if (k == 0L) return;
+
+                int aId = keyA(k);
+                int bId = keyB(k);
+
+                PhysicsBodyHandle a = byId.get(aId);
+                PhysicsBodyHandle b = byId.get(bId);
+                if (a == null || b == null) return;
+
+                ContactAgg c = currContacts.get(k);
+
+                bus.emit("engine.physics.collision.stay", evt(
+                        "step", step,
+                        "dt", (double) dt,
+                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
+                        "contact", (c == null ? null : c.toContactObj())
+                ));
+            }
+        });
+
+        // end: prev - curr
+        prevPairs.forEach(new LongHashSet.LongConsumer() {
+            @Override public void accept(long k) {
+                if (k == 0L) return;
+                if (currPairs.contains(k)) return;
+
+                int aId = keyA(k);
+                int bId = keyB(k);
+
+                PhysicsBodyHandle a = byId.get(aId);
+                PhysicsBodyHandle b = byId.get(bId);
+                if (a == null || b == null) return;
+
+                ContactAgg c = prevContacts.get(k);
+
+                bus.emit("engine.physics.collision.end", evt(
+                        "step", step,
+                        "dt", (double) dt,
+                        "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                        "b", evt("bodyId", b.id, "surfaceId", b.surfaceId),
+                        "contact", (c == null ? null : c.toContactObj())
+                ));
+            }
+        });
+
+        // swap + clear pairs
+        LongHashSet tmp = prevPairs;
+        prevPairs = currPairs;
+        currPairs = tmp;
+        currPairs.clear();
+
+        // swap + clear contacts (for deterministic end payloads)
+        ConcurrentHashMap<Long, ContactAgg> ct = prevContacts;
+        prevContacts = currContacts;
+        currContacts = ct;
+        currContacts.clear();
+
+        bus.emit("engine.physics.postStep", evt(
+                "step", step,
+                "dt", (double) dt
+        ));
+    }
+    private void ensureTickListenerBound(PhysicsSpace sp) {
+        if (sp == null) return;
+        if (!tickListenerBound.compareAndSet(false, true)) return;
+
+        sp.addTickListener(new com.jme3.bullet.PhysicsTickListener() {
+            @Override
+            public void prePhysicsTick(PhysicsSpace space, float timeStep) {
+                // ✅ тела (ground/player/etc) должны попасть в space ДО шага
+                flushPendingAdd();
+            }
+
+            @Override
+            public void physicsTick(PhysicsSpace space, float timeStep) {
+                // ✅ этот колбэк в твоём интерфейсе = "после шага"
+                lastTimeStep = timeStep;
+                try {
+                    // collisions уже собраны bullet'ом в этом шаге -> коммитим begin/end
+                    flushCollisionBeginEndInternal();
+                } catch (Throwable t) {
+                    log.error("[physics] physicsTick flush failed", t);
+                }
+            }
+        });
+
+        log.info("[physics] tick listener bound (auto flush begin/end + postStep)");
+    }
+
+    // ------------------------------------------------------------
+    // Batched add to PhysicsSpace
     // ------------------------------------------------------------
     private final ConcurrentLinkedQueue<RigidBodyControl> pendingAdd = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean addFlushScheduled = new AtomicBoolean(false);
-
-    // Time slicing: limit how many adds per flush to avoid big frame spikes
-    // (tune: 64/128 depending on your machine)
     private static final int ADD_FLUSH_MAX_PER_TICK = 128;
 
     // ------------------------------------------------------------
-    // ✅ CollisionShape caching (NO JS/API changes)
+    // CollisionShape caching
     // ------------------------------------------------------------
-    // Cache by Mesh identity + dynamic flag.
-    // This gives a MASSIVE boost when you spawn many identical cubes/spheres/etc.
     private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
-
     private record ShapeKey(Mesh mesh, boolean dynamic) { }
 
     public PhysicsApiImpl(EngineApiImpl engine, SurfaceRegistry surfaces) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = Objects.requireNonNull(engine.getApp(), "app");
         this.surfaces = Objects.requireNonNull(surfaces, "surfaces");
+        this.bus = Objects.requireNonNull(engine.getBus(), "engine.getBus()");
     }
 
     private PhysicsSpace space() {
@@ -79,6 +473,8 @@ public final class PhysicsApiImpl implements PhysicsApi {
         if (s == null) {
             throw new IllegalStateException("[physics] PhysicsSpace not bound. RuntimeAppState must attach BulletAppState and call engineApi.__setPhysicsSpace(space).");
         }
+        ensureCollisionListenerBound(s);
+        ensureTickListenerBound(s);
         return s;
     }
 
@@ -91,7 +487,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
-    // ✅ Batched add internals
+    // Batched add internals
     // ------------------------------------------------------------
 
     private void enqueueAddToSpace(RigidBodyControl rb) {
@@ -118,18 +514,34 @@ public final class PhysicsApiImpl implements PhysicsApi {
         PhysicsSpace sp = engine.__getPhysicsSpaceOrNull();
         if (sp == null) return;
 
+        ensureCollisionListenerBound(sp);
+        ensureTickListenerBound(sp);
+
         int n = 0;
         RigidBodyControl rb;
         while (n < ADD_FLUSH_MAX_PER_TICK && (rb = pendingAdd.poll()) != null) {
-            try { sp.add(rb); } catch (Throwable ignored) {}
+            try {
+                sp.add(rb);
+
+                Integer id = idByControl.get(rb);
+                if (id != null) {
+                    PhysicsBodyHandle h = byId.get(id);
+                    if (h != null) {
+                        bus.emit("engine.physics.body.added", evt(
+                                "bodyId", h.id,
+                                "surfaceId", h.surfaceId
+                        ));
+                    }
+                }
+            } catch (Throwable t) {
+                log.error("[physics] addToSpace failed", t);
+            }
             n++;
         }
-
-        // If still queued — reschedule (we already do it in finally)
     }
 
     // ------------------------------------------------------------
-    // ✅ CollisionShape selection (fast path)
+    // CollisionShape selection (fast path)
     // ------------------------------------------------------------
 
     private static float clampPositive(float v, float min) {
@@ -140,9 +552,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
         Mesh mesh = g.getMesh();
         if (mesh == null) return null;
 
-        // 1) Fast primitives for known mesh types
         if (mesh instanceof Box) {
-            // Use mesh bound extents (local)
             BoundingVolume bv = mesh.getBound();
             if (bv instanceof BoundingBox bb) {
                 Vector3f he = bb.getExtent(null);
@@ -151,7 +561,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 he.z = clampPositive(he.z, 0.001f);
                 return new BoxCollisionShape(he);
             }
-            // fallback: try world bound (may be null if not updated)
             BoundingVolume w = g.getWorldBound();
             if (w instanceof BoundingBox wb) {
                 Vector3f he = wb.getExtent(null);
@@ -173,19 +582,16 @@ public final class PhysicsApiImpl implements PhysicsApi {
         }
 
         if (mesh instanceof Cylinder) {
-            // Cylinder mesh bound -> half extents
             BoundingVolume bv = mesh.getBound();
             if (bv instanceof BoundingBox bb) {
                 Vector3f he = bb.getExtent(null);
                 he.x = clampPositive(he.x, 0.001f);
                 he.y = clampPositive(he.y, 0.001f);
                 he.z = clampPositive(he.z, 0.001f);
-                // JME bullet cylinder shape uses half extents
                 return new CylinderCollisionShape(he);
             }
         }
 
-        // 2) Generic primitive fallback by bound
         BoundingVolume bv = mesh.getBound();
         if (bv instanceof BoundingBox bb) {
             Vector3f he = bb.getExtent(null);
@@ -193,7 +599,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 he.x = clampPositive(he.x, 0.001f);
                 he.y = clampPositive(he.y, 0.001f);
                 he.z = clampPositive(he.z, 0.001f);
-                // If it's close to cube-ish, box collider is a good default
                 return new BoxCollisionShape(he);
             }
         }
@@ -202,12 +607,10 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private CollisionShape defaultShapeForSpatial(Spatial spatial, boolean dynamic) {
-        // If geometry -> try primitive collider (HUGE perf win)
         if (spatial instanceof Geometry g) {
             CollisionShape prim = primitiveShapeFromGeometry(g);
             if (prim != null) return prim;
 
-            // If no primitive path: cache mesh shapes by Mesh identity
             Mesh mesh = g.getMesh();
             if (mesh != null) {
                 ShapeKey key = new ShapeKey(mesh, dynamic);
@@ -218,21 +621,18 @@ public final class PhysicsApiImpl implements PhysicsApi {
                         ? CollisionShapeFactory.createDynamicMeshShape(g)
                         : CollisionShapeFactory.createMeshShape(g);
 
-                // cache it
                 shapeCache.putIfAbsent(key, created);
                 return created;
             }
         }
 
-        // Node or unknown: mesh shapes (expensive) but still can be cached by a pseudo-key if needed.
-        // For now keep it safe: node mesh shape depends on subtree transforms.
         return dynamic
                 ? CollisionShapeFactory.createDynamicMeshShape(spatial)
                 : CollisionShapeFactory.createMeshShape(spatial);
     }
 
     // ------------------------------------------------------------
-    // ✅ Ray helpers (AAA camera/tooling)
+    // Ray helpers
     // ------------------------------------------------------------
 
     private static boolean isFinite(float v) { return Float.isFinite(v); }
@@ -260,9 +660,19 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private PhysicsBodyHandle findHandleByCollisionObject(Object obj) {
+        int id = bodyIdFromCollisionObject(obj);
+        if (id > 0) return byId.get(id);
+
         if (obj == null) return null;
         for (PhysicsBodyHandle h : byId.values()) {
-            if (h != null && h.__raw() == obj) return h;
+            if (h == null) continue;
+
+            Object key = collisionKeyFromHandle(h);
+            if (key == obj) return h;
+
+            try {
+                if (h.__raw() == obj) return h;
+            } catch (Throwable ignored) {}
         }
         return null;
     }
@@ -278,12 +688,10 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private boolean passesMaskFilter(RigidBodyControl rb, int mask) {
-        // mask==0 -> ignore filter
         if (mask == 0) return true;
         try {
             return (rb.getCollideWithGroups() & mask) != 0;
         } catch (Throwable ignored) {
-            // if getter is unavailable in some build, do not block hits
             return true;
         }
     }
@@ -295,6 +703,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
     @HostAccess.Export
     @Override
     public PhysicsBodyHandle body(Object cfg) {
+        // ensure PhysicsSpace exists + listeners are bound early
+        space();
+
         if (cfg == null) throw new IllegalArgumentException("physics.body(cfg) cfg is required");
 
         int surfaceId = resolveSurfaceId(cfg);
@@ -309,7 +720,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
             if (h != null) return h;
         }
 
-        // ✅ mass FIRST
         float mass = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "mass"), 0.0);
         boolean dynamic = mass > 0f;
 
@@ -317,16 +727,14 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         CollisionShape shape;
         if (colliderCfg == null) {
-            // ✅ FAST default collider path
             shape = defaultShapeForSpatial(spatial, dynamic);
         } else {
-            // ✅ if user explicitly requested "mesh" with mass>0 -> hard error with clear message
             if (colliderCfg instanceof Value v && v.hasMembers() && v.hasMember("type")) {
                 String t = String.valueOf(v.getMember("type"));
                 if ("mesh".equalsIgnoreCase(t) && dynamic) {
                     throw new IllegalArgumentException(
                             "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
-                                    "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
+                                    "Use collider.type='dynamicMesh' or primitive collider."
                     );
                 }
             }
@@ -336,7 +744,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 if ("mesh".equalsIgnoreCase(t) && dynamic) {
                     throw new IllegalArgumentException(
                             "physics.body: collider.type='mesh' is not allowed for dynamic bodies (mass>0). " +
-                                    "Use collider.type='dynamicMesh' or a primitive collider (box/sphere/capsule/cylinder)."
+                                    "Use collider.type='dynamicMesh' or primitive collider."
                     );
                 }
             }
@@ -364,15 +772,33 @@ public final class PhysicsApiImpl implements PhysicsApi {
         boolean lockRot = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "lockRotation"), false);
         if (lockRot) rb.setAngularFactor(0f);
 
+        // ✅ CCD for dynamics (fixes tunneling on large dt spikes)
+        if (dynamic && !kinematic) {
+            float ccdMotionThreshold = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ccdMotionThreshold"), 0.001);
+            float ccdRadius = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ccdSweptSphereRadius"), 0.20);
+            rb.setCcdMotionThreshold(Math.max(0.0f, ccdMotionThreshold));
+            rb.setCcdSweptSphereRadius(Math.max(0.0f, ccdRadius));
+        }
+
         spatial.addControl(rb);
 
-        // ✅ batched apply to space
         enqueueAddToSpace(rb);
 
         int id = ids.getAndIncrement();
         PhysicsBodyHandle handle = new PhysicsBodyHandle(id, surfaceId, rb);
         byId.put(id, handle);
         bodyIdBySurface.put(surfaceId, id);
+        idByControl.put(rb, id);
+
+        indexCollisionObject(handle);
+
+        bus.emit("engine.physics.body.create", evt(
+                "bodyId", id,
+                "surfaceId", surfaceId,
+                "mass", mass,
+                "kinematic", kinematic,
+                "lockRotation", lockRot
+        ));
 
         log.debug("[physics] body created id={} surfaceId={} mass={} kinematic={} lockRotation={}",
                 id, surfaceId, mass, kinematic, lockRot);
@@ -389,12 +815,20 @@ public final class PhysicsApiImpl implements PhysicsApi {
         PhysicsBodyHandle h = byId.remove(id);
         if (h == null) return;
 
+        unindexCollisionObject(h);
+
+        bus.emit("engine.physics.body.remove", evt(
+                "bodyId", id,
+                "surfaceId", h.surfaceId
+        ));
+
         bodyIdBySurface.remove(h.surfaceId, id);
 
         Spatial spatial = surfaces.get(h.surfaceId);
         RigidBodyControl rb = h.__raw();
 
-        // Remove from pending queue (best effort)
+        idByControl.remove(rb);
+
         try { pendingAdd.remove(rb); } catch (Throwable ignored) {}
 
         PhysicsSpace space = engine.__getPhysicsSpaceOrNull();
@@ -410,6 +844,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     @HostAccess.Export
     @Override
     public PhysicsRayHit raycast(Object cfg) {
+        flushPendingAdd();
         PhysicsSpace space = space();
         if (cfg == null) throw new IllegalArgumentException("physics.raycast(cfg) cfg required");
 
@@ -431,14 +866,10 @@ public final class PhysicsApiImpl implements PhysicsApi {
         int surfaceId = 0;
 
         Object obj = best.getCollisionObject();
-        if (obj != null) {
-            for (PhysicsBodyHandle h : byId.values()) {
-                if (h != null && h.__raw() == obj) {
-                    bodyId = h.id;
-                    surfaceId = h.surfaceId;
-                    break;
-                }
-            }
+        PhysicsBodyHandle h = findHandleByCollisionObject(obj);
+        if (h != null) {
+            bodyId = h.id;
+            surfaceId = h.surfaceId;
         }
 
         Vector3f dir = to.subtract(from);
@@ -454,12 +885,9 @@ public final class PhysicsApiImpl implements PhysicsApi {
         );
     }
 
-    // ------------------------------------------------------------
-    // ✅ Extended raycasts for AAA camera (filters + multi-hit)
-    // ------------------------------------------------------------
-
     @HostAccess.Export
     public Object raycastEx(Object cfg) {
+        flushPendingAdd();
         PhysicsSpace space = space();
         if (cfg == null) throw new IllegalArgumentException("physics.raycastEx(cfg) cfg required");
 
@@ -518,6 +946,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
     @HostAccess.Export
     public Object raycastAll(Object cfg) {
+        flushPendingAdd();
         PhysicsSpace space = space();
         if (cfg == null) throw new IllegalArgumentException("physics.raycastAll(cfg) cfg required");
 
@@ -586,7 +1015,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
-    // ---- controller helpers ----
+    // controller helpers
     // ------------------------------------------------------------
 
     @HostAccess.Export
@@ -625,19 +1054,11 @@ public final class PhysicsApiImpl implements PhysicsApi {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.yaw(yaw)");
         RigidBodyControl rb = h.__raw();
 
-        if (log.isDebugEnabled()) {
-            log.debug("[physics] yaw bodyId={} yaw(rad)={} yaw(deg)={}", h.id, yaw, Math.toDegrees(yaw));
-        }
-
         Quaternion q = new Quaternion();
         q.fromAngles(0f, (float) yaw, 0f);
 
         rb.setPhysicsRotation(q);
         rb.setAngularVelocity(Vector3f.ZERO);
-
-        if (log.isTraceEnabled()) {
-            log.trace("[physics] yaw applied bodyId={} quat={}", h.id, q);
-        }
     }
 
     @HostAccess.Export
@@ -659,8 +1080,16 @@ public final class PhysicsApiImpl implements PhysicsApi {
         }
     }
 
+    @HostAccess.Export
+    public void setKinematic(Object handleOrId, boolean kinematic) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.setKinematic(kinematic)");
+        RigidBodyControl rb = h.__raw();
+        rb.setKinematic(kinematic);
+        try { rb.activate(); } catch (Throwable ignored) {}
+    }
+
     // ------------------------------------------------------------
-    // ✅ AAA extras: forces/torque/angular velocity/collision groups
+    // extras
     // ------------------------------------------------------------
 
     @HostAccess.Export
@@ -709,7 +1138,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
-    // ---- debug/gravity ----
+    // debug/gravity
     // ------------------------------------------------------------
 
     @HostAccess.Export
@@ -732,7 +1161,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
-    // ---- integration helpers (internal) ----
+    // integration helpers (internal)
     // ------------------------------------------------------------
 
     public void __cleanupSurface(int surfaceId) {
@@ -742,7 +1171,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     // ------------------------------------------------------------
-    // ---- parsing ----
+    // parsing
     // ------------------------------------------------------------
 
     private int resolveSurfaceId(Object cfg) {
@@ -830,6 +1259,12 @@ public final class PhysicsApiImpl implements PhysicsApi {
     public void __clearAll() {
         pendingAdd.clear();
         shapeCache.clear();
+
+        currPairs.clear();
+        prevPairs.clear();
+        currContacts.clear();
+        prevContacts.clear();
+        bodyIdByCollisionObject.clear();
 
         PhysicsSpace s = engine.__getPhysicsSpaceOrNull();
         if (s == null) {
