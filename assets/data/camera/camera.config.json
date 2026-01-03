@@ -1,54 +1,57 @@
 {
   "type": "third",
-
-  "debug": { "enabled": false, "everyFrames": 120 },
-
-  "keys": { "free": "F1", "first": "F2", "third": "F3", "top": "F4" },
-
+  "debug": {
+    "enabled": false,
+    "everyFrames": 120
+  },
+  "keys": {
+    "free": "F1",
+    "first": "F2",
+    "third": "F3",
+    "top": "F4",
+    "orbit": "F5",
+    "cinematic": "F6"
+  },
   "look": {
     "sensitivity": 0.00018,
-    "smoothing": 0.22,
-
     "mouseFilter": 18.0,
     "outputSmooth": 14.0,
-
     "pitchLimit": 1.5,
     "invertX": false,
     "invertY": false
   },
-
   "mouseGrab": {
     "mode": "always",
     "rmbButtonIndex": 1
   },
-
   "target": {
-    "headOffset": { "x": 0.0, "y": 1.65, "z": 0.0 }
+    "headOffset": {
+      "x": 0.0,
+      "y": 1.65,
+      "z": 0.0
+    }
   },
-
   "collisionPolicy": {
     "applyToFirst": false
   },
-
   "collision": {
     "enabled": true,
-
     "radius": 0.22,
     "pad": 0.16,
     "minTargetDist": 0.3,
-
     "quality": "high",
     "ringScale": 1.06,
     "verticalSamples": true,
     "predictive": true,
-
-    "wallSmooth": 26.0,
-    "freeSmooth": 16.0,
-    "maxPullPerSec": 34.0,
-    "popSuppression": 0.90,
-
-    "slide": { "enabled": true, "strength": 0.9, "minNormalDot": 0.1 },
-
+    "wallSmooth": 28.0,
+    "freeSmooth": 18.0,
+    "maxPullPerSec": 32.0,
+    "popSuppression": 0.92,
+    "slide": {
+      "enabled": true,
+      "strength": 0.9,
+      "minNormalDot": 0.1
+    },
     "ground": {
       "enabled": true,
       "clearance": 0.22,
@@ -58,10 +61,11 @@
       "maxRisePerSec": 18.0,
       "minNormalY": 0.25
     },
-
-    "debug": { "enabled": false, "everyFrames": 120 }
+    "debug": {
+      "enabled": false,
+      "everyFrames": 120
+    }
   },
-
   "dynamics": {
     "bob": {
       "walkFreq": 7.0,
@@ -82,64 +86,132 @@
       "freq": 1.1,
       "smooth": 7.0
     },
-    "spring": { "stiffness": 62.0, "damping": 13.0 },
-    "kick": { "stiffness": 54.0, "damping": 12.0 },
-    "fov": { "enabled": true, "runAdd": 7.0, "smooth": 12.0 }
+    "spring": {
+      "stiffness": 62.0,
+      "damping": 13.0
+    },
+    "kick": {
+      "stiffness": 54.0,
+      "damping": 12.0
+    },
+    "fov": {
+      "enabled": true,
+      "runAdd": 7.0,
+      "smooth": 12.0
+    }
   },
-
-  "free": { "speed": 90, "accel": 18, "drag": 6.5 },
-
+  "free": {
+    "speed": 90,
+    "accel": 18,
+    "drag": 6.5
+  },
   "first": {
-    "offset": { "x": 0.0, "y": 1.65, "z": 0.0 },
-
+    "offset": {
+      "x": 0.0,
+      "y": 1.65,
+      "z": 0.0
+    },
     "style": {
       "shoulder": 0.012,
       "forward": 0.01,
       "pitchForwardMul": 0.006,
       "strafeLeanMul": 0.6
     },
-
     "follow": {
       "smooth": 52.0,
       "maxPullPerSec": 90.0
     }
   },
-
   "third": {
     "distance": 3.15,
     "minDistance": 0.85,
     "maxDistance": 6.5,
-
     "height": 1.62,
     "side": 0.34,
-
-    "follow": { "smoothing": 12.0 },
-
-    "dynamic": {
-      "runDistAdd": 0.65,
-      "strafeShoulder": 0.18
+    "follow": {
+      "smoothing": 12.0,
+      "yawBoost": 1.35,
+      "verticalBoost": 0.85
     },
-
-    "zoom": { "smooth": 18.0 },
-    "zoomSpeed": 1.15,
-
+    "dynamic": {
+      "runDistAdd": 0.8,
+      "strafeShoulder": 0.22
+    },
+    "zoom": {
+      "smooth": 22.0,
+      "maxSpeed": 4.0
+    },
+    "zoomSpeed": 0.95,
     "shoulder": {
       "enabled": true,
       "key": "V",
       "smooth": 16.0,
       "side": 1
     },
-
     "aimAssist": {
       "enabled": true,
-      "distance": 2.1,
-      "side": 0.16,
-      "height": 1.6,
+      "distance": 2.05,
+      "side": 0.14,
+      "height": 1.58,
+      "smooth": 22.0
+    },
+    "lead": {
+      "enabled": true,
+      "time": 0.08,
+      "max": 0.45,
       "smooth": 18.0
     },
-
-    "debug": { "enabled": false, "everyFrames": 120 }
+    "debug": {
+      "enabled": false,
+      "everyFrames": 120
+    }
   },
-
-  "top": { "height": 18, "panSpeed": 14, "zoomSpeed": 2, "pitch": -1.5 }
+  "orbit": {
+    "distance": 4.2,
+    "minDistance": 1.0,
+    "maxDistance": 10.0,
+    "height": 0.15,
+    "side": 0.0,
+    "zoom": {
+      "smooth": 22.0,
+      "maxSpeed": 4.0
+    },
+    "zoomSpeed": 1.05,
+    "follow": {
+      "smoothing": 14.0
+    }
+  },
+  "cinematic": {
+    "distance": 4.6,
+    "minDistance": 1.4,
+    "maxDistance": 12.0,
+    "height": 1.75,
+    "side": 0.42,
+    "zoom": {
+      "smooth": 18.0,
+      "maxSpeed": 3.2
+    },
+    "zoomSpeed": 1.0,
+    "follow": {
+      "smoothing": 8.5,
+      "yawBoost": 1.1,
+      "verticalBoost": 0.75
+    },
+    "lead": {
+      "enabled": true,
+      "time": 0.16,
+      "max": 1.1,
+      "smooth": 10.0
+    },
+    "dynamic": {
+      "runDistAdd": 1.15,
+      "strafeShoulder": 0.16
+    }
+  },
+  "top": {
+    "height": 18,
+    "panSpeed": 14,
+    "zoomSpeed": 2,
+    "pitch": -1.5
+  }
 }

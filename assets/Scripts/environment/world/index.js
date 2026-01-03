@@ -12,32 +12,13 @@ class Index {
         LOG.info("[scene] init");
 
 
-        const st = ctx.state();
-
-        const ground = engine.terrain().plane({ w: 1000, h: 1000 });
-        ground.setMaterial(MAT.getMaterial("unshaded.grass"));
-        ground.setTransform({ pos: [0, 0, 0] });
-
-        // ✅ IMPORTANT:
-        // Do NOT force collider:{type:"box"} without halfExtents — it may create tiny/invalid shape.
-        // Let PhysicsApiImpl defaultShapeForSpatial() pick correct shape from the actual mesh/bounds.
-        const groundBody = PHYS.body({
-            surface: ground,
-            mass: 0,
-            kinematic: true,
-            friction: 1.0,
-            restitution: 0.0
+        const ground = TERR.plane({
+            w: 1000, h: 1000,
+            uv: { scale: [50, 50] },
+            material: MAT.getMaterial("unshaded.grass"),
+            attach: true,
+            physics: { mass: 0, collider: { type: "box" }, friction: 1.0 }
         });
-
-        st.set(this.KEY_GROUND, ground);
-        st.set(this.KEY_GROUND_PHYS, groundBody);
-
-        try {
-            const id = (groundBody && typeof groundBody.id === "function") ? groundBody.id() : (groundBody && groundBody.id);
-            LOG.info("[scene] ground ok surfaceId=" + (ground && ground.id ? ground.id : "?") + " bodyId=" + (id != null ? id : "?"));
-        } catch (e) {
-            LOG.warn("[scene] ground created but cannot log ids: " + (e && e.stack ? e.stack : e));
-        }
     }
 
     destroy(ctx) {

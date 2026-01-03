@@ -1,7 +1,10 @@
 // FILE: Scripts/Camera/modes/third.js
 "use strict";
 
-function num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
+function num(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fb || 0);
+}
 function vx(v, fb) {
     if (!v) return fb || 0;
     try { const x = v.x; if (typeof x === "function") return num(x.call(v), fb); if (typeof x === "number") return x; } catch (_) {}
@@ -19,14 +22,14 @@ function vz(v, fb) {
 }
 
 class ThirdPersonCameraMode {
-    constructor() {
+    constructor(cameraOrchestrator) {
+        this.cameraOrchestrator = cameraOrchestrator;
         this.id = "third";
 
-        // ✅ meta tags (capabilities + hints)
         this.meta = {
             supportsZoom: true,
             hasCollision: true,
-            numRays: 6,       // hint for collision quality
+            numRays: 6 // hint for collision quality
         };
 
         this.pivotOffset = { x: 0.0, y: 1.2, z: 0.0 };
@@ -54,7 +57,6 @@ class ThirdPersonCameraMode {
         const sin = Math.sin(yaw);
         const cos = Math.cos(yaw);
 
-        // ✅ zoom distance comes from orchestrator (ctx.zoom)
         const dist = (ctx.zoom && typeof ctx.zoom.value === "function") ? num(ctx.zoom.value(), 8) : 8;
 
         const x = pivot.x - sin * dist;
@@ -63,7 +65,7 @@ class ThirdPersonCameraMode {
 
         cam.setLocation(num(x, 0), num(y, 0), num(z, 0));
 
-        // ✅ expose pivot to orchestrator/collision solver
+        // expose pivot to orchestrator/collision solver
         ctx.target = pivot;
     }
 }

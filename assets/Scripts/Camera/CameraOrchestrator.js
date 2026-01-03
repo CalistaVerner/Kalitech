@@ -1,8 +1,7 @@
-// FILE: Scripts/Camera/CameraOrchestrator.js
 "use strict";
 
 const CameraZoomController = require("./CameraZoomController.js");
-const CameraCollisionSolver = require("../Camera/CameraCollisionSolver.js");
+const CameraCollisionSolver = require("./CameraCollisionSolver.js"); // Scripts/camera/...
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
@@ -37,7 +36,7 @@ function getDy(snap) {
 }
 
 function justPressedKey(snap, keyCode) {
-    const jp = snap && snap.justPressed;
+    const jp = snap && (snap.justPressed || snap.justPressedKeyCodes || snap.justPressedCodes);
     if (!jp || !jp.length) return false;
     for (let i = 0, n = jp.length | 0; i < n; i++) {
         if ((jp[i] | 0) === (keyCode | 0)) return true;
@@ -47,41 +46,18 @@ function justPressedKey(snap, keyCode) {
 
 function smoothstep01(t) { return t * t * (3 - 2 * t); }
 
-// --- minimal first mode with meta ---
-class FirstPersonMode {
-    constructor() {
-        this.id = "first";
-        this.meta = { supportsZoom: false, hasCollision: false, numRays: 0 };
-
-        this.headOffset = { x: 0.0, y: 1.65, z: 0.0 };
-    }
-    getPivot(ctx) {
-        const p = ctx && ctx.bodyPos;
-        if (!p) return { x: 0, y: 0, z: 0 };
-        return { x: vx(p, 0), y: vy(p, 0), z: vz(p, 0) };
-    }
-    update(ctx) {
-        const cam = ctx && ctx.cam;
-        const p = ctx && ctx.bodyPos;
-        if (!cam || !p) return;
-
-        const x = vx(p, 0) + this.headOffset.x;
-        const y = vy(p, 0) + this.headOffset.y;
-        const z = vz(p, 0) + this.headOffset.z;
-
-        cam.setLocation(num(x, 0), num(y, 0), num(z, 0));
-
-        // for consistency
-        ctx.target = { x: vx(p, 0), y: vy(p, 0) + this.headOffset.y, z: vz(p, 0) };
-    }
+function _metaDefaults(mode) {
+    if (!mode.meta) mode.meta = {};
+    if (typeof mode.meta.supportsZoom !== "boolean") mode.meta.supportsZoom = false;
+    if (typeof mode.meta.hasCollision !== "boolean") mode.meta.hasCollision = false;
+    if (typeof mode.meta.numRays !== "number") mode.meta.numRays = 0;
+    return mode;
 }
 
-// If you use external files, register them from outside instead.
-// Here it's kept clean & internal.
-const ThirdPersonMode = require("./modes/third.js");
-
 class CameraOrchestrator {
-    constructor() {
+    constructor(player) {
+        this.player = player;
+
         this._modes = [];
         this._byId = Object.create(null);
         this._activeIndex = -1;
@@ -100,7 +76,7 @@ class CameraOrchestrator {
 
         this._keyV = -1;
 
-        // global zoom controller (used only if active mode supportsZoom)
+        // global zoom controller (only if active mode supportsZoom)
         this.zoom = new CameraZoomController({
             steps: [2, 4, 8, 16, 32],
             index: 2,
@@ -111,7 +87,10 @@ class CameraOrchestrator {
             max: 60.0
         });
 
-        // collision post-pass (only if mode hasCollision)
+        // per-mode zoom state (fix "returns to old view")
+        this._zoomState = Object.create(null);
+
+        // collision post-pass (only if mode.hasCollision)
         this.collision = new CameraCollisionSolver();
 
         // transition
@@ -127,26 +106,32 @@ class CameraOrchestrator {
 
         this.mouseGrab = { enabled: true };
 
-        // register built-ins
-        this.register(new FirstPersonMode());
-        this.register(new ThirdPersonMode());
+        // register built-ins via ctor (no hard-code "new ...()" outside)
+        const First = require("./modes/first.js");
+        const Third = require("./modes/third.js");
+        this.register(First);
+        this.register(Third);
 
         this.setType(this.type);
+
         try { if (INP && typeof INP.grabMouse === "function") INP.grabMouse(true); } catch (_) {}
     }
 
-    register(mode) {
-        if (!mode || typeof mode !== "object") throw new Error("[camera] register(mode): mode is null");
+    // register(ModeCtor) OR register(instance)
+    register(modeOrCtor) {
+        let mode = modeOrCtor;
+
+        if (typeof modeOrCtor === "function") {
+            mode = new modeOrCtor(this); // <-- pass orchestrator "this"
+        }
+
+        if (!mode || typeof mode !== "object") throw new Error("[camera] register(): mode is null");
         const id = String(mode.id || "").trim().toLowerCase();
-        if (!id) throw new Error("[camera] register(mode): mode.id is required");
+        if (!id) throw new Error("[camera] register(): mode.id is required");
         if (typeof mode.update !== "function") throw new Error("[camera] register(" + id + "): update(ctx) is required");
         if (this._byId[id]) throw new Error("[camera] register(" + id + "): duplicate id");
 
-        // meta default
-        if (!mode.meta) mode.meta = {};
-        if (typeof mode.meta.supportsZoom !== "boolean") mode.meta.supportsZoom = false;
-        if (typeof mode.meta.hasCollision !== "boolean") mode.meta.hasCollision = false;
-        if (typeof mode.meta.numRays !== "number") mode.meta.numRays = 0;
+        _metaDefaults(mode);
 
         this._modes.push(mode);
         this._byId[id] = mode;
@@ -162,6 +147,7 @@ class CameraOrchestrator {
 
     _indexOf(id) {
         if (!id) return -1;
+        id = String(id).trim().toLowerCase();
         for (let i = 0; i < this._modes.length; i++) {
             if (String(this._modes[i].id).toLowerCase() === id) return i;
         }
@@ -177,8 +163,13 @@ class CameraOrchestrator {
         const id = String(type || "").trim().toLowerCase();
         const idx = this._indexOf(id);
         if (idx < 0) return;
+
+        const prev = this._activeMode();
         this._activeIndex = idx;
         this.type = this._modes[idx].id;
+
+        const next = this._activeMode();
+        this._onModeSwitched(prev, next, /*withTransition*/false);
     }
 
     getType() { return this.type; }
@@ -188,8 +179,13 @@ class CameraOrchestrator {
     next() {
         const n = this._modes.length | 0;
         if (n <= 0) return;
+
+        const prev = this._activeMode();
         this._activeIndex = (this._activeIndex + 1) % n;
         this.type = this._modes[this._activeIndex].id;
+        const next = this._activeMode();
+
+        this._onModeSwitched(prev, next, /*withTransition*/true);
     }
 
     _ensureKeyCodes() {
@@ -243,25 +239,81 @@ class CameraOrchestrator {
         return true;
     }
 
-    // map meta.numRays -> collision quality
     _applyModeMeta(mode) {
         const m = mode && mode.meta ? mode.meta : null;
         if (!m) return;
 
-        // hasCollision toggles solver
         this.collision.enabled = !!m.hasCollision;
 
-        // numRays hint -> quality bucket
         const nr = num(m.numRays, 0);
         let q = "high";
         if (nr <= 4) q = "low";
         else if (nr <= 6) q = "high";
         else q = "ultra";
 
-        // configure only those fields (don’t override your tuned params)
-        this.collision.configure({
-            quality: q
-        });
+        this.collision.configure({ quality: q });
+    }
+
+    _saveZoomState(mode) {
+        if (!mode || !mode.meta || !mode.meta.supportsZoom) return;
+        const id = String(mode.id).toLowerCase();
+        this._zoomState[id] = {
+            index: this.zoom.stepIndex(),
+            current: this.zoom.value(),
+            target: this.zoom.targetValue()
+        };
+    }
+
+    _restoreZoomState(mode) {
+        if (!mode || !mode.meta || !mode.meta.supportsZoom) return;
+        const id = String(mode.id).toLowerCase();
+        const st = this._zoomState[id];
+        if (!st) return;
+        try {
+            this.zoom.setIndex(st.index, true);
+            this.zoom.reset(st.current);
+        } catch (_) {}
+    }
+
+    _onModeSwitched(prev, next, withTransition) {
+        // 1) per-mode zoom (fix "returns old view")
+        this._saveZoomState(prev);
+        this._restoreZoomState(next);
+
+        // 2) collision stability
+        try { if (this.collision && typeof this.collision.reset === "function") this.collision.reset(); } catch (_) {}
+
+        // 3) hooks (model mask etc.)
+        try { if (prev && typeof prev.onExit === "function") prev.onExit({ orchestrator: this }); } catch (_) {}
+        try { if (next && typeof next.onEnter === "function") next.onEnter({ orchestrator: this }); } catch (_) {}
+
+        // 4) transition intent handled in update() (needs cam/bodyPos)
+        if (!withTransition) return;
+    }
+
+    // Centralized "best effort" model visibility toggle for FirstPerson
+    setPlayerModelVisible(visible) {
+        const model = this.player.factory.modelHandle;
+
+        if (!model) return false;
+
+        // Strategy A: engine surface wrapper with setCullHint / setVisible
+        try {
+            if (typeof model.setVisible === "function") { model.setVisible(!!visible); return true; }
+        } catch (_) {}
+
+        // Strategy B: jME Spatial
+        try {
+            if (typeof model.setCullHint === "function") {
+                if (typeof Java !== "undefined" && Java && typeof Java.type === "function") {
+                    const CullHint = Java.type("com.jme3.scene.Spatial$CullHint");
+                    model.setCullHint(visible ? CullHint.Inherit : CullHint.Always);
+                    return true;
+                }
+            }
+        } catch (_) {}
+
+        return false;
     }
 
     update(dt, snap) {
@@ -272,24 +324,18 @@ class CameraOrchestrator {
 
         const cam = engine.camera();
 
-        // mouse look
-    // mouse look (FIX: Y axis)
-            let dx = getDx(snap);
-            let dy = getDy(snap);
+        // mouse look (FIX: pitch direction)
+        let dx = getDx(snap);
+        let dy = getDy(snap);
 
-    // user inversion toggles
-            if (this.look.invertX) dx = -dx;
-            if (this.look.invertY) dy = -dy;
+        if (this.look.invertX) dx = -dx;
+        if (this.look.invertY) dy = -dy;
 
-    // yaw: standard
-            this.look.yaw -= dx * this.look.sensitivity;
+        this.look.yaw -= dx * this.look.sensitivity;
 
-    // pitch: standard FPS = mouse up -> look up
-    // For most input backends dy>0 means mouse moved DOWN, so we subtract.
+        // dy>0 usually means mouse moved DOWN -> to look up we subtract dy
         this.look.pitch -= dy * this.look.sensitivity;
-
         this.look.pitch = clamp(this.look.pitch, -this.look.pitchLimit, this.look.pitchLimit);
-
 
         cam.setYawPitch(this.look.yaw, this.look.pitch);
 
@@ -299,14 +345,15 @@ class CameraOrchestrator {
         try { bodyPos = engine.physics().position(this.bodyId); } catch (_) { bodyPos = null; }
         if (!bodyPos) return;
 
-        // build ctx for mode
-        const mode = this._activeMode();
+        // build ctx
+        let mode = this._activeMode();
         if (!mode) return;
 
-        // apply meta each frame is ok (cheap), or you can apply on switch only
         this._applyModeMeta(mode);
 
         const ctx = {
+            orchestrator: this,   // <--- important: pass orchestrator
+            mode,
             cam,
             dt,
             snap,
@@ -314,40 +361,47 @@ class CameraOrchestrator {
             bodyId: this.bodyId,
             look: this.look,
             zoom: this.zoom,
-            target: null,      // mode should set ctx.target (pivot) for collision solver
-            input: null        // optional future (zoomIn/zoomOut keys)
+            target: null,
+            input: null
         };
 
-        // toggle (cycle) on V with transition
+        // cycle on V (with transition)
         const pressedV = (this._keyV >= 0 && justPressedKey(snap, this._keyV));
         if (pressedV) {
+            // capture from
             let cp = null;
             try { cp = cam.location(); } catch (_) { cp = null; }
             const fromPos = cp ? { x: vx(cp, 0), y: vy(cp, 0), z: vz(cp, 0) } : null;
 
+            // switch
+            const prev = mode;
             this.next();
-            const newMode = this._activeMode();
-            this._applyModeMeta(newMode);
+            mode = this._activeMode();           // <--- IMPORTANT: refresh local var
+            ctx.mode = mode;                     // <--- IMPORTANT: refresh ctx
+            this._applyModeMeta(mode);
 
             this._grabMouse(true);
 
             if (this.transition.enabled && fromPos) {
-                // compute "to" by doing a dry update into ctx then reading cam.location
-                // safer: ask mode for desired by running update once and capturing, then restoring fromPos
+                // compute toPos by running the NEW mode once
                 cam.setLocation(fromPos.x, fromPos.y, fromPos.z);
 
-                // update zoom for new mode BEFORE computing desired (if it uses zoom)
-                if (newMode && newMode.meta && newMode.meta.supportsZoom) this.zoom.update(dt, ctx);
+                if (mode && mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
 
-                // run mode update to set desired position
-                try { newMode.update(ctx); } catch (_) {}
+                try { mode.update(ctx); } catch (_) {}
 
                 let toLoc = null;
                 try { toLoc = cam.location(); } catch (_) { toLoc = null; }
                 const toPos = toLoc ? { x: vx(toLoc, 0), y: vy(toLoc, 0), z: vz(toLoc, 0) } : fromPos;
 
-                // restore and start transition
+                // start transition
                 this._startTransition(cam, fromPos, toPos);
+
+                // reset collision AFTER we picked toPos
+                try { if (this.collision && typeof this.collision.reset === "function") this.collision.reset(); } catch (_) {}
+
+                // NOTE: no further mode updates this frame
+                return;
             }
         }
 
@@ -357,13 +411,13 @@ class CameraOrchestrator {
             return;
         }
 
-        // update zoom only if supported by active mode
+        // update zoom only if supported
         if (mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
 
-        // mode update (sets desired cam location + ctx.target)
+        // mode update
         mode.update(ctx);
 
-        // collision post-pass (if enabled and we have target)
+        // collision post-pass
         if (this.collision.enabled && ctx.target) {
             this.collision.solve({
                 cam,
@@ -375,4 +429,4 @@ class CameraOrchestrator {
     }
 }
 
-module.exports = new CameraOrchestrator();
+module.exports = CameraOrchestrator;

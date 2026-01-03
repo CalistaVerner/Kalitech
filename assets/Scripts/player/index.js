@@ -14,22 +14,12 @@ const { PlayerEntityFactory } = require("./PlayerEntityFactory.js");
 
 // -------------------- grounded via collisions (AAA fallback) --------------------
 // Мы НЕ ломаем ваш FrameContext.probeGroundCapsule(), но добавляем “взрослый” резерв:
-// если raycast почему-то не видит землю (как в логах), но коллизии есть — grounded будет жить.
+// если raycast почему-то не видит землю, но коллизии есть — grounded будет жить.
 function _getEventBusMaybe() {
-    // Поддерживаем разные варианты глобального события/шины (у вас могло называться иначе).
-    // Ничего не "try/catch-глушим" — если API нет, просто вернем null.
     const g = (typeof globalThis !== "undefined") ? globalThis : null;
     if (!g) return null;
 
-    // Самые вероятные имена из вашего стиля builtins:
-    const cand = [
-        g.EVT,
-        g.EVENTS,
-        g.BUS,
-        g.BUS_EVENTS,
-        g.Events,
-        g.events
-    ];
+    const cand = [g.EVT, g.EVENTS, g.BUS, g.BUS_EVENTS, g.Events, g.events];
     for (let i = 0; i < cand.length; i++) {
         const b = cand[i];
         if (b && typeof b.on === "function" && typeof b.off === "function") return b;
@@ -41,9 +31,8 @@ function _getEventBusMaybe() {
 class GroundContactTracker {
     constructor() {
         this._bus = null;
-
         this._playerBodyId = 0;
-        this._contacts = new Set(); // bodyId set of current contacts
+        this._contacts = new Set();
         this._enabled = false;
 
         this._onBegin = (e) => this._handleBegin(e);
@@ -58,12 +47,11 @@ class GroundContactTracker {
         this._bus = bus;
 
         if (!bus) {
-            if (LOG && LOG.warn) LOG.warn("[player] ground contact tracker: event bus not found (EVT/EVENTS). Using raycast-only grounded.");
+            if (LOG && LOG.warn) LOG.warn("[player] ground contact tracker: event bus not found. Using raycast-only grounded.");
             this._enabled = false;
             return;
         }
 
-        // Поддержка двух сигнатур: off() или removeListener()
         const offFn = (typeof bus.off === "function") ? "off" : (typeof bus.removeListener === "function" ? "removeListener" : null);
         if (!offFn) {
             if (LOG && LOG.warn) LOG.warn("[player] ground contact tracker: bus has on() but no off/removeListener(). Using raycast-only grounded.");
@@ -71,7 +59,6 @@ class GroundContactTracker {
             return;
         }
 
-        // На всякий случай — переподписка без дублей
         try {
             bus[offFn]("engine.physics.collision.begin", this._onBegin);
             bus[offFn]("engine.physics.collision.end", this._onEnd);
@@ -81,7 +68,6 @@ class GroundContactTracker {
         bus.on("engine.physics.collision.end", this._onEnd);
 
         this._enabled = true;
-
         if (LOG && LOG.info) LOG.info("[player] ground contact tracker: subscribed (playerBodyId=" + this._playerBodyId + ")");
     }
 
@@ -102,7 +88,6 @@ class GroundContactTracker {
 
     _extractBodyId(x) {
         if (!x) return 0;
-        // Java-side payload you emit: { a:{bodyId,surfaceId}, b:{...} }
         const bid = x.bodyId;
         if (typeof bid === "number") return bid | 0;
         if (typeof bid === "string") return (bid | 0) || 0;
@@ -119,7 +104,6 @@ class GroundContactTracker {
         const pId = this._playerBodyId;
 
         if (!pId) return;
-
         if (aId === pId && bId > 0) this._contacts.add(bId);
         else if (bId === pId && aId > 0) this._contacts.add(aId);
     }
@@ -134,7 +118,6 @@ class GroundContactTracker {
         const pId = this._playerBodyId;
 
         if (!pId) return;
-
         if (aId === pId && bId > 0) this._contacts.delete(bId);
         else if (bId === pId && aId > 0) this._contacts.delete(aId);
     }
@@ -163,14 +146,19 @@ class PlayerDomain {
     }
 }
 
+function _safeNum(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fb || 0);
+}
+
+// -------------------- player --------------------
+
 class Player {
     constructor(ctx, cfg) {
         this.ctx = ctx;
         this.cfg = cfg || {};
 
-        // fluent builder state
         this._model = null;
-
         this.alive = false;
 
         this.entity = null;
@@ -186,45 +174,34 @@ class Player {
 
         this.factory = new PlayerEntityFactory(this);
         this.movement = new PlayerController(this);
+
+        // ✅ Clean camera wrapper (must expose attach/update; optional setType/toggle)
         this.camera = new PlayerCamera(this);
+
         this.ui = new PlayerUI(this);
         this.events = new PlayerEvents(this);
 
-        // ✅ grounded tracking
         this._groundContacts = new GroundContactTracker();
-        this._groundedLast = false;          // for diagnostics
-        this._groundedSource = "none";       // "probe" | "contacts" | "both" | "none"
+        this._groundedSource = "none";
 
-        this._dbg = { t: 0, every: 120 };
         this._dbgGround = { t: 0, every: 90, missedRaycasts: 0 };
-
         this._didSpawnSnap = false;
     }
 
     // -------------------- Fluent AAA API --------------------
-    withConfig(cfg) {
-        this.cfg = cfg || {};
-        return this;
-    }
+    withConfig(cfg) { this.cfg = cfg || {}; return this; }
 
-    withModel(modelHandle) {
-        this._model = modelHandle || null;
-        return this;
-    }
+    withModel(modelHandle) { this._model = modelHandle || null; return this; }
 
+    // ✅ оставляем, но теперь это просто задаёт стартовый тип камеры
     withCamera(type) {
         if (!this.cfg) this.cfg = {};
         if (!this.cfg.camera) this.cfg.camera = {};
         this.cfg.camera.type = String(type || "third").toLowerCase();
-        if (this.camera) this.camera.type = this.cfg.camera.type;
         return this;
     }
 
-    create(ctx) {
-        if (ctx) this.ctx = ctx;
-        this.init();
-        return this;
-    }
+    create(ctx) { if (ctx) this.ctx = ctx; this.init(); return this; }
 
     init() {
         if (this.alive) return;
@@ -232,7 +209,7 @@ class Player {
         this.cfg = U.deepMerge({
             character: { radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65 },
             spawn: { pos: { x: 129, y: 3, z: -300 }, radius: 0.35, height: 1.80, mass: 80.0 },
-            camera: { type: "third" },
+            camera: { type: "third" }, // only "first"|"third"
             ui: { crosshair: { size: 22, color: { r: 0.2, g: 1.0, b: 0.4, a: 1.0 } } },
             events: { enabled: true, throttleMs: 250 }
         }, this.cfg || {});
@@ -251,26 +228,32 @@ class Player {
             LOG.error("[player] init failed: bodyId=0 (entity factory/physics mismatch)");
             throw new Error("[player] bodyId is 0");
         }
-        if (!PHYS || typeof PHYS.ref !== "function") {
-            throw new Error("[player] PHYS.ref missing");
-        }
+        if (!PHYS || typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref missing");
+
         this.body = PHYS.ref(bid);
         if (!this.body) {
             LOG.error("[player] init failed: PHYS.ref(bodyId) returned null. bodyId=" + bid);
             throw new Error("[player] body wrapper missing");
         }
 
-        // ✅ subscribe collision begin/end for grounded fallback
+        // ✅ grounded fallback from contacts
         this._groundContacts.bind(bid);
 
         this.dom.syncIdsFromPlayer();
         this.movement.bind();
 
-        this.camera.enableGameplayMouseGrab(true);
+        // ✅ Clean camera attach + set initial type
         try {
             this.camera.attach(bid);
+
+            const startType = String((this.cfg && this.cfg.camera && this.cfg.camera.type) ? this.cfg.camera.type : "third").toLowerCase();
+            if (typeof this.camera.setType === "function") {
+                this.camera.setType(startType);
+            } else if (typeof this.camera.type === "string") {
+                this.camera.type = startType;
+            }
         } catch (e) {
-            LOG.error("[player] camera.attach failed bodyId=" + bid + " err=" + (e && (e.stack || e.message) || String(e)));
+            LOG.error("[player] camera attach/init failed bodyId=" + bid + " err=" + (e && (e.stack || e.message) || String(e)));
             throw e;
         }
 
@@ -286,7 +269,7 @@ class Player {
         }
 
         this.alive = true;
-        LOG.info("[player] init ok entity=" + (this.entityId | 0) + " bodyId=" + bid + " camera=" + (this.cfg && this.cfg.camera && this.cfg.camera.type ? this.cfg.camera.type : "third"));
+        LOG.info("[player] init ok entity=" + (this.entityId | 0) + " bodyId=" + bid + " cam=" + (this.cfg.camera.type || "third"));
     }
 
     _ensureBodyWrapper() {
@@ -294,12 +277,12 @@ class Player {
         if (!id) { this.body = null; return; }
 
         if (!this.body) {
-            if (!PHYS || typeof PHYS.ref !== "function") {
-                throw new Error("[player] PHYS.ref missing (cannot reacquire body wrapper)");
-            }
+            if (!PHYS || typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref missing (cannot reacquire body wrapper)");
             this.body = PHYS.ref(id);
             if (!this.body) throw new Error("[player] PHYS.ref returned null while reacquiring body wrapper; bodyId=" + id);
-            this.camera.attach(id);
+
+            // ✅ reattach camera + contacts
+            try { this.camera.attach(id); } catch (_) {}
             this._groundContacts.bind(id);
             return;
         }
@@ -307,20 +290,17 @@ class Player {
         if (typeof this.body.id === "function") {
             const wid = this.body.id() | 0;
             if (wid !== id) {
-                if (!PHYS || typeof PHYS.ref !== "function") {
-                    throw new Error("[player] PHYS.ref missing (cannot refresh mismatched wrapper)");
-                }
+                if (!PHYS || typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref missing (cannot refresh mismatched wrapper)");
                 this.body = PHYS.ref(id);
                 if (!this.body) throw new Error("[player] PHYS.ref returned null while refreshing body wrapper; bodyId=" + id);
-                this.camera.attach(id);
+
+                try { this.camera.attach(id); } catch (_) {}
                 this._groundContacts.bind(id);
             }
         }
     }
 
     _trySpawnSnap(frame) {
-        // Одноразовая попытка “сесть на землю” после старта:
-        // важно, потому что у вас в логах: spawn snap missed ground (fromY=5 toY=-61)
         if (this._didSpawnSnap) return;
         this._didSpawnSnap = true;
 
@@ -333,31 +313,24 @@ class Player {
         const p = this.body.position();
         const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
 
-        // Луч вниз под игроком (дальше, чем обычно, чтобы найти землю гарантированно)
         const from = { x: px, y: py + 2.0, z: pz };
         const to   = { x: px, y: py - 80.0, z: pz };
 
-        const hit = PHYS.raycastEx({
-            from,
-            to,
-            ignoreBodyId: this.bodyId | 0,
-            staticOnly: true
-        });
-
+        const hit = PHYS.raycastEx({ from, to, ignoreBodyId: this.bodyId | 0, staticOnly: true });
         const ok = hit && (hit.hit === true || hit.hasHit === true || (typeof hit.fraction === "number" && hit.fraction >= 0 && hit.fraction < 1));
         if (!ok) {
             if (LOG && LOG.warn) LOG.warn("[player] spawn snap: no hit (raycastEx). Check ground collider / physics add timing.");
             return;
         }
 
-        // Уложим капсулу так, чтобы низ стоял на точке попадания
         const cc = this.characterCfg;
         const r = U.num(cc.radius, 0.35);
         const h = U.num(cc.height, 1.8);
         const centerToFoot = Math.max(0.001, (h * 0.5) - r);
 
         const hitY = U.num(hit.point && hit.point.y, py);
-        const newY = hitY + centerToFoot + 0.01; // маленький зазор
+        const newY = hitY + centerToFoot + 0.01;
+
         try {
             this.body.warp({ x: px, y: newY, z: pz });
             if (LOG && LOG.info) LOG.info("[player] spawn snap OK: y " + py.toFixed(3) + " -> " + newY.toFixed(3) + " (hitY=" + hitY.toFixed(3) + ")");
@@ -389,7 +362,6 @@ class Player {
         frame.pose.speed = Math.hypot(vx, vy, vz);
         frame.pose.fallSpeed = vy < 0 ? -vy : 0;
 
-        // ✅ Attempt snap once (helps if ground gets added slightly позже)
         this._trySpawnSnap(frame);
 
         // --- Primary: raycast ground probe ---
@@ -397,29 +369,24 @@ class Player {
         try {
             groundedProbe = frame.probeGroundCapsule(b, this.characterCfg);
         } catch (e) {
-            // Это важно видеть, не глушим
             const msg = (e && (e.message || e.stack) || String(e));
             if (LOG && LOG.error) LOG.error("[player] probeGroundCapsule failed: " + msg);
             groundedProbe = false;
         }
 
         // --- Fallback: collision contacts ---
-        // Контакты сами по себе не гарантируют “стоим на полу”, но в вашем кейсе это лучше, чем вечное grounded=false.
-        // Ограничим: считаем grounded по контактам, только если не летим вверх и не падаем быстро.
-        const vyAbs = Math.abs(vy);
         const contacts = this._groundContacts.hasContacts();
-        const groundedContacts = contacts && (vy <= 1.25) && (vyAbs <= 12.0);
+        const groundedContacts = contacts && (vy <= 1.25) && (Math.abs(vy) <= 12.0);
 
         const grounded = groundedProbe || groundedContacts;
         frame.pose.grounded = grounded;
 
-        // source tag for logs
         if (groundedProbe && groundedContacts) this._groundedSource = "both";
         else if (groundedProbe) this._groundedSource = "probe";
         else if (groundedContacts) this._groundedSource = "contacts";
         else this._groundedSource = "none";
 
-        // Diagnostics for your конкретный баг: probe always misses (hasHit=false dist=9999)
+        // Diagnostics
         const dbgG = this._dbgGround;
         dbgG.t = (dbgG.t + 1) | 0;
 
@@ -443,9 +410,41 @@ class Player {
         }
 
         if (dbgG.missedRaycasts === 300 && LOG && LOG.warn) {
-            LOG.warn("[player] ground probe missed 300 frames подряд (raycast returns null). " +
-                "Likely causes: ground collider too small/outside, physics add timing (batched add), or raycast filters. " +
-                "Fallback 'contacts' will be used if available.");
+            LOG.warn("[player] ground probe missed 300 frames подряд. Fallback 'contacts' will be used if available.");
+        }
+    }
+
+    _syncViewFromEngineCamera() {
+        // ✅ Clean view sync (no old camera domain pipeline)
+        let yaw = 0, pitch = 0;
+
+        try {
+            const cam = engine.camera();
+            // camera api обычно даёт yaw()/pitch() (как у тебя ранее в orchestrator)
+            yaw = _safeNum(typeof cam.yaw === "function" ? cam.yaw() : cam.yaw, 0);
+            pitch = _safeNum(typeof cam.pitch === "function" ? cam.pitch() : cam.pitch, 0);
+        } catch (_) {}
+
+        this.dom.view.yaw = yaw;
+        this.dom.view.pitch = pitch;
+
+        // type: prefer camera wrapper, else cfg
+        let t = "third";
+        try {
+            if (typeof this.camera.getType === "function") t = String(this.camera.getType() || t);
+            else if (typeof this.camera.type === "string") t = this.camera.type;
+            else if (this.cfg && this.cfg.camera && this.cfg.camera.type) t = String(this.cfg.camera.type);
+        } catch (_) {}
+
+        t = t.toLowerCase();
+        if (t !== "first" && t !== "third") t = "third";
+        this.dom.view.type = t;
+
+        // keep frame.view in sync if it exists
+        if (this.frame && this.frame.view) {
+            this.frame.view.yaw = yaw;
+            this.frame.view.pitch = pitch;
+            this.frame.view.type = t;
         }
     }
 
@@ -455,12 +454,11 @@ class Player {
         if (!INP || typeof INP.consumeSnapshot !== "function") {
             throw new Error("[player] INP.consumeSnapshot missing");
         }
+
         let snap = null;
-        try {
-            snap = INP.consumeSnapshot();
-        } catch (e) {
-            const msg = (e && (e.message || e.stack) || String(e));
-            LOG.warn("[player] INP.consumeSnapshot failed: " + msg);
+        try { snap = INP.consumeSnapshot(); }
+        catch (e) {
+            LOG.warn("[player] INP.consumeSnapshot failed: " + (e && (e.message || e.stack) || String(e)));
             snap = null;
         }
 
@@ -480,9 +478,11 @@ class Player {
         dp.fallSpeed = fp.fallSpeed;
         dp.grounded = fp.grounded;
 
+        // ✅ camera update only (no old syncDomain pipeline)
         this.camera.update(this.frame);
-        this.camera.syncDomain(this.dom, this.frame);
+        this._syncViewFromEngineCamera();
 
+        // movement uses dom/frame (as before)
         this.movement.update(this.frame);
 
         this.events.onState({
@@ -498,7 +498,6 @@ class Player {
     destroy() {
         if (!this.alive) return;
 
-        // ✅ unsubscribe contacts
         this._groundContacts.unbind();
 
         try { this.camera.destroy(); } catch (e) { LOG.warn("[player] camera.destroy failed: " + (e && (e.message || e.stack) || String(e))); }

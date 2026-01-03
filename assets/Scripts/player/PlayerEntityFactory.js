@@ -4,61 +4,39 @@
 
 const U = require("./util.js");
 
-// Robust numeric id extraction for handle-ish objects.
-// We don't silently swallow host exceptions: we log once and keep going.
-function idOf(h, kind) {
-    if (h == null) return 0;
-    if (typeof h === "number") return h | 0;
-
-    // valueOf() is common with Graal wrappers
-    const vo = h && h.valueOf;
-    if (typeof vo === "function") {
-        try {
-            const v = vo.call(h);
-            if (typeof v === "number" && Number.isFinite(v)) return v | 0;
-        } catch (e) {
-            U.warnOnce("idOf_valueOf_" + kind, "[player] idOf(" + kind + "): valueOf() threw: " + U.errStr(e));
-        }
-    }
-
-    // direct fields
-    try {
-        if (typeof h.id === "number") return h.id | 0;
-        if (typeof h.bodyId === "number") return h.bodyId | 0;
-        if (typeof h.surfaceId === "number") return h.surfaceId | 0;
-    } catch (e) {
-        U.warnOnce("idOf_fields_" + kind, "[player] idOf(" + kind + "): reading fields threw: " + U.errStr(e));
-    }
-
-    // method fallbacks
-    const fnNames =
-        kind === "body"
-            ? ["id", "getId", "bodyId", "getBodyId", "handle"]
-            : ["id", "getId", "surfaceId", "getSurfaceId", "handle"];
-
-    for (let i = 0; i < fnNames.length; i++) {
-        const n = fnNames[i];
-        const fn = h[n];
-        if (typeof fn !== "function") continue;
-        try {
-            const v = fn.call(h);
-            if (typeof v === "number" && Number.isFinite(v)) return v | 0;
-        } catch (e) {
-            U.warnOnce("idOf_fn_" + kind + "_" + n, "[player] idOf(" + kind + "): " + n + "() threw: " + U.errStr(e));
-        }
-    }
-
-    return 0;
-}
-
 function _num(v, fb) {
     const n = +v;
     return Number.isFinite(n) ? n : fb;
 }
 
+/**
+ * SIMPLE CONTRACT (no миллион фоллбэков):
+ * - Модель игрока берём ТОЛЬКО из:
+ *    1) cfg.model
+ *    2) player._model (fluent builder)
+ * - Модель должна иметь API: model.setVisible(boolean)
+ *   (если нет — мы логируем warnOnce и просто храним handle)
+ */
+function _pickPlayerModel(cfg, player) {
+    if (cfg && cfg.model != null) return cfg.model;
+    if (player && player._model != null) return player._model;
+    return null;
+}
+
+function _idOf(h) {
+    if (h == null) return 0;
+    if (typeof h === "number") return h | 0;
+    // без магии: только прямое поле id (если есть)
+    try {
+        if (typeof h.id === "number") return h.id | 0;
+    } catch (_) {}
+    return 0;
+}
+
 class PlayerEntity {
     constructor() {
         this.entityId = 0;
+
         this.surface = null;
         this.body = null;
 
@@ -66,6 +44,40 @@ class PlayerEntity {
         this.bodyId = 0;
 
         this.bodyRef = null; // PHYS.ref(bodyId) or native handle with velocity/position
+
+        // NEW: player model handle
+        this.model = null;
+        this.modelId = 0;
+
+        // Simple view flag (camera/orchestrator will toggle)
+        this.hideModelInFirstPerson = true;
+    }
+
+    getModel() { return this.model; }
+
+    setModel(modelHandle) {
+        this.model = modelHandle || null;
+        this.modelId = _idOf(this.model);
+        return this;
+    }
+
+    setModelVisible(visible) {
+        if (!this.model) return false;
+
+        const fn = this.model.setVisible;
+        if (typeof fn === "function") {
+            try {
+                fn.call(this.model, !!visible);
+                return true;
+            } catch (e) {
+                U.warnOnce("player_model_setVisible_throw", "[player] model.setVisible(..) threw: " + U.errStr(e));
+                return false;
+            }
+        }
+
+        // никаких больше фоллбэков — просто предупреждаем один раз
+        U.warnOnce("player_model_setVisible_missing", "[player] model has no setVisible(boolean). Provide model with setVisible API.");
+        return false;
     }
 
     _ensureBodyRef() {
@@ -109,6 +121,7 @@ class PlayerEntity {
     }
 
     destroy() {
+        // physics destroy
         const b = this._ensureBodyRef();
         if (b && typeof b.remove === "function") {
             try { b.remove(); }
@@ -121,6 +134,9 @@ class PlayerEntity {
         this.bodyRef = null;
         this.body = null;
         this.surface = null;
+
+        this.model = null;
+        this.modelId = 0;
 
         this.entityId = 0;
         this.surfaceId = 0;
@@ -140,19 +156,25 @@ class PlayerEntityFactory {
         // --- human defaults ---
         const radius = _num(cfg.radius, 0.35);
         const height = _num(cfg.height, 1.80);
-        const mass = _num(cfg.mass, 80.0);
+        const mass   = _num(cfg.mass, 80.0);
 
-        const friction = (cfg.friction != null) ? cfg.friction : 0.9;
+        const friction    = (cfg.friction != null) ? cfg.friction : 0.9;
         const restitution = (cfg.restitution != null) ? cfg.restitution : 0.0;
-        const damping = cfg.damping ?? { linear: 0.15, angular: 0.95 };
+        const damping     = cfg.damping ?? { linear: 0.15, angular: 0.95 };
 
         const posMode = (cfg.posMode != null) ? String(cfg.posMode) : "feet";
         const pos = cfg.pos ?? { x: 0, y: 3, z: 0 };
 
-        // Spawn QoL (avoid "falling" spawn which breaks jump buffer)
+        // NEW: simple model pick
+        this.modelHandle = _pickPlayerModel(cfg, this.player);
+
+        // NEW: simple flag
+        const hideInFirstPerson = (cfg.hideModelInFirstPerson !== undefined) ? !!cfg.hideModelInFirstPerson : true;
+
+        // Spawn QoL
         const snapToGround = (cfg.snapToGround !== undefined) ? !!cfg.snapToGround : true;
         const snapRay = _num(cfg.snapRay, 64.0);
-        const snapUp = _num(cfg.snapUp, 2.0);
+        const snapUp  = _num(cfg.snapUp, 2.0);
         const snapPad = _num(cfg.snapPad, 0.02);
 
         const h = ENT.create({
@@ -179,27 +201,33 @@ class PlayerEntityFactory {
                     entityId: ctx.entityId,
                     surfaceId: ctx.surfaceId,
                     bodyId: ctx.bodyId,
-                    capsule: { radius, height, mass }
+                    capsule: { radius, height, mass },
+                    view: { hideModelInFirstPerson: hideInFirstPerson }
                 })
             },
             debug: true
         });
 
         const e = new PlayerEntity();
-        e.entityId = h.entityId | 0;
-        e.surface = h.surface;
-        e.body = h.body;
-        e.surfaceId = idOf(h.surface, "surface") || (h.surfaceId | 0);
-        e.bodyId = idOf(h.body, "body") || (h.bodyId | 0);
+        e.entityId  = h.entityId | 0;
+        e.surface   = h.surface;
+        e.body      = h.body;
+        e.surfaceId = (h.surfaceId | 0) || _idOf(h.surface);
+        e.bodyId    = (h.bodyId | 0)    || _idOf(h.body);
 
         if ((e.bodyId | 0) > 0) e.bodyRef = PHYS.ref(e.bodyId | 0);
 
-        // Ground snap AFTER creation (raycast in world; keep format stable)
+        // NEW: attach model is NOT factory job anymore (no unknown host APIs).
+        // We just store it so camera/orchestrator can hide/show it.
+        e.hideModelInFirstPerson = hideInFirstPerson;
+        if (this.modelHandle) e.setModel(this.modelHandle);
+
+        // Ground snap AFTER creation (old behavior)
         if (snapToGround && posMode === "feet" && e.bodyRef && typeof e.bodyRef.raycast === "function") {
             const px = _num(pos.x, 0), pz = _num(pos.z, 0);
             const feetY = _num(pos.y, 3);
             const from = { x: px, y: feetY + snapUp, z: pz };
-            const to = { x: px, y: feetY - snapRay, z: pz };
+            const to   = { x: px, y: feetY - snapRay, z: pz };
 
             const hit = e.bodyRef.raycast({ from, to });
             if (hit && hit.hit) {

@@ -1,0 +1,74 @@
+<hud vars="
+  safe:24dp;
+  pad:14dp;
+  bg:#0b0f14cc;
+  accent:#9ad7ffcc;
+  ok:#b6ffb6cc;
+  title:1.05rem;
+  text:0.95rem;
+  sub:0.78rem;
+">
+
+    <!-- TOP-RIGHT: статус -->
+    <div id="panelStatus"
+         style="
+        position:absolute;
+        right:var(safe); top:var(safe);
+        width:clamp(280dp, 22vw, 420dp);
+        padding:var(pad);
+        display:flex; flex-direction:column; gap:10dp;
+        background:var(bg);
+       ">
+
+        <div style="position:absolute; left:0; top:0; right:0; height:2dp; background:var(accent);"></div>
+
+        <div style="display:flex; flex-direction:row; gap:10dp; align-items:center;">
+            <span style="font-size:var(title); color:#ffffff; letter-spacing:1;">KALITECH // HUD</span>
+            <span id="netState" style="font-size:var(sub); opacity:0.7; color:#ffffff;">ONLINE</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6dp;">
+            <div style="display:flex; flex-direction:row; gap:10dp; align-items:center;">
+                <img src="ui/icons/heart.svg" style="width:16dp; height:16dp; opacity:0.95;"/>
+                <span style="font-size:var(text); color:#9ad7ff;">HP</span>
+                <span style="font-size:var(text); color:#ffffff;">{{player.hp}}</span>
+            </div>
+
+            <div style="display:flex; flex-direction:row; gap:10dp; align-items:center;">
+                <img src="ui/icons/shield.svg" style="width:16dp; height:16dp; opacity:0.95;"/>
+                <span style="font-size:var(text); color:#9ad7ff;">ARMOR</span>
+                <span style="font-size:var(text); color:#ffffff;">{{player.armor}}</span>
+            </div>
+
+            <div style="display:flex; flex-direction:row; gap:10dp; align-items:center;">
+                <img src="ui/icons/ammo.svg" style="width:16dp; height:16dp; opacity:0.95;"/>
+                <span style="font-size:var(text); color:#9ad7ff;">AMMO</span>
+                <span style="font-size:var(text); color:#ffffff;">{{weapon.ammo}}</span>
+                <span style="font-size:var(sub); opacity:0.7; color:#ffffff;">/</span>
+                <span style="font-size:var(sub); opacity:0.9; color:#ffffff;">{{weapon.reserve}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM-LEFT: квест -->
+    <div id="panelQuest"
+         style="
+        position:absolute;
+        left:var(safe); bottom:var(safe);
+        width:clamp(320dp, 26vw, 520dp);
+        padding:var(pad);
+        display:flex; flex-direction:column; gap:8dp;
+        background:var(bg);
+       ">
+
+        <div style="position:absolute; left:0; top:0; right:0; height:2dp; background:var(ok);"></div>
+
+        <span style="font-size:var(title); color:#ffffff;">{{quest.title}}</span>
+        <span style="font-size:var(text); color:#b6ffb6;">{{quest.text}}</span>
+    </div>
+
+    <!-- CENTER: crosshair -->
+    <img src="ui/icons/crosshair.svg" anchor="center" pivot="center"
+         style="width:clamp(22dp, 1.7vw, 36dp); height:clamp(22dp, 1.7vw, 36dp); opacity:0.95;"/>
+
+</hud>

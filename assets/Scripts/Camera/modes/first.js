@@ -1,3 +1,4 @@
+// FILE: Scripts/Camera/modes/first.js
 "use strict";
 
 function num(v, fb) {
@@ -34,10 +35,11 @@ function vz(v, fb) {
 }
 
 class FirstPersonCameraMode {
-    constructor() {
+    constructor(cameraOrchestrator) {
+        this.cameraOrchestrator = cameraOrchestrator;
+        this.cameraOrchestrator.player.factory.modelHandle.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
         this.id = "first";
 
-        // ✅ meta tags — orchestrator читает их автоматически
         this.meta = {
             supportsZoom: false,
             hasCollision: false,
@@ -69,7 +71,7 @@ class FirstPersonCameraMode {
 
         cam.setLocation(num(x, 0), num(y, 0), num(z, 0));
 
-        // ✅ always expose target (used by transitions / consistency)
+        // for consistency
         ctx.target = {
             x: vx(p, 0),
             y: vy(p, 0) + this.headOffset.y,

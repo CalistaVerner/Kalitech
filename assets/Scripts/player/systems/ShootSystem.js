@@ -19,14 +19,14 @@ const DEFAULT_CFG = Object.freeze({
 
     model: "Models/sharp-boulder-layered.obj",
     scale: 0.5,
-    mass: 32.0,
+    mass: 600.0,
     lockRotation: false,
     materialId: "unshaded.grass",
 
-    spawnOffset: 2.0,
-    speed: 120.0,
+    spawnOffset: 0.0,
+    speed: 20.0,
 
-    invertPitch: true,
+    invertPitch: false,
 
     debug: { logShots: false }
 });

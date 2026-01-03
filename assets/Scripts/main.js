@@ -58,6 +58,18 @@ class MainWorldEntrypoint {
             player.snapToGround(); // твоя функция/логика
         });
 
+        // слушаем всё по физике
+        const t = EVENTS.onPattern("engine.physics.**", (topic, payload) => {
+            LOG.info("[EVT]", topic, payload);
+        });
+
+// или точечно
+        EVENTS.on("engine.surface.registered", (p) => LOG.info("surface+", p));
+
+// снять подписку
+// EVENTS.off("engine.physics.**", t);
+
+
     }
 
     destroy(reason) {
