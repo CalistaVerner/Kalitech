@@ -7,13 +7,61 @@ import com.jme3.scene.Spatial;
 import java.util.ArrayList;
 import java.util.List;
 
-abstract class HudElement implements HudLayout.HudElementLike {
+abstract class HudElement implements HudLayout.HudElementLike, HudLayout.HudElementEx {
+
+    // -----------------------------
+    // Type
+    // -----------------------------
+
+    enum Kind { GROUP, RECT, IMAGE, TEXT, HTML }
+    Kind kind = Kind.GROUP;
+
+    // -----------------------------
+    // Layout (HTML/CSS)
+    // -----------------------------
+
+    enum LayoutKind { ABSOLUTE, FLEX }
+    enum FlexDirection { ROW, COLUMN }
+
+    /** How children are laid out inside this element (container behavior). */
+    LayoutKind layoutKind = LayoutKind.ABSOLUTE;
+
+    /** For LayoutKind.FLEX containers. */
+    FlexDirection flexDirection = FlexDirection.ROW;
+
+    /** Padding inside this element (pixels). */
+    float padL = 0f, padT = 0f, padR = 0f, padB = 0f;
+
+    /** Gap between flex items (pixels). */
+    float gap = 0f;
+
+    /**
+     * If true, the element size is derived from content (text/image auto bounds).
+     * Layout should not overwrite w/h unless explicit.
+     */
+    boolean contentSized = false;
+
+    /**
+     * If true, element should match parent size (useful for panel backgrounds).
+     */
+    boolean fillParent = false;
+
+    /** Optional z-order hint (HudElement forces -1 in translation by default). */
+    float z = 0f;
+
+    // -----------------------------
+    // Tree
+    // -----------------------------
 
     final int id;
     final Node node;
 
     HudElement parent;
     final List<HudElement> children = new ArrayList<>();
+
+    // -----------------------------
+    // Common props
+    // -----------------------------
 
     boolean visible = true;
 
@@ -31,7 +79,7 @@ abstract class HudElement implements HudLayout.HudElementLike {
         this.id = id;
         this.node = new Node(name);
 
-        // 🔒 ЖЁСТКИЙ GUI-ПРОФИЛЬ
+        // 🔒 GUI-PROFILE
         this.node.setQueueBucket(RenderQueue.Bucket.Gui);
         this.node.setCullHint(Spatial.CullHint.Never);
     }
@@ -60,15 +108,17 @@ abstract class HudElement implements HudLayout.HudElementLike {
         child.node.removeFromParent();
     }
 
+    // aliases for compatibility
+    final void addChild(HudElement child) { attach(child); }
+    final void removeChild(HudElement child) { detach(child); }
+
     // -----------------------------
     // Visibility
     // -----------------------------
 
     @Override
     public void applyVisibility() {
-        node.setCullHint(visible
-                ? Spatial.CullHint.Never
-                : Spatial.CullHint.Always);
+        node.setCullHint(visible ? Spatial.CullHint.Never : Spatial.CullHint.Always);
     }
 
     // -----------------------------
@@ -83,12 +133,12 @@ abstract class HudElement implements HudLayout.HudElementLike {
     @Override public float h() { return h; }
 
     /**
-     * 🔥 КРИТИЧНО:
-     * GUI ВСЕГДА НА z = -1 (перед камерой)
+     * GUI always on z = -1 to avoid depth issues.
+     * If you later want true z layering, change this implementation.
      */
     @Override
-    public void setLocalTranslation(float x, float y, float zIgnored) {
-        node.setLocalTranslation(x, y, -1f);
+    public void setLocalTranslation(float x, float y, float z) {
+        node.setLocalTranslation(x, y, z);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -97,6 +147,23 @@ abstract class HudElement implements HudLayout.HudElementLike {
         return (Iterable) children;
     }
 
-    /** override in subclasses */
+    // -----------------------------
+    // HudLayout.HudElementEx
+    // -----------------------------
+
+    @Override public boolean fillParent() { return fillParent; }
+
+    @Override
+    public void setSize(float w, float h) {
+        this.w = w;
+        this.h = h;
+    }
+
+    @Override public float z() { return z; }
+
+    // -----------------------------
+    // Lifecycle
+    // -----------------------------
+
     void onDestroy() {}
 }

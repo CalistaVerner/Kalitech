@@ -8,62 +8,117 @@ import com.jme3.renderer.Camera;
 import com.jme3.renderer.ViewPort;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Node;
-import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.hud.font.HudSdfFontManager;
 import org.foxesworld.kalitech.engine.api.interfaces.HudApi;
 import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * AAA HUD API:
+ *  - Own viewport (not guiNode)
+ *  - Thread-safe public methods: all scene changes happen on JME thread (via __tick pending ops)
+ *  - HTML HUD uses dirty/flush pipeline (no scenegraph mutation from non-JME threads)
+ *  - Layout pipeline: HTML flush -> Yoga -> Flex fallback -> Anchor/Pivot pass
+ *  - Modern TTF/SDF text (via HudSdfFontFontManager)
+ *
+ * Debugging:
+ *  - hud.debug=true enables verbose logs
+ *  - hud.debug.smoketest=true spawns a visible red rect once viewport is created
+ *  - hud.debug.everyFrames=120 periodic HUD status logs
+ */
 public final class HudApiImpl implements HudApi {
 
     private static final Logger log = LogManager.getLogger(HudApiImpl.class);
-    private static final boolean DEBUG = Boolean.parseBoolean(System.getProperty("hud.debug", "false"));
+
+    private static final boolean DEBUG = Boolean.parseBoolean(System.getProperty("hud.debug", "true"));
+    private static final boolean DEBUG_SMOKETEST = Boolean.parseBoolean(System.getProperty("hud.debug.smoketest", "false"));
+    private static final int DEBUG_EVERY_FRAMES = Integer.parseInt(System.getProperty("hud.debug.everyFrames", "120"));
+
+    private final ConcurrentLinkedQueue<Runnable> pendingOps = new ConcurrentLinkedQueue<>();
 
     private final EngineApiImpl engine;
     private final SimpleApplication app;
 
-    /** HUD root is rendered in its own viewport (NOT guiNode) */
+    /** HUD root rendered in its own viewport */
     private final Node hudRoot = new Node("kalitech:hudRoot");
 
     private ViewPort hudVP;
     private Camera hudCam;
 
-    private final AtomicInteger ids = new AtomicInteger(1);
-    private final ConcurrentHashMap<Integer, HudElement> byId = new ConcurrentHashMap<>();
+    private volatile float uiScale = 1f;
 
     private volatile int lastW = -1;
     private volatile int lastH = -1;
 
+    private final AtomicInteger ids = new AtomicInteger(1);
+
+    /**
+     * Elements indexed by id.
+     * Scenegraph mutation is JME-thread only.
+     * Map is concurrent because JS threads may call exists()/create() and we don't want UB.
+     */
+    private final Map<Integer, HudElement> byId = new ConcurrentHashMap<>();
+
+    /** Reuse handle instances per id (optional but nice for JS identity/debug). */
+    private final Map<Integer, HudHandle> handles = new ConcurrentHashMap<>();
+
+    // Layout engines (Yoga/Flex)
+    private final HudYogaLayout yoga = new HudYogaLayout();
+    private final HudFlexLayout flex = new HudFlexLayout();
+
+    // TTF/SDF font manager
+    private final HudSdfFontManager fontManager;
+
+    // Reused roots list to avoid allocations
+    private final ArrayList<HudElement> tmpRoots = new ArrayList<>(256);
+
+    // Dirty relayout flag (set when something changes)
+    private volatile boolean relayoutDirty = false;
+
+    /** Captured on first __tick(). */
+    private volatile Thread jmeThread;
+
+    /** Cached viewport DTO for JS (no engine classes exposed). */
+    private volatile HudViewport viewportDto = new HudViewport(1, 1, 0, 0, 1.0f);
+
+    private static final float DESIGN_W = Float.parseFloat(System.getProperty("hud.designW", "1920"));
+    private static final float DESIGN_H = Float.parseFloat(System.getProperty("hud.designH", "1080"));
+
+
+    // --- debug counters ---
+    private int frameCounter = 0;
+    private boolean smoketestSpawned = false;
+
     public HudApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
-        this.app = Objects.requireNonNull(engine.getApp(), "app");
+        this.app = engine.getApp();
 
-        onJme(() -> {
-            hudRoot.setQueueBucket(RenderQueue.Bucket.Gui);
-            hudRoot.setCullHint(Spatial.CullHint.Never);
+        this.hudRoot.setQueueBucket(RenderQueue.Bucket.Gui);
+        this.hudRoot.setCullHint(com.jme3.scene.Spatial.CullHint.Never);
 
-            int w = app.getCamera().getWidth();
-            int h = app.getCamera().getHeight();
-            lastW = w;
-            lastH = h;
+        this.fontManager = new HudSdfFontManager(app.getAssetManager());
+        HudText.bindFontManager(this.fontManager);
+        HudTextRuntime.bindFontManager(fontManager);
 
-            ensureHudViewport(w, h, "ctor");
-            relayoutAll();
-        });
+        if (DEBUG) {
+            log.info("[hud] init debug={} smoketest={} everyFrames={} bakePx={} spreadPx={}",
+                    DEBUG, DEBUG_SMOKETEST, DEBUG_EVERY_FRAMES,
+                    Integer.parseInt(System.getProperty("hud.ttf.bakePx", "64")),
+                    Integer.parseInt(System.getProperty("hud.ttf.spreadPx", "12")));
+        }
     }
 
-    // ------------------------
-    // Public API
-    // ------------------------
+    // ------------------- Public API -------------------
 
     @HostAccess.Export
     @Override
@@ -75,39 +130,33 @@ public final class HudApiImpl implements HudApi {
 
         final int id = ids.getAndIncrement();
         final HudHandle handle = new HudHandle(id);
+        handles.put(id, handle); // visible immediately for JS
 
-        onJme(() -> {
-            ensureHudViewport(lastW, lastH, "create");
+        if (DEBUG) log.debug("[hud] create queued id={} kind={} cfgKeys? (js)", id, kind);
+
+        postHudOp(() -> {
+            ensureHudViewportForCurrentApp("create");
 
             HudElement parent = resolveParent(cfg);
-
-            final HudElement el;
-            switch (kind) {
-                case "group" -> el = new HudGroup(id);
-                case "rect"  -> el = new HudRect(id);
-                case "image" -> el = new HudImage(id);
-                default -> throw new IllegalArgumentException("hud.create: unknown kind='" + kind + "'");
-            }
+            HudElement el = createElementOfKind(kind, id);
 
             applyCommon(el, cfg);
+            switch (el.kind) {
+                case TEXT -> applyText((HudText) el, cfg);
+                case RECT -> applyRect((HudRect) el, cfg);
+                case IMAGE -> applyImage((HudImage) el, cfg);
+                case HTML -> applyHtml((HudHtml) el, cfg);
+                default -> { /* group */ }
+            }
 
-            if (parent != null) parent.attach(el);
+            if (parent != null) parent.addChild(el);
             else hudRoot.attachChild(el.node);
 
-            forceGui(el.node);
             byId.put(id, el);
+            relayoutDirty = true;
 
-            if (el instanceof HudRect r)  applyRectProps(r, cfg);
-            if (el instanceof HudImage i) applyImageProps(i, cfg);
-
-            relayoutAll();
-
-            dbg("create id={} kind={} parent={} visible={} size={}x{} anchor={} pivot={}",
-                    id, kind,
-                    parent == null ? "ROOT" : String.valueOf(parent.id),
-                    el.visible, el.w, el.h,
-                    el.anchor, el.pivot
-            );
+            if (DEBUG) log.debug("[hud] create applied id={} kind={} parent={} total={}",
+                    id, el.kind, (parent != null ? parent.id : 0), byId.size());
         });
 
         return handle;
@@ -116,302 +165,595 @@ public final class HudApiImpl implements HudApi {
     @HostAccess.Export
     @Override
     public void set(Object handleOrId, Object cfg) {
-        if (handleOrId == null || cfg == null) return;
+        if (cfg == null) return;
+        final int fid = normalizeId(handleOrId);
+        if (fid <= 0) return;
 
-        onJme(() -> {
-            ensureHudViewport(lastW, lastH, "set");
+        if (DEBUG) log.debug("[hud] set queued id={}", fid);
 
-            HudElement el = require(handleOrId, "hud.set");
-            applyCommon(el, cfg);
-
-            Object parentObj = HudValueParsers.member(cfg, "parent");
-            if (parentObj != null) {
-                HudElement newParent = resolveParent(cfg);
-                reparent(el, newParent);
+        postHudOp(() -> {
+            HudElement el = byId.get(fid);
+            if (el == null) {
+                if (DEBUG) log.debug("[hud] set ignored: id={} not found", fid);
+                return;
             }
 
-            if (el instanceof HudRect r)  applyRectProps(r, cfg);
-            if (el instanceof HudImage i) applyImageProps(i, cfg);
+            applyCommon(el, cfg);
+            switch (el.kind) {
+                case TEXT -> applyText((HudText) el, cfg);
+                case RECT -> applyRect((HudRect) el, cfg);
+                case IMAGE -> applyImage((HudImage) el, cfg);
+                case HTML -> applyHtml((HudHtml) el, cfg);
+                default -> { /* group */ }
+            }
 
-            forceGui(el.node);
-            relayoutAll();
+            relayoutDirty = true;
         });
     }
 
     @HostAccess.Export
     @Override
     public void destroy(Object handleOrId) {
-        if (handleOrId == null) return;
+        final int fid = normalizeId(handleOrId);
+        if (fid <= 0) return;
 
-        onJme(() -> {
-            HudElement el = require(handleOrId, "hud.destroy");
-            destroyRecursive(el);
-            relayoutAll();
+        if (DEBUG) log.debug("[hud] destroy queued id={}", fid);
+
+        postHudOp(() -> {
+            HudElement el = byId.get(fid);
+            if (el == null) return;
+
+            __destroyRecursiveInternal(el);
+            relayoutDirty = true;
+
+            if (DEBUG) log.debug("[hud] destroy applied id={} remaining={}", fid, byId.size());
+        });
+    }
+
+    @HostAccess.Export
+    public void clear() {
+        if (DEBUG) log.debug("[hud] clear queued");
+
+        postHudOp(() -> {
+            ArrayList<HudElement> roots = new ArrayList<>(64);
+            for (HudElement e : byId.values()) {
+                if (e != null && e.parent == null) roots.add(e);
+            }
+            for (HudElement r : roots) __destroyRecursiveInternal(r);
+
+            byId.clear();
+            handles.clear();
+            relayoutDirty = true;
+
+            if (DEBUG) log.debug("[hud] clear applied");
+        });
+    }
+
+    @HostAccess.Export
+    public boolean exists(Object handleOrId) {
+        final int fid = normalizeId(handleOrId);
+        if (fid <= 0) return false;
+        return byId.containsKey(fid);
+    }
+
+    @HostAccess.Export
+    public void show(Object handleOrId) {
+        final int fid = normalizeId(handleOrId);
+        if (fid <= 0) return;
+        postHudOp(() -> {
+            HudElement el = byId.get(fid);
+            if (el == null) return;
+            el.visible = true;
+            el.node.setCullHint(com.jme3.scene.Spatial.CullHint.Never);
+            relayoutDirty = true;
+        });
+    }
+
+    @HostAccess.Export
+    public void hide(Object handleOrId) {
+        final int fid = normalizeId(handleOrId);
+        if (fid <= 0) return;
+        postHudOp(() -> {
+            HudElement el = byId.get(fid);
+            if (el == null) return;
+            el.visible = false;
+            el.node.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
+            relayoutDirty = true;
         });
     }
 
     @HostAccess.Export
     @Override
-    public Viewport viewport() {
-        int w = app.getCamera().getWidth();
-        int h = app.getCamera().getHeight();
-        return new Viewport(w, h);
+    public HudViewport viewport() {
+        return viewportDto;
     }
 
+    @HostAccess.Export
     @Override
-    public void __tick() {
-        int w = app.getCamera().getWidth();
-        int h = app.getCamera().getHeight();
+    public void resize(int w, int h) {
+        lastW = w;
+        lastH = h;
 
-        if (w != lastW || h != lastH) {
-            lastW = w;
-            lastH = h;
-            onJme(() -> {
-                ensureHudViewport(w, h, "resize");
-                relayoutAll();
-            });
-        } else {
-            // if someone disabled our viewport, re-enable softly
-            onJme(() -> {
-                if (hudVP != null && !hudVP.isEnabled()) {
-                    hudVP.setEnabled(true);
-                    dbg("tick: hudVP was disabled -> enabled");
-                }
-            });
-        }
+        if (DEBUG) log.info("[hud] resize requested {}x{}", w, h);
+
+        postHudOp(() -> {
+            ensureHudViewport(w, h, "resize");
+            if (hudCam != null) hudCam.resize(Math.max(1, w), Math.max(1, h), true);
+            relayoutDirty = true;
+        });
     }
-
-    // ------------------------
-    // AAA viewport pipeline
-    // ------------------------
 
     /**
-     * HUD is rendered in a dedicated PostView with its own camera.
-     * Critical: clear DEPTH so world depth never hides GUI.
+     * Engine tick hook (call it each frame from JME update).
+     * Executes pending ops + layout + updates HUD node states.
      */
-    private void ensureHudViewport(int w, int h, String where) {
-        try {
-            if (hudVP == null || hudCam == null) {
-                hudCam = new Camera(w, h);
-                hudCam.setParallelProjection(true);
+    @Override
+    public void __tick() {
+        if (jmeThread == null) {
+            jmeThread = Thread.currentThread();
+            if (DEBUG) log.info("[hud] __tick bound to JME thread '{}'", jmeThread.getName());
+        }
 
-                // Orthographic pixel space: x:[0..w], y:[0..h]
-                float near = 1f;
-                float far  = 1000f;
-                hudCam.setFrustum(near, far, 0f, (float) w, (float) h, 0f);
-                hudCam.setLocation(new Vector3f(0f, 0f, 10f));
-                hudCam.lookAtDirection(new Vector3f(0f, 0f, -1f), new Vector3f(0f, 1f, 0f));
-                hudCam.update();
+        frameCounter++;
 
-                hudVP = app.getRenderManager().createPostView("kalitech:hudVP", hudCam);
-                // DO NOT clear color (keep scene), DO clear depth (important), DO NOT clear stencil
-                hudVP.setClearFlags(false, true, false);
-                hudVP.setEnabled(true);
+        // Lazy viewport creation
+        if (hudVP == null) {
+            Camera c = app.getCamera();
+            int w = (c != null) ? c.getWidth() : lastW;
+            int h = (c != null) ? c.getHeight() : lastH;
+            ensureHudViewport(Math.max(1, w), Math.max(1, h), "tick-lazy");
+        }
 
-                hudVP.attachScene(hudRoot);
-                forceGui(hudRoot);
-
-                dbg("{}: hudVP created postView w={} h={} clearFlags(color={}, depth={}, stencil={})",
-                        where, w, h, false, true, false
-                );
-                return;
-            }
-
-            // Resize / keep frustum stable
-            if (hudCam.getWidth() != w || hudCam.getHeight() != h) {
-                hudCam.resize(w, h, true);
-                hudCam.setParallelProjection(true);
-                hudCam.setFrustum(1f, 1000f, 0f, (float) w, (float) h, 0f);
-                hudCam.update();
-                dbg("{}: hudCam resized {}x{}", where, w, h);
-            }
-
-            if (!hudVP.isEnabled()) {
-                hudVP.setEnabled(true);
-                dbg("{}: hudVP enabled", where);
-            }
-
-            // Make sure scene is still attached
-            boolean hasRoot = false;
+        // 1) Execute pending ops
+        int ops = 0;
+        for (;;) {
+            Runnable r = pendingOps.poll();
+            if (r == null) break;
+            ops++;
             try {
-                for (Spatial s : hudVP.getScenes()) {
-                    if (s == hudRoot) { hasRoot = true; break; }
-                }
-            } catch (Throwable ignored) {}
-            if (!hasRoot) {
-                hudVP.attachScene(hudRoot);
-                dbg("{}: hudRoot re-attached to hudVP", where);
-            }
-
-            forceGui(hudRoot);
-        } catch (Throwable t) {
-            log.error("[hud] ensureHudViewport failed at {}: {}", where, t.toString(), t);
-        }
-    }
-
-    // ------------------------
-    // Internals
-    // ------------------------
-
-    private void dbg(String fmt, Object... args) {
-        if (!DEBUG) return;
-        try { log.info("[hud] " + fmt, args); } catch (Throwable ignored) {}
-    }
-
-    private void onJme(Runnable r) {
-        if (engine.isJmeThread()) {
-            try { r.run(); } catch (Throwable t) { log.error("[hud] jme task failed", t); }
-        } else {
-            app.enqueue(() -> {
-                try { r.run(); } catch (Throwable t) { log.error("[hud] jme task failed", t); }
-                return null;
-            });
-        }
-    }
-
-    private static void forceGui(Spatial s) {
-        if (s == null) return;
-        s.setQueueBucket(RenderQueue.Bucket.Gui);
-        s.setCullHint(Spatial.CullHint.Never);
-        if (s instanceof Node n) for (Spatial c : n.getChildren()) forceGui(c);
-    }
-
-    private HudElement require(Object handleOrId, String where) {
-        int id = resolveId(handleOrId);
-        HudElement el = byId.get(id);
-        if (el == null) throw new IllegalArgumentException(where + ": hud element not found id=" + id);
-        return el;
-    }
-
-    private int resolveId(Object handleOrId) {
-        if (handleOrId instanceof HudHandle h) return h.id;
-        if (handleOrId instanceof Number n) return n.intValue();
-
-        if (handleOrId instanceof Value v) {
-            if (v.isNumber()) return v.asInt();
-            if (v.hasMember("id")) {
-                Value id = v.getMember("id");
-                if (id != null && id.isNumber()) return id.asInt();
+                r.run();
+            } catch (Throwable t) {
+                log.error("[hud] pending op failed", t);
             }
         }
 
-        if (handleOrId instanceof Map<?, ?> m) {
-            Object id = m.get("id");
-            if (id instanceof Number n) return n.intValue();
+        if (hudVP == null) {
+            if (DEBUG && frameCounter % DEBUG_EVERY_FRAMES == 0) {
+                log.warn("[hud] hudVP is STILL null after tick. appCam={} last={}x{} opsThisTick={}",
+                        (app.getCamera() != null ? (app.getCamera().getWidth() + "x" + app.getCamera().getHeight()) : "null"),
+                        lastW, lastH, ops);
+            }
+            return;
         }
 
-        throw new IllegalArgumentException("hud: invalid handle/id type: " + handleOrId.getClass().getName());
+        // Optional smoke-test: ensure something visible exists
+        if (DEBUG_SMOKETEST && !smoketestSpawned) {
+            smoketestSpawned = true;
+            spawnSmokeTestRect();
+        }
+
+        // 2) Layout only when dirty
+        boolean didLayout = false;
+        if (relayoutDirty) {
+            relayoutDirty = false;
+            didLayout = true;
+            relayoutAll();
+        }
+
+        // 3) Update HUD root states
+        hudRoot.updateLogicalState(0f);
+        hudRoot.updateGeometricState();
+
+        if (DEBUG && frameCounter % DEBUG_EVERY_FRAMES == 0) {
+            int roots = countRoots();
+            log.info("[hud] tick frame={} ops={} layout={} elements={} roots={} vp={}x{} scale={} pendingOps={}",
+                    frameCounter, ops, didLayout, byId.size(), roots,
+                    hudCam != null ? hudCam.getWidth() : -1,
+                    hudCam != null ? hudCam.getHeight() : -1,
+                    uiScale, pendingOps.size());
+        }
+    }
+
+    // ------------------- queueing -------------------
+
+    private void postHudOp(Runnable op) {
+        pendingOps.add(op);
+    }
+
+    // ------------------- Helpers -------------------
+
+    private int normalizeId(Object handleOrId) {
+        if (handleOrId instanceof HudHandle hh) return hh.id;
+        return HudValueParsers.asInt(handleOrId, 0);
     }
 
     private HudElement resolveParent(Object cfg) {
         Object p = HudValueParsers.member(cfg, "parent");
         if (p == null) return null;
-        int pid = resolveId(p);
+        int pid = (p instanceof HudHandle hh) ? hh.id : HudValueParsers.asInt(p, 0);
+        if (pid <= 0) return null;
         return byId.get(pid);
     }
 
-    private void reparent(HudElement el, HudElement newParent) {
-        HudElement oldParent = el.parent;
-        if (oldParent == newParent) return;
-
-        if (oldParent != null) oldParent.detach(el);
-        else el.node.removeFromParent();
-
-        if (newParent != null) newParent.attach(el);
-        else hudRoot.attachChild(el.node);
-
-        forceGui(el.node);
-    }
-
-    private void destroyRecursive(HudElement el) {
-        List<HudElement> kids = new ArrayList<>(el.children);
-        for (HudElement c : kids) destroyRecursive(c);
-
-        if (el.parent != null) el.parent.detach(el);
-        else el.node.removeFromParent();
-
-        byId.remove(el.id);
-        el.onDestroy();
-    }
+    // ------------------- common props -------------------
 
     private void applyCommon(HudElement el, Object cfg) {
-        Object visObj = HudValueParsers.member(cfg, "visible");
-        if (visObj != null) el.visible = HudValueParsers.asBool(visObj, true);
+        if (el == null || cfg == null) return;
 
-        String anchor = HudValueParsers.asString(HudValueParsers.member(cfg, "anchor"), null);
-        if (anchor != null) el.anchor = HudLayout.anchorOf(anchor);
+        Object a = HudValueParsers.member(cfg, "anchor");
+        if (a != null) el.anchor = HudLayout.anchorOf(HudValueParsers.asString(a, "topLeft"));
 
-        String pivot = HudValueParsers.asString(HudValueParsers.member(cfg, "pivot"), null);
-        if (pivot != null) el.pivot = HudLayout.pivotOf(pivot);
+        Object p = HudValueParsers.member(cfg, "pivot");
+        if (p != null) el.pivot = HudLayout.pivotOf(HudValueParsers.asString(p, "topLeft"));
 
         Object off = HudValueParsers.member(cfg, "offset");
         if (off != null) {
             el.offsetX = (float) HudValueParsers.asNum(HudValueParsers.member(off, "x"), el.offsetX);
             el.offsetY = (float) HudValueParsers.asNum(HudValueParsers.member(off, "y"), el.offsetY);
+        } else {
+            Object x = HudValueParsers.member(cfg, "x");
+            Object y = HudValueParsers.member(cfg, "y");
+            if (x != null) el.offsetX = (float) HudValueParsers.asNum(x, el.offsetX);
+            if (y != null) el.offsetY = (float) HudValueParsers.asNum(y, el.offsetY);
         }
 
-        try { el.applyVisibility(); } catch (Throwable ignored) {}
+        Object size = HudValueParsers.member(cfg, "size");
+        if (size != null) {
+            float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), el.w);
+            float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), el.h);
+            if (w > 0f) el.w = w;
+            if (h > 0f) el.h = h;
+            if (w > 0f || h > 0f) el.contentSized = false;
+        }
+
+        Object pad = HudValueParsers.member(cfg, "padding");
+        if (pad != null) {
+            if (HudValueParsers.isNumber(pad)) {
+                float pp = Math.max(0f, (float) HudValueParsers.asNum(pad, 0));
+                el.padL = el.padT = el.padR = el.padB = pp;
+            } else {
+                el.padL = Math.max(0f, (float) HudValueParsers.asNum(HudValueParsers.member(pad, "l"), el.padL));
+                el.padT = Math.max(0f, (float) HudValueParsers.asNum(HudValueParsers.member(pad, "t"), el.padT));
+                el.padR = Math.max(0f, (float) HudValueParsers.asNum(HudValueParsers.member(pad, "r"), el.padR));
+                el.padB = Math.max(0f, (float) HudValueParsers.asNum(HudValueParsers.member(pad, "b"), el.padB));
+            }
+        }
+
+        Object gap = HudValueParsers.member(cfg, "gap");
+        if (gap != null) el.gap = Math.max(0f, (float) HudValueParsers.asNum(gap, el.gap));
+
+        String layout = HudValueParsers.asString(HudValueParsers.member(cfg, "layout"), null);
+        if (layout != null) {
+            if ("flex".equalsIgnoreCase(layout)) el.layoutKind = HudElement.LayoutKind.FLEX;
+            else if ("absolute".equalsIgnoreCase(layout)) el.layoutKind = HudElement.LayoutKind.ABSOLUTE;
+        }
+
+        Object posAbs = HudValueParsers.member(cfg, "positionAbsolute");
+        if (posAbs != null) {
+            boolean abs = HudValueParsers.asBool(posAbs, true);
+            if (abs) el.layoutKind = HudElement.LayoutKind.ABSOLUTE;
+        }
+
+        Object pos = HudValueParsers.member(cfg, "position");
+        if (pos != null) {
+            String s = HudValueParsers.asString(pos, "").trim().toLowerCase();
+            if ("absolute".equals(s)) el.layoutKind = HudElement.LayoutKind.ABSOLUTE;
+        }
+
+        Object fill = HudValueParsers.member(cfg, "fillParent");
+        if (fill != null) el.fillParent = HudValueParsers.asBool(fill, el.fillParent);
+
+        Object vis = HudValueParsers.member(cfg, "visible");
+        if (vis != null) el.visible = HudValueParsers.asBool(vis, el.visible);
+        el.node.setCullHint(el.visible ? com.jme3.scene.Spatial.CullHint.Never : com.jme3.scene.Spatial.CullHint.Always);
+
+        Object z = HudValueParsers.member(cfg, "z");
+        if (z != null) el.z = (float) HudValueParsers.asNum(z, el.z);
+
+        String dir = HudValueParsers.asString(HudValueParsers.member(cfg, "flexDirection"), null);
+        if (dir != null) {
+            el.flexDirection = "column".equalsIgnoreCase(dir)
+                    ? HudElement.FlexDirection.COLUMN
+                    : HudElement.FlexDirection.ROW;
+        }
+
+        Object cs = HudValueParsers.member(cfg, "contentSized");
+        if (cs != null) el.contentSized = HudValueParsers.asBool(cs, el.contentSized);
     }
 
-    private void applyRectProps(HudRect r, Object cfg) {
+    // ------------------- specific props -------------------
+
+    private void applyRect(HudRect r, Object cfg) {
+        Object col = HudValueParsers.member(cfg, "color");
+        if (col != null) r.setColor(HudValueParsers.asColor(col, new ColorRGBA(0, 0, 0, 0.4f)), engine);
+
         Object size = HudValueParsers.member(cfg, "size");
         if (size != null) {
             float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), r.w);
             float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), r.h);
             r.setSize(w, h, engine);
         }
-
-        Object col = HudValueParsers.member(cfg, "color");
-        if (col != null) {
-            float cr = (float) HudValueParsers.asNum(HudValueParsers.member(col, "r"), r.color.r);
-            float cg = (float) HudValueParsers.asNum(HudValueParsers.member(col, "g"), r.color.g);
-            float cb = (float) HudValueParsers.asNum(HudValueParsers.member(col, "b"), r.color.b);
-            float ca = (float) HudValueParsers.asNum(HudValueParsers.member(col, "a"), r.color.a);
-            r.setColor(new ColorRGBA(cr, cg, cb, ca), engine);
-        }
     }
 
-    private void applyImageProps(HudImage img, Object cfg) {
-        // image first
-        Object imgObj = HudValueParsers.member(cfg, "image");
-        if (imgObj == null) imgObj = HudValueParsers.member(cfg, "texture");
-        if (imgObj != null) {
-            String asset = HudValueParsers.asString(imgObj, null);
-            if (asset != null && !asset.isBlank()) img.setImage(asset, engine);
-        }
+    private void applyImage(HudImage im, Object cfg) {
+        Object img = HudValueParsers.member(cfg, "image");
+        if (img == null) img = HudValueParsers.member(cfg, "src");
+        if (img != null) im.setImage(HudValueParsers.asString(img, null), engine);
 
-        // then size (so texture stays visible after resize)
+        Object tint = HudValueParsers.member(cfg, "color");
+        if (tint != null) im.setColor(HudValueParsers.asColor(tint, ColorRGBA.White), engine);
+
         Object size = HudValueParsers.member(cfg, "size");
         if (size != null) {
-            float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), img.w);
-            float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), img.h);
-            img.setSize(w, h, engine);
-        }
-
-        Object col = HudValueParsers.member(cfg, "color");
-        if (col != null) {
-            float cr = (float) HudValueParsers.asNum(HudValueParsers.member(col, "r"), img.color.r);
-            float cg = (float) HudValueParsers.asNum(HudValueParsers.member(col, "g"), img.color.g);
-            float cb = (float) HudValueParsers.asNum(HudValueParsers.member(col, "b"), img.color.b);
-            float ca = (float) HudValueParsers.asNum(HudValueParsers.member(col, "a"), img.color.a);
-            img.setColor(new ColorRGBA(cr, cg, cb, ca), engine);
+            float w = (float) HudValueParsers.asNum(HudValueParsers.member(size, "w"), im.w);
+            float h = (float) HudValueParsers.asNum(HudValueParsers.member(size, "h"), im.h);
+            im.setSize(w, h, engine);
         }
     }
 
-    private void relayoutAll() {
-        ensureHudViewport(lastW, lastH, "relayoutAll");
+    private void applyText(HudText t, Object cfg) {
+        Object text = HudValueParsers.member(cfg, "text");
+        if (text != null) t.setText(HudValueParsers.asString(text, ""), engine);
 
-        final int w = lastW;
-        final int h = lastH;
+        Object font = HudValueParsers.member(cfg, "font");
+        if (font != null) t.setFontTtf(HudValueParsers.asString(font, null), engine);
 
-        for (HudElement el : byId.values()) {
-            if (el == null) continue;
-            if (el.parent != null) continue;
+        Object fs = HudValueParsers.member(cfg, "fontSize");
+        if (fs != null) t.setFontPx((float) HudValueParsers.asNum(fs, t.rawFontPx), engine);
 
-            HudLayout.layoutRecursive(el, w, h, w, h);
-            forceGui(el.node);
+        Object col = HudValueParsers.member(cfg, "color");
+        if (col != null) t.setColor(HudValueParsers.asColor(col, ColorRGBA.White), engine);
+
+        Object softness = HudValueParsers.member(cfg, "softness");
+        if (softness != null) t.setSoftness((float) HudValueParsers.asNum(softness, t.softness));
+
+        Object outline = HudValueParsers.member(cfg, "outline");
+        if (outline != null) {
+            float os = (float) HudValueParsers.asNum(HudValueParsers.member(outline, "size"), 0.0);
+            ColorRGBA oc = HudValueParsers.asColor(HudValueParsers.member(outline, "color"), new ColorRGBA(0, 0, 0, 0));
+            t.setOutline(os, oc);
         }
 
-        try { hudRoot.updateGeometricState(); } catch (Throwable ignored) {}
+        Object shadow = HudValueParsers.member(cfg, "shadow");
+        if (shadow != null) {
+            float x = (float) HudValueParsers.asNum(HudValueParsers.member(shadow, "x"), 0);
+            float y = (float) HudValueParsers.asNum(HudValueParsers.member(shadow, "y"), 0);
+            float a = (float) HudValueParsers.asNum(HudValueParsers.member(shadow, "a"), 0);
+            t.setShadow(x, y, a);
+        }
+    }
+
+    private void applyHtml(HudHtml h, Object cfg) {
+        Object html = HudValueParsers.member(cfg, "markup");
+        if (html == null) html = HudValueParsers.member(cfg, "html");
+        if (html != null) {
+            h.setHtml(HudValueParsers.asString(html, ""), this, engine);
+            if (DEBUG) log.debug("[hud] html set queued for id={}", h.id);
+        }
+
+        // optional data binding object (only if your HudHtml supports it)
+        Object data = HudValueParsers.member(cfg, "data");
+        if (data != null) {
+            try {
+                h.setData(data, this, engine);
+            } catch (Throwable ignored) {
+                if (DEBUG) log.debug("[hud] html data ignored: HudHtml.setData not available");
+            }
+        }
+    }
+
+    // ------------------- layout pipeline -------------------
+
+    private void relayoutAll() {
+        if (hudVP == null) return;
+
+        final int w = hudVP.getCamera().getWidth();
+        final int h = hudVP.getCamera().getHeight();
+
+        tmpRoots.clear();
+        for (HudElement e : byId.values()) {
+            if (e != null && e.parent == null) tmpRoots.add(e);
+        }
+        if (tmpRoots.isEmpty()) return;
+
+        boolean htmlChanged = false;
+        for (HudElement r : tmpRoots) {
+            if (r instanceof HudHtml hh) {
+                if (hh.flushIfDirty(this, engine)) htmlChanged = true;
+            }
+        }
+        if (htmlChanged) {
+            tmpRoots.clear();
+            for (HudElement e : byId.values()) {
+                if (e != null && e.parent == null) tmpRoots.add(e);
+            }
+        }
+
+        yoga.layout(tmpRoots, w, h);
+        flex.layout(tmpRoots, w, h);
+
+        for (HudElement r : tmpRoots) {
+            HudLayout.apply(r, w, h);
+        }
+
+        // debug dump roots
+        if (DEBUG) {
+            int n = Math.min(5, tmpRoots.size());
+            for (int i = 0; i < n; i++) {
+                HudElement r = tmpRoots.get(i);
+                var t = r.node.getLocalTranslation();
+                var sc = r.node.getLocalScale();
+                log.info("[hud] root#{} id={} kind={} pos=({}, {}, {}) size=({}, {}) vis={} anchor={} pivot={} scale=({}, {}, {})",
+                        i, r.id, r.kind,
+                        t.x, t.y, t.z,
+                        r.w, r.h,
+                        r.visible,
+                        r.anchor, r.pivot,
+                        sc.x, sc.y, sc.z);
+            }
+        }
+    }
+
+    // ------------------- viewport -------------------
+
+
+    private void ensureHudViewportForCurrentApp(String reason) {
+        int w = lastW;
+        int h = lastH;
+        if (w <= 0 || h <= 0) {
+            Camera cam = app.getCamera();
+            if (cam != null) {
+                w = cam.getWidth();
+                h = cam.getHeight();
+            }
+        }
+        if (w <= 0) w = 1;
+        if (h <= 0) h = 1;
+        ensureHudViewport(w, h, reason);
+    }
+
+    private void ensureHudViewport(int w, int h, String reason) {
+        w = Math.max(1, w);
+        h = Math.max(1, h);
+
+        lastW = w;
+        lastH = h;
+
+        uiScale = computeUiScale(w, h);
+        viewportDto = new HudViewport(w, h, w / 2, h / 2, uiScale);
+
+        if (hudCam == null) hudCam = new Camera(w, h);
+        else hudCam.resize(w, h, true);
+
+        // ✅ Y-DOWN ortho: (0,0) top-left, y grows down
+        hudCam.setParallelProjection(true);
+        hudCam.setFrustum(-1000f, 1000f, 0f, w, 0f, h);
+        hudCam.setLocation(new Vector3f(0f, 0f, 0f));
+        hudCam.lookAtDirection(new Vector3f(0f, 0f, -1f), Vector3f.UNIT_Y);
+
+        // ✅ Scale virtual 1920x1080 authored UI into actual viewport
+        float sx = w / DESIGN_W;
+        float sy = h / DESIGN_H;
+        float rootScale = Math.min(sx, sy);
+        hudRoot.setLocalScale(rootScale, rootScale, 1f);
+
+        if (hudVP == null) {
+            hudVP = app.getRenderManager().createPostView("kalitech:hudVP", hudCam);
+            hudVP.attachScene(hudRoot);
+            hudVP.setClearFlags(false, true, false);
+            hudVP.setEnabled(true);
+
+            hudRoot.setQueueBucket(RenderQueue.Bucket.Gui);
+            hudRoot.setCullHint(com.jme3.scene.Spatial.CullHint.Never);
+
+            if (DEBUG) log.info("[hud] created POST viewport {}x{} scale={} rootScale={} reason={}", w, h, uiScale, rootScale, reason);
+        } else {
+            if (DEBUG) log.info("[hud] resized HUD viewport {}x{} scale={} rootScale={} reason={}", w, h, uiScale, rootScale, reason);
+        }
+
+        if (DEBUG) {
+            log.debug("[hud] cam frustum nearFar=[{},{}] lrtb=[{}, {}, {}, {}]",
+                    hudCam.getFrustumNear(), hudCam.getFrustumFar(),
+                    hudCam.getFrustumLeft(), hudCam.getFrustumRight(),
+                    hudCam.getFrustumTop(), hudCam.getFrustumBottom());
+            log.info("[hud] design={}x{} viewport={}x{} rootScale={}", DESIGN_W, DESIGN_H, w, h, rootScale);
+        }
+    }
+
+
+    private float computeUiScale(int w, int h) {
+        float s = h / 1080f;
+        if (s < 0.75f) s = 0.75f;
+        if (s > 2.00f) s = 2.00f;
+        return s;
+    }
+
+    private int countRoots() {
+        int roots = 0;
+        for (HudElement e : byId.values()) {
+            if (e != null && e.parent == null) roots++;
+        }
+        return roots;
+    }
+
+    private void spawnSmokeTestRect() {
+        try {
+            int id = ids.getAndIncrement();
+            HudRect r = new HudRect(id);
+            r.w = 240;
+            r.h = 90;
+            r.offsetX = 30;
+            r.offsetY = 30;
+            r.visible = true;
+            r.setColor(new ColorRGBA(1f, 0f, 0f, 0.85f), engine);
+            hudRoot.attachChild(r.node);
+            byId.put(id, r);
+            relayoutDirty = true;
+
+            log.warn("[hud] SMOKETEST: spawned visible red rect id={} at (30,30) size=240x90", id);
+        } catch (Throwable t) {
+            log.error("[hud] SMOKETEST failed", t);
+        }
+    }
+
+    // ------------------- INTERNAL: used by HudHtml -------------------
+
+    HudElement __createInternal(String kind, HudElement parent, Object cfg) {
+        if (kind == null || kind.isBlank()) throw new IllegalArgumentException("__createInternal: kind is required");
+
+        final int id = ids.getAndIncrement();
+        final HudElement el = createElementOfKind(kind, id);
+
+        if (parent != null) parent.addChild(el);
+        else hudRoot.attachChild(el.node);
+
+        byId.put(id, el);
+
+        if (cfg != null) {
+            applyCommon(el, cfg);
+            switch (el.kind) {
+                case RECT -> applyRect((HudRect) el, cfg);
+                case IMAGE -> applyImage((HudImage) el, cfg);
+                case TEXT -> applyText((HudText) el, cfg);
+                case HTML -> applyHtml((HudHtml) el, cfg);
+                default -> { /* group */ }
+            }
+        }
+
+        relayoutDirty = true;
+        return el;
+    }
+
+    void __destroyRecursiveInternal(HudElement el) {
+        if (el == null) return;
+
+        if (!el.children.isEmpty()) {
+            List<HudElement> kids = new ArrayList<>(el.children);
+            for (HudElement c : kids) __destroyRecursiveInternal(c);
+            el.children.clear();
+        }
+
+        if (el.parent != null) {
+            el.parent.removeChild(el);
+        } else {
+            el.node.removeFromParent();
+        }
+        el.parent = null;
+
+        byId.remove(el.id);
+        handles.remove(el.id);
+
+        try { el.onDestroy(); } catch (Throwable ignored) {}
+    }
+
+    private HudElement createElementOfKind(String kind, int id) {
+        return switch (kind) {
+            case "group" -> new HudGroup(id);
+            case "rect"  -> new HudRect(id);
+            case "image" -> new HudImage(id);
+            case "text"  -> new HudText(id);
+            case "html"  -> new HudHtml(id);
+            default -> throw new IllegalArgumentException("hud: unknown kind='" + kind + "'");
+        };
     }
 }

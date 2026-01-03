@@ -15,80 +15,146 @@ final class HudLayout {
         BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT
     }
 
+    // -----------------------------
+    // Parsing (robust)
+    // -----------------------------
+
     static Anchor anchorOf(String s) {
         if (s == null) return Anchor.TOP_LEFT;
-        return switch (s) {
-            case "topLeft" -> Anchor.TOP_LEFT;
+        String t = norm(s);
+        return switch (t) {
+            case "topleft", "top-left", "top_left" -> Anchor.TOP_LEFT;
             case "top" -> Anchor.TOP;
-            case "topRight" -> Anchor.TOP_RIGHT;
+            case "topright", "top-right", "top_right" -> Anchor.TOP_RIGHT;
+
             case "left" -> Anchor.LEFT;
-            case "center" -> Anchor.CENTER;
+            case "center", "middle" -> Anchor.CENTER;
             case "right" -> Anchor.RIGHT;
-            case "bottomLeft" -> Anchor.BOTTOM_LEFT;
+
+            case "bottomleft", "bottom-left", "bottom_left" -> Anchor.BOTTOM_LEFT;
             case "bottom" -> Anchor.BOTTOM;
-            case "bottomRight" -> Anchor.BOTTOM_RIGHT;
+            case "bottomright", "bottom-right", "bottom_right" -> Anchor.BOTTOM_RIGHT;
+
             default -> Anchor.TOP_LEFT;
         };
     }
 
     static Pivot pivotOf(String s) {
         if (s == null) return Pivot.TOP_LEFT;
-        return switch (s) {
-            case "topLeft" -> Pivot.TOP_LEFT;
+        String t = norm(s);
+        return switch (t) {
+            case "topleft", "top-left", "top_left" -> Pivot.TOP_LEFT;
             case "top" -> Pivot.TOP;
-            case "topRight" -> Pivot.TOP_RIGHT;
+            case "topright", "top-right", "top_right" -> Pivot.TOP_RIGHT;
+
             case "left" -> Pivot.LEFT;
-            case "center" -> Pivot.CENTER;
+            case "center", "middle" -> Pivot.CENTER;
             case "right" -> Pivot.RIGHT;
-            case "bottomLeft" -> Pivot.BOTTOM_LEFT;
+
+            case "bottomleft", "bottom-left", "bottom_left" -> Pivot.BOTTOM_LEFT;
             case "bottom" -> Pivot.BOTTOM;
-            case "bottomRight" -> Pivot.BOTTOM_RIGHT;
+            case "bottomright", "bottom-right", "bottom_right" -> Pivot.BOTTOM_RIGHT;
+
             default -> Pivot.TOP_LEFT;
         };
     }
 
+    private static String norm(String s) {
+        return s.trim().toLowerCase();
+    }
+
+    // -----------------------------
+    // Public entrypoints
+    // -----------------------------
+
     /**
-     * ✅ Root layout entry:
+     * Apply layout for a root anchored to viewport.
+     * Root anchors against viewport (vw/vh). Children anchor against parent size.
+     *
+     * Coordinate system: ✅ y-down (screen/HTML style)
+     *  - (0,0) is top-left
+     *  - y grows down
+     *
+     * IMPORTANT: Camera must be configured to match this (Y-down ortho).
+     */
+    static void apply(Object hudElement, int vw, int vh) {
+        if (hudElement == null) return;
+        int w = Math.max(1, vw);
+        int h = Math.max(1, vh);
+        layoutRecursive(hudElement, w, h, w, h);
+    }
+
+    /**
+     * Root layout entry:
      * - root element anchors against viewport (vw/vh)
      * - children anchor against parent size (parent.w/parent.h)
      *
      * IMPORTANT: we set LOCAL translation, so we must NOT accumulate absolute screen coords.
      */
     static void layoutRecursive(Object hudElement, int vw, int vh, float parentW, float parentH) {
-        HudElementLike el = (HudElementLike) hudElement;
+        if (hudElement == null) return;
 
+        HudElementLike el = safeCast(hudElement);
+        if (el == null) return;
+
+        // apply visibility first (it can cull subtree cheaply)
         el.applyVisibility();
 
-        // Anchor point INSIDE parent coordinate space
+        parentW = sanitize(parentW);
+        parentH = sanitize(parentH);
+
+        // Resolve "fill parent" sizing if supported
+        if (el instanceof HudElementEx ex) {
+            if (ex.fillParent()) {
+                ex.setSize(Math.max(0f, parentW), Math.max(0f, parentH));
+            }
+        }
+
+        float w = sanitize(el.w());
+        float h = sanitize(el.h());
+
+        // Anchor point inside parent coordinate space (✅ y-down)
         float ax = anchorX(el.anchor(), parentW);
         float ay = anchorY(el.anchor(), parentH);
 
         // Desired point inside parent + local offsets
-        float x = ax + el.offsetX();
-        float y = ay + el.offsetY();
+        float x = sanitize(ax + el.offsetX());
+        float y = sanitize(ay + el.offsetY());
 
-        // Pivot shifts by element size
-        float px = pivotShiftX(el.pivot(), el.w());
-        float py = pivotShiftY(el.pivot(), el.h());
+        // Pivot shifts by element size (✅ y-down)
+        float px = pivotShiftX(el.pivot(), w);
+        float py = pivotShiftY(el.pivot(), h);
 
-        // Final LOCAL position
-        float nodeX = x - px;
-        float nodeY = y - py;
+        // Final LOCAL position (✅ y-down)
+        float nodeX = sanitize(x - px);
+        float nodeY = sanitize(y - py);
 
-        el.setLocalTranslation(nodeX, nodeY, 0f);
+        if (el instanceof HudElementEx ex) {
+            el.setLocalTranslation(nodeX, nodeY, sanitize(ex.z()));
+        } else {
+            el.setLocalTranslation(nodeX, nodeY, 0f);
+        }
 
         // Next level: children anchor against THIS element size
-        float childParentW = el.w();
-        float childParentH = el.h();
+        float childParentW = w;
+        float childParentH = h;
 
-        // If parent has no size (group), it's fine — anchor will resolve to 0/center(0)
-        for (Object child : el.children()) {
+        Iterable<Object> kids = el.children();
+        if (kids == null) return;
+
+        for (Object child : kids) {
+            if (child == null) continue;
+            if (child == hudElement) continue; // guard accidental self-link
             layoutRecursive(child, vw, vh, childParentW, childParentH);
         }
     }
 
+    // -----------------------------
     // Anchor positions in parent-space
+    // -----------------------------
+
     static float anchorX(Anchor a, float parentW) {
+        parentW = sanitize(parentW);
         return switch (a) {
             case TOP_LEFT, LEFT, BOTTOM_LEFT -> 0f;
             case TOP, CENTER, BOTTOM -> parentW * 0.5f;
@@ -97,14 +163,18 @@ final class HudLayout {
     }
 
     static float anchorY(Anchor a, float parentH) {
+        // ✅ y-down:
+        // TOP = 0, BOTTOM = parentH
+        parentH = sanitize(parentH);
         return switch (a) {
-            case BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT -> 0f;
+            case TOP_LEFT, TOP, TOP_RIGHT -> 0f;
             case LEFT, CENTER, RIGHT -> parentH * 0.5f;
-            case TOP_LEFT, TOP, TOP_RIGHT -> parentH;
+            case BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT -> parentH;
         };
     }
 
     static float pivotShiftX(Pivot p, float w) {
+        w = sanitize(w);
         return switch (p) {
             case TOP_LEFT, LEFT, BOTTOM_LEFT -> 0f;
             case TOP, CENTER, BOTTOM -> w * 0.5f;
@@ -113,12 +183,39 @@ final class HudLayout {
     }
 
     static float pivotShiftY(Pivot p, float h) {
+        // ✅ y-down:
+        // TOP pivot shift = 0, BOTTOM shift = full height
+        h = sanitize(h);
         return switch (p) {
-            case BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT -> 0f;
+            case TOP_LEFT, TOP, TOP_RIGHT -> 0f;
             case LEFT, CENTER, RIGHT -> h * 0.5f;
-            case TOP_LEFT, TOP, TOP_RIGHT -> h;
+            case BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT -> h;
         };
     }
+
+    // -----------------------------
+    // Small safety helpers (AAA robustness)
+    // -----------------------------
+
+    private static HudElementLike safeCast(Object o) {
+        if (o instanceof HudElementLike like) return like;
+        return null;
+    }
+
+    private static float sanitize(float v) {
+        if (!finite(v)) return 0f;
+        if (v > 1_000_000f) return 1_000_000f;
+        if (v < -1_000_000f) return -1_000_000f;
+        return v;
+    }
+
+    private static boolean finite(float v) {
+        return !Float.isNaN(v) && !Float.isInfinite(v);
+    }
+
+    // -----------------------------
+    // Contracts
+    // -----------------------------
 
     interface HudElementLike {
         Anchor anchor();
@@ -130,5 +227,11 @@ final class HudLayout {
         void setLocalTranslation(float x, float y, float z);
         void applyVisibility();
         Iterable<Object> children();
+    }
+
+    interface HudElementEx {
+        boolean fillParent();
+        void setSize(float w, float h);
+        float z();
     }
 }
