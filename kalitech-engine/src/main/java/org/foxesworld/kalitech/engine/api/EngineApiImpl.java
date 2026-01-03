@@ -10,7 +10,7 @@ import org.foxesworld.kalitech.audio.KalitechAudioBridge;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
 import org.foxesworld.kalitech.engine.api.impl.debug.DebugDrawApiImpl;
-import org.foxesworld.kalitech.engine.api.impl.hud.HudApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.HudApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.input.InputApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.light.LightApiImpl;
 import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
@@ -34,6 +34,11 @@ public final class EngineApiImpl implements EngineApi {
     private final PerfProfiler perf;
     private final SimpleApplication app;
     private final AssetManager assets;
+    /**
+     * Script event bus used to bridge engine <-> JS.
+     * NOTE: RuntimeAppState might temporarily provide null during early boot.
+     * All API implementations must treat the bus as optional.
+     */
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
     private final Thread jmeThread;
@@ -60,6 +65,21 @@ public final class EngineApiImpl implements EngineApi {
     private final LightApiImpl light;
     private final SoundApiImpl sound;
     private final DebugDrawApiImpl debug;
+
+    private volatile double fps = 0.0;
+
+    // windowed measurement (stable)
+    private double fpsAcc = 0.0;
+    private int fpsFrames = 0;
+
+    // config
+    private double fpsWindowSec = 0.25; // like your JS window (can tweak)
+
+    // optional EMA on top (even smoother, less jumpy)
+    private double fpsEma = 0.0;
+    private double fpsEmaTau = 0.20; // seconds (smaller = more responsive)
+
+
 
     // ✅ new: unified surface registry + apis
     private final SurfaceRegistry surfaceRegistry;
@@ -104,7 +124,7 @@ public final class EngineApiImpl implements EngineApi {
         //this.ui = new UiApiImpl();
 
         // ✅ registry must be created early
-        this.surfaceRegistry = new SurfaceRegistry(this.app);
+        this.surfaceRegistry = new SurfaceRegistry(this.app, this.bus);
         //ALL ABOVE REQUIRE surfaceRegistry
         this.terrainApi = new TerrainApiImpl(this);
         this.terrainSplatApi = new TerrainSplatApiImpl(this);
@@ -159,9 +179,19 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override public boolean isJmeThread() {        return Thread.currentThread() == jmeThread;}
 
+    @HostAccess.Export
+    @Override
+    public double fps() {
+        final double v = fpsEma > 0.0 ? fpsEma : fps;
+        return (v > 0.0 && Double.isFinite(v)) ? v : 0.0;
+    }
+
+
+
 
     // internal hooks
     public void __updateTime(double tpf) {
+        __updateFps(tpf);
         perf.beginFrame();
 
         long t;
@@ -174,10 +204,6 @@ public final class EngineApiImpl implements EngineApi {
         t = perf.begin("camera.flush");
         if (cameraApi instanceof CameraApiImpl c) c.__flush();
         perf.end("camera.flush", t);
-
-        t = perf.begin("hud.tick");
-        this.hudApi.__tick();
-        perf.end("hud.tick", t);
 
         t = perf.begin("debug.tick");
         this.debug.tick(tpf);
@@ -236,6 +262,38 @@ public final class EngineApiImpl implements EngineApi {
         });
     }
 
+    private void __updateFps(double tpf) {
+        // tpf = time per frame
+        if (!(tpf > 0.0) || !Double.isFinite(tpf)) return;
+
+        // 1) windowed FPS (устойчиво, без "дребезга")
+        fpsAcc += tpf;
+        fpsFrames++;
+
+        if (fpsAcc >= fpsWindowSec) {
+            double v = fpsFrames / fpsAcc;
+            if (v > 0.0 && Double.isFinite(v)) fps = v;
+            fpsAcc = 0.0;
+            fpsFrames = 0;
+        }
+
+        // 2) EMA smoothing поверх (красиво для UI)
+        // alpha = 1 - exp(-dt/tau)
+        double inst = 1.0 / tpf;
+
+        // clamp insane spikes (pause/unpause)
+        if (inst > 1000.0) inst = 1000.0;
+
+        final double tau = fpsEmaTau;
+        double alpha = 1.0 - Math.exp(-tpf / (tau > 1e-6 ? tau : 0.2));
+        if (!(alpha > 0.0 && alpha <= 1.0)) alpha = 0.15;
+
+        if (fpsEma <= 0.0) fpsEma = inst;
+        else fpsEma += (inst - fpsEma) * alpha;
+    }
+
+
+
     public void __setPhysicsSpace(PhysicsSpace space) {
         this.physicsSpace = space;
     }
@@ -257,16 +315,12 @@ public final class EngineApiImpl implements EngineApi {
     public GraalScriptRuntime getRuntime() {
         return runtime;
     }
-
     public SurfaceRegistry getSurfaceRegistry() {
         return surfaceRegistry;
     }
-
     public BulletAppState getBullet() {
         return bullet;
     }
-
-    public void __tickHud() { hudApi.__tick(); }
     public CameraState getCameraState() { return cameraState; }
     public AssetManager getAssets() { return assets; }
     public SimpleApplication getApp() { return app; }

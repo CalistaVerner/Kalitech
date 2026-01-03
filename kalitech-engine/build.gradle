@@ -8,6 +8,11 @@ application {
     mainClass = 'org.foxesworld.kalitech.engine.KalitechLauncher'
 }
 
+repositories {
+    mavenCentral()
+}
+
+
 dependencies {
     implementation project(':kalitech-core')
     implementation project(':kalitech-neural')
@@ -29,4 +34,8 @@ dependencies {
 
     implementation "org.graalvm.polyglot:polyglot:${rootProject.ext.graalVersion}"
     implementation "org.graalvm.polyglot:js:${rootProject.ext.graalVersion}"
+
+    //HUD
+    implementation "com.simsilica:lemur:1.16.0"
+    implementation "org.apache.groovy:groovy-jsr223:5.0.3"
 }

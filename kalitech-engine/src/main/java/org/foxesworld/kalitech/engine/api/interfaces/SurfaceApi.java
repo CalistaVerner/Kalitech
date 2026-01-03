@@ -94,6 +94,12 @@ public interface SurfaceApi {
     Hit[] pickUnderCursor();
 
     @HostAccess.Export
+    void setCull(SurfaceHandle target, String hint);
+
+    @HostAccess.Export
+    void setVisible(SurfaceHandle target, boolean visible);
+
+    @HostAccess.Export
     Hit[] pickUnderCursorCfg(Value cfg);
 
     // -------------------------

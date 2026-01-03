@@ -38,6 +38,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
     private final MeshApi meshApi;
     private final PhysicsApi physicsApi;
     private final MaterialApi materialApi;
+    private final org.foxesworld.kalitech.engine.script.events.ScriptEventBus bus;
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
         this.engine = engine;
@@ -46,7 +47,22 @@ public final class SurfaceApiImpl implements SurfaceApi {
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
         this.materialApi = engine.material();
+        this.bus = engine.getBus();
         // ❌ LEGACY REMOVED: registry.bindSurfaceApi(this);
+    }
+
+    private void emit(String topic, Object... kv) {
+        if (bus == null) return;
+        try {
+            java.util.HashMap<String, Object> m = new java.util.HashMap<>();
+            for (int i = 0; i + 1 < kv.length; i += 2) {
+                Object k = kv[i];
+                if (k == null) continue;
+                m.put(String.valueOf(k), kv[i + 1]);
+            }
+            bus.emit(topic, m);
+        } catch (Throwable ignored) {
+        }
     }
 
     @HostAccess.Export
@@ -74,6 +90,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
 
         if (s instanceof TerrainQuad tq) {
             tq.setMaterial(mat);
+            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "terrain");
             return;
         }
 
@@ -82,11 +99,13 @@ public final class SurfaceApiImpl implements SurfaceApi {
             if (cfg != null) {
                 try { applyTileWorldToGeometryIfAny(g, cfg); } catch (Throwable ignored) {}
             }
+            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "geometry");
             return;
         }
 
         if (s instanceof Node n) {
             applyMaterialRecursiveWithTileWorld(n, mat, cfg);
+            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "node");
             return;
         }
 
@@ -163,6 +182,19 @@ public final class SurfaceApiImpl implements SurfaceApi {
         Mesh mesh = g.getMesh();
         if (mesh == null) return;
 
+        // IMPORTANT: meshes are often shared. UV scaling mutates mesh buffers, so clone per-geometry once.
+        Boolean cloned = g.getUserData("__kt_meshCloned");
+        if (cloned == null || !cloned) {
+            try {
+                Mesh clonedMesh = mesh.clone();
+                g.setMesh(clonedMesh);
+                mesh = clonedMesh;
+                g.setUserData("__kt_meshCloned", Boolean.TRUE);
+            } catch (Throwable ignored) {
+                // fallback: mutate shared mesh (legacy behavior)
+            }
+        }
+
         VertexBuffer vb = mesh.getBuffer(VertexBuffer.Type.TexCoord);
         if (vb == null) return;
 
@@ -212,6 +244,21 @@ public final class SurfaceApiImpl implements SurfaceApi {
         float rz = deg.z * (float) (Math.PI / 180.0);
         s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
     }
+
+    @HostAccess.Export
+    @Override
+    public void setCull(SurfaceHandle target, String hint) {
+        Spatial s = requireSpatial(target);
+        s.setCullHint(parseCullHint(hint));
+    }
+
+    @HostAccess.Export
+    @Override
+    public void setVisible(SurfaceHandle target, boolean visible) {
+        Spatial s = requireSpatial(target);
+        s.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+    }
+
 
     @HostAccess.Export
     public void setScale(SurfaceHandle target, Object scale) {
@@ -539,6 +586,18 @@ public final class SurfaceApiImpl implements SurfaceApi {
                 }
             }
         }
+    }
+
+    private static Spatial.CullHint parseCullHint(String hint) {
+        if (hint == null) return Spatial.CullHint.Inherit;
+        String m = hint.trim().toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "inherit", "parent" -> Spatial.CullHint.Inherit;
+            case "always", "hidden", "hide" -> Spatial.CullHint.Always;
+            case "never", "show" -> Spatial.CullHint.Never;
+            case "dynamic" -> Spatial.CullHint.Dynamic;
+            default -> Spatial.CullHint.Inherit;
+        };
     }
 
     public static void applyTransform(Spatial s, Value cfg) {

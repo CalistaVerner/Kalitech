@@ -204,6 +204,30 @@ class EntityHandle {
         return String(this.entityId | 0);
     }
 
+    setVisible(v) {
+        const sid = this.surfaceId | 0;
+        if (!sid) throw new Error("[ENT] setVisible: surfaceId=0 entityId=" + (this.entityId | 0));
+
+        const s = this._engine.surface && this._engine.surface();
+        if (!s || typeof s.setVisible !== "function") {
+            throw new Error("[ENT] setVisible: engine.surface().setVisible(surfaceId,bool) missing");
+        }
+        s.setVisible(sid, !!v);
+        return this;
+    }
+
+    setCull(hint) {
+        const sid = this.surfaceId | 0;
+        if (!sid) throw new Error("[ENT] setCull: surfaceId=0 entityId=" + (this.entityId | 0));
+
+        const s = this._engine.surface && this._engine.surface();
+        if (!s || typeof s.setCull !== "function") {
+            throw new Error("[ENT] setCull: engine.surface().setCull(surfaceId,string) missing");
+        }
+        s.setCull(sid, String(hint));
+        return this;
+    }
+
     // ---------------- physics helpers ----------------
 
     hasBody() { return (this.bodyId | 0) > 0; }

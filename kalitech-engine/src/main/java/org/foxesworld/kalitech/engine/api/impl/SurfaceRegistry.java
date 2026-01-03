@@ -6,6 +6,7 @@ import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,6 +19,7 @@ public final class SurfaceRegistry {
     private static final Logger log = LogManager.getLogger(SurfaceRegistry.class);
 
     private final SimpleApplication app;
+    private final ScriptEventBus bus; // optional
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
@@ -32,7 +34,12 @@ public final class SurfaceRegistry {
     private final AtomicBoolean attachFlushScheduled = new AtomicBoolean(false);
 
     public SurfaceRegistry(SimpleApplication app) {
+        this(app, null);
+    }
+
+    public SurfaceRegistry(SimpleApplication app, ScriptEventBus bus) {
         this.app = Objects.requireNonNull(app, "app");
+        this.bus = bus;
     }
 
     /**
@@ -59,6 +66,7 @@ public final class SurfaceRegistry {
         }
 
         // Keep current contract: SurfaceHandle still contains api reference (if your SurfaceHandle class expects it).
+        emit("engine.surface.registered", "surfaceId", id, "kind", k, "name", spatial.getName());
         return new SurfaceApi.SurfaceHandle(id, k, api);
     }
 
@@ -77,12 +85,15 @@ public final class SurfaceRegistry {
         if (oldSurface != null && oldSurface != surfaceId) surfaceToEntity.remove(oldSurface);
 
         surfaceToEntity.put(surfaceId, entityId);
+
+        emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId);
     }
 
     /** detach by surface; returns detached entityId (or null) */
     public Integer detachSurface(int surfaceId) {
         Integer ent = surfaceToEntity.remove(surfaceId);
         if (ent != null) entityToSurface.remove(ent);
+        if (ent != null) emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent);
         return ent;
     }
 
@@ -90,6 +101,7 @@ public final class SurfaceRegistry {
     public Integer detachEntity(int entityId) {
         Integer surf = entityToSurface.remove(entityId);
         if (surf != null) surfaceToEntity.remove(surf);
+        if (surf != null) emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId);
         return surf;
     }
 
@@ -97,6 +109,8 @@ public final class SurfaceRegistry {
         if (!exists(id)) throw new IllegalArgumentException("attachToRoot: unknown surface id=" + id);
         pendingAttach.add(id);
         scheduleAttachFlush();
+
+        emit("engine.surface.attachToRoot", "surfaceId", id);
     }
 
     private void scheduleAttachFlush() {
@@ -126,6 +140,8 @@ public final class SurfaceRegistry {
         Spatial s = byId.get(id);
         if (s == null) return;
         if (s.getParent() != null) s.removeFromParent();
+
+        emit("engine.surface.detachedFromParent", "surfaceId", id);
     }
 
     public void destroy(int id) {
@@ -134,12 +150,29 @@ public final class SurfaceRegistry {
 
         detachSurface(id);
 
+        emit("engine.surface.destroyed", "surfaceId", id);
+
         if (s != null) {
             try {
                 if (s.getParent() != null) s.removeFromParent();
             } catch (Throwable t) {
                 log.warn("destroy: failed to detach surface id={}", id, t);
             }
+        }
+    }
+
+    private void emit(String topic, Object... kv) {
+        if (bus == null) return;
+        try {
+            // ScriptEventBus typically accepts Map payloads; keep it allocation-light.
+            java.util.HashMap<String, Object> m = new java.util.HashMap<>();
+            for (int i = 0; i + 1 < kv.length; i += 2) {
+                Object k = kv[i];
+                if (k == null) continue;
+                m.put(String.valueOf(k), kv[i + 1]);
+            }
+            bus.emit(topic, m);
+        } catch (Throwable ignored) {
         }
     }
 }

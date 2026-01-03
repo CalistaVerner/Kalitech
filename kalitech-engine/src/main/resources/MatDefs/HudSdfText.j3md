@@ -1,0 +1,35 @@
+// FILE: Assets/MatDefs/HudSdfText.j3md  (или где у вас лежит j3md)
+MaterialDef HudSdfText {
+
+    MaterialParameters {
+        Texture2D SdfMap
+        Color Color
+        Float Softness
+
+        // UI-friendly (pixels)
+        Float OutlineSize
+        Color OutlineColor
+        Vector2 ShadowOffset
+        Float ShadowAlpha
+
+        // NEW (AAA): atlas metadata
+        Vector2 TexelSize   // 1/atlasW, 1/atlasH
+        Float PxRange       // spreadPx used in atlas bake
+    }
+
+    Technique {
+        VertexShader   GLSL150:   Shaders/HudSdfText.vert
+        FragmentShader GLSL150:   Shaders/HudSdfText.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+        }
+
+        RenderState {
+            FaceCull Off
+            DepthTest Off
+            DepthWrite Off
+            Blend Alpha
+        }
+    }
+}

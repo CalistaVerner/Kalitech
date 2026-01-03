@@ -25,12 +25,17 @@ public final class EntityApiImpl implements EntityApi {
 
     private final EngineApiImpl engine;
     private final EcsWorld ecs;
-    private final ScriptEventBus bus;
+    private final ScriptEventBus bus; // optional
 
     public EntityApiImpl(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = Objects.requireNonNull(engineApi.getEcs(), "engineApi.getEcs()");
-        this.bus = Objects.requireNonNull(engineApi.getBus(), "engineApi.getBus()");
+        this.bus = engineApi.getBus();
+    }
+
+    private void emit(String topic, Map<String, Object> payload) {
+        if (bus == null) return;
+        try { bus.emit(topic, payload); } catch (Throwable ignored) {}
     }
 
     private static Map<String, Object> m(Object... kv) {
@@ -52,7 +57,7 @@ public final class EntityApiImpl implements EntityApi {
             ecs.components().putByName(id, "Name", safeName);
         }
 
-        bus.emit("engine.entity.create", m(
+        emit("engine.entity.create", m(
                 "entityId", id,
                 "name", safeName
         ));
@@ -64,7 +69,7 @@ public final class EntityApiImpl implements EntityApi {
     public void destroy(int id) {
         if (id <= 0) return;
 
-        bus.emit("engine.entity.destroy.before", m("entityId", id));
+        emit("engine.entity.destroy.before", m("entityId", id));
 
         // ✅ surface cleanup BEFORE ecs entity is gone
         try {
@@ -73,7 +78,7 @@ public final class EntityApiImpl implements EntityApi {
 
         ecs.destroyEntity(id);
 
-        bus.emit("engine.entity.destroy.after", m("entityId", id));
+        emit("engine.entity.destroy.after", m("entityId", id));
     }
 
     @HostAccess.Export
@@ -85,7 +90,7 @@ public final class EntityApiImpl implements EntityApi {
         String t = type.trim();
         ecs.components().putByName(id, t, data);
 
-        bus.emit("engine.entity.component.set", m(
+        emit("engine.entity.component.set", m(
                 "entityId", id,
                 "type", t,
                 "data", data
@@ -117,7 +122,7 @@ public final class EntityApiImpl implements EntityApi {
         String t = type.trim();
         ecs.components().removeByName(id, t);
 
-        bus.emit("engine.entity.component.remove", m(
+        emit("engine.entity.component.remove", m(
                 "entityId", id,
                 "type", t
         ));

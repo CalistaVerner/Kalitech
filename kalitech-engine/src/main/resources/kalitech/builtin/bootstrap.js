@@ -30,7 +30,8 @@ const DEFAULT_CONFIG = {
             log: "@builtin/Log/Log",
             input: "@builtin/Input/Input",
             events: "@builtin/Events/Events",
-            terrain: "@builtin/Terrain/Terrain"
+            terrain: "@builtin/Terrain/Terrain",
+            hud: "@builtin/Hud/Hud"
         }
     }
 };

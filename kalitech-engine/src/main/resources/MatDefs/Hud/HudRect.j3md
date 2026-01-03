@@ -1,0 +1,23 @@
+MaterialDef HudRect {
+
+    MaterialParameters {
+        Color Color
+    }
+
+    Technique {
+
+        VertexShader   GLSL150: MatDefs/Hud/HudRect.vert
+        FragmentShader GLSL150: MatDefs/Hud/HudRect.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+        }
+
+        RenderState {
+            Blend Alpha
+            DepthTest Off
+            DepthWrite Off
+            FaceCull Off
+        }
+    }
+}

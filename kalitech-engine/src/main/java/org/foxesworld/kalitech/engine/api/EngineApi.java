@@ -81,6 +81,9 @@ public interface EngineApi {
     @HostAccess.Export
     EditorApi editor();
 
+    @HostAccess.Export
+    double fps();
+
     /**
      * Execute a callback on JME main thread via Application#enqueue.
      */

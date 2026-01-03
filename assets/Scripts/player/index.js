@@ -1,5 +1,4 @@
 // FILE: Scripts/player/index.js
-// Author: Calista Verner
 "use strict";
 
 const U = require("./util.js");
@@ -20,12 +19,11 @@ class PlayerDomain {
         this.view = { yaw: 0, pitch: 0, type: "third" };
         this.pose = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, grounded: false, speed: 0, fallSpeed: 0 };
     }
-    syncIdsFromPlayer() {
-        const p = this.player;
+
+    syncIds(p) {
         this.ids.entityId = p.entityId | 0;
         this.ids.surfaceId = p.surfaceId | 0;
         this.ids.bodyId = p.bodyId | 0;
-        return this;
     }
 }
 
@@ -36,85 +34,91 @@ class Player {
 
         this.alive = false;
 
-        // optional builder model handle (factory may override/replace with entity.model)
-        this.model = null;
-
         this.entity = null;
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
+
         this.body = null;
+
+        // IMPORTANT: single source for "model handle" provided by scene/builder
+        // PlayerEntityFactory will pick this.model (or cfg.model) and store into entity.model.
+        this.model = null;
+        this._model = null; // legacy alias (keep to avoid breaking old scripts)
 
         this.dom = new PlayerDomain(this);
         this.frame = new FrameContext();
-
         this.characterCfg = new CharacterConfig();
 
         this.factory = new PlayerEntityFactory(this);
-        this.movement = new PlayerController(this);
+        this.controller = new PlayerController(this);
         this.camera = new PlayerCamera(this);
         this.ui = new PlayerUI(this);
         this.events = new PlayerEvents(this);
-
-        // cache movement cfg once; do NOT reload every frame
-        this._movementCfgCached = null;
-        this._charCfgLoaded = false;
     }
+
 
     getBodyId() { return this.bodyId | 0; }
 
-    // ✅ single source: spawned entity model
+    // Strict contract:
+    // - Prefer entity.model (what the factory stored, authoritative for visibility toggles)
+    // - Else fallback to player.model (pre-spawn / debug)
     getModel() {
-        if (this.entity && this.entity.model) return this.entity.model;
-        return this.model || null;
+        const e = this.entity;
+        if (e && e.model) return e.model;
+        return this.model;
     }
 
-    withConfig(cfg) { this.cfg = cfg || Object.create(null); return this; }
-    withModel(modelHandle) { this.model = modelHandle || null; return this; }
-
-    withCamera(type) {
-        if (!this.cfg) this.cfg = Object.create(null);
-        if (!this.cfg.camera) this.cfg.camera = Object.create(null);
-        this.cfg.camera.type = String(type || "third").toLowerCase();
+    withConfig(cfg) {
+        this.cfg = cfg || Object.create(null);
         return this;
     }
 
-    create(ctx) { if (ctx) this.ctx = ctx; this.init(); return this; }
+    withModel(modelHandle) {
+        // single write point
+        this.model = modelHandle || null;
+        this._model = this.model; // legacy compatibility
+        return this;
+    }
 
     init() {
         if (this.alive) return;
+        if (!PHYS || typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
+        if (!INP || typeof INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
 
-        if (!PHYS) throw new Error("[player] PHYS missing");
-        if (typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref missing");
-        if (!INP || typeof INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot missing");
-
+        engine.hud().setCursorEnabled(false, true);
         this.cfg = U.deepMerge({
             character: { radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65 },
             spawn: { pos: { x: 129, y: 3, z: -300 }, radius: 0.35, height: 1.80, mass: 80.0 },
             camera: { type: "third" },
-            ui: { crosshair: { size: 22, color: { r: 0.2, g: 1.0, b: 0.4, a: 1.0 } } },
-            events: { enabled: true, throttleMs: 250 }
-        }, this.cfg || Object.create(null));
+            ui: {},
+            events: { enabled: true }
+        }, this.cfg);
 
         this.ui.create();
 
+        // create entity (factory will pick model from cfg.model or player.model)
         this.entity = this.factory.create(this.cfg.spawn);
+
         this.entityId = this.entity.entityId | 0;
         this.surfaceId = this.entity.surfaceId | 0;
         this.bodyId = this.entity.bodyId | 0;
 
-        if ((this.bodyId | 0) <= 0) throw new Error("[player] bodyId is 0");
+        if (this.bodyId <= 0) throw new Error("[player] invalid bodyId=" + this.bodyId);
 
-        this.body = PHYS.ref(this.bodyId | 0);
-        if (!this.body) throw new Error("[player] PHYS.ref(bodyId) returned null bodyId=" + (this.bodyId | 0));
+        this.body = PHYS.ref(this.bodyId);
+        if (!this.body) throw new Error("[player] PHYS.ref(bodyId) returned null bodyId=" + this.bodyId);
 
-        this.dom.syncIdsFromPlayer();
-        this.movement.bind();
+        this.dom.syncIds(this);
 
-        // ✅ IMPORTANT:
-        // Player does NOT control camera mode. CameraOrchestrator decides.
-        // If you want a default, set it inside PlayerCamera/CameraOrchestrator constructor.
-        // (cfg.camera.type is only a hint during construction, not enforced every frame.)
+        this.controller.bind();
+
+        const movCfg = this.controller.getMovementCfg();
+        this.characterCfg.loadFrom(this.cfg, movCfg);
+
+        // IMPORTANT: camera must attach AFTER entity/model exists
+        // (PlayerCamera is lazy; this avoids CameraOrchestrator seeing null model on startup)
+        this.camera.attach();
 
         this.events.reset();
         this.events.onSpawn();
@@ -122,58 +126,39 @@ class Player {
         if (this.ctx && typeof this.ctx.state === "function") {
             this.ctx.state().set("player", {
                 alive: true,
-                entityId: this.entityId | 0,
-                surfaceId: this.surfaceId | 0,
-                bodyId: this.bodyId | 0
+                entityId: this.entityId,
+                surfaceId: this.surfaceId,
+                bodyId: this.bodyId
             });
         }
 
-        // cache movement config once and load character config once
-        this._movementCfgCached = this.movement.getMovementCfg();
-        this.characterCfg.loadFrom(this.cfg, this._movementCfgCached);
-        this._charCfgLoaded = true;
-
         this.alive = true;
-        LOG.info("[player] init ok entity=" + (this.entityId | 0) + " bodyId=" + (this.bodyId | 0));
-    }
-
-    _ensureBody() {
-        if (this.body) return;
-
-        this.body = PHYS.ref(this.bodyId | 0);
-        if (!this.body) {
-            throw new Error("[player] PHYS.ref returned null while reacquiring body wrapper; bodyId=" + (this.bodyId | 0));
-        }
-
-        // 🚫 NEVER call camera.setType here.
-        // Reacquiring physics wrapper must not mutate camera state.
+        if (LOG && LOG.info) LOG.info("[player] init ok entity=" + this.entityId + " bodyId=" + this.bodyId);
     }
 
     _syncPose(frame) {
-        const b = this.body;
+        const p = this.body.position();
+        frame.pose.x = U.vx(p);
+        frame.pose.y = U.vy(p);
+        frame.pose.z = U.vz(p);
 
-        const p = b.position();
-        frame.pose.x = U.vx(p, 0);
-        frame.pose.y = U.vy(p, 0);
-        frame.pose.z = U.vz(p, 0);
-
-        const v = b.velocity();
-        const vx = U.vx(v, 0);
-        const vy = U.vy(v, 0);
-        const vz = U.vz(v, 0);
+        const v = this.body.velocity();
+        const vx = U.vx(v);
+        const vy = U.vy(v);
+        const vz = U.vz(v);
 
         frame.pose.vx = vx;
         frame.pose.vy = vy;
         frame.pose.vz = vz;
 
         frame.pose.speed = Math.hypot(vx, vy, vz);
-        frame.pose.fallSpeed = vy < 0 ? -vy : 0;
+        frame.pose.fallSpeed = (vy < 0) ? -vy : 0;
 
-        frame.pose.grounded = frame.probeGroundCapsule(b, this.characterCfg);
+        frame.pose.grounded = frame.probeGroundCapsule(this.body, this.characterCfg);
     }
 
-    _syncDomainFromFrame() {
-        const fp = this.frame.pose;
+    _syncDomain(frame) {
+        const fp = frame.pose;
         const dp = this.dom.pose;
 
         dp.x = fp.x; dp.y = fp.y; dp.z = fp.z;
@@ -183,7 +168,7 @@ class Player {
         dp.grounded = fp.grounded;
     }
 
-    _syncView() {
+    _syncView(frame) {
         const yaw = this.camera.getYaw();
         const pitch = this.camera.getPitch();
         const type = this.camera.getType();
@@ -192,11 +177,22 @@ class Player {
         this.dom.view.pitch = pitch;
         this.dom.view.type = type;
 
-        if (this.frame && this.frame.view) {
-            this.frame.view.yaw = yaw;
-            this.frame.view.pitch = pitch;
-            this.frame.view.type = type;
+        frame.view.yaw = yaw;
+        frame.view.pitch = pitch;
+        frame.view.type = type;
+    }
+
+    // Strict: used by camera/orchestrator if it wants to toggle visibility through the player.
+    // No fallbacks besides entity.model and player.model; no setHidden, no guessing.
+    setModelVisible(visible) {
+        const m = this.getModel();
+        if (!m) return;
+
+        if (typeof m.setVisible !== "function") {
+            throw new Error("[player] model must implement setVisible(boolean)");
         }
+
+        m.setVisible(!!visible);
     }
 
     update(tpf) {
@@ -205,34 +201,25 @@ class Player {
         const snap = INP.consumeSnapshot();
 
         this.frame.begin(this, tpf, snap);
-        this.dom.syncIdsFromPlayer();
-
-        this._ensureBody();
-
-        // if cfg can hot-reload, you can re-load characterCfg only when cfg object identity changes;
-        // but by default, DO NOT rebuild it every frame.
-        if (!this._charCfgLoaded) {
-            this._movementCfgCached = this.movement.getMovementCfg();
-            this.characterCfg.loadFrom(this.cfg, this._movementCfgCached);
-            this._charCfgLoaded = true;
-        }
+        this.dom.syncIds(this);
 
         this._syncPose(this.frame);
-        this._syncDomainFromFrame();
+        this._syncDomain(this.frame);
 
         this.camera.update(this.frame);
-        this._syncView();
+        this._syncView(this.frame);
 
-        this.movement.update(this.frame);
+        this.controller.update(this.frame);
 
         this.events.onState({
-            grounded: !!this.frame.pose.grounded,
-            bodyId: this.bodyId | 0,
-            jump: !!(this.dom && this.dom.input && this.dom.input.jump),
+            grounded: this.frame.pose.grounded,
+            jump: this.dom.input.jump,
             fallSpeed: this.frame.pose.fallSpeed
         });
+        this.ui.refresh(true);
+        this.frame.pose.grounded = this.frame.probeGroundCapsule(this.body, this.characterCfg);
 
-        if (INP.endFrame) INP.endFrame();
+        if (typeof INP.endFrame === "function") INP.endFrame();
     }
 
     destroy() {
@@ -240,20 +227,19 @@ class Player {
 
         this.camera.destroy();
         this.ui.destroy();
+
         if (this.entity) this.entity.destroy();
 
         this.entity = null;
+        this.body = null;
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
-        this.body = null;
 
-        if (this.ctx && typeof this.ctx.state === "function") {
-            this.ctx.state().remove("player");
-        }
+        if (this.ctx && typeof this.ctx.state === "function") this.ctx.state().remove("player");
 
         this.alive = false;
-        LOG.info("[player] destroy");
+        if (LOG && LOG.info) LOG.info("[player] destroy");
     }
 }
 
@@ -266,13 +252,11 @@ module.exports.init = function init(ctx) {
 };
 
 module.exports.update = function update(ctx, tpf) {
-    if (!_player) return;
-    _player.update(tpf);
+    if (_player) _player.update(tpf);
 };
 
 module.exports.destroy = function destroy(ctx) {
-    if (!_player) return;
-    _player.destroy();
+    if (_player) _player.destroy();
     _player = null;
 };
 

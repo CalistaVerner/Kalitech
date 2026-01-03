@@ -347,6 +347,32 @@ function wrapSurface(engine, handle, cfg) {
                 };
             }
 
+            // === VISIBILITY / CULL CONTRACT ===
+            if (prop === "setVisible") {
+                return function setVisible(v) {
+                    const sid = _surfaceId(handle) | 0;
+                    if (!sid) throw new Error("[MSH] setVisible: surfaceId=0");
+                    const s = engine.surface && engine.surface();
+                    if (!s || typeof s.setVisible !== "function") {
+                        throw new Error("[MSH] setVisible: engine.surface().setVisible(surfaceId,bool) missing");
+                    }
+                    s.setVisible(sid, !!v);
+                };
+            }
+
+            if (prop === "setCull") {
+                return function setCull(hint) {
+                    const sid = _surfaceId(handle) | 0;
+                    if (!sid) throw new Error("[MSH] setCull: surfaceId=0");
+                    const s = engine.surface && engine.surface();
+                    if (!s || typeof s.setCull !== "function") {
+                        throw new Error("[MSH] setCull: engine.surface().setCull(surfaceId,string) missing");
+                    }
+                    s.setCull(sid, String(hint));
+                };
+            }
+
+
             if (prop === "applyCentralForce") {
                 return function applyCentralForce(vec3) {
                     const b = _bodyHandle();

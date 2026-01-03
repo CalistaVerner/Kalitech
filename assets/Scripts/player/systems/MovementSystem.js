@@ -1,3 +1,4 @@
+// FILE: Scripts/player/systems/MovementSystem.js
 // Author: Calista Verner
 "use strict";
 
@@ -5,7 +6,20 @@ const U = require("../util.js");
 
 function hypot2(x, z) { return Math.sqrt(x * x + z * z); }
 
-function norm2_into(x, z, out) {
+function moveTowards(cur, target, maxDelta) {
+    if (cur < target) return (cur + maxDelta < target) ? (cur + maxDelta) : target;
+    if (cur > target) return (cur - maxDelta > target) ? (cur - maxDelta) : target;
+    return target;
+}
+
+function rotateByYaw(localX, localZ, yaw, out) {
+    const s = Math.sin(yaw), c = Math.cos(yaw);
+    out.x = localX * c + localZ * s;
+    out.z = localZ * c - localX * s;
+    return out;
+}
+
+function norm2(x, z, out) {
     const l2 = x * x + z * z;
     if (l2 < 1e-12) { out.x = 0; out.z = 0; return out; }
     const inv = 1.0 / Math.sqrt(l2);
@@ -14,230 +28,202 @@ function norm2_into(x, z, out) {
     return out;
 }
 
-function rotateByYaw_into(localX, localZ, yaw, out) {
-    const s = Math.sin(yaw), c = Math.cos(yaw);
-    out.x = localX * c + localZ * s;
-    out.z = localZ * c - localX * s;
-    return out;
+function teleportBody(body, x, y, z) {
+    if (typeof body.teleport === "function") { body.teleport({ x, y, z }); return; }
+    if (typeof body.warp === "function") { body.warp({ x, y, z }); return; }
+    // last-resort: global PHYS.warp (still explicit, no silent fallback chains)
+    if (typeof PHYS !== "undefined" && PHYS && typeof PHYS.warp === "function") { PHYS.warp(body.id ? (body.id() | 0) : 0, { x, y, z }); return; }
+    throw new Error("[move] body teleport/warp required for step-down");
 }
 
-function moveTowards(current, target, maxDelta) {
-    if (current < target) return (current + maxDelta < target) ? (current + maxDelta) : target;
-    if (current > target) return (current - maxDelta > target) ? (current - maxDelta) : target;
-    return target;
+const DEFAULT_CFG = Object.freeze({
+    enabled: true,
+
+    // Speeds
+    walkSpeed: 4.4,
+    runSpeed: 7.2,
+
+    // Accel/Decel
+    accelGround: 38.0,
+    decelGround: 42.0,
+    accelAir: 10.0,
+    decelAir: 6.0,
+
+    // Jump
+    jumpSpeed: 6.6,
+    coyoteTime: 0.12,
+    jumpBuffer: 0.10,
+
+    // Ground stick / step-down
+    stepDownMax: 0.28,     // meters
+    stickDownVel: 1.6,     // m/s (small downward)
+    stickOnlyWhenMoving: true,
+
+    // Limits
+    maxHorizSpeed: 11.0,
+    maxFallSpeed: 60.0
+});
+
+function cfgNum(cfg, k, fb) {
+    const v = cfg && cfg[k];
+    return (v === undefined || v === null) ? fb : U.num(v, fb);
+}
+function cfgBool(cfg, k, fb) {
+    const v = cfg && cfg[k];
+    return (v === undefined || v === null) ? fb : !!v;
 }
 
 class MovementSystem {
-
     constructor(cfg) {
-        this.configure(cfg || {});
+        cfg = (cfg && typeof cfg === "object") ? cfg : {};
 
-        // jump state
-        this._coyoteT = 0;
-        this._jumpBufT = 0;
-        this._jumpCooldownT = 0;
+        this.enabled = cfgBool(cfg, "enabled", DEFAULT_CFG.enabled);
 
-        // misc
-        this._stepWarpCooldownT = 0;
+        this.walkSpeed = cfgNum(cfg, "walkSpeed", DEFAULT_CFG.walkSpeed);
+        this.runSpeed = cfgNum(cfg, "runSpeed", DEFAULT_CFG.runSpeed);
 
-        // temp vectors
-        this._tmpN = { x: 0, z: 0 };
-        this._tmpDir = { x: 0, z: 0 };
-        this._tmpVel = { x: 0, y: 0, z: 0 };
-        this._tmpJump = { x: 0, y: 0, z: 0 };
+        this.accelGround = cfgNum(cfg, "accelGround", DEFAULT_CFG.accelGround);
+        this.decelGround = cfgNum(cfg, "decelGround", DEFAULT_CFG.decelGround);
+        this.accelAir = cfgNum(cfg, "accelAir", DEFAULT_CFG.accelAir);
+        this.decelAir = cfgNum(cfg, "decelAir", DEFAULT_CFG.decelAir);
 
-        // debug
-        this._dbg = { t: 0, every: 60 };
+        this.jumpSpeed = cfgNum(cfg, "jumpSpeed", DEFAULT_CFG.jumpSpeed);
+        this.coyoteTime = cfgNum(cfg, "coyoteTime", DEFAULT_CFG.coyoteTime);
+        this.jumpBuffer = cfgNum(cfg, "jumpBuffer", DEFAULT_CFG.jumpBuffer);
+
+        this.stepDownMax = cfgNum(cfg, "stepDownMax", DEFAULT_CFG.stepDownMax);
+        this.stickDownVel = cfgNum(cfg, "stickDownVel", DEFAULT_CFG.stickDownVel);
+        this.stickOnlyWhenMoving = cfgBool(cfg, "stickOnlyWhenMoving", DEFAULT_CFG.stickOnlyWhenMoving);
+
+        this.maxHorizSpeed = cfgNum(cfg, "maxHorizSpeed", DEFAULT_CFG.maxHorizSpeed);
+        this.maxFallSpeed = cfgNum(cfg, "maxFallSpeed", DEFAULT_CFG.maxFallSpeed);
+
+        this._coyote = 0;
+        this._jumpBuf = 0;
+
+        this._wishLocal = { x: 0, z: 0 };
+        this._wishWorld = { x: 0, z: 0 };
+        this._wishDir = { x: 0, z: 0 };
     }
-
-    configure(cfg) {
-        // speed
-        this.walkSpeed = U.readNum(cfg, ["speed", "walk"], 6.0);
-        this.runSpeed  = U.readNum(cfg, ["speed", "run"], 10.0);
-        this.accel     = U.readNum(cfg, ["speed", "acceleration"], 22.0);
-        this.decel     = U.readNum(cfg, ["speed", "deceleration"], 28.0);
-        this.backwardMul = U.readNum(cfg, ["speed", "backwardMul"], 1.0);
-        this.strafeMul   = U.readNum(cfg, ["speed", "strafeMul"], 1.0);
-
-        // air
-        this.airAccel       = U.readNum(cfg, ["air", "acceleration"], 8.5);
-        this.airMaxSpeedMul = U.readNum(cfg, ["air", "maxSpeedMul"], 0.92);
-
-        // jump (AAA)
-        this.jumpImpulse  = U.readNum(cfg, ["jump", "impulse"], 320.0);
-        this.jumpVelocity = U.readNum(cfg, ["jump", "velocity"], 8.5);
-
-        this.coyoteTime   = U.clamp(U.readNum(cfg, ["jump", "coyoteTime"], 0.12), 0, 2);
-        this.bufferTime   = U.clamp(U.readNum(cfg, ["jump", "bufferTime"], 0.25), 0, 2);
-        this.jumpCooldown = U.clamp(U.readNum(cfg, ["jump", "cooldown"], 0.05), 0, 1);
-
-        // ground
-        this.stickForce    = U.readNum(cfg, ["ground", "stickForce"], 18.0);
-        this.snapDownSpeed = U.readNum(cfg, ["ground", "snapDownSpeed"], 22.0);
-
-        // friction
-        this.frictionGround = U.readNum(cfg, ["friction", "ground"], 10.0);
-        this.frictionAir    = U.readNum(cfg, ["friction", "air"], 1.2);
-
-        // rotation
-        this.alignToCamera = U.readBool(cfg, ["rotation", "alignToCamera"], true);
-
-        return this;
-    }
-
-    // ------------------------------------------------------------
-
-    _applyVelocity(body, vx, vy, vz) {
-        if (!body || typeof body.velocity !== "function") {
-            throw new Error("[move] body.velocity() missing");
-        }
-        this._tmpVel.x = vx;
-        this._tmpVel.y = vy;
-        this._tmpVel.z = vz;
-        body.velocity(this._tmpVel);
-    }
-
-    _resolveImpulseFn(body) {
-        if (!body) return null;
-        if (typeof body.applyImpulse === "function") return body.applyImpulse.bind(body);
-        if (typeof body.impulse === "function") return body.impulse.bind(body);
-        if (typeof body.addImpulse === "function") return body.addImpulse.bind(body);
-        return null;
-    }
-
-    _setVerticalVelocity(body, minVy) {
-        if (!body || typeof body.velocity !== "function") return false;
-        const v = body.velocity();
-        const vx = U.vx(v, 0);
-        const vy = U.vy(v, 0);
-        const vz = U.vz(v, 0);
-        this._applyVelocity(body, vx, Math.max(vy, minVy), vz);
-        return true;
-    }
-
-    _doJump(body, frame) {
-        const fn = this._resolveImpulseFn(body);
-        if (fn) {
-            this._tmpJump.x = 0;
-            this._tmpJump.y = this.jumpImpulse;
-            this._tmpJump.z = 0;
-            fn(this._tmpJump);
-        }
-
-        if (!this._setVerticalVelocity(body, this.jumpVelocity)) {
-            throw new Error("[move] jump failed: velocity() missing");
-        }
-
-        this._jumpBufT = 0;
-        this._jumpCooldownT = this.jumpCooldown;
-        this._coyoteT = 0;
-
-        if (LOG && LOG.info) {
-            LOG.info("[move] JUMP fired grounded=" + !!(frame.pose && frame.pose.grounded));
-        }
-    }
-
-    // ------------------------------------------------------------
 
     update(frame, body) {
-        if (!frame || !body) return;
+        if (!this.enabled) return;
+        if (!frame || !frame.input || !frame.view || !frame.pose) return;
+        if (!frame.ground) throw new Error("[move] frame.ground required (call probeGroundCapsule before movement)");
+        if (!body) return;
 
-        const dt = U.num(frame.dt, 0);
+        if (typeof body.velocity !== "function") throw new Error("[move] body.velocity() required");
+        if (typeof body.position !== "function") throw new Error("[move] body.position() required");
+
+        const dt = U.clamp(U.num(frame.dt, 1 / 60), 0, 0.05);
+
         const input = frame.input;
-        if (!input) return;
+        const yaw = U.num(frame.view.yaw, 0);
+
+        const grounded = !!frame.pose.grounded;
 
         // timers
-        if (this._jumpCooldownT > 0) this._jumpCooldownT = Math.max(0, this._jumpCooldownT - dt);
-        if (this._stepWarpCooldownT > 0) this._stepWarpCooldownT = Math.max(0, this._stepWarpCooldownT - dt);
+        if (grounded) this._coyote = this.coyoteTime;
+        else this._coyote = Math.max(0, this._coyote - dt);
 
-        const grounded = !!(frame.pose && frame.pose.grounded);
+        if (input.jump) this._jumpBuf = this.jumpBuffer;
+        else this._jumpBuf = Math.max(0, this._jumpBuf - dt);
 
-        // coyote
-        if (grounded) this._coyoteT = this.coyoteTime;
-        else if (this._coyoteT > 0) this._coyoteT = Math.max(0, this._coyoteT - dt);
+        // current vel
+        const v = body.velocity();
+        let vx = U.vx(v, 0);
+        let vy = U.vy(v, 0);
+        let vz = U.vz(v, 0);
 
-        // jump buffer
-        if (input.jump) this._jumpBufT = this.bufferTime;
-        else if (this._jumpBufT > 0) this._jumpBufT = Math.max(0, this._jumpBufT - dt);
+        if (vy < -this.maxFallSpeed) vy = -this.maxFallSpeed;
 
-        // debug jump state
-        this._dbg.t++;
-        if (input.jump && LOG && LOG.info) {
-            LOG.info("[move] jump input grounded=" + grounded +
-                " coyote=" + this._coyoteT.toFixed(3) +
-                " buf=" + this._jumpBufT.toFixed(3) +
-                " cd=" + this._jumpCooldownT.toFixed(3));
+        // wish dir
+        this._wishLocal.x = input.ax | 0;
+        this._wishLocal.z = input.az | 0;
+
+        norm2(this._wishLocal.x, this._wishLocal.z, this._wishDir);
+        rotateByYaw(this._wishDir.x, this._wishDir.z, yaw, this._wishWorld);
+
+        const hasMove = (this._wishDir.x !== 0 || this._wishDir.z !== 0);
+        const targetSpeed = input.run ? this.runSpeed : this.walkSpeed;
+
+        const targetVx = hasMove ? (this._wishWorld.x * targetSpeed) : 0;
+        const targetVz = hasMove ? (this._wishWorld.z * targetSpeed) : 0;
+
+        const accel = grounded ? this.accelGround : this.accelAir;
+        const decel = grounded ? this.decelGround : this.decelAir;
+
+        if (hasMove) {
+            vx = moveTowards(vx, targetVx, accel * dt);
+            vz = moveTowards(vz, targetVz, accel * dt);
+        } else {
+            vx = moveTowards(vx, 0, decel * dt);
+            vz = moveTowards(vz, 0, decel * dt);
         }
 
-        // jump fire
-        if (this._jumpBufT > 0 && this._jumpCooldownT <= 0 && (grounded || this._coyoteT > 0)) {
-            this._doJump(body, frame);
+        // clamp horizontal
+        const hs = hypot2(vx, vz);
+        if (hs > this.maxHorizSpeed) {
+            const k = this.maxHorizSpeed / hs;
+            vx *= k;
+            vz *= k;
         }
 
-        // current velocity
-        const vxOld = frame.pose ? U.num(frame.pose.vx, 0) : 0;
-        const vyOld = frame.pose ? U.num(frame.pose.vy, 0) : 0;
-        const vzOld = frame.pose ? U.num(frame.pose.vz, 0) : 0;
+        // jump: buffer + coyote
+        let jumpedThisTick = false;
+        if (this._jumpBuf > 0 && this._coyote > 0) {
+            this._jumpBuf = 0;
+            this._coyote = 0;
 
-        const ax = input.ax | 0;
-        const az = input.az | 0;
-        const run = !!input.run;
+            if (vy < 0) vy = 0;
+            vy = this.jumpSpeed;
+            jumpedThisTick = true;
+        }
 
-        // no input → friction
-        if (ax === 0 && az === 0) {
-            const fr = grounded ? this.frictionGround : this.frictionAir;
-            const k = Math.max(0, 1 - fr * dt);
+        // ─────────────────────────────────────────────────────────────
+        // STEP-DOWN + STICK TO GROUND
+        // relies on FrameContext.probeGroundCapsule() output:
+        // frame.ground.footDistance: (hitY - footY)
+        //  0   => exactly on ground
+        //  <0  => ground below foot (step-down candidate)
+        //  >0  => penetration-ish (rare)
+        // ─────────────────────────────────────────────────────────────
+        const g = frame.ground;
 
-            let vyN = vyOld;
-            if (grounded && this._jumpCooldownT <= 0 && vyN <= 0) {
-                vyN = Math.max(-this.snapDownSpeed, -this.stickForce);
+        // stick only when on walkable surface (not steep) and not jumping upwards
+        const allowStick = grounded && !g.steep && !jumpedThisTick && vy <= 0;
+
+        if (allowStick) {
+            // Optional: stick only when moving (prevents “dragging down” when standing still)
+            if (!this.stickOnlyWhenMoving || hasMove) {
+                // keep a tiny downward velocity to keep contact stable on slopes / micro-edges
+                if (vy > -this.stickDownVel) vy = -this.stickDownVel;
             }
 
-            this._applyVelocity(body, vxOld * k, vyN, vzOld * k);
-            return;
-        }
+            // step-down snap if ground is slightly below feet
+            if (g.hasHit && g.footDistance < 0) {
+                const down = -g.footDistance; // positive meters below foot
+                if (down > 1e-4 && down <= this.stepDownMax) {
+                    const p = body.position();
+                    const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
 
-        // direction
-        norm2_into(ax, az, this._tmpN);
+                    // snap center down by same delta to put feet back on ground
+                    teleportBody(body, px, py + g.footDistance, pz);
 
-        const yaw = this.alignToCamera ? U.num(frame.view ? frame.view.yaw : 0, 0) : 0;
-        rotateByYaw_into(this._tmpN.x, this._tmpN.z, yaw, this._tmpDir);
-
-        let speed = run ? this.runSpeed : this.walkSpeed;
-        if (az < 0) speed *= this.backwardMul;
-        if (ax !== 0) speed *= this.strafeMul;
-
-        let vxT = this._tmpDir.x * speed;
-        let vzT = this._tmpDir.z * speed;
-
-        // air clamp
-        if (!grounded) {
-            const maxAir = this.runSpeed * this.airMaxSpeedMul;
-            const len = hypot2(vxT, vzT);
-            if (len > maxAir && len > 1e-6) {
-                const s = maxAir / len;
-                vxT *= s;
-                vzT *= s;
+                    // after snap, don't keep accumulating fall
+                    vy = -this.stickDownVel;
+                }
             }
         }
 
-        const curLen = hypot2(vxOld, vzOld);
-        const tarLen = hypot2(vxT, vzT);
-        const rate = (tarLen > curLen)
-            ? (grounded ? this.accel : this.airAccel)
-            : (grounded ? this.decel : this.airAccel);
+        body.velocity({ x: vx, y: vy, z: vz });
 
-        const maxDelta = Math.max(0, rate * dt);
-
-        const vxN = moveTowards(vxOld, vxT, maxDelta);
-        const vzN = moveTowards(vzOld, vzT, maxDelta);
-
-        let vyN = vyOld;
-        if (grounded && this._jumpCooldownT <= 0 && vyN <= 0) {
-            vyN = Math.max(-this.snapDownSpeed, -this.stickForce);
-        }
-
-        this._applyVelocity(body, vxN, vyN, vzN);
+        // pose writeback
+        frame.pose.vx = vx;
+        frame.pose.vy = vy;
+        frame.pose.vz = vz;
+        frame.pose.speed = Math.hypot(vx, vy, vz);
+        frame.pose.fallSpeed = (vy < 0) ? -vy : 0;
     }
 }
 

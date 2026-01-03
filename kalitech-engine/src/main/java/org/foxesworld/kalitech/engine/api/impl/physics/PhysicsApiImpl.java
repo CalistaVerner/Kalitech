@@ -52,7 +52,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final EngineApiImpl engine;
     private final SimpleApplication app;
     private final SurfaceRegistry surfaces;
-    private final ScriptEventBus bus;
+    private final ScriptEventBus bus; // optional
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
@@ -363,6 +363,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private void emitCollision(String topic, long step, float dt, long k, ContactAgg agg) {
+        if (bus == null) return;
         int aId = keyA(k);
         int bId = keyB(k);
 
@@ -479,7 +480,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
         currPairs.clear();
         currContacts.clear();
 
-        bus.emit("engine.physics.postStep", evt("step", step, "dt", timeStep));
+        if (bus != null) bus.emit("engine.physics.postStep", evt("step", step, "dt", timeStep));
     }
 
     private void ensureTickListenerBound(PhysicsSpace sp) {
@@ -524,7 +525,12 @@ public final class PhysicsApiImpl implements PhysicsApi {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = Objects.requireNonNull(engine.getApp(), "app");
         this.surfaces = Objects.requireNonNull(surfaces, "surfaces");
-        this.bus = Objects.requireNonNull(engine.getBus(), "engine.getBus()");
+        this.bus = engine.getBus();
+    }
+
+    private void emit(String topic, java.util.Map<String, Object> payload) {
+        if (bus == null) return;
+        try { bus.emit(topic, payload); } catch (Throwable ignored) {}
     }
 
     private PhysicsSpace space() {
@@ -586,7 +592,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 if (id != null) {
                     PhysicsBodyHandle h = byId.get(id);
                     if (h != null) {
-                        bus.emit("engine.physics.body.added", evt(
+                        if (bus != null) bus.emit("engine.physics.body.added", evt(
                                 "bodyId", h.id,
                                 "surfaceId", h.surfaceId
                         ));
@@ -851,7 +857,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         indexCollisionObject(handle);
 
-        bus.emit("engine.physics.body.create", evt(
+        if (bus != null) bus.emit("engine.physics.body.create", evt(
                 "bodyId", id,
                 "surfaceId", surfaceId,
                 "mass", mass,
@@ -876,7 +882,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         unindexCollisionObject(h);
 
-        bus.emit("engine.physics.body.remove", evt(
+        if (bus != null) bus.emit("engine.physics.body.remove", evt(
                 "bodyId", id,
                 "surfaceId", h.surfaceId
         ));

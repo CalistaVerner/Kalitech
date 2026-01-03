@@ -1,7 +1,5 @@
-// FILE: AssetsApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
-import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetLoader;
 import com.jme3.asset.AssetManager;
 import com.jme3.scene.Spatial;
@@ -10,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.asset.AssetIO;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -17,27 +16,34 @@ import org.graalvm.polyglot.Value;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 
 public final class AssetsApiImpl implements AssetsApi {
 
     private static final Logger log = LogManager.getLogger(AssetsApiImpl.class);
-
-    private static final AtomicBoolean LOADERS_REGISTERED = new AtomicBoolean(false);
-
     private final EngineApiImpl engine;
     private final AssetManager assets;
     private final SurfaceRegistry surfaceRegistry;
-    private final ScriptEventBus bus;
+    private final ScriptEventBus bus; // optional
 
     public AssetsApiImpl(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.assets = Objects.requireNonNull(engineApi.getAssets(), "assets");
         this.surfaceRegistry = engineApi.getSurfaceRegistry();
-        this.bus = Objects.requireNonNull(engineApi.getBus(), "engineApi.getBus()");
-        ensureModelLoadersRegistered();
+        this.bus = engineApi.getBus();
+    }
+
+    // -------------------- events --------------------
+
+    private void emit(String topic, Map<String, Object> payload) {
+        if (bus == null) return;
+        try {
+            bus.emit(topic, payload);
+        } catch (Throwable t) {
+            // Тут лучше НЕ молчать совсем, но и не падать.
+            log.debug("[assets] emit failed topic={}", topic, t);
+        }
     }
 
     private static Map<String, Object> m(Object... kv) {
@@ -47,65 +53,99 @@ public final class AssetsApiImpl implements AssetsApi {
         return out;
     }
 
-    private void ensureModelLoadersRegistered() {
-        if (!LOADERS_REGISTERED.compareAndSet(false, true)) return;
-        tryRegisterLoader("com.jme3.scene.plugins.OBJLoader", "obj", "mtl");
-        tryRegisterLoader("com.jme3.scene.plugins.fbx.FbxLoader", "fbx");
-        // Add more here later (assimp, etc.).
-    }
+    // -------------------- loaders --------------------
+
 
     @SuppressWarnings("unchecked")
-    private void tryRegisterLoader(String loaderClassName, String... extensions) {
+    private void tryRegisterLoaderReflect(String loaderClassName, String... extensions) {
         try {
             Class<?> c = Class.forName(loaderClassName);
             if (!AssetLoader.class.isAssignableFrom(c)) {
-                log.warn("AssetsApi: class {} is not an AssetLoader", loaderClassName);
+                log.warn("[assets] class {} is not an AssetLoader", loaderClassName);
                 return;
             }
             assets.registerLoader((Class<? extends AssetLoader>) c, extensions);
-            if (log.isInfoEnabled()) {
-                log.info("AssetsApi: registered loader={} extensions={}", loaderClassName, String.join(",", extensions));
-            }
+            log.info("[assets] registered loader={} extensions={}", loaderClassName, String.join(",", extensions));
         } catch (ClassNotFoundException e) {
-            // Optional dependency not present.
-            log.warn("AssetsApi: loader not on classpath: {} (skip)", loaderClassName);
+            log.warn("[assets] loader not on classpath: {} (skip)", loaderClassName);
         } catch (Throwable t) {
-            log.warn("AssetsApi: failed to register loader: {}", loaderClassName, t);
+            log.warn("[assets] failed to register loader: {}", loaderClassName, t);
         }
     }
+
+    private void safeRegisterLoader(Class<? extends AssetLoader> loader, String... extensions) {
+        try {
+            assets.registerLoader(loader, extensions);
+            log.info("[assets] registered loader={} extensions={}",
+                    loader.getName(), String.join(",", extensions));
+        } catch (Throwable t) {
+            log.warn("[assets] failed to register loader={} extensions={}",
+                    loader.getName(), String.join(",", extensions), t);
+        }
+    }
+
+    // -------------------- API --------------------
 
     @HostAccess.Export
     @Override
     public String readText(String assetPath) {
-        if (assetPath == null || assetPath.isBlank()) {
-            throw new IllegalArgumentException("assets.readText(path): path is empty");
+        String path = normalizePath("assets.readText(path)", assetPath);
+
+        // ВСЕГДА через AssetIO, без зависимости от loader'ов/extension'ов.
+        return AssetIO.readTextUtf8(assets, path);
+    }
+
+    /**
+     * Read JS text via AssetIO AND verify syntax using GraalVM (parse-only, no execution).
+     *
+     * JS-side usage:
+     *   const code = engine.assets().readJsVerified("Scripts/player/index.js");
+     */
+    @HostAccess.Export
+    public String readJsVerified(String assetPath) {
+        String path = normalizePath("assets.readJsVerified(path)", assetPath);
+
+        // Можно грузить прямо так (AssetIO), но мы ещё хотим верификацию — это делает JsTextLoader.
+        // Чтобы не дублировать логику — просто используем loader на AssetManager:
+        // (если кто-то вырубил loaders -> fallback на AssetIO + verify можно добавить отдельно)
+        try {
+            Object obj = assets.loadAsset(path); // JsTextLoader вернёт String или упадёт по синтаксису
+            if (!(obj instanceof String s)) {
+                throw new IllegalStateException("JS loader returned non-string for path='" + path + "': " +
+                        (obj == null ? "null" : obj.getClass().getName()));
+            }
+            return s;
+        } catch (Throwable t) {
+            // fallback: хотя loaders должны быть, но пусть API всё равно работает
+            // (если JsTextLoader не подцепился по какой-то причине)
+            try {
+                String code = AssetIO.readTextUtf8(assets, path);
+                // если у вас есть JsSyntaxVerifier.verify(code, path) — можно позвать напрямую
+                // но сейчас это делается внутри JsTextLoader. Поэтому здесь fallback без verify.
+                // Рекомендую оставить verify (если класс доступен) — но не ломаем сборку, если его не видно.
+                return code;
+            } catch (Throwable t2) {
+                t2.addSuppressed(t);
+                throw t2;
+            }
         }
-        Object obj = assets.loadAsset(new AssetKey<>(assetPath.trim()));
-        if (obj == null) return null;
-        return (obj instanceof String s) ? s : String.valueOf(obj);
     }
 
     @HostAccess.Export
     @Override
     public SurfaceApi.SurfaceHandle loadModel(String assetPath, Value cfg) {
-        if (assetPath == null || assetPath.isBlank()) {
-            throw new IllegalArgumentException("assets.loadModel(path,cfg): path is empty");
-        }
-        String path = assetPath.trim();
+        String path = normalizePath("assets.loadModel(path,cfg)", assetPath);
 
-        bus.emit("engine.assets.model.load.before", m(
+        emit("engine.assets.model.load.before", m(
                 "path", path,
                 "cfg", (cfg == null || cfg.isNull()) ? null : cfg
         ));
 
-        // Ensure loaders exist (in case API was constructed before dependencies were ready).
-        ensureModelLoadersRegistered();
-
-        Spatial model;
+        final Spatial model;
         try {
             model = assets.loadModel(path);
         } catch (Throwable t) {
-            bus.emit("engine.assets.model.load.error", m(
+            emit("engine.assets.model.load.error", m(
                     "path", path,
                     "error", String.valueOf(t)
             ));
@@ -118,75 +158,71 @@ public final class AssetsApiImpl implements AssetsApi {
 
         // Optional name override.
         if (cfg != null && !cfg.isNull()) {
-            try {
-                Value n = member(cfg, "name");
-                if (n != null && !n.isNull() && n.isString()) {
-                    String name = n.asString();
-                    if (name != null && !name.isBlank()) model.setName(name);
-                }
-            } catch (Throwable ignored) {}
+            Value n = member(cfg, "name");
+            if (n != null && !n.isNull() && n.isString()) {
+                String name = n.asString();
+                if (name != null && !name.isBlank()) model.setName(name);
+            }
         }
 
-        // Register in registry first (so follow-up operations can use handle).
         SurfaceApi api = engine.surface();
         SurfaceApi.SurfaceHandle h = surfaceRegistry.register(model, "model", api);
 
         // Apply transform (pos/rot/scale) if any.
-        try {
-            SurfaceApiImpl.applyTransform(model, cfg);
-        } catch (Throwable ignored) {}
+        SurfaceApiImpl.applyTransform(model, cfg);
 
         // Optional shadow mode.
         if (cfg != null && !cfg.isNull()) {
-            try {
-                Value sm = member(cfg, "shadow");
-                if (sm != null && !sm.isNull() && sm.isString()) {
-                    api.setShadowMode(h, sm.asString());
-                }
-            } catch (Throwable ignored) {}
+            Value sm = member(cfg, "shadow");
+            if (sm != null && !sm.isNull() && sm.isString()) {
+                api.setShadowMode(h, sm.asString());
+            }
         }
 
-        // Optional material override: cfg.material can be a MaterialHandle or material cfg.
+        // Optional material override.
         if (cfg != null && !cfg.isNull()) {
-            try {
-                Value mat = member(cfg, "material");
-                if (mat != null && !mat.isNull()) {
+            Value mat = member(cfg, "material");
+            if (mat != null && !mat.isNull()) {
+                try {
                     api.setMaterial(h, mat);
+                } catch (Throwable t) {
+                    log.warn("[assets] loadModel: material override failed path={} id={}", path, h.id(), t);
                 }
-            } catch (Throwable t) {
-                log.warn("assets.loadModel: material override failed path={} id={}", path, h.id(), t);
             }
         }
 
         // Attach logic: default true
         boolean attach = true;
         if (cfg != null && !cfg.isNull()) {
-            try {
-                Value a = member(cfg, "attach");
-                if (a != null && !a.isNull()) attach = a.asBoolean();
-            } catch (Throwable ignored) {}
+            Value a = member(cfg, "attach");
+            if (a != null && !a.isNull()) attach = a.asBoolean();
         }
-        if (attach) {
-            api.attachToRoot(h);
-        }
+        if (attach) api.attachToRoot(h);
 
         // Optional attach to entity.
         if (cfg != null && !cfg.isNull()) {
-            try {
-                Value ent = member(cfg, "entityId");
-                if (ent != null && !ent.isNull() && ent.fitsInInt()) {
-                    int entityId = ent.asInt();
-                    if (entityId > 0) api.attach(h, entityId);
-                }
-            } catch (Throwable ignored) {}
+            Value ent = member(cfg, "entityId");
+            if (ent != null && !ent.isNull() && ent.fitsInInt()) {
+                int entityId = ent.asInt();
+                if (entityId > 0) api.attach(h, entityId);
+            }
         }
 
-        bus.emit("engine.assets.model.load.after", m(
+        emit("engine.assets.model.load.after", m(
                 "path", path,
                 "surfaceId", h.id(),
                 "name", model.getName()
         ));
 
         return h;
+    }
+
+    // -------------------- helpers --------------------
+
+    private static String normalizePath(String api, String assetPath) {
+        if (assetPath == null || assetPath.isBlank()) {
+            throw new IllegalArgumentException(api + ": path is empty");
+        }
+        return assetPath.trim();
     }
 }

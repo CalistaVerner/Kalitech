@@ -5,20 +5,37 @@ const CameraOrchestrator = require("../Camera/CameraOrchestrator.js");
 
 class PlayerCamera {
     constructor(player) {
-        this.orch = new CameraOrchestrator(player);
+        this.player = player;
+        this.orch = null; // IMPORTANT: создаём оркестратор ТОЛЬКО после спавна модели
     }
 
-    setType(type) {
-        //this.orch.setType(type);
-        }
-    getType() { return this.orch.getType(); }
+    attach() {
+        if (this.orch) return;
+        this.orch = new CameraOrchestrator(this.player);
+    }
 
-    getYaw() { return this.orch.look.yaw; }
-    getPitch() { return this.orch.look.pitch; }
+    getType() {
+        return this.orch ? this.orch.getType() : "third";
+    }
 
-    update(frame) { this.orch.update(frame.dt, frame.snap); }
+    getYaw() {
+        return this.orch ? this.orch.look.yaw : 0;
+    }
 
-    destroy() { }
+    getPitch() {
+        return this.orch ? this.orch.look.pitch : 0;
+    }
+
+    update(frame) {
+        if (!this.orch) return; // пока не attach — камера не работает
+        this.orch.update(frame.dt, frame.snap);
+    }
+
+    destroy() {
+        if (!this.orch) return;
+        this.orch.destroy();
+        this.orch = null;
+    }
 }
 
 module.exports = PlayerCamera;

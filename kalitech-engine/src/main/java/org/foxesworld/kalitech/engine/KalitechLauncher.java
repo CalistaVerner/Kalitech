@@ -59,9 +59,7 @@ public final class KalitechLauncher {
 
             try {
                 ICOParser ico = new ICOParser();
-                var icons = ico.parse(
-                KalitechLauncher.class.getClassLoader().getResourceAsStream("engine/engineLogo.ico")
-                );
+                var icons = ico.pickBestIcons(ico.parse(KalitechLauncher.class.getClassLoader().getResourceAsStream("engine/engineIco.ico")));
                 s.setIcons(icons);
             } catch (Exception e) {
                 System.out.println("Window icon not set (no ico/png found).");
