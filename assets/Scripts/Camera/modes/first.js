@@ -1,82 +1,28 @@
-// FILE: Scripts/Camera/modes/first.js
 "use strict";
 
-function num(v, fb) {
-    const n = +v;
-    return Number.isFinite(n) ? n : (fb || 0);
-}
-
-function vx(v, fb) {
-    if (!v) return fb || 0;
-    try {
-        const x = v.x;
-        if (typeof x === "function") return num(x.call(v), fb);
-        if (typeof x === "number") return x;
-    } catch (_) {}
-    return fb || 0;
-}
-function vy(v, fb) {
-    if (!v) return fb || 0;
-    try {
-        const y = v.y;
-        if (typeof y === "function") return num(y.call(v), fb);
-        if (typeof y === "number") return y;
-    } catch (_) {}
-    return fb || 0;
-}
-function vz(v, fb) {
-    if (!v) return fb || 0;
-    try {
-        const z = v.z;
-        if (typeof z === "function") return num(z.call(v), fb);
-        if (typeof z === "number") return z;
-    } catch (_) {}
-    return fb || 0;
-}
+const U = require("../camUtil.js");
 
 class FirstPersonCameraMode {
-    constructor(cameraOrchestrator) {
-        this.cameraOrchestrator = cameraOrchestrator;
-        this.cameraOrchestrator.player.factory.modelHandle.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
+    constructor() {
         this.id = "first";
-
         this.meta = {
             supportsZoom: false,
             hasCollision: false,
-            numRays: 0
+            numRays: 0,
+            playerModelVisible: false
         };
-
         this.headOffset = { x: 0.0, y: 1.65, z: 0.0 };
     }
 
-    getPivot(ctx) {
-        const p = ctx && ctx.bodyPos;
-        if (!p) return { x: 0, y: 0, z: 0 };
-
-        return {
-            x: vx(p, 0),
-            y: vy(p, 0) + this.headOffset.y,
-            z: vz(p, 0)
-        };
-    }
-
     update(ctx) {
-        const cam = ctx && ctx.cam;
-        const p = ctx && ctx.bodyPos;
-        if (!cam || !p) return;
+        const p = ctx.bodyPos;
 
-        const x = vx(p, 0) + this.headOffset.x;
-        const y = vy(p, 0) + this.headOffset.y;
-        const z = vz(p, 0) + this.headOffset.z;
+        const x = U.vx(p) + this.headOffset.x;
+        const y = U.vy(p) + this.headOffset.y;
+        const z = U.vz(p) + this.headOffset.z;
 
-        cam.setLocation(num(x, 0), num(y, 0), num(z, 0));
-
-        // for consistency
-        ctx.target = {
-            x: vx(p, 0),
-            y: vy(p, 0) + this.headOffset.y,
-            z: vz(p, 0)
-        };
+        ctx.outPos.x = x; ctx.outPos.y = y; ctx.outPos.z = z;
+        ctx.target.x = U.vx(p); ctx.target.y = y; ctx.target.z = U.vz(p);
     }
 }
 

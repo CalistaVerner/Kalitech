@@ -25,16 +25,11 @@ function readTextAsset(path) {
 function readJsonAsset(path, fb) {
     const txt = readTextAsset(path);
     if (!txt) {
-        if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn("[player] movement config asset missing: " + path + " (using defaults/overrides)");
+        LOG.warn("[player] movement config asset missing: " + path + " (using defaults/overrides)");
         return fb || Object.create(null);
     }
-    try {
-        const obj = JSON.parse(String(txt));
-        return U.isPlainObj(obj) ? obj : (fb || Object.create(null));
-    } catch (e) {
-        if (typeof LOG !== "undefined" && LOG && LOG.error) LOG.error("[player] movement config JSON parse failed: " + path + " err=" + U.errStr(e));
-        throw e;
-    }
+    const obj = JSON.parse(String(txt));
+    return U.isPlainObj(obj) ? obj : (fb || Object.create(null));
 }
 
 function resolveMovementPath(rootCfg, movCfg) {
@@ -45,10 +40,11 @@ function resolveMovementPath(rootCfg, movCfg) {
 
 class PlayerController {
     constructor(player) {
+        if (!player) throw new Error("[player] PlayerController requires player");
         this.player = player;
 
-        const rootCfg = (player && player.cfg) ? player.cfg : {};
-        const movOverrides = (rootCfg && rootCfg.movement) || Object.create(null);
+        const rootCfg = player.cfg || Object.create(null);
+        const movOverrides = rootCfg.movement || Object.create(null);
 
         const movPath = resolveMovementPath(rootCfg, movOverrides);
         const movFromJson = readJsonAsset(movPath, Object.create(null));
@@ -75,10 +71,11 @@ class PlayerController {
             " decel=" + ms.decel
         );
 
+        // light debug, can be disabled by setting every=0
         this._dbg = { t: 0, every: 120 };
     }
 
-    getMovementCfg() { return this._movementCfg || Object.create(null); }
+    getMovementCfg() { return this._movementCfg; }
 
     bind() {
         this.input.bind();
@@ -87,23 +84,25 @@ class PlayerController {
 
     update(frame) {
         if (!this.enabled) return;
-        const p = this.player;
-        if (!p || !frame) return;
+        if (!frame) return;
 
+        const p = this.player;
         const body = p.body;
         if (!body) return;
 
-        // read inputs into frame.input
+        // Read input -> state
         const st = this.input.read(frame);
 
-        // lightweight diagnostics (helps detect when run/jump/axes not coming in)
-        const dbg = this._dbg || (this._dbg = { t: 0, every: 120 });
-        dbg.t = (dbg.t + 1) | 0;
-        if ((dbg.t % dbg.every) === 0) {
-            LOG.info("[player] input ax=" + st.ax + " az=" + st.az + " run=" + !!st.run + " jump=" + !!st.jump + " lmb=" + !!st.lmbDown);
+        // Optional diagnostics
+        const dbg = this._dbg;
+        if (dbg && dbg.every > 0) {
+            dbg.t = (dbg.t + 1) | 0;
+            if ((dbg.t % dbg.every) === 0) {
+                LOG.info("[player] input ax=" + st.ax + " az=" + st.az + " run=" + !!st.run + " jump=" + !!st.jump + " lmb=" + !!st.lmbDown);
+            }
         }
 
-        // mirror into domain (single source for gameplay systems)
+        // Mirror into domain (single source of truth)
         const dom = p.dom;
         if (dom && dom.input) {
             dom.input.ax = st.ax | 0;
@@ -114,16 +113,22 @@ class PlayerController {
             dom.input.lmbJustPressed = !!st.lmbJustPressed;
         }
 
-        // rotate body to camera yaw (3rd/1st person “CDPR-like”)
-        const yaw = (dom && dom.view) ? U.num(dom.view.yaw, 0) : (frame.view ? U.num(frame.view.yaw, 0) : 0);
+        // Rotate body to view yaw
+        const yaw = (dom && dom.view)
+            ? U.num(dom.view.yaw, 0)
+            : (frame.view ? U.num(frame.view.yaw, 0) : 0);
+
         if (typeof body.yaw !== "function") {
             throw new Error("[player] body.yaw is not a function (physics wrapper mismatch)");
         }
         body.yaw(yaw);
 
         const bodyId = p.bodyId | 0;
+
         this.shoot.update(frame, bodyId);
-        this.movement.update(frame, body, p.characterCfg);
+
+        // ✅ MovementSystem already reads what it needs from frame/dom/body
+        this.movement.update(frame, body);
     }
 }
 
