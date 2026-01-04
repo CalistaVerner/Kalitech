@@ -5,7 +5,6 @@
 
 const worldSystems = [
 
-
     {
         id: "jsSystem",
         order: 18,

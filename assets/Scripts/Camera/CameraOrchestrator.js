@@ -29,6 +29,10 @@ class CameraOrchestrator {
         this._switchCd = 0;
         this._switchCdTime = 0.18;
 
+        // ✅ Collision cooldown after mode switch to prevent "snap to head" right after transition
+        this._collisionCd = 0;
+        this._collisionCdTime = 0.12;
+
         this.look = {
             yaw: 0,
             pitch: 0,
@@ -137,7 +141,12 @@ class CameraOrchestrator {
         }
 
         this.transition.active = false;
-        this.collision.reset();
+
+        // ✅ give collision solver time to settle after switching
+        this._collisionCd = this._collisionCdTime;
+
+        // safe even if reset/configure are optional
+        if (this.collision && typeof this.collision.reset === "function") this.collision.reset();
 
         this._applyMeta(next);
     }
@@ -158,7 +167,12 @@ class CameraOrchestrator {
 
         this.collision.enabled = meta.hasCollision;
         const nr = meta.numRays | 0;
-        this.collision.configure({ quality: (nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra" });
+
+        if (this.collision && typeof this.collision.configure === "function") {
+            this.collision.configure({ quality: (nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra" });
+        } else if (this.collision && typeof this.collision.setQuality === "function") {
+            this.collision.setQuality((nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra");
+        }
 
         // ✅ Единственное место, где решается видимость модели игрока.
         const model = this.player.getModel();
@@ -235,6 +249,9 @@ class CameraOrchestrator {
         if (pressedV) {
             this._switchCd = this._switchCdTime;
 
+            // ✅ also reset collision cooldown on manual toggle
+            this._collisionCd = this._collisionCdTime;
+
             const loc = cam.location();
             this._tmpFrom.x = U.vx(loc); this._tmpFrom.y = U.vy(loc); this._tmpFrom.z = U.vz(loc);
 
@@ -281,7 +298,10 @@ class CameraOrchestrator {
 
         cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
 
-        if (this.collision.enabled) {
+        // ✅ collision cooldown ticking
+        this._collisionCd = Math.max(0, this._collisionCd - dt);
+
+        if (this.collision.enabled && this._collisionCd <= 0) {
             this.collision.solve({ cam, dt, target: ctx.target, bodyId });
         }
     }
