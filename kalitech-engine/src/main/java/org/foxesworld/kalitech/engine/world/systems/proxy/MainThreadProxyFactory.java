@@ -1,7 +1,10 @@
 // FILE: MainThreadProxyFactory.java
 package org.foxesworld.kalitech.engine.world.systems.proxy;
 
-import java.lang.reflect.*;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,7 +13,7 @@ import java.util.Objects;
  * Creates dynamic proxies for engine/api objects so worker-runtime can call them safely:
  * - On world thread: direct call
  * - On worker thread: dispatch to main via MainThreadDispatcher (sync)
- *
+ * <p>
  * Also wraps returned interface values recursively so chained calls remain safe.
  */
 public final class MainThreadProxyFactory {
@@ -37,7 +40,8 @@ public final class MainThreadProxyFactory {
         if (target == null) return null;
         Objects.requireNonNull(iface, "iface");
         if (!iface.isInterface()) throw new IllegalArgumentException("Not an interface: " + iface.getName());
-        if (!iface.isInstance(target)) throw new IllegalArgumentException("Target does not implement: " + iface.getName());
+        if (!iface.isInstance(target))
+            throw new IllegalArgumentException("Target does not implement: " + iface.getName());
 
         // Don't wrap on world thread unnecessarily.
         if (dispatcher.isWorldThread()) return target;
@@ -55,6 +59,29 @@ public final class MainThreadProxyFactory {
             cache.put(target, p);
             return (T) p;
         }
+    }
+
+    /**
+     * API-level hard sandbox hook.
+     * Keep it empty (none) if you only want thread confinement.
+     */
+    public interface MethodDenylist {
+        static MethodDenylist none() {
+            return (i, m) -> false;
+        }
+
+        static MethodDenylist byNamePrefix(String... forbiddenPrefixes) {
+            final String[] fp = (forbiddenPrefixes == null) ? new String[0] : forbiddenPrefixes.clone();
+            return (iface, method) -> {
+                String n = method.getName();
+                for (String p : fp) {
+                    if (p != null && !p.isEmpty() && n.startsWith(p)) return true;
+                }
+                return false;
+            };
+        }
+
+        boolean isDenied(Class<?> iface, Method method);
     }
 
     private final class Handler implements InvocationHandler {
@@ -117,27 +144,6 @@ public final class MainThreadProxyFactory {
             // If the returned object implements any interfaces, and the method return type is interface, wrap that.
             // Most of your API types are interfaces, so this catches sub-apis like engine.physics(), engine.hud(), etc.
             return r;
-        }
-    }
-
-    /**
-     * API-level hard sandbox hook.
-     * Keep it empty (none) if you only want thread confinement.
-     */
-    public interface MethodDenylist {
-        boolean isDenied(Class<?> iface, Method method);
-
-        static MethodDenylist none() { return (i, m) -> false; }
-
-        static MethodDenylist byNamePrefix(String... forbiddenPrefixes) {
-            final String[] fp = (forbiddenPrefixes == null) ? new String[0] : forbiddenPrefixes.clone();
-            return (iface, method) -> {
-                String n = method.getName();
-                for (String p : fp) {
-                    if (p != null && !p.isEmpty() && n.startsWith(p)) return true;
-                }
-                return false;
-            };
         }
     }
 }

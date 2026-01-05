@@ -29,88 +29,41 @@ public final class JsWorldSystem implements KSystem {
     }
 
     // back-compat
-    public JsWorldSystem(String module, Object cfg, Object sysDesc) { this(module, cfg, sysDesc, "world"); }
-    public JsWorldSystem(String module) { this(module, null, null, "world"); }
-
-    @Override
-    public void onStart(SystemContext ctx) {
-        withScopedConfig(ctx, () -> {
-            ensureLoaded(ctx);
-            invokeIfPresent("init", ctx);
-            started = true;
-            return null;
-        });
+    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
+        this(module, cfg, sysDesc, "world");
     }
 
-    @Override
-    public void onUpdate(SystemContext ctx, float tpf) {
-        withScopedConfig(ctx, () -> {
-            ensureLoaded(ctx);
-            invokeIfPresent("update", ctx, tpf);
-            return null;
-        });
-    }
-
-    @Override
-    public void onStop(SystemContext ctx) {
-        withScopedConfig(ctx, () -> {
-            try { invokeIfPresent("destroy"); } catch (Throwable ignored) {}
-            started = false;
-            return null;
-        });
-    }
-
-    private <T> T withScopedConfig(SystemContext ctx, Callable<T> call) {
-        final boolean hadConfig = safeHas(ctx, "config");
-        final boolean hadCfg    = safeHas(ctx, "cfg");
-        final boolean hadSystem = safeHas(ctx, "system");
-
-        final Object prevConfig = hadConfig ? safeGet(ctx, "config") : null;
-        final Object prevCfg    = hadCfg    ? safeGet(ctx, "cfg")    : null;
-        final Object prevSystem = hadSystem ? safeGet(ctx, "system") : null;
-
-        if (cfg != null) {
-            safePut(ctx, "config", cfg);
-            safePut(ctx, "cfg", cfg);
-        }
-        if (sysDesc != null) {
-            safePut(ctx, "system", sysDesc);
-        }
-
-        try {
-            return call.call();
-        } catch (RuntimeException re) {
-            throw re;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            if (hadConfig) safePut(ctx, "config", prevConfig); else safeRemove(ctx, "config");
-            if (hadCfg)    safePut(ctx, "cfg", prevCfg);       else safeRemove(ctx, "cfg");
-            if (hadSystem) safePut(ctx, "system", prevSystem); else safeRemove(ctx, "system");
-        }
+    public JsWorldSystem(String module) {
+        this(module, null, null, "world");
     }
 
     private static boolean safeHas(SystemContext ctx, String k) {
-        try { return ctx != null && ctx.has(k); } catch (Throwable ignored) { return false; }
+        try {
+            return ctx != null && ctx.has(k);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
+
     private static Object safeGet(SystemContext ctx, String k) {
-        try { return (ctx == null) ? null : ctx.get(k); } catch (Throwable ignored) { return null; }
+        try {
+            return (ctx == null) ? null : ctx.get(k);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
+
     private static void safePut(SystemContext ctx, String k, Object v) {
-        try { if (ctx != null) ctx.put(k, v); } catch (Throwable ignored) {}
+        try {
+            if (ctx != null) ctx.put(k, v);
+        } catch (Throwable ignored) {
+        }
     }
+
     private static void safeRemove(SystemContext ctx, String k) {
-        try { if (ctx != null) ctx.remove(k); } catch (Throwable ignored) {}
-    }
-
-    private void ensureLoaded(SystemContext ctx) throws Exception {
-        if (exports != null) return;
-
-        final ScriptRuntime rt = ctx.runtime(runtimeProfile);
-
-        exports = requireViaReflection(rt, module);
-        if (exports == null) {
-            throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
+        try {
+            if (ctx != null) ctx.remove(k);
+        } catch (Throwable ignored) {
         }
     }
 
@@ -169,6 +122,81 @@ public final class JsWorldSystem implements KSystem {
             return null;
         } catch (Throwable t) {
             throw new RuntimeException("runtime." + name + " invocation failed: " + t, t);
+        }
+    }
+
+    @Override
+    public void onStart(SystemContext ctx) {
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("init", ctx);
+            started = true;
+            return null;
+        });
+    }
+
+    @Override
+    public void onUpdate(SystemContext ctx, float tpf) {
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("update", ctx, tpf);
+            return null;
+        });
+    }
+
+    @Override
+    public void onStop(SystemContext ctx) {
+        withScopedConfig(ctx, () -> {
+            try {
+                invokeIfPresent("destroy");
+            } catch (Throwable ignored) {
+            }
+            started = false;
+            return null;
+        });
+    }
+
+    private <T> T withScopedConfig(SystemContext ctx, Callable<T> call) {
+        final boolean hadConfig = safeHas(ctx, "config");
+        final boolean hadCfg = safeHas(ctx, "cfg");
+        final boolean hadSystem = safeHas(ctx, "system");
+
+        final Object prevConfig = hadConfig ? safeGet(ctx, "config") : null;
+        final Object prevCfg = hadCfg ? safeGet(ctx, "cfg") : null;
+        final Object prevSystem = hadSystem ? safeGet(ctx, "system") : null;
+
+        if (cfg != null) {
+            safePut(ctx, "config", cfg);
+            safePut(ctx, "cfg", cfg);
+        }
+        if (sysDesc != null) {
+            safePut(ctx, "system", sysDesc);
+        }
+
+        try {
+            return call.call();
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (hadConfig) safePut(ctx, "config", prevConfig);
+            else safeRemove(ctx, "config");
+            if (hadCfg) safePut(ctx, "cfg", prevCfg);
+            else safeRemove(ctx, "cfg");
+            if (hadSystem) safePut(ctx, "system", prevSystem);
+            else safeRemove(ctx, "system");
+        }
+    }
+
+    private void ensureLoaded(SystemContext ctx) throws Exception {
+        if (exports != null) return;
+
+        final ScriptRuntime rt = ctx.runtime(runtimeProfile);
+
+        exports = requireViaReflection(rt, module);
+        if (exports == null) {
+            throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
         }
     }
 

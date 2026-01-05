@@ -3,13 +3,13 @@ package org.foxesworld.kalitech.engine.world.systems;
 import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
+import org.graalvm.polyglot.Value;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -18,16 +18,16 @@ import java.util.Set;
 
 /**
  * ScriptSystem (entities scripts)
- *
+ * <p>
  * Contract (required by your provider):
  * new ScriptSystem(ctx.ecs(), hotReload, cooldownSec, watchRoot)
- *
+ * <p>
  * Features:
  * - Per-entity lifecycle: init/update/destroy on ScriptComponent.instance
  * - HotReloadWatcher (optional):
- *    pollChanged() -> runtime.invalidateMany(changed)
- *    entity instances restart automatically via moduleVersion() change
- *
+ * pollChanged() -> runtime.invalidateMany(changed)
+ * entity instances restart automatically via moduleVersion() change
+ * <p>
  * Author: Calista Verner
  */
 public final class ScriptSystem implements KSystem {
@@ -51,6 +51,56 @@ public final class ScriptSystem implements KSystem {
         this.hotReload = hotReload;
         this.cooldownSec = (cooldownSec <= 0f) ? 0.25f : cooldownSec;
         this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
+    }
+
+    /**
+     * Supported module shapes:
+     * 1) module.exports = { init, update, destroy }
+     * 2) module.exports = function() { return { init, update, destroy } }
+     * 3) module.exports = { create: () => ({...}) }
+     */
+    private static Value createInstance(Value exports) {
+        if (exports == null || exports.isNull()) {
+            throw new IllegalStateException("Script module exports is null");
+        }
+
+        if (exports.canExecute()) {
+            return exports.execute();
+        }
+
+        if (exports.hasMember("create")) {
+            Value c = exports.getMember("create");
+            if (c != null && c.canExecute()) return c.execute();
+        }
+
+        return exports;
+    }
+
+    private static void destroyInstance(int entityId, ScriptComponent sc) {
+        if (sc == null || sc.instance == null) return;
+        try {
+            callIfExists(sc.instance, "destroy");
+        } catch (Throwable ex) {
+            log.warn("Script destroy failed for entity {}", entityId, ex);
+        }
+    }
+
+    private static void callIfExists(Value obj, String member, Object... args) {
+        if (obj == null || obj.isNull()) return;
+        if (!obj.hasMember(member)) return;
+        Value fn = obj.getMember(member);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return;
+        fn.execute(args);
+    }
+
+    // -------------------- lifecycle internals --------------------
+
+    private static String normalize(String id) {
+        if (id == null) return "";
+        String s = id.trim().replace('\\', '/');
+        while (s.startsWith("./")) s = s.substring(2);
+        while (s.startsWith("/")) s = s.substring(1);
+        return s;
     }
 
     @Override
@@ -104,7 +154,10 @@ public final class ScriptSystem implements KSystem {
                     log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
 
                     // Optional: allow JS to react (safe/no hard dependency)
-                    try { bus.emit("hotreload:changed", changed); } catch (Throwable ignored) {}
+                    try {
+                        bus.emit("hotreload:changed", changed);
+                    } catch (Throwable ignored) {
+                    }
                 } else {
                     cooldown = 0f;
                 }
@@ -149,7 +202,10 @@ public final class ScriptSystem implements KSystem {
         }
 
         if (watcher != null) {
-            try { watcher.close(); } catch (Throwable ignored) {}
+            try {
+                watcher.close();
+            } catch (Throwable ignored) {
+            }
             watcher = null;
         }
 
@@ -158,8 +214,6 @@ public final class ScriptSystem implements KSystem {
         runtime = null;
         log.info("ScriptSystem stopped");
     }
-
-    // -------------------- lifecycle internals --------------------
 
     private void ensureStarted(int entityId, ScriptComponent sc) {
         String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
@@ -184,53 +238,5 @@ public final class ScriptSystem implements KSystem {
 
         EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, bus);
         callIfExists(sc.instance, "init", api);
-    }
-
-    /**
-     * Supported module shapes:
-     * 1) module.exports = { init, update, destroy }
-     * 2) module.exports = function() { return { init, update, destroy } }
-     * 3) module.exports = { create: () => ({...}) }
-     */
-    private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) {
-            throw new IllegalStateException("Script module exports is null");
-        }
-
-        if (exports.canExecute()) {
-            return exports.execute();
-        }
-
-        if (exports.hasMember("create")) {
-            Value c = exports.getMember("create");
-            if (c != null && c.canExecute()) return c.execute();
-        }
-
-        return exports;
-    }
-
-    private static void destroyInstance(int entityId, ScriptComponent sc) {
-        if (sc == null || sc.instance == null) return;
-        try {
-            callIfExists(sc.instance, "destroy");
-        } catch (Throwable ex) {
-            log.warn("Script destroy failed for entity {}", entityId, ex);
-        }
-    }
-
-    private static void callIfExists(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) return;
-        if (!obj.hasMember(member)) return;
-        Value fn = obj.getMember(member);
-        if (fn == null || fn.isNull() || !fn.canExecute()) return;
-        fn.execute(args);
-    }
-
-    private static String normalize(String id) {
-        if (id == null) return "";
-        String s = id.trim().replace('\\', '/');
-        while (s.startsWith("./")) s = s.substring(2);
-        while (s.startsWith("/")) s = s.substring(1);
-        return s;
     }
 }

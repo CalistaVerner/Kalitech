@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * CDPR-style system scheduler:
  * - MAIN: inline on world thread, shared "world" runtime
  * - WORKER_DEDICATED: dedicated single thread + isolated runtime profile
- *
+ * <p>
  * Added:
  * - hard sandbox (API-level) for worker runtimes via main-thread proxies
  * - profiling stats per worker (tick time, skip, lag)
@@ -29,22 +29,34 @@ public final class SystemScheduler implements AutoCloseable {
     private final WorldAppState world;
     private final Map<KSystem, Slot> slots = new IdentityHashMap<>();
 
-    /** Default max time to wait for worker ticks per frame. 0 = don't wait. */
+    /**
+     * Default max time to wait for worker ticks per frame. 0 = don't wait.
+     */
     private volatile long defaultAwaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(2);
 
     public SystemScheduler(WorldAppState world) {
         this.world = Objects.requireNonNull(world, "world");
     }
 
-    public void setDefaultAwaitBudgetMs(int ms) {
-        this.defaultAwaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0, ms));
+    private static String safeProfile(KSystem system) {
+        try {
+            return system.runtimeProfile();
+        } catch (Throwable t) {
+            return "world";
+        }
     }
 
     public int getDefaultAwaitBudgetMs() {
         return (int) TimeUnit.NANOSECONDS.toMillis(defaultAwaitBudgetNanos);
     }
 
-    /** Ensure worker slot is created and started (on-demand). */
+    public void setDefaultAwaitBudgetMs(int ms) {
+        this.defaultAwaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0, ms));
+    }
+
+    /**
+     * Ensure worker slot is created and started (on-demand).
+     */
     public void ensureStarted(KSystem system, SystemContext ctx) {
         if (system == null) return;
         if (system.threadMode() != ThreadMode.WORKER_DEDICATED) return;
@@ -61,7 +73,9 @@ public final class SystemScheduler implements AutoCloseable {
         slot.startIfNeeded();
     }
 
-    /** Submit worker update tick (non-blocking). */
+    /**
+     * Submit worker update tick (non-blocking).
+     */
     public void submitUpdate(KSystem system, SystemContext ctx, float tpf) {
         if (system == null) return;
         if (system.threadMode() != ThreadMode.WORKER_DEDICATED) {
@@ -78,12 +92,16 @@ public final class SystemScheduler implements AutoCloseable {
         slot.submitUpdate(tpf);
     }
 
-    /** Drain completion with default budget. */
+    /**
+     * Drain completion with default budget.
+     */
     public void awaitDefaultBudget() {
         awaitBudgetNanos(defaultAwaitBudgetNanos);
     }
 
-    /** Wait a limited amount for in-flight worker ticks to finish (best-effort). */
+    /**
+     * Wait a limited amount for in-flight worker ticks to finish (best-effort).
+     */
     public void awaitBudgetNanos(long budgetNanos) {
         if (budgetNanos <= 0) return;
 
@@ -101,7 +119,9 @@ public final class SystemScheduler implements AutoCloseable {
         }
     }
 
-    /** Stop + release worker slot for a system. */
+    /**
+     * Stop + release worker slot for a system.
+     */
     public void stopSystem(KSystem system) {
         if (system == null) return;
         Slot slot;
@@ -111,7 +131,9 @@ public final class SystemScheduler implements AutoCloseable {
         if (slot != null) slot.shutdown();
     }
 
-    /** Snapshot stats for all worker systems. */
+    /**
+     * Snapshot stats for all worker systems.
+     */
     public WorkerSystemStats[] statsSnapshot() {
         Slot[] snapshot;
         synchronized (slots) {
@@ -124,7 +146,13 @@ public final class SystemScheduler implements AutoCloseable {
         return out;
     }
 
-    /** Stop all worker systems. */
+    // ======================================================================
+    // Slot
+    // ======================================================================
+
+    /**
+     * Stop all worker systems.
+     */
     @Override
     public void close() {
         Slot[] snapshot;
@@ -133,13 +161,36 @@ public final class SystemScheduler implements AutoCloseable {
             slots.clear();
         }
         for (Slot slot : snapshot) {
-            try { if (slot != null) slot.shutdown(); } catch (Exception ignored) {}
+            try {
+                if (slot != null) slot.shutdown();
+            } catch (Exception ignored) {
+            }
         }
     }
 
-    // ======================================================================
-    // Slot
-    // ======================================================================
+    private static final class NamedThreadFactory implements ThreadFactory {
+        private static final AtomicInteger POOL_ID = new AtomicInteger();
+        private final AtomicInteger tid = new AtomicInteger();
+        private final String base;
+        private final java.util.function.Consumer<String> onName;
+
+        NamedThreadFactory(String base, java.util.function.Consumer<String> onName) {
+            this.base = (base == null || base.isBlank()) ? "sys" : base.trim();
+            this.onName = onName;
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r);
+            String name = base + "-" + POOL_ID.get() + "-" + tid.incrementAndGet();
+            t.setName(name);
+            if (onName != null) onName.accept(name);
+            t.setDaemon(true);
+            t.setUncaughtExceptionHandler((th, ex) ->
+                    log.error("[scheduler] Uncaught exception in thread {}", th.getName(), ex));
+            return t;
+        }
+    }
 
     private final class Slot {
 
@@ -149,11 +200,7 @@ public final class SystemScheduler implements AutoCloseable {
 
         private final ExecutorService exec;
         private final ScriptRuntime runtime;
-
-        private volatile boolean started = false;
-        private volatile Future<?> inFlight;
         private final AtomicInteger skippedTicks = new AtomicInteger();
-
         // profiling
         private final AtomicLong lastSubmitNanos = new AtomicLong();
         private final AtomicLong lastStartNanos = new AtomicLong();
@@ -162,7 +209,8 @@ public final class SystemScheduler implements AutoCloseable {
         private final AtomicLong maxTickNanos = new AtomicLong();
         private final AtomicLong emaTickNanos = new AtomicLong();
         private final AtomicLong lastQueueLagNanos = new AtomicLong();
-
+        private volatile boolean started = false;
+        private volatile Future<?> inFlight;
         private volatile String threadName = "unknown";
 
         Slot(KSystem system, SystemContext ctx) {
@@ -276,8 +324,12 @@ public final class SystemScheduler implements AutoCloseable {
                         log.error("[scheduler] Worker system onStop failed: {}", system.getClass().getName(), t);
                     }
                 });
-                try { f.get(2, TimeUnit.SECONDS); } catch (Exception ignored) {}
-            } catch (RejectedExecutionException ignored) {}
+                try {
+                    f.get(2, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                }
+            } catch (RejectedExecutionException ignored) {
+            }
 
             exec.shutdown();
             try {
@@ -305,34 +357,6 @@ public final class SystemScheduler implements AutoCloseable {
                     lastQueueLagNanos.get(),
                     skippedTicks.get()
             );
-        }
-    }
-
-    private static String safeProfile(KSystem system) {
-        try { return system.runtimeProfile(); } catch (Throwable t) { return "world"; }
-    }
-
-    private static final class NamedThreadFactory implements ThreadFactory {
-        private static final AtomicInteger POOL_ID = new AtomicInteger();
-        private final AtomicInteger tid = new AtomicInteger();
-        private final String base;
-        private final java.util.function.Consumer<String> onName;
-
-        NamedThreadFactory(String base, java.util.function.Consumer<String> onName) {
-            this.base = (base == null || base.isBlank()) ? "sys" : base.trim();
-            this.onName = onName;
-        }
-
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r);
-            String name = base + "-" + POOL_ID.get() + "-" + tid.incrementAndGet();
-            t.setName(name);
-            if (onName != null) onName.accept(name);
-            t.setDaemon(true);
-            t.setUncaughtExceptionHandler((th, ex) ->
-                    log.error("[scheduler] Uncaught exception in thread {}", th.getName(), ex));
-            return t;
         }
     }
 }

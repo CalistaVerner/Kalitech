@@ -82,6 +82,7 @@ public final class KWorld {
     private static final class Entry {
         final KSystem system;
         final int order;
+
         Entry(KSystem system, int order) {
             this.system = system;
             this.order = order;

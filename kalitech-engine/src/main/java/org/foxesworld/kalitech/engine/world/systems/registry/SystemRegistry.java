@@ -2,9 +2,9 @@ package org.foxesworld.kalitech.engine.world.systems.registry;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.graalvm.polyglot.Value;
 
 import java.util.*;
 
@@ -41,8 +41,8 @@ public final class SystemRegistry {
     /**
      * Create a system by id via its provider.
      *
-     * @param id system id (provider.id())
-     * @param ctx system context
+     * @param id     system id (provider.id())
+     * @param ctx    system context
      * @param config optional config object (JS Value), may be null
      */
     public KSystem create(String id, SystemContext ctx, Value config) {

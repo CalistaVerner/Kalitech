@@ -3,12 +3,15 @@ package org.foxesworld.kalitech.engine.world;
 import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
+import org.graalvm.polyglot.Value;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 
 public final class WorldBuilder {
 
@@ -20,6 +23,33 @@ public final class WorldBuilder {
     public WorldBuilder(SimpleApplication app, SystemRegistry registry) {
         this.app = Objects.requireNonNull(app, "app");
         this.registry = Objects.requireNonNull(registry, "registry");
+    }
+
+    private static Value member(Value obj, String name) {
+        if (obj == null || obj.isNull()) return null;
+        if (!obj.hasMember(name)) return null;
+        Value v = obj.getMember(name);
+        return (v == null || v.isNull()) ? null : v;
+    }
+
+    private static String getString(Value obj, String name, String def) {
+        Value v = member(obj, name);
+        if (v == null) return def;
+        try {
+            return v.asString();
+        } catch (Exception ignored) {
+            return def;
+        }
+    }
+
+    private static int getInt(Value obj, String name, int def) {
+        Value v = member(obj, name);
+        if (v == null) return def;
+        try {
+            return v.asInt();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {
@@ -59,25 +89,6 @@ public final class WorldBuilder {
         }
 
         return world;
-    }
-
-    private static Value member(Value obj, String name) {
-        if (obj == null || obj.isNull()) return null;
-        if (!obj.hasMember(name)) return null;
-        Value v = obj.getMember(name);
-        return (v == null || v.isNull()) ? null : v;
-    }
-
-    private static String getString(Value obj, String name, String def) {
-        Value v = member(obj, name);
-        if (v == null) return def;
-        try { return v.asString(); } catch (Exception ignored) { return def; }
-    }
-
-    private static int getInt(Value obj, String name, int def) {
-        Value v = member(obj, name);
-        if (v == null) return def;
-        try { return v.asInt(); } catch (Exception ignored) { return def; }
     }
 
     private static final class SystemDef {

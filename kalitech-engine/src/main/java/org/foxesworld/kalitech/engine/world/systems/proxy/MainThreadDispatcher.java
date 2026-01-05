@@ -9,44 +9,47 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Marshals calls from worker threads to the world/main thread via ScriptJobQueue.
- *
+ * <p>
  * принцип не меняем:
- *  - JS по-прежнему вызывает engine/api как синхронные методы
- *  - если вызов пришёл из worker thread -> ставим job в world queue и ждём результат
- *
+ * - JS по-прежнему вызывает engine/api как синхронные методы
+ * - если вызов пришёл из worker thread -> ставим job в world queue и ждём результат
+ * <p>
  * WARNING:
- *  - If the world thread doesn't drain jobs frequently enough, worker will block.
+ * - If the world thread doesn't drain jobs frequently enough, worker will block.
  */
 public final class MainThreadDispatcher {
 
     private final Thread worldThread;
     private final ScriptJobQueue worldJobs;
-
-    private volatile long defaultTimeoutMs = 2000;
-
     // simple counters
     private final AtomicLong calls = new AtomicLong();
     private final AtomicLong timeouts = new AtomicLong();
+    private volatile long defaultTimeoutMs = 2000;
 
     public MainThreadDispatcher(Thread worldThread, ScriptJobQueue worldJobs) {
         this.worldThread = Objects.requireNonNull(worldThread, "worldThread");
         this.worldJobs = Objects.requireNonNull(worldJobs, "worldJobs");
     }
 
-    public void setDefaultTimeoutMs(long ms) {
-        this.defaultTimeoutMs = Math.max(1, ms);
-    }
-
     public long getDefaultTimeoutMs() {
         return defaultTimeoutMs;
+    }
+
+    public void setDefaultTimeoutMs(long ms) {
+        this.defaultTimeoutMs = Math.max(1, ms);
     }
 
     public boolean isWorldThread() {
         return Thread.currentThread() == worldThread;
     }
 
-    public long getCalls() { return calls.get(); }
-    public long getTimeouts() { return timeouts.get(); }
+    public long getCalls() {
+        return calls.get();
+    }
+
+    public long getTimeouts() {
+        return timeouts.get();
+    }
 
     public <T> T call(Callable<T> action) {
         return call(action, defaultTimeoutMs);

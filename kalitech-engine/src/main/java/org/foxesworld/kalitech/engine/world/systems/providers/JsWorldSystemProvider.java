@@ -2,14 +2,14 @@ package org.foxesworld.kalitech.engine.world.systems.providers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.proxy.ProxyArray;
-import org.graalvm.polyglot.proxy.ProxyObject;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyArray;
+import org.graalvm.polyglot.proxy.ProxyObject;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,7 +21,47 @@ public final class JsWorldSystemProvider implements SystemProvider {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
 
-    @Override public String id() { return "jsSystem"; }
+    private static String normalize(String s) {
+        if (s == null) return "world";
+        String t = s.trim().toLowerCase();
+        return t.isEmpty() ? "world" : t;
+    }
+
+    private static Object toProxy(Value v) {
+        if (v == null || v.isNull()) return null;
+
+        if (v.isBoolean()) return v.asBoolean();
+        if (v.isNumber()) return v.asDouble();
+        if (v.isString()) return v.asString();
+
+        if (v.hasArrayElements()) {
+            long n = v.getArraySize();
+            int len = (int) Math.min(n, Integer.MAX_VALUE);
+            Object[] arr = new Object[len];
+            for (int i = 0; i < len; i++) {
+                arr[i] = toProxy(v.getArrayElement(i));
+            }
+            return ProxyArray.fromArray(arr);
+        }
+
+        if (v.hasMembers()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            for (String k : v.getMemberKeys()) {
+                try {
+                    map.put(k, toProxy(v.getMember(k)));
+                } catch (Throwable ignored) {
+                }
+            }
+            return ProxyObject.fromMap(map);
+        }
+
+        return v;
+    }
+
+    @Override
+    public String id() {
+        return "jsSystem";
+    }
 
     @Override
     public KSystem create(SystemContext ctx, Value config) {
@@ -75,40 +115,5 @@ public final class JsWorldSystemProvider implements SystemProvider {
         log.info("[jsSystem] module={} runtime={}", module, resolved);
 
         return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), resolved);
-    }
-
-    private static String normalize(String s) {
-        if (s == null) return "world";
-        String t = s.trim().toLowerCase();
-        return t.isEmpty() ? "world" : t;
-    }
-
-    private static Object toProxy(Value v) {
-        if (v == null || v.isNull()) return null;
-
-        if (v.isBoolean()) return v.asBoolean();
-        if (v.isNumber())  return v.asDouble();
-        if (v.isString())  return v.asString();
-
-        if (v.hasArrayElements()) {
-            long n = v.getArraySize();
-            int len = (int) Math.min(n, Integer.MAX_VALUE);
-            Object[] arr = new Object[len];
-            for (int i = 0; i < len; i++) {
-                arr[i] = toProxy(v.getArrayElement(i));
-            }
-            return ProxyArray.fromArray(arr);
-        }
-
-        if (v.hasMembers()) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            for (String k : v.getMemberKeys()) {
-                try { map.put(k, toProxy(v.getMember(k))); }
-                catch (Throwable ignored) {}
-            }
-            return ProxyObject.fromMap(map);
-        }
-
-        return v;
     }
 }

@@ -13,7 +13,9 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
-import org.foxesworld.kalitech.engine.world.systems.*;
+import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
+import org.foxesworld.kalitech.engine.world.systems.WorkerSystemStats;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadDispatcher;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadProxyFactory;
 import org.graalvm.polyglot.Value;
@@ -77,6 +79,10 @@ public final class WorldAppState extends BaseAppState {
         this.runtimePool = new RuntimePool(base, runtimePolicy);
     }
 
+    private static long nsToMs(long ns) {
+        return TimeUnit.NANOSECONDS.toMillis(Math.max(0L, ns));
+    }
+
     public RuntimePolicy getRuntimePolicy() {
         return runtimePolicy;
     }
@@ -121,6 +127,10 @@ public final class WorldAppState extends BaseAppState {
         tryStartWorld();
     }
 
+    public KWorld getWorld() {
+        return world;
+    }
+
     public void setWorld(KWorld newWorld) {
         if (this.world == newWorld) return;
         tryStopWorld();
@@ -128,8 +138,9 @@ public final class WorldAppState extends BaseAppState {
         tryStartWorld();
     }
 
-    public KWorld getWorld() { return world; }
-    public SystemContext getContextForJs() { return ctx; }
+    public SystemContext getContextForJs() {
+        return ctx;
+    }
 
     @Override
     public void update(float tpf) {
@@ -182,11 +193,19 @@ public final class WorldAppState extends BaseAppState {
         }
 
         // 4) Pump events
-        try { bus.pump(); } catch (Exception e) { log.error("Event bus pump failed", e); }
+        try {
+            bus.pump();
+        } catch (Exception e) {
+            log.error("Event bus pump failed", e);
+        }
 
         // 5) Update world
         if (world != null && running) {
-            try { world.update(ctx, tpf); } catch (Exception e) { log.error("World update failed", e); }
+            try {
+                world.update(ctx, tpf);
+            } catch (Exception e) {
+                log.error("World update failed", e);
+            }
         }
 
         // 6) RuntimePool maintenance ~ once per second
@@ -227,17 +246,19 @@ public final class WorldAppState extends BaseAppState {
         log.info(b.toString());
     }
 
-    private static long nsToMs(long ns) {
-        return TimeUnit.NANOSECONDS.toMillis(Math.max(0L, ns));
-    }
-
     @Override
     protected void cleanup(Application app) {
         tryStopWorld();
-        try { if (scheduler != null) scheduler.close(); } catch (Throwable ignored) {}
+        try {
+            if (scheduler != null) scheduler.close();
+        } catch (Throwable ignored) {
+        }
         scheduler = null;
 
-        try { runtimePool.closeAll(); } catch (Throwable ignored) {}
+        try {
+            runtimePool.closeAll();
+        } catch (Throwable ignored) {
+        }
 
         ctx = null;
         dispatcher = null;
@@ -247,8 +268,15 @@ public final class WorldAppState extends BaseAppState {
         log.info("WorldAppState cleaned up");
     }
 
-    @Override protected void onEnable() { tryStartWorld(); }
-    @Override protected void onDisable() { tryStopWorld(); }
+    @Override
+    protected void onEnable() {
+        tryStartWorld();
+    }
+
+    @Override
+    protected void onDisable() {
+        tryStopWorld();
+    }
 
     private void tryStartWorld() {
         if (!isInitialized() || !isEnabled()) return;
@@ -340,21 +368,39 @@ public final class WorldAppState extends BaseAppState {
         }
     }
 
-    public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
-    public EngineApi getApi() { return api; }
-    public EcsWorld getEcs() { return ecs; }
-    public ScriptEventBus getBus() { return bus; }
+    public PhysicsSpace getPhysicsSpace() {
+        return physicsSpace;
+    }
 
-    public ScriptRuntime getRuntime() { return runtimePool.get("world"); }
-    public ScriptRuntime getRuntime(String profile) { return runtimePool.get(profile); }
+    public EngineApi getApi() {
+        return api;
+    }
 
-    public SystemScheduler getScheduler() { return scheduler; }
+    public EcsWorld getEcs() {
+        return ecs;
+    }
+
+    public ScriptEventBus getBus() {
+        return bus;
+    }
+
+    public ScriptRuntime getRuntime() {
+        return runtimePool.get("world");
+    }
+
+    public ScriptRuntime getRuntime(String profile) {
+        return runtimePool.get(profile);
+    }
+
+    public SystemScheduler getScheduler() {
+        return scheduler;
+    }
 
     // ======================================================================
     // CDPR CONTRACT: RuntimePolicy
     // ======================================================================
 
-    public enum RequestOrigin { JAVA_PROVIDER, SCRIPT_CONFIG }
+    public enum RequestOrigin {JAVA_PROVIDER, SCRIPT_CONFIG}
 
     public static final class RuntimePolicy {
 
@@ -389,7 +435,7 @@ public final class WorldAppState extends BaseAppState {
 
         public static RuntimePolicy fromSystemProps() {
             boolean allowScriptProfiles = boolProp("kalitech.runtime.allowScriptProfiles", false);
-            boolean allowScriptSandbox  = boolProp("kalitech.runtime.allowScriptSandbox", false);
+            boolean allowScriptSandbox = boolProp("kalitech.runtime.allowScriptSandbox", false);
 
             int maxIsolated = intProp("kalitech.runtime.maxIsolated", 3);
             long idleEvictMs = longProp("kalitech.runtime.idleEvictMs", 120_000L);
@@ -427,23 +473,6 @@ public final class WorldAppState extends BaseAppState {
             return p;
         }
 
-        public String resolveProfile(String requested, RequestOrigin origin) {
-            String p = norm(requested);
-            if (p == null) return "world";
-            if (!allowedProfiles.contains(p)) return "world";
-
-            if (origin == RequestOrigin.SCRIPT_CONFIG) {
-                if (!allowScriptProfileRequests) return "world";
-                if ("sandbox".equals(p) && !allowScriptSandboxRequests) return "world";
-            }
-            return p;
-        }
-
-        public boolean isPinned(String profile) {
-            String p = norm(profile);
-            return p != null && pinnedProfiles.contains(p);
-        }
-
         private static String norm(String s) {
             if (s == null) return null;
             String t = s.trim().toLowerCase(Locale.ROOT);
@@ -461,13 +490,21 @@ public final class WorldAppState extends BaseAppState {
         private static int intProp(String key, int def) {
             String v = System.getProperty(key);
             if (v == null) return def;
-            try { return Integer.parseInt(v.trim()); } catch (Exception ignored) { return def; }
+            try {
+                return Integer.parseInt(v.trim());
+            } catch (Exception ignored) {
+                return def;
+            }
         }
 
         private static long longProp(String key, long def) {
             String v = System.getProperty(key);
             if (v == null) return def;
-            try { return Long.parseLong(v.trim()); } catch (Exception ignored) { return def; }
+            try {
+                return Long.parseLong(v.trim());
+            } catch (Exception ignored) {
+                return def;
+            }
         }
 
         private static Set<String> csvLowerProp(String key, String defCsv) {
@@ -478,6 +515,23 @@ public final class WorldAppState extends BaseAppState {
                 if (!p.isEmpty()) set.add(p);
             }
             return set;
+        }
+
+        public String resolveProfile(String requested, RequestOrigin origin) {
+            String p = norm(requested);
+            if (p == null) return "world";
+            if (!allowedProfiles.contains(p)) return "world";
+
+            if (origin == RequestOrigin.SCRIPT_CONFIG) {
+                if (!allowScriptProfileRequests) return "world";
+                if ("sandbox".equals(p) && !allowScriptSandboxRequests) return "world";
+            }
+            return p;
+        }
+
+        public boolean isPinned(String profile) {
+            String p = norm(profile);
+            return p != null && pinnedProfiles.contains(p);
         }
     }
 
@@ -497,6 +551,41 @@ public final class WorldAppState extends BaseAppState {
             this.base = Objects.requireNonNull(base, "base runtime");
             this.policy = Objects.requireNonNull(policy, "policy");
             map.put("world", new Entry(base, true, System.nanoTime()));
+        }
+
+        private static void closeQuiet(ScriptRuntime rt) {
+            if (rt == null) return;
+            boolean closed = tryCallVoid(rt, "close") || tryCallVoid(rt, "shutdown") || tryCallVoid(rt, "dispose");
+        }
+
+        private static ScriptRuntime tryCall0(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                Object r = m.invoke(target);
+                return (r instanceof ScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static ScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
+            try {
+                Method m = target.getClass().getMethod(name, p0);
+                Object r = m.invoke(target, a0);
+                return (r instanceof ScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static boolean tryCallVoid(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                m.invoke(target);
+                return true;
+            } catch (Throwable ignored) {
+                return false;
+            }
         }
 
         ScriptRuntime get(String requestedProfile) {
@@ -618,41 +707,6 @@ public final class WorldAppState extends BaseAppState {
 
             log.warn("[runtimePool] no fork method found in ScriptRuntime; using base runtime for profile={}", profile);
             return base;
-        }
-
-        private static void closeQuiet(ScriptRuntime rt) {
-            if (rt == null) return;
-            boolean closed = tryCallVoid(rt, "close") || tryCallVoid(rt, "shutdown") || tryCallVoid(rt, "dispose");
-        }
-
-        private static ScriptRuntime tryCall0(Object target, String name) {
-            try {
-                Method m = target.getClass().getMethod(name);
-                Object r = m.invoke(target);
-                return (r instanceof ScriptRuntime gr) ? gr : null;
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-
-        private static ScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
-            try {
-                Method m = target.getClass().getMethod(name, p0);
-                Object r = m.invoke(target, a0);
-                return (r instanceof ScriptRuntime gr) ? gr : null;
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-
-        private static boolean tryCallVoid(Object target, String name) {
-            try {
-                Method m = target.getClass().getMethod(name);
-                m.invoke(target);
-                return true;
-            } catch (Throwable ignored) {
-                return false;
-            }
         }
 
         static final class Entry {
