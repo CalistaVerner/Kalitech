@@ -9,7 +9,7 @@ import org.foxesworld.kalitech.engine.api.impl.CameraState;
 
 /**
  * Owns batched desired camera transform + applies it once per frame on JME thread.
- *
+ * <p>
  * Threading:
  * - set* methods are thread-safe (volatile writes + dirty bits).
  * - flush() must be called from JME thread (EngineApiImpl.__updateTime).
@@ -19,30 +19,25 @@ public final class Camera {
     private static final Logger log = LogManager.getLogger(Camera.class);
 
     private final EngineApiImpl engine;
-    private CameraState state;
     private final CameraDirty dirty = new CameraDirty();
-
     // temps (JME thread only)
     private final Vector3f tmpV = new Vector3f();
     private final Quaternion tmpQ = new Quaternion();
-
-    // desired (thread-safe)
-    private volatile float desiredX;
-    private volatile float desiredY;
-    private volatile float desiredZ;
-
-    private volatile float desiredYaw;
-    private volatile float desiredPitch;
-
-    // cached (last applied/read)
-    private volatile float cachedYaw;
-    private volatile float cachedPitch;
-
     // views
     private final Vec3View locView = new Vec3View();
     private final Vec3View fwdView = new Vec3View();
     private final Vec3View rightView = new Vec3View();
     private final Vec3View upView = new Vec3View();
+    private CameraState state;
+    // desired (thread-safe)
+    private volatile float desiredX;
+    private volatile float desiredY;
+    private volatile float desiredZ;
+    private volatile float desiredYaw;
+    private volatile float desiredPitch;
+    // cached (last applied/read)
+    private volatile float cachedYaw;
+    private volatile float cachedPitch;
 
     public Camera(EngineApiImpl engine) {
         this.engine = engine;
@@ -52,7 +47,9 @@ public final class Camera {
         try {
             var cam = engine.getApp().getCamera();
             Vector3f p = cam.getLocation();
-            desiredX = p.x; desiredY = p.y; desiredZ = p.z;
+            desiredX = p.x;
+            desiredY = p.y;
+            desiredZ = p.z;
 
             float[] ang = new float[3];
             cam.getRotation().toAngles(ang);
@@ -63,7 +60,8 @@ public final class Camera {
             cachedYaw = desiredYaw;
 
             locView.set(p.x, p.y, p.z);
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
     }
 
     // ---------- Flush ----------
@@ -171,8 +169,13 @@ public final class Camera {
         return locView;
     }
 
-    public double yaw() { return cachedYaw; }
-    public double pitch() { return cachedPitch; }
+    public double yaw() {
+        return cachedYaw;
+    }
+
+    public double pitch() {
+        return cachedPitch;
+    }
 
     public Vec3View forwardView() {
         CameraBasis.forward(cachedYaw, cachedPitch, fwdView);

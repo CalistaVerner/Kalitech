@@ -12,7 +12,9 @@ public final class CameraDirty {
         mask.getAndUpdate(m -> m | bits);
     }
 
-    /** Returns current mask and clears it to zero. */
+    /**
+     * Returns current mask and clears it to zero.
+     */
     public int take() {
         return mask.getAndSet(0);
     }

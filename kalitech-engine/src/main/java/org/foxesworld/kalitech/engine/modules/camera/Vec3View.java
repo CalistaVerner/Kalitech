@@ -17,7 +17,18 @@ public final class Vec3View {
         this.z = z;
     }
 
-    @HostAccess.Export public double x() { return x; }
-    @HostAccess.Export public double y() { return y; }
-    @HostAccess.Export public double z() { return z; }
+    @HostAccess.Export
+    public double x() {
+        return x;
+    }
+
+    @HostAccess.Export
+    public double y() {
+        return y;
+    }
+
+    @HostAccess.Export
+    public double z() {
+        return z;
+    }
 }

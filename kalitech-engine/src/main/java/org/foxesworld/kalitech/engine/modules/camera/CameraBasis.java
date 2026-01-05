@@ -8,7 +8,8 @@ import com.jme3.math.FastMath;
  */
 public final class CameraBasis {
 
-    private CameraBasis() {}
+    private CameraBasis() {
+    }
 
     public static void forward(float yaw, float pitch, Vec3View out) {
         final float cp = FastMath.cos(pitch);
@@ -23,7 +24,9 @@ public final class CameraBasis {
         out.set(fx, fy, fz);
     }
 
-    /** For roll=0 typical FPS: right depends only on yaw. */
+    /**
+     * For roll=0 typical FPS: right depends only on yaw.
+     */
     public static void right(float yaw, Vec3View out) {
         final float cy = FastMath.cos(yaw);
         final float sy = FastMath.sin(yaw);
