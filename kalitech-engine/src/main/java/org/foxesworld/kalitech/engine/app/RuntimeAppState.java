@@ -10,11 +10,10 @@ import com.jme3.bullet.PhysicsSpace;
 import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.KWorld;
@@ -23,7 +22,6 @@ import org.foxesworld.kalitech.engine.world.WorldBuilder;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
 
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -41,7 +39,7 @@ public final class RuntimeAppState extends BaseAppState {
     private final EcsWorld ecs;
     private final ScriptEventBus bus;
 
-    private GraalScriptRuntime runtime;
+    private ScriptRuntime runtime;
     private HotReloadWatcher watcher;
     private SimpleApplication sa;
 
@@ -80,7 +78,7 @@ public final class RuntimeAppState extends BaseAppState {
         space.setGravity(new Vector3f(0, -9.81f, 0));
 
         // 1) shared runtime
-        runtime = new GraalScriptRuntime();
+        runtime = new ScriptRuntime();
         runtime.setModuleStreamProvider(moduleId -> {
             String id = moduleId;
             if (!id.endsWith(".js")) id += ".js";
@@ -352,7 +350,7 @@ public final class RuntimeAppState extends BaseAppState {
         return sa;
     }
 
-    public GraalScriptRuntime getRuntime() {
+    public ScriptRuntime getRuntime() {
         return runtime;
     }
 
