@@ -1,3 +1,4 @@
+// FILE: WorldAppState.java
 package org.foxesworld.kalitech.engine.world;
 
 import com.jme3.app.Application;
@@ -13,6 +14,7 @@ import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Method;
@@ -47,6 +49,8 @@ public final class WorldAppState extends BaseAppState {
 
     private KWorld world;
     private SystemContext ctx;
+
+    private SystemScheduler scheduler;
 
     private boolean running = false;
     private boolean restartRequested = false;
@@ -93,6 +97,10 @@ public final class WorldAppState extends BaseAppState {
         }
 
         this.ctx = new SystemContext(sa, this);
+
+        this.scheduler = new SystemScheduler(this);
+        // default worker wait budget: small (AAA-stable). Can be tuned.
+        this.scheduler.setDefaultAwaitBudgetMs(2);
 
         // Bind globals into WORLD runtime only (main pipeline)
         installJsGlobals(this.ctx, this.api);
@@ -187,6 +195,11 @@ public final class WorldAppState extends BaseAppState {
     @Override
     protected void cleanup(Application app) {
         tryStopWorld();
+        try {
+            if (scheduler != null) scheduler.close();
+        } catch (Throwable ignored) {
+        }
+        scheduler = null;
         try { runtimePool.closeAll(); } catch (Throwable ignored) {}
         ctx = null;
         log.info("WorldAppState cleaned up");
@@ -261,6 +274,10 @@ public final class WorldAppState extends BaseAppState {
     /** Runtime by profile (validated by policy). */
     public GraalScriptRuntime getRuntime(String profile) {
         return runtimePool.get(profile);
+    }
+
+    public SystemScheduler getScheduler() {
+        return scheduler;
     }
 
     // ======================================================================

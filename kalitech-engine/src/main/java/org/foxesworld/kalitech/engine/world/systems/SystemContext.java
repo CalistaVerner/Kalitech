@@ -1,3 +1,4 @@
+// FILE: SystemContext.java
 package org.foxesworld.kalitech.engine.world.systems;
 
 import com.jme3.app.SimpleApplication;
@@ -58,6 +59,11 @@ public final class SystemContext {
     // CDPR: runtime access
     GraalScriptRuntime runtime() { return worldAppState.getRuntime(); }
     GraalScriptRuntime runtime(String profile) { return worldAppState.getRuntime(profile); }
+
+    // CDPR: system scheduler (worker threads)
+    public SystemScheduler scheduler() {
+        return worldAppState.getScheduler();
+    }
 
     // CDPR: allow providers to enforce contract decisions
     public WorldAppState.RuntimePolicy runtimePolicy() { return worldAppState.getRuntimePolicy(); }

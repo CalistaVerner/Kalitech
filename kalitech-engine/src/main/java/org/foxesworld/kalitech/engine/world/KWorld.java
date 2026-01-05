@@ -1,7 +1,9 @@
+// FILE: KWorld.java
 package org.foxesworld.kalitech.engine.world;
 
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.foxesworld.kalitech.engine.world.systems.ThreadMode;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,19 +40,41 @@ public final class KWorld {
     public void start(SystemContext ctx) {
         if (started) return;
         systems.sort(Comparator.comparingInt(e -> e.order));
-        for (Entry e : systems) e.system.onStart(ctx);
+        // Start MAIN systems inline, WORKER systems via scheduler on their dedicated threads.
+        for (Entry e : systems) {
+            if (e.system.threadMode() == ThreadMode.WORKER_DEDICATED) {
+                ctx.scheduler().ensureStarted(e.system, ctx);
+            } else {
+                e.system.onStart(ctx);
+            }
+        }
         started = true;
     }
 
     public void update(SystemContext ctx, float tpf) {
         if (!started) start(ctx);
-        for (Entry e : systems) e.system.onUpdate(ctx, tpf);
+
+        for (Entry e : systems) {
+            if (e.system.threadMode() == ThreadMode.WORKER_DEDICATED) {
+                ctx.scheduler().submitUpdate(e.system, ctx, tpf);
+            } else {
+                e.system.onUpdate(ctx, tpf);
+            }
+        }
+
+        // Best-effort: wait a tiny budget for worker completion (AAA stable frame time).
+        ctx.scheduler().awaitDefaultBudget();
     }
 
     public void stop(SystemContext ctx) {
         if (!started) return;
         for (int i = systems.size() - 1; i >= 0; i--) {
-            systems.get(i).system.onStop(ctx);
+            KSystem s = systems.get(i).system;
+            if (s.threadMode() == ThreadMode.WORKER_DEDICATED) {
+                ctx.scheduler().stopSystem(s);
+            } else {
+                s.onStop(ctx);
+            }
         }
         started = false;
     }
