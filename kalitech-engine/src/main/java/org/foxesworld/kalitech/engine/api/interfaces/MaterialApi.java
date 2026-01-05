@@ -23,7 +23,7 @@ public interface MaterialApi {
      * Creates a new material handle from a config object.
      */
     @HostAccess.Export
-    MaterialApiImpl.MaterialHandle create(Value cfg);
+    org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl.MaterialHandle create(Value cfg);
 
     /**
      * Destroys (releases) a previously created material handle.

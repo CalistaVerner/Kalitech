@@ -109,7 +109,7 @@ public final class MaterialApiImpl implements MaterialApi {
     @HostAccess.Export
     @Override
     public void set(MaterialHandle handle, Value params) {
-        if (handle == null || handle.material == null) {
+        if (handle == null || handle.__material() == null) {
             throw new IllegalArgumentException("material.set: handle is required");
         }
         if (params == null || params.isNull() || !params.hasMembers()) return;
@@ -118,8 +118,8 @@ public final class MaterialApiImpl implements MaterialApi {
         keys.sort(String::compareTo);
 
         for (String key : keys) {
-            boolean ok = applyParamAsync(handle.material, key, params.getMember(key));
-            if (!ok && MaterialUtils.isProbablyUnknownParam(handle.material, key)) {
+            boolean ok = applyParamAsync(handle.__material(), key, params.getMember(key));
+            if (!ok && MaterialUtils.isProbablyUnknownParam(handle.__material(), key)) {
                 log.warn("material.set: unknown param '{}' for materialId={}", key, handle.id);
             }
         }

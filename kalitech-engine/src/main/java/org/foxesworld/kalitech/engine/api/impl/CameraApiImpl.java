@@ -3,8 +3,8 @@ package org.foxesworld.kalitech.engine.api.impl;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.modulles.camera.Camera;
 import org.foxesworld.kalitech.engine.api.interfaces.CameraApi;
+import org.foxesworld.kalitech.engine.modules.camera.Camera;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 

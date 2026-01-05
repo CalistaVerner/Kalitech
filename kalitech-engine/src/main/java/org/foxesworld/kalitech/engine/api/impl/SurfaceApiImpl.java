@@ -16,17 +16,17 @@ import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
+import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.*;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 
 public final class SurfaceApiImpl implements SurfaceApi {
 
