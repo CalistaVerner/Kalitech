@@ -7,7 +7,6 @@ import org.graalvm.polyglot.Source;
 
 public final class JsSyntaxVerifier {
 
-    // Один движок на процесс (дорогая штука, лучше не плодить)
     private static final Engine ENGINE = Engine.create();
 
     // Context не потокобезопасен -> держим per-thread.
@@ -19,17 +18,15 @@ public final class JsSyntaxVerifier {
                     .build()
     );
 
-    private JsSyntaxVerifier() {}
+    private JsSyntaxVerifier() {
+    }
 
     public static void verify(String jsCode, String virtualName) {
         if (jsCode == null) throw new IllegalArgumentException("jsCode is null");
         String name = (virtualName == null || virtualName.isBlank()) ? "<js>" : virtualName;
 
         try {
-            Source src = Source.newBuilder("js", jsCode, name)
-                    .cached(false) // чтобы не держать мегакэш при hot-reload
-                    .buildLiteral();
-
+            Source src = Source.newBuilder("js", jsCode, name).cached(false).buildLiteral();
             // parse == синтаксическая проверка; НЕ выполняет код
             CTX.get().parse(src);
 

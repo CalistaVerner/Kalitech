@@ -8,7 +8,8 @@ import org.graalvm.polyglot.Value;
 import java.lang.reflect.Array;
 
 public final class JsCfg {
-    private JsCfg() {}
+    private JsCfg() {
+    }
 
     // ---------- Basic ----------
 
@@ -23,19 +24,31 @@ public final class JsCfg {
     public static String str(Value cfg, String key, String def) {
         Value m = member(cfg, key);
         if (m == null || m.isNull()) return def;
-        try { return m.asString(); } catch (Exception ignored) { return def; }
+        try {
+            return m.asString();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public static boolean bool(Value cfg, String key, boolean def) {
         Value m = member(cfg, key);
         if (m == null || m.isNull()) return def;
-        try { return m.asBoolean(); } catch (Exception ignored) { return def; }
+        try {
+            return m.asBoolean();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public static double num(Value cfg, String key, double def) {
         Value m = member(cfg, key);
         if (m == null || m.isNull()) return def;
-        try { return m.asDouble(); } catch (Exception ignored) { return def; }
+        try {
+            return m.asDouble();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public static int intR(Value cfg, String key, int def) {
@@ -62,7 +75,8 @@ public final class JsCfg {
             if (v.hasMember("x") && v.hasMember("y")) {
                 return new Vector2f((float) v.getMember("x").asDouble(), (float) v.getMember("y").asDouble());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return def;
     }
 
@@ -70,14 +84,22 @@ public final class JsCfg {
         if (cfg == null || cfg.isNull() || !cfg.hasMember(key)) return def;
         Value v = cfg.getMember(key);
         if (v == null || v.isNull()) return def;
-        try { return v.asInt(); } catch (Exception ignored) { return def; }
+        try {
+            return v.asInt();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public static double f64(Value cfg, String key, double def) {
         if (cfg == null || cfg.isNull() || !cfg.hasMember(key)) return def;
         Value v = cfg.getMember(key);
         if (v == null || v.isNull()) return def;
-        try { return v.asDouble(); } catch (Exception ignored) { return def; }
+        try {
+            return v.asDouble();
+        } catch (Exception ignored) {
+            return def;
+        }
     }
 
     public static boolean has(Value v, String k) {
@@ -107,7 +129,8 @@ public final class JsCfg {
                         (float) v.getMember("z").asDouble()
                 );
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return def;
     }
 
@@ -133,17 +156,18 @@ public final class JsCfg {
                 float a = v.hasMember("a") ? (float) v.getMember("a").asDouble() : 1f;
                 return new ColorRGBA(r, g, b, a);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return def;
     }
 
     /**
      * Reads JS Array / TypedArray / ArrayLike into float[].
-     *
+     * <p>
      * Supported:
-     *  - JS Array [1,2,3]
-     *  - Float32Array / Float64Array / Int32Array / etc
-     *  - Any object with hasArrayElements()
+     * - JS Array [1,2,3]
+     * - Float32Array / Float64Array / Int32Array / etc
+     * - Any object with hasArrayElements()
      *
      * @throws IllegalArgumentException if value is not array-like
      */
@@ -188,16 +212,26 @@ public final class JsCfg {
 
             for (int i = 0; i < len; i++) {
                 Value e = v.getArrayElement(i);
-                if (e == null || e.isNull()) { out[i] = 0f; continue; }
+                if (e == null || e.isNull()) {
+                    out[i] = 0f;
+                    continue;
+                }
 
-                if (e.isNumber()) { out[i] = (float) e.asDouble(); continue; }
+                if (e.isNumber()) {
+                    out[i] = (float) e.asDouble();
+                    continue;
+                }
 
                 // valueOf fallback
                 if (e.hasMember("valueOf")) {
                     try {
                         Value vo = e.invokeMember("valueOf");
-                        if (vo != null && vo.isNumber()) { out[i] = (float) vo.asDouble(); continue; }
-                    } catch (Throwable ignored) {}
+                        if (vo != null && vo.isNumber()) {
+                            out[i] = (float) vo.asDouble();
+                            continue;
+                        }
+                    } catch (Throwable ignored) {
+                    }
                 }
 
                 out[i] = 0f; // не падаем: JS должен быть простым
@@ -210,6 +244,11 @@ public final class JsCfg {
     }
 
     // ---------- Clamp ----------
-    public static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
-    public static double clamp(double v, double lo, double hi) { return Math.max(lo, Math.min(hi, v)); }
+    public static int clamp(int v, int lo, int hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    public static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
 }

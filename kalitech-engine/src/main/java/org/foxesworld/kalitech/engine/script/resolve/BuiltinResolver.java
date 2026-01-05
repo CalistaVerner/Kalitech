@@ -8,10 +8,10 @@ import java.util.Optional;
 /**
  * Keeps @builtin/* module ids stable.
  * Put it first in ResolverChain so nothing else rewrites built-in ids.
- *
+ * <p>
  * Contract:
- *  - If request starts with prefix, returns it as-is (stable).
- *  - Otherwise returns Optional.empty().
+ * - If request starts with prefix, returns it as-is (stable).
+ * - Otherwise returns Optional.empty().
  */
 public final class BuiltinResolver implements ResolverStrategy {
 

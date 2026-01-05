@@ -4,7 +4,10 @@ package org.foxesworld.kalitech.engine.script.profiler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -12,65 +15,35 @@ import java.util.concurrent.atomic.AtomicLong;
  * Lightweight per-frame / rolling profiler for the scripting subsystem.
  *
  * <p>Автор: Calista Verner</p>
- *
+ * <p>
  * Tracks:
  * - module init/update total time + calls + errors
  * - jobs drained count + time
  * - events pumped count + time
- *
+ * <p>
  * Logs top N periodically (default every 2s).
  */
 public final class ScriptProfiler {
 
     private static final Logger log = LogManager.getLogger(ScriptProfiler.class);
-
-    public enum Phase { INIT, UPDATE, DESTROY, SERIALIZE, DESERIALIZE }
-
-    public static final class ModuleStats {
-        public final String moduleId;
-
-        // totals
-        public final AtomicLong initCalls = new AtomicLong();
-        public final AtomicLong initTimeNanos = new AtomicLong();
-        public final AtomicLong updateCalls = new AtomicLong();
-        public final AtomicLong updateTimeNanos = new AtomicLong();
-        public final AtomicLong errors = new AtomicLong();
-
-        // last window (since last report)
-        final AtomicLong wInitCalls = new AtomicLong();
-        final AtomicLong wInitTimeNanos = new AtomicLong();
-        final AtomicLong wUpdateCalls = new AtomicLong();
-        final AtomicLong wUpdateTimeNanos = new AtomicLong();
-        final AtomicLong wErrors = new AtomicLong();
-
-        ModuleStats(String moduleId) {
-            this.moduleId = moduleId;
-        }
-    }
-
     private final Map<String, ModuleStats> modules = new ConcurrentHashMap<>();
-
     // subsystem counters
     private final AtomicLong jobsCount = new AtomicLong();
     private final AtomicLong jobsTimeNanos = new AtomicLong();
     private final AtomicLong eventsCount = new AtomicLong();
     private final AtomicLong eventsTimeNanos = new AtomicLong();
-
     private final AtomicLong wJobsCount = new AtomicLong();
     private final AtomicLong wJobsTimeNanos = new AtomicLong();
     private final AtomicLong wEventsCount = new AtomicLong();
     private final AtomicLong wEventsTimeNanos = new AtomicLong();
-
     // reporting
     private volatile long reportEveryNanos = 2_000_000_000L; // 2s
     private volatile int topN = 8;
     private volatile boolean enabled = true;
-
     private long lastReportNanos = System.nanoTime();
 
-    public ScriptProfiler setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        return this;
+    private static double ms(long nanos) {
+        return nanos / 1_000_000.0;
     }
 
     public ScriptProfiler setReportEveryNanos(long nanos) {
@@ -87,11 +60,16 @@ public final class ScriptProfiler {
         return enabled;
     }
 
-    // ---- record API ----
+    public ScriptProfiler setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        return this;
+    }
 
     public long begin() {
         return enabled ? System.nanoTime() : 0L;
     }
+
+    // ---- record API ----
 
     public void endModule(String moduleId, Phase phase, long t0Nanos, boolean ok) {
         if (!enabled || moduleId == null) return;
@@ -139,7 +117,9 @@ public final class ScriptProfiler {
         wEventsTimeNanos.addAndGet(Math.max(0L, dtNanos));
     }
 
-    /** Call once per frame (end of ScriptSubsystem.update()). */
+    /**
+     * Call once per frame (end of ScriptSubsystem.update()).
+     */
     public void tick() {
         if (!enabled) return;
         long now = System.nanoTime();
@@ -186,8 +166,28 @@ public final class ScriptProfiler {
         log.info(sb.toString());
     }
 
-    private static double ms(long nanos) {
-        return nanos / 1_000_000.0;
+    public enum Phase {INIT, UPDATE, DESTROY, SERIALIZE, DESERIALIZE}
+
+    public static final class ModuleStats {
+        public final String moduleId;
+
+        // totals
+        public final AtomicLong initCalls = new AtomicLong();
+        public final AtomicLong initTimeNanos = new AtomicLong();
+        public final AtomicLong updateCalls = new AtomicLong();
+        public final AtomicLong updateTimeNanos = new AtomicLong();
+        public final AtomicLong errors = new AtomicLong();
+
+        // last window (since last report)
+        final AtomicLong wInitCalls = new AtomicLong();
+        final AtomicLong wInitTimeNanos = new AtomicLong();
+        final AtomicLong wUpdateCalls = new AtomicLong();
+        final AtomicLong wUpdateTimeNanos = new AtomicLong();
+        final AtomicLong wErrors = new AtomicLong();
+
+        ModuleStats(String moduleId) {
+            this.moduleId = moduleId;
+        }
     }
 
     private record ModuleRow(String moduleId, long updateCalls, long updateTimeNanos,

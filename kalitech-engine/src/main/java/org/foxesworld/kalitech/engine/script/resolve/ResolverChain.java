@@ -32,9 +32,9 @@ public final class ResolverChain {
 
     /**
      * Returns candidate ids in strict order:
-     *  - if resolved has extension -> [resolved]
-     *  - else -> [resolved/index.js, resolved.js]
-     *
+     * - if resolved has extension -> [resolved]
+     * - else -> [resolved/index.js, resolved.js]
+     * <p>
      * Existence check is done by runtime (I/O layer).
      */
     public List<String> resolveCandidatesOrThrow(String parentModuleId, String request) {

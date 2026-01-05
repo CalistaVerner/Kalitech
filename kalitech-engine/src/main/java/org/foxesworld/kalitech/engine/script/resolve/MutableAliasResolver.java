@@ -13,12 +13,17 @@ public final class MutableAliasResolver implements ResolverStrategy {
     private final AtomicReference<Map<String, String>> aliasesRef =
             new AtomicReference<>(Map.of());
 
-    public void setAliases(Map<String, String> aliases) {
-        aliasesRef.set(Map.copyOf(Objects.requireNonNull(aliases, "aliases")));
+    private static String trimTrailingSlash(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
 
     public Map<String, String> getAliases() {
         return aliasesRef.get();
+    }
+
+    public void setAliases(Map<String, String> aliases) {
+        aliasesRef.set(Map.copyOf(Objects.requireNonNull(aliases, "aliases")));
     }
 
     @Override
@@ -49,10 +54,5 @@ public final class MutableAliasResolver implements ResolverStrategy {
         }
 
         return Optional.empty();
-    }
-
-    private static String trimTrailingSlash(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
 }

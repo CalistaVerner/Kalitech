@@ -3,10 +3,10 @@ package org.foxesworld.kalitech.engine.script;
 import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.HostAccess;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.TransformComponent;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.graalvm.polyglot.HostAccess;
 
 public final class EntityScriptAPI {
 
@@ -48,7 +48,9 @@ public final class EntityScriptAPI {
             t = new TransformComponent();
             ecs.components().put(entityId, TransformComponent.class, t);
         }
-        t.x = x; t.y = y; t.z = z;
+        t.x = x;
+        t.y = y;
+        t.z = z;
     }
 
     @HostAccess.Export

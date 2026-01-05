@@ -7,7 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class PathNorm {
-    private PathNorm() {}
+    private PathNorm() {
+    }
 
     public static String normalizeId(String moduleId) {
         if (moduleId == null) return "";
@@ -29,7 +30,9 @@ public final class PathNorm {
         return idx < 0 ? "" : id.substring(0, idx);
     }
 
-    /** "has extension" only if '.' is in the last segment */
+    /**
+     * "has extension" only if '.' is in the last segment
+     */
     public static boolean hasExtension(String moduleId) {
         if (moduleId == null) return false;
         String id = moduleId.replace('\\', '/');
@@ -38,7 +41,9 @@ public final class PathNorm {
         return dot > slash;
     }
 
-    /** Join path segments and normalize slashes. Does NOT strip trailing slash. */
+    /**
+     * Join path segments and normalize slashes. Does NOT strip trailing slash.
+     */
     public static String join(String a, String b) {
         String aa = (a == null) ? "" : a.replace('\\', '/');
         String bb = (b == null) ? "" : b.replace('\\', '/');
@@ -55,7 +60,7 @@ public final class PathNorm {
      * Expands a canonical resolved id into candidates following your rule:
      * - if id already has extension -> [id]
      * - else -> [id/index.js, id.js]
-     *
+     * <p>
      * IMPORTANT: existence check is done by the runtime (I/O layer), not here.
      */
     public static List<String> expandCandidates(String resolvedId) {

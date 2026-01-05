@@ -11,12 +11,12 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * Centralized caching for the script runtime.
- *
+ * <p>
  * Design goals:
- *  - Fast hot-reload cycles: avoid repeated IO/parsing when a file is saved multiple times.
- *  - Hard bounds: every cache has a max size to prevent memory creep.
- *  - Explicit invalidation: HotReloadWatcher / runtime invalidation should invalidate relevant keys.
- *
+ * - Fast hot-reload cycles: avoid repeated IO/parsing when a file is saved multiple times.
+ * - Hard bounds: every cache has a max size to prevent memory creep.
+ * - Explicit invalidation: HotReloadWatcher / runtime invalidation should invalidate relevant keys.
+ * <p>
  * IMPORTANT: This module does NOT replace the runtime module/exports cache.
  * It only accelerates auxiliary steps: loading module text and building wrapped Source.
  */
@@ -48,32 +48,6 @@ public final class ScriptCaches {
         this.wrappedCode = Objects.requireNonNull(wrappedCode, "wrappedCode");
     }
 
-    public Cache<String, String> moduleText() { return moduleText; }
-
-    public Cache<SourceKey, org.graalvm.polyglot.Source> wrappedSources() { return wrappedSources; }
-
-    public Cache<SourceKey, String> wrappedCode() { return wrappedCode; }
-
-    /**
-     * Invalidate caches for a particular module id.
-     * Note: wrapped caches are keyed by SourceKey, so this method invalidates by scanning keys.
-     * The caches are bounded; scanning is acceptable (editor/dev workflow).
-     */
-    public void invalidateModule(String moduleId) {
-        if (moduleId == null) return;
-        moduleText.invalidate(moduleId);
-
-        invalidateByModuleId(wrappedSources.asMap(), moduleId);
-        invalidateByModuleId(wrappedCode.asMap(), moduleId);
-    }
-
-    /** Invalidate everything. Useful for full reset / shutdown. */
-    public void invalidateAll() {
-        moduleText.invalidateAll();
-        wrappedSources.invalidateAll();
-        wrappedCode.invalidateAll();
-    }
-
     private static <V> void invalidateByModuleId(ConcurrentMap<SourceKey, V> map, String moduleId) {
         for (SourceKey k : map.keySet()) {
             if (moduleId.equals(k.moduleId)) {
@@ -84,7 +58,7 @@ public final class ScriptCaches {
 
     /**
      * Default cache setup for Kalitech (editor-first workflow).
-     *
+     * <p>
      * - moduleText: small but very hot, short expiry to reflect filesystem changes
      * - wrappedCode/source: bounded and expire to avoid stale buildup
      */
@@ -107,6 +81,50 @@ public final class ScriptCaches {
         return new ScriptCaches(moduleText, wrappedSources, wrappedCode);
     }
 
+    private static long fnv1a64(String s) {
+        if (s == null) return 0L;
+        long h = 0xcbf29ce484222325L; // offset basis
+        for (int i = 0; i < s.length(); i++) {
+            h ^= s.charAt(i);
+            h *= 0x100000001b3L; // prime
+        }
+        return h;
+    }
+
+    public Cache<String, String> moduleText() {
+        return moduleText;
+    }
+
+    public Cache<SourceKey, org.graalvm.polyglot.Source> wrappedSources() {
+        return wrappedSources;
+    }
+
+    public Cache<SourceKey, String> wrappedCode() {
+        return wrappedCode;
+    }
+
+    /**
+     * Invalidate caches for a particular module id.
+     * Note: wrapped caches are keyed by SourceKey, so this method invalidates by scanning keys.
+     * The caches are bounded; scanning is acceptable (editor/dev workflow).
+     */
+    public void invalidateModule(String moduleId) {
+        if (moduleId == null) return;
+        moduleText.invalidate(moduleId);
+
+        invalidateByModuleId(wrappedSources.asMap(), moduleId);
+        invalidateByModuleId(wrappedCode.asMap(), moduleId);
+    }
+
+    /**
+     * Invalidate everything. Useful for full reset / shutdown.
+     */
+    public void invalidateAll() {
+        moduleText.invalidateAll();
+        wrappedSources.invalidateAll();
+        wrappedCode.invalidateAll();
+    }
+
     /**
      * Cache key that includes moduleId and a stable hash of the content.
      * We store the hash to avoid holding large strings as part of the key.
@@ -127,8 +145,7 @@ public final class ScriptCaches {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof SourceKey)) return false;
-            SourceKey that = (SourceKey) o;
+            if (!(o instanceof SourceKey that)) return false;
             return contentHash == that.contentHash && moduleId.equals(that.moduleId);
         }
 
@@ -143,15 +160,5 @@ public final class ScriptCaches {
         public String toString() {
             return "SourceKey{" + moduleId + ", hash=" + Long.toHexString(contentHash) + '}';
         }
-    }
-
-    private static long fnv1a64(String s) {
-        if (s == null) return 0L;
-        long h = 0xcbf29ce484222325L; // offset basis
-        for (int i = 0; i < s.length(); i++) {
-            h ^= s.charAt(i);
-            h *= 0x100000001b3L; // prime
-        }
-        return h;
     }
 }

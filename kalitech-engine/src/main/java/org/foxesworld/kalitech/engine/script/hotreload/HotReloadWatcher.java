@@ -9,7 +9,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -19,28 +22,21 @@ import static org.foxesworld.kalitech.engine.util.ReadCsv.readCsvProperty;
 public final class HotReloadWatcher implements Closeable {
 
     private static final Logger log = LogManager.getLogger(HotReloadWatcher.class);
-
+    // Any directory segment matching these will be ignored (skipped + no events)
+    private static final Set<String> IGNORED_DIR_NAMES = readCsvProperty("kalitech.hotreload.ignore.dirs", new HashSet<>());
+    // Some noisy files created by chromium profile root
+    private static final Set<String> IGNORED_FILE_NAMES = readCsvProperty("kalitech.hotreload.ignore.files", new HashSet<>());
     private final Path root;
     private final WatchService watchService;
-
     private final AtomicBoolean dirty = new AtomicBoolean(false);
-
     // registered dirs (avoid double register)
     private final Set<Path> registered = ConcurrentHashMap.newKeySet();
 
+    // ---- IGNORE LISTS (Chromium/JCEF profile junk) ----
     // changed module ids (relative to root)
     private final Set<String> changedIds = ConcurrentHashMap.newKeySet();
-
     // optional: filter extensions
     private final Set<String> exts;
-
-    // ---- IGNORE LISTS (Chromium/JCEF profile junk) ----
-
-    // Any directory segment matching these will be ignored (skipped + no events)
-    private static final Set<String> IGNORED_DIR_NAMES = readCsvProperty("kalitech.hotreload.ignore.dirs", new HashSet<>());
-
-    // Some noisy files created by chromium profile root
-    private static final Set<String> IGNORED_FILE_NAMES = readCsvProperty("kalitech.hotreload.ignore.files", new HashSet<>());
 
     public HotReloadWatcher(Path rootDirectory) {
         this(rootDirectory, Set.of(".js", ".json", ".glsl", ".txt"));
@@ -108,9 +104,7 @@ public final class HotReloadWatcher implements Closeable {
             String relStr = rel.toString().replace('\\', '/');
             if (relStr.contains("Default/Cache")) return true;
             if (relStr.contains("Default/Code Cache")) return true;
-            if (relStr.contains("Default/Network")) return true;
-
-            return false;
+            return relStr.contains("Default/Network");
         } catch (Throwable t) {
             return false;
         }
@@ -177,13 +171,14 @@ public final class HotReloadWatcher implements Closeable {
 
             String rel = root.relativize(abs).toString().replace('\\', '/');
             if (!rel.isBlank()) changedIds.add(rel);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     /**
      * Call in update(): returns a snapshot of changed module ids (relative to root),
      * then clears internal buffer.
-     *
+     * <p>
      * Example returned ids:
      * - "Scripts/systems/scene.js"
      * - "Scripts/entities/player.js"
@@ -259,7 +254,8 @@ public final class HotReloadWatcher implements Closeable {
     public void close() {
         try {
             watchService.close();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         registered.clear();
         changedIds.clear();
     }

@@ -6,7 +6,6 @@ import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
 
 import java.util.*;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -14,286 +13,71 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * ScriptEventBus (REDengine-style, AAA-contract) — BACKWARD COMPATIBLE.
- *
+ * <p>
  * ✅ Keeps legacy API + behavior:
- *   - emit(name, payload) enqueues raw event
- *   - on(name, fn) / once(name, fn) => fn(payload?) exactly as before
- *   - off(name, id), clear(name), clearAll(), pump(...)
- *
+ * - emit(name, payload) enqueues raw event
+ * - on(name, fn) / once(name, fn) => fn(payload?) exactly as before
+ * - off(name, id), clear(name), clearAll(), pump(...)
+ * <p>
  * ✅ Adds AAA-contract API (envelope):
- *   - emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)
- *   - onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)
- *   - onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)
- *   - onPattern/oncePattern(pattern, fn, phase, priority) => fn(EventEnvelope)
- *   - off(token) => token-based unsubscribe (topic not required)
- *   - history ring buffer: setHistoryMax(), getHistory()
- *
+ * - emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)
+ * - onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)
+ * - onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)
+ * - onPattern/oncePattern(pattern, fn, phase, priority) => fn(EventEnvelope)
+ * - off(token) => token-based unsubscribe (topic not required)
+ * - history ring buffer: setHistoryMax(), getHistory()
+ * <p>
  * Threading model:
- *   - emit/emitEvent are thread-safe and only enqueue
- *   - pump() must be called from main thread once per frame (or more) to dispatch
+ * - emit/emitEvent are thread-safe and only enqueue
+ * - pump() must be called from main thread once per frame (or more) to dispatch
  */
 public final class ScriptEventBus {
 
-    private static final Logger log = LogManager.getLogger(ScriptEventBus.class);
-
     public static final int DEFAULT_MAX_EVENTS_PER_FRAME = 4096;
     public static final long DEFAULT_TIME_BUDGET_NANOS = 2_000_000L; // 2ms
+    private static final Logger log = LogManager.getLogger(ScriptEventBus.class);
 
     // -------------------- AAA envelope --------------------
-
-    public enum Phase { PRE, MAIN, POST }
-
-    /** Stable meta for telemetry/debug. Fill what you have; bus fills missing ts/thread/seq. */
-    public static final class Meta {
-        public long ts;          // ms since epoch or custom clock
-        public long frame;       // frame index (optional)
-        public String thread;    // filled automatically if null
-        public long seq;         // filled automatically if 0
-        public String source;    // e.g. "physics", "world", "scripts"
-        public String world;     // optional world id/name
-        public int entityId;     // optional entity
-    }
-
-    /** Stable envelope passed to AAA listeners. */
-    public static final class EventEnvelope {
-        public final String topic;
-        public final Object payload;
-        public final Meta meta;
-
-        public EventEnvelope(String topic, Object payload, Meta meta) {
-            this.topic = topic;
-            this.payload = payload;
-            this.meta = meta;
-        }
-    }
-
-    /** Optional: provide frame/time from engine. */
-    public interface TimeProvider {
-        long nowMs();
-        long frame();
-        TimeProvider SYSTEM = new TimeProvider() {
-            @Override public long nowMs() { return System.currentTimeMillis(); }
-            @Override public long frame() { return 0L; }
-        };
-    }
-
-    private volatile TimeProvider time = TimeProvider.SYSTEM;
-    public void setTimeProvider(TimeProvider provider) {
-        this.time = (provider == null) ? TimeProvider.SYSTEM : provider;
-    }
-
-    // -------------------- internal event queue --------------------
-
-    private record QEvent(String topic, Object payload, Meta metaOrNull, boolean isEnvelope) {}
-
     private final Queue<QEvent> queue = new ConcurrentLinkedQueue<>();
-
-    // -------------------- ids/tokens --------------------
-
     private final AtomicInteger nextSubId = new AtomicInteger(1);
     private final AtomicLong nextSeq = new AtomicLong(1);
-
-    private enum SubKind { LEGACY_TOPIC, EVENT_TOPIC, ANY, PATTERN }
-
-    private static final class SubRef {
-        final SubKind kind;
-        final String key; // topic for topic kinds; null for any/pattern
-        final int phaseIdx; // 0..2 for AAA lists; -1 for legacy
-        final int subId;
-        SubRef(SubKind kind, String key, int phaseIdx, int subId) {
-            this.kind = kind;
-            this.key = key;
-            this.phaseIdx = phaseIdx;
-            this.subId = subId;
-        }
-    }
-
-    /** token -> location of subscription (for off(token)) */
+    /**
+     * token -> location of subscription (for off(token))
+     */
     private final ConcurrentHashMap<Integer, SubRef> byToken = new ConcurrentHashMap<>();
-
-    // -------------------- legacy subscriptions (exact topic, raw payload) --------------------
-
-    private static final class LegacySub {
-        final int id;
-        final Value fn;
-        final boolean once;
-
-        LegacySub(int id, Value fn, boolean once) {
-            this.id = id;
-            this.fn = fn;
-            this.once = once;
-        }
-    }
-
     /**
-     * Small, allocation-light subscription list.
-     * Not thread-safe by itself; ScriptEventBus controls access patterns (single-thread dispatch).
-     * NOTE: legacy list removal uses swap-last (as before).
+     * exact-topic legacy handlers
      */
-    private static final class LegacySubList {
-        private LegacySub[] arr = new LegacySub[8];
-        private int size = 0;
-
-        int add(LegacySub s) {
-            if (s == null) return 0;
-            if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
-            arr[size++] = s;
-            return s.id;
-        }
-
-        boolean isEmpty() { return size == 0; }
-        int size() { return size; }
-        LegacySub get(int i) { return arr[i]; }
-
-        boolean removeById(int id) {
-            for (int i = 0; i < size; i++) {
-                LegacySub s = arr[i];
-                if (s != null && s.id == id) {
-                    int last = size - 1;
-                    arr[i] = arr[last];
-                    arr[last] = null;
-                    size = last;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        void clear() {
-            Arrays.fill(arr, 0, size, null);
-            size = 0;
-        }
-    }
-
-    /** exact-topic legacy handlers */
     private final Map<String, LegacySubList> legacyHandlers = new ConcurrentHashMap<>();
-
-    // -------------------- AAA subscriptions (envelope) --------------------
-
-    private interface Matcher {
-        boolean matches(String topic);
-        String debug();
-    }
-
-    private static final class ExactMatcher implements Matcher {
-        private final String topic;
-        ExactMatcher(String topic) { this.topic = topic; }
-        @Override public boolean matches(String t) { return topic.equals(t); }
-        @Override public String debug() { return "EXACT(" + topic + ")"; }
-    }
-
-    private static final class AnyMatcher implements Matcher {
-        @Override public boolean matches(String topic) { return true; }
-        @Override public String debug() { return "ANY"; }
-    }
-
-    private static final class PatternMatcher implements Matcher {
-        private final String pattern;
-        private final String[] p;
-        PatternMatcher(String pattern) {
-            this.pattern = pattern;
-            this.p = pattern.split("\\.");
-        }
-        @Override public boolean matches(String topic) {
-            if ("**".equals(pattern)) return true;
-            if (pattern.equals(topic)) return true;
-
-            String[] t = topic.split("\\.");
-            int i = 0;
-            for (; i < p.length; i++) {
-                String seg = p[i];
-                if ("**".equals(seg)) return true;         // match the rest
-                if (i >= t.length) return false;
-                if ("*".equals(seg)) continue;             // one segment wildcard
-                if (!seg.equals(t[i])) return false;
-            }
-            return i == t.length;
-        }
-        @Override public String debug() { return "PATTERN(" + pattern + ")"; }
-    }
-
-    private static final class AaaSub {
-        final int id;
-        final Value fn;          // called with (EventEnvelope)
-        final boolean once;
-        final int priority;
-        final Phase phase;
-        final Matcher matcher;
-
-        AaaSub(int id, Value fn, boolean once, int priority, Phase phase, Matcher matcher) {
-            this.id = id;
-            this.fn = fn;
-            this.once = once;
-            this.priority = priority;
-            this.phase = phase;
-            this.matcher = matcher;
-        }
-    }
-
-    /**
-     * Ordered list by priority DESC.
-     * Removal keeps order (shift), because order matters for AAA.
-     */
-    private static final class OrderedSubList {
-        private AaaSub[] arr = new AaaSub[8];
-        private int size = 0;
-
-        int size() { return size; }
-        boolean isEmpty() { return size == 0; }
-        AaaSub get(int i) { return arr[i]; }
-
-        int addOrdered(AaaSub s) {
-            if (s == null) return 0;
-            if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
-
-            int i = size;
-            // insert so that higher priority comes first
-            while (i > 0) {
-                AaaSub prev = arr[i - 1];
-                if (prev == null || prev.priority >= s.priority) break;
-                arr[i] = prev;
-                i--;
-            }
-            arr[i] = s;
-            size++;
-            return s.id;
-        }
-
-        boolean removeById(int id) {
-            for (int i = 0; i < size; i++) {
-                AaaSub s = arr[i];
-                if (s != null && s.id == id) {
-                    int last = size - 1;
-                    // shift left from i
-                    if (i < last) System.arraycopy(arr, i + 1, arr, i, last - i);
-                    arr[last] = null;
-                    size = last;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        void clear() {
-            Arrays.fill(arr, 0, size, null);
-            size = 0;
-        }
-    }
-
     // exact-topic AAA listeners: topic -> [phase0, phase1, phase2] lists
     private final Map<String, OrderedSubList[]> eventTopic = new ConcurrentHashMap<>();
 
+    // -------------------- internal event queue --------------------
     // any AAA listeners by phase
-    private final OrderedSubList[] any = new OrderedSubList[] { new OrderedSubList(), new OrderedSubList(), new OrderedSubList() };
-
+    private final OrderedSubList[] any = new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()};
     // pattern AAA listeners by phase
-    private final OrderedSubList[] patterns = new OrderedSubList[] { new OrderedSubList(), new OrderedSubList(), new OrderedSubList() };
+    private final OrderedSubList[] patterns = new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()};
 
-    // -------------------- history ring buffer --------------------
-
+    // -------------------- ids/tokens --------------------
     private final Object histLock = new Object();
     private final ArrayDeque<EventEnvelope> history = new ArrayDeque<>();
+    private volatile TimeProvider time = TimeProvider.SYSTEM;
     private volatile int historyMax = 0;
+
+    private static String normalizeTopic(String t) {
+        String s = t.trim();
+        if (s.isEmpty()) return "";
+        while (s.startsWith(".")) s = s.substring(1);
+        while (s.endsWith(".")) s = s.substring(0, s.length() - 1);
+        while (s.contains("..")) s = s.replace("..", ".");
+        return s;
+    }
+
+    // -------------------- legacy subscriptions (exact topic, raw payload) --------------------
+
+    public void setTimeProvider(TimeProvider provider) {
+        this.time = (provider == null) ? TimeProvider.SYSTEM : provider;
+    }
 
     public void setHistoryMax(int max) {
         if (max < 0) max = 0;
@@ -317,6 +101,8 @@ public final class ScriptEventBus {
         return out;
     }
 
+    // -------------------- AAA subscriptions (envelope) --------------------
+
     private void record(EventEnvelope env) {
         int max = historyMax;
         if (max <= 0) return;
@@ -325,8 +111,6 @@ public final class ScriptEventBus {
             while (history.size() > max) history.removeFirst();
         }
     }
-
-    // -------------------- legacy emit API --------------------
 
     public void emit(String name, Object payload) {
         if (name == null) return;
@@ -339,8 +123,6 @@ public final class ScriptEventBus {
         emit(name, null);
     }
 
-    // -------------------- AAA emit API --------------------
-
     public void emitEvent(String topic, Object payload, Meta meta) {
         if (topic == null) return;
         String key = normalizeTopic(topic);
@@ -348,10 +130,13 @@ public final class ScriptEventBus {
         queue.add(new QEvent(key, payload, meta, true));
     }
 
-    // -------------------- legacy subscribe API --------------------
+    public int on(String name, Value fn) {
+        return on(name, fn, false);
+    }
 
-    public int on(String name, Value fn) { return on(name, fn, false); }
-    public int once(String name, Value fn) { return on(name, fn, true); }
+    public int once(String name, Value fn) {
+        return on(name, fn, true);
+    }
 
     private int on(String name, Value fn, boolean once) {
         if (name == null) return 0;
@@ -385,7 +170,9 @@ public final class ScriptEventBus {
         return removed;
     }
 
-    /** Remove all legacy+aaa subscriptions for topic (does not touch queue). */
+    /**
+     * Remove all legacy+aaa subscriptions for topic (does not touch queue).
+     */
     public void clear(String name) {
         if (name == null) return;
         String key = normalizeTopic(name);
@@ -405,17 +192,23 @@ public final class ScriptEventBus {
         }
     }
 
+    // -------------------- history ring buffer --------------------
+
     public void clearAll() {
         legacyHandlers.clear();
         eventTopic.clear();
-        any[0].clear(); any[1].clear(); any[2].clear();
-        patterns[0].clear(); patterns[1].clear(); patterns[2].clear();
+        any[0].clear();
+        any[1].clear();
+        any[2].clear();
+        patterns[0].clear();
+        patterns[1].clear();
+        patterns[2].clear();
         byToken.clear();
         queue.clear();
-        synchronized (histLock) { history.clear(); }
+        synchronized (histLock) {
+            history.clear();
+        }
     }
-
-    // -------------------- AAA subscribe API --------------------
 
     public int onEvent(String topic, Value fn, Phase phase, int priority) {
         return addAaaTopic(topic, fn, false, phase, priority);
@@ -440,6 +233,8 @@ public final class ScriptEventBus {
         return addAaaSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, false, phase, priority);
     }
 
+    // -------------------- legacy emit API --------------------
+
     public int oncePattern(String pattern, Value fn, Phase phase, int priority) {
         if (pattern == null) return 0;
         String p = normalizeTopic(pattern);
@@ -447,7 +242,9 @@ public final class ScriptEventBus {
         return addAaaSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, true, phase, priority);
     }
 
-    /** Token-based unsubscribe (works for legacy and AAA). */
+    /**
+     * Token-based unsubscribe (works for legacy and AAA).
+     */
     public boolean off(int token) {
         if (token <= 0) return false;
         SubRef ref = byToken.remove(token);
@@ -481,6 +278,8 @@ public final class ScriptEventBus {
         return false;
     }
 
+    // -------------------- AAA emit API --------------------
+
     private int addAaaTopic(String topic, Value fn, boolean once, Phase phase, int priority) {
         if (topic == null) return 0;
         String key = normalizeTopic(topic);
@@ -492,7 +291,7 @@ public final class ScriptEventBus {
         int phaseIdx = ph.ordinal();
 
         OrderedSubList[] lists = eventTopic.computeIfAbsent(key, k ->
-                new OrderedSubList[] { new OrderedSubList(), new OrderedSubList(), new OrderedSubList() });
+                new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()});
 
         AaaSub s = new AaaSub(id, fn, once, priority, ph, new ExactMatcher(key));
         lists[phaseIdx].addOrdered(s);
@@ -500,6 +299,8 @@ public final class ScriptEventBus {
         byToken.put(id, new SubRef(SubKind.EVENT_TOPIC, key, phaseIdx, id));
         return id;
     }
+
+    // -------------------- legacy subscribe API --------------------
 
     private int addAaaSpecial(SubKind kind, String key, Matcher matcher, Value fn, boolean once, Phase phase, int priority) {
         if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
@@ -517,9 +318,9 @@ public final class ScriptEventBus {
         return id;
     }
 
-    // -------------------- pump/dispatch (budget-aware) --------------------
-
-    /** Pump with defaults and return processed count. */
+    /**
+     * Pump with defaults and return processed count.
+     */
     public int pump() {
         return pump(DEFAULT_MAX_EVENTS_PER_FRAME, DEFAULT_TIME_BUDGET_NANOS);
     }
@@ -572,7 +373,10 @@ public final class ScriptEventBus {
 
         for (int i = 0; i < list.size(); ) {
             LegacySub s = list.get(i);
-            if (s == null) { i++; continue; }
+            if (s == null) {
+                i++;
+                continue;
+            }
 
             try {
                 if (payload == null) s.fn.execute();
@@ -607,14 +411,22 @@ public final class ScriptEventBus {
         runAaaList(patterns[pi], env, SubKind.PATTERN);
     }
 
+    // -------------------- AAA subscribe API --------------------
+
     private void runAaaList(OrderedSubList list, EventEnvelope env, SubKind kind) {
         if (list == null || list.isEmpty()) return;
 
         // NOTE: OrderedSubList removal shifts. We'll iterate with index and adjust.
         for (int i = 0; i < list.size(); ) {
             AaaSub s = list.get(i);
-            if (s == null) { i++; continue; }
-            if (!s.matcher.matches(env.topic)) { i++; continue; }
+            if (s == null) {
+                i++;
+                continue;
+            }
+            if (!s.matcher.matches(env.topic)) {
+                i++;
+                continue;
+            }
 
             try {
                 s.fn.execute(env);
@@ -647,18 +459,285 @@ public final class ScriptEventBus {
         return new EventEnvelope(topic, payload, m);
     }
 
-    // -------------------- misc --------------------
-
     public int queuedEventsApprox() {
         return queue.size();
     }
 
-    private static String normalizeTopic(String t) {
-        String s = t.trim();
-        if (s.isEmpty()) return "";
-        while (s.startsWith(".")) s = s.substring(1);
-        while (s.endsWith(".")) s = s.substring(0, s.length() - 1);
-        while (s.contains("..")) s = s.replace("..", ".");
-        return s;
+    public enum Phase {PRE, MAIN, POST}
+
+    private enum SubKind {LEGACY_TOPIC, EVENT_TOPIC, ANY, PATTERN}
+
+    /**
+     * Optional: provide frame/time from engine.
+     */
+    public interface TimeProvider {
+        TimeProvider SYSTEM = new TimeProvider() {
+            @Override
+            public long nowMs() {
+                return System.currentTimeMillis();
+            }
+
+            @Override
+            public long frame() {
+                return 0L;
+            }
+        };
+
+        long nowMs();
+
+        long frame();
+    }
+
+    private interface Matcher {
+        boolean matches(String topic);
+
+        String debug();
+    }
+
+    /**
+     * Stable meta for telemetry/debug. Fill what you have; bus fills missing ts/thread/seq.
+     */
+    public static final class Meta {
+        public long ts;          // ms since epoch or custom clock
+        public long frame;       // frame index (optional)
+        public String thread;    // filled automatically if null
+        public long seq;         // filled automatically if 0
+        public String source;    // e.g. "physics", "world", "scripts"
+        public String world;     // optional world id/name
+        public int entityId;     // optional entity
+    }
+
+    /**
+     * Stable envelope passed to AAA listeners.
+     */
+    public static final class EventEnvelope {
+        public final String topic;
+        public final Object payload;
+        public final Meta meta;
+
+        public EventEnvelope(String topic, Object payload, Meta meta) {
+            this.topic = topic;
+            this.payload = payload;
+            this.meta = meta;
+        }
+    }
+
+    // -------------------- pump/dispatch (budget-aware) --------------------
+
+    private record QEvent(String topic, Object payload, Meta metaOrNull, boolean isEnvelope) {
+    }
+
+    private static final class SubRef {
+        final SubKind kind;
+        final String key; // topic for topic kinds; null for any/pattern
+        final int phaseIdx; // 0..2 for AAA lists; -1 for legacy
+        final int subId;
+
+        SubRef(SubKind kind, String key, int phaseIdx, int subId) {
+            this.kind = kind;
+            this.key = key;
+            this.phaseIdx = phaseIdx;
+            this.subId = subId;
+        }
+    }
+
+    private static final class LegacySub {
+        final int id;
+        final Value fn;
+        final boolean once;
+
+        LegacySub(int id, Value fn, boolean once) {
+            this.id = id;
+            this.fn = fn;
+            this.once = once;
+        }
+    }
+
+    /**
+     * Small, allocation-light subscription list.
+     * Not thread-safe by itself; ScriptEventBus controls access patterns (single-thread dispatch).
+     * NOTE: legacy list removal uses swap-last (as before).
+     */
+    private static final class LegacySubList {
+        private LegacySub[] arr = new LegacySub[8];
+        private int size = 0;
+
+        int add(LegacySub s) {
+            if (s == null) return 0;
+            if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
+            arr[size++] = s;
+            return s.id;
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        int size() {
+            return size;
+        }
+
+        LegacySub get(int i) {
+            return arr[i];
+        }
+
+        boolean removeById(int id) {
+            for (int i = 0; i < size; i++) {
+                LegacySub s = arr[i];
+                if (s != null && s.id == id) {
+                    int last = size - 1;
+                    arr[i] = arr[last];
+                    arr[last] = null;
+                    size = last;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void clear() {
+            Arrays.fill(arr, 0, size, null);
+            size = 0;
+        }
+    }
+
+    private static final class ExactMatcher implements Matcher {
+        private final String topic;
+
+        ExactMatcher(String topic) {
+            this.topic = topic;
+        }
+
+        @Override
+        public boolean matches(String t) {
+            return topic.equals(t);
+        }
+
+        @Override
+        public String debug() {
+            return "EXACT(" + topic + ")";
+        }
+    }
+
+    private static final class AnyMatcher implements Matcher {
+        @Override
+        public boolean matches(String topic) {
+            return true;
+        }
+
+        @Override
+        public String debug() {
+            return "ANY";
+        }
+    }
+
+    private static final class PatternMatcher implements Matcher {
+        private final String pattern;
+        private final String[] p;
+
+        PatternMatcher(String pattern) {
+            this.pattern = pattern;
+            this.p = pattern.split("\\.");
+        }
+
+        @Override
+        public boolean matches(String topic) {
+            if ("**".equals(pattern)) return true;
+            if (pattern.equals(topic)) return true;
+
+            String[] t = topic.split("\\.");
+            int i = 0;
+            for (; i < p.length; i++) {
+                String seg = p[i];
+                if ("**".equals(seg)) return true;         // match the rest
+                if (i >= t.length) return false;
+                if ("*".equals(seg)) continue;             // one segment wildcard
+                if (!seg.equals(t[i])) return false;
+            }
+            return i == t.length;
+        }
+
+        @Override
+        public String debug() {
+            return "PATTERN(" + pattern + ")";
+        }
+    }
+
+    // -------------------- misc --------------------
+
+    private static final class AaaSub {
+        final int id;
+        final Value fn;          // called with (EventEnvelope)
+        final boolean once;
+        final int priority;
+        final Phase phase;
+        final Matcher matcher;
+
+        AaaSub(int id, Value fn, boolean once, int priority, Phase phase, Matcher matcher) {
+            this.id = id;
+            this.fn = fn;
+            this.once = once;
+            this.priority = priority;
+            this.phase = phase;
+            this.matcher = matcher;
+        }
+    }
+
+    /**
+     * Ordered list by priority DESC.
+     * Removal keeps order (shift), because order matters for AAA.
+     */
+    private static final class OrderedSubList {
+        private AaaSub[] arr = new AaaSub[8];
+        private int size = 0;
+
+        int size() {
+            return size;
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        AaaSub get(int i) {
+            return arr[i];
+        }
+
+        int addOrdered(AaaSub s) {
+            if (s == null) return 0;
+            if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
+
+            int i = size;
+            // insert so that higher priority comes first
+            while (i > 0) {
+                AaaSub prev = arr[i - 1];
+                if (prev == null || prev.priority >= s.priority) break;
+                arr[i] = prev;
+                i--;
+            }
+            arr[i] = s;
+            size++;
+            return s.id;
+        }
+
+        boolean removeById(int id) {
+            for (int i = 0; i < size; i++) {
+                AaaSub s = arr[i];
+                if (s != null && s.id == id) {
+                    int last = size - 1;
+                    // shift left from i
+                    if (i < last) System.arraycopy(arr, i + 1, arr, i, last - i);
+                    arr[last] = null;
+                    size = last;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void clear() {
+            Arrays.fill(arr, 0, size, null);
+            size = 0;
+        }
     }
 }

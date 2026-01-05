@@ -38,92 +38,58 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ScriptRuntime implements Closeable {
 
     private static final Logger log = LogManager.getLogger(ScriptRuntime.class);
-
-    /**
-     * Legacy text provider (kept for compatibility).
-     * Prefer {@link ModuleStreamProvider} for builtins/resources/files.
-     */
-    @FunctionalInterface
-    public interface ModuleSourceProvider {
-        String loadText(String moduleId) throws Exception;
-    }
-
-    /**
-     * Stream provider. MUST return a fresh InputStream each call.
-     * Caller closes the stream.
-     *
-     * @return stream or null if module not found.
-     */
-    @FunctionalInterface
-    public interface ModuleStreamProvider {
-        InputStream openStream(String moduleId) throws Exception;
-    }
-
-    private final Context ctx;
-    private final ScriptCaches caches;
-    private final ThreadLocal<ArrayDeque<String>> requireStack = ThreadLocal.withInitial(ArrayDeque::new);
-    private long invalidateEpoch = 0L;
-
-    private volatile Thread ownerThread;
-
-    /**
-     * External stream loader used to fetch module source.
-     */
-    private volatile ModuleStreamProvider streamLoader;
-
-    /**
-     * CommonJS exports cache (source of truth for loaded modules & cyclic deps).
-     */
-    private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
-
-    /**
-     * Version counter per module id.
-     */
-    private final Map<String, AtomicLong> moduleVersions = new ConcurrentHashMap<>();
-
-    /**
-     * Dependency graph for hot reload.
-     */
-    private final Map<String, Set<String>> forwardDeps = new ConcurrentHashMap<>();
-    private final Map<String, Set<String>> reverseDeps = new ConcurrentHashMap<>();
-
-    /**
-     * Global require in JS.
-     */
-    private final Value requireFn;
-    private final MutableAliasResolver aliasResolver;
-
-    /**
-     * Job queue.
-     */
-    private final ScriptJobQueue jobs = new ScriptJobQueue();
-
-    /**
-     * Optional host handles registry.
-     */
-    private final Map<String, MethodHandle> hostHandles = new ConcurrentHashMap<>();
-
-    /**
-     * Module id resolver chain.
-     */
-    private final ResolverChain resolver;
-
-    /**
-     * Built-in bootstrap module id.
-     */
-    private final String builtinBootstrapId = "@builtin/bootstrap";
-
     /**
      * Built-in prefix and resources directory.
      */
     private static final String BUILTIN_PREFIX = "@builtin/";
     private static final String BUILTIN_RES_DIR = "kalitech/builtin/";
-
+    private final Context ctx;
+    private final ScriptCaches caches;
+    private final ThreadLocal<ArrayDeque<String>> requireStack = ThreadLocal.withInitial(ArrayDeque::new);
+    /**
+     * CommonJS exports cache (source of truth for loaded modules & cyclic deps).
+     */
+    private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
+    /**
+     * Version counter per module id.
+     */
+    private final Map<String, AtomicLong> moduleVersions = new ConcurrentHashMap<>();
+    /**
+     * Dependency graph for hot reload.
+     */
+    private final Map<String, Set<String>> forwardDeps = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> reverseDeps = new ConcurrentHashMap<>();
+    /**
+     * Global require in JS.
+     */
+    private final Value requireFn;
+    private final MutableAliasResolver aliasResolver;
+    /**
+     * Job queue.
+     */
+    private final ScriptJobQueue jobs = new ScriptJobQueue();
+    /**
+     * Optional host handles registry.
+     */
+    private final Map<String, MethodHandle> hostHandles = new ConcurrentHashMap<>();
+    /**
+     * Module id resolver chain.
+     */
+    private final ResolverChain resolver;
+    /**
+     * Built-in bootstrap module id.
+     */
+    private final String builtinBootstrapId = "@builtin/bootstrap";
+    private long invalidateEpoch = 0L;
+    private volatile Thread ownerThread;
+    /**
+     * External stream loader used to fetch module source.
+     */
+    private volatile ModuleStreamProvider streamLoader;
     /**
      * Guard to ensure builtins init happens once.
      */
     private volatile boolean builtinsInitialized = false;
-
     public ScriptRuntime() {
         this(ScriptCaches.defaults());
     }
@@ -162,228 +128,6 @@ public final class ScriptRuntime implements Closeable {
         assertOwnerThread();
     }
 
-    private String formatRequireStack() {
-        ArrayDeque<String> st = requireStack.get();
-        if (st == null || st.isEmpty()) return "[]";
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        Iterator<String> it = st.descendingIterator(); // root -> leaf
-        boolean first = true;
-        while (it.hasNext()) {
-            if (!first) sb.append(" -> ");
-            first = false;
-            sb.append('\'').append(it.next()).append('\'');
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private void rollbackDepsOnEvalFail(String moduleId, Set<String> addedChildren) {
-        if (moduleId == null || moduleId.isEmpty()) return;
-
-        // remove forward deps for this module
-        forwardDeps.remove(moduleId);
-
-        // remove reverse links created during this failed evaluation
-        if (addedChildren != null) {
-            for (String child : addedChildren) {
-                Set<String> rev = reverseDeps.get(child);
-                if (rev != null) {
-                    rev.remove(moduleId);
-                    if (rev.isEmpty()) reverseDeps.remove(child);
-                }
-            }
-        }
-    }
-
-    /**
-     * Legacy setter: wraps text provider into stream provider (UTF-8).
-     */
-    @Deprecated
-    public ScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
-        if (loader == null) {
-            this.streamLoader = null;
-            return this;
-        }
-        this.streamLoader = moduleId -> {
-            String txt = loader.loadText(moduleId);
-            if (txt == null) return null;
-            byte[] bytes = txt.getBytes(StandardCharsets.UTF_8);
-            return new java.io.ByteArrayInputStream(bytes);
-        };
-        return this;
-    }
-
-    public ScriptJobQueue jobs() {
-        return jobs;
-    }
-
-    public Context ctx() {
-        return ctx;
-    }
-
-    // ---------------------------------------------------------------------
-    // Thread ownership
-    // ---------------------------------------------------------------------
-
-    private void assertOwnerThread() {
-        Thread t = Thread.currentThread();
-        Thread owner = ownerThread;
-        if (owner == null) {
-            ownerThread = t;
-            return;
-        }
-        if (owner != t) {
-            throw new IllegalStateException("ScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // Built-ins init (MUST happen before any user scripts are resolved/loaded)
-    // ---------------------------------------------------------------------
-
-    /**
-     * Ensures built-ins are loaded before any non-builtin module resolution/loading.
-     * This is called automatically from requireFrom() BEFORE resolveToModuleId().
-     */
-    private void ensureBuiltInsBeforeUserScripts(String parentModuleId, String requestRaw) {
-        if (builtinsInitialized) return;
-
-        String req = (requestRaw == null) ? "" : requestRaw.trim();
-        if (req.startsWith(BUILTIN_PREFIX)) {
-            // Direct builtin require doesn't need auto-init of the whole suite.
-            // But we still allow initBuiltIns() to be called explicitly.
-            return;
-        }
-
-        // For any user-script require, make sure builtins (bootstrap + aliases) are ready.
-        //initBuiltIns();
-    }
-
-    /**
-     * Loads built-in modules BEFORE user scripts:
-     * - @builtin/bootstrap (must exist)
-     * - optionally: other builtins (assert/deepMerge/events/paths/schema)
-     * <p>
-     * Also loads aliases from bootstrap exports.config.aliases into MutableAliasResolver.
-     * <p>
-     * Safe to call multiple times.
-     */
-    public void initBuiltIns(EngineApi api) {
-        assertOwnerThread();
-
-        if (builtinsInitialized) return;
-        builtinsInitialized = true;
-
-        if (this.streamLoader == null) {
-            String msg = "ModuleStreamProvider not set before initBuiltIns(). " + "Call setModuleStreamProvider(...) with your project/asset loader first.";
-            log.error("[script] {}", msg);
-            throw new IllegalStateException(msg);
-        }
-
-        log.debug("[script] builtins: loading {}", builtinBootstrapId);
-        long t0 = System.nanoTime();
-        Value boot = require(builtinBootstrapId);
-        boot.invokeMember("attachEngine", api);
-        long ms = (System.nanoTime() - t0) / 1_000_000L;
-        log.debug("[script] builtins: loaded {} ({} ms)", builtinBootstrapId, ms);
-
-        applyBootstrapAliases(boot);
-    }
-
-    // --- add this method inside ScriptRuntime ---
-
-    private ModuleStreamProvider wrapWithBuiltIns(ModuleStreamProvider downstream) {
-        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
-
-        return moduleId -> {
-            String id = normalizeId(moduleId);
-
-            if (id.startsWith(BUILTIN_PREFIX)) {
-                InputStream in = openBuiltInStream(cl, id);
-                if (in != null) {
-                    String rel = id.substring(BUILTIN_PREFIX.length());
-                    if (!rel.endsWith(".js")) rel = rel + ".js";
-                    log.debug("[script] builtins: stream=open resource {}{}", BUILTIN_RES_DIR, rel);
-                    return in;
-                }
-                log.error("[script] builtins: resource not found for {}", id);
-                return null;
-            }
-
-            return downstream != null ? downstream.openStream(id) : null;
-        };
-    }
-
-
-    private void warmupBuiltIn(String id) {
-        try {
-            log.debug("[script] builtins: loading {}", id);
-            long t0 = System.nanoTime();
-            require(id);
-            long ms = (System.nanoTime() - t0) / 1_000_000L;
-            log.debug("[script] builtins: loaded {} ({} ms)", id, ms);
-        } catch (Throwable t) {
-            // Optional ones: warn, but don't kill runtime
-            log.warn("[script] builtins: failed to load {}: {}", id, t.toString());
-        }
-    }
-
-    public ScriptRuntime setModuleStreamProvider(ModuleStreamProvider loader) {
-        this.streamLoader = (loader == null) ? null : wrapWithBuiltIns(loader);
-        return this;
-    }
-
-    /**
-     * Loads aliases from bootstrap exports:
-     * module.exports = { config: { aliases: { "@core":"Scripts/core", ... } } }
-     */
-    private void applyBootstrapAliases(Value bootExports) {
-        try {
-            if (bootExports == null) return;
-
-            Value cfg = bootExports.getMember("config");
-            if (cfg == null) {
-                log.warn("[script] builtins: bootstrap has no 'config' export (aliases not applied)");
-                return;
-            }
-
-            Value aliases = cfg.getMember("aliases");
-            if (aliases == null || !aliases.hasMembers()) {
-                log.warn("[script] builtins: bootstrap config has no 'aliases' (aliases not applied)");
-                return;
-            }
-
-            Map<String, String> map = new LinkedHashMap<>();
-            for (String k : aliases.getMemberKeys()) {
-                Value v = aliases.getMember(k);
-                if (v != null && v.isString()) {
-                    map.put(k, v.asString());
-                }
-            }
-
-            if (map.isEmpty()) {
-                log.warn("[script] builtins: bootstrap aliases are empty");
-                return;
-            }
-
-            aliasResolver.setAliases(map);
-            log.debug("[script] builtins: aliases applied ({}) {}", map.size(), map.keySet());
-
-        } catch (Throwable t) {
-            log.warn("[script] builtins: failed to apply bootstrap aliases", t);
-        }
-    }
-
-    /**
-     * Minimal built-in-only loader: serves @builtin/* from resources/kalitech/builtin/*.js.
-     * Used only as a fallback if user didn't set any ModuleStreamProvider.
-     */
-    private ModuleStreamProvider openBuiltInStreamFallback() {
-        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
-        return moduleId -> openBuiltInStream(cl, normalizeId(moduleId));
-    }
-
     private static InputStream openBuiltInStream(ClassLoader cl, String moduleId) {
         if (moduleId == null) return null;
         if (!moduleId.startsWith(BUILTIN_PREFIX)) return null;
@@ -396,24 +140,6 @@ public final class ScriptRuntime implements Closeable {
 
         return cl.getResourceAsStream(resPath);
     }
-
-    // ---------------------------------------------------------------------
-    // Public API
-    // ---------------------------------------------------------------------
-
-    public Value require(String moduleId) {
-        assertOwnerThread();
-        return requireFrom("", moduleId);
-    }
-
-    public long moduleVersion(String moduleId) {
-        AtomicLong v = moduleVersions.get(normalizeId(moduleId));
-        return v == null ? 0L : v.get();
-    }
-
-    // ---------------------------------------------------------------------
-    // Core module loader
-    // ---------------------------------------------------------------------
 
     /**
      * Resolves relative "./" "../" against parent module id.
@@ -494,6 +220,248 @@ public final class ScriptRuntime implements Closeable {
         String id = moduleId.replace('\\', '/');
         int idx = id.lastIndexOf('/');
         return idx < 0 ? "" : id.substring(0, idx);
+    }
+
+    private static String readUtf8(InputStream in) throws IOException {
+        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private String formatRequireStack() {
+        ArrayDeque<String> st = requireStack.get();
+        if (st == null || st.isEmpty()) return "[]";
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        Iterator<String> it = st.descendingIterator(); // root -> leaf
+        boolean first = true;
+        while (it.hasNext()) {
+            if (!first) sb.append(" -> ");
+            first = false;
+            sb.append('\'').append(it.next()).append('\'');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    // ---------------------------------------------------------------------
+    // Thread ownership
+    // ---------------------------------------------------------------------
+
+    private void rollbackDepsOnEvalFail(String moduleId, Set<String> addedChildren) {
+        if (moduleId == null || moduleId.isEmpty()) return;
+
+        // remove forward deps for this module
+        forwardDeps.remove(moduleId);
+
+        // remove reverse links created during this failed evaluation
+        if (addedChildren != null) {
+            for (String child : addedChildren) {
+                Set<String> rev = reverseDeps.get(child);
+                if (rev != null) {
+                    rev.remove(moduleId);
+                    if (rev.isEmpty()) reverseDeps.remove(child);
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Built-ins init (MUST happen before any user scripts are resolved/loaded)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Legacy setter: wraps text provider into stream provider (UTF-8).
+     */
+    @Deprecated
+    public ScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
+        if (loader == null) {
+            this.streamLoader = null;
+            return this;
+        }
+        this.streamLoader = moduleId -> {
+            String txt = loader.loadText(moduleId);
+            if (txt == null) return null;
+            byte[] bytes = txt.getBytes(StandardCharsets.UTF_8);
+            return new java.io.ByteArrayInputStream(bytes);
+        };
+        return this;
+    }
+
+    public ScriptJobQueue jobs() {
+        return jobs;
+    }
+
+    // --- add this method inside ScriptRuntime ---
+
+    public Context ctx() {
+        return ctx;
+    }
+
+    private void assertOwnerThread() {
+        Thread t = Thread.currentThread();
+        Thread owner = ownerThread;
+        if (owner == null) {
+            ownerThread = t;
+            return;
+        }
+        if (owner != t) {
+            throw new IllegalStateException("ScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
+        }
+    }
+
+    /**
+     * Ensures built-ins are loaded before any non-builtin module resolution/loading.
+     * This is called automatically from requireFrom() BEFORE resolveToModuleId().
+     */
+    private void ensureBuiltInsBeforeUserScripts(String parentModuleId, String requestRaw) {
+        if (builtinsInitialized) return;
+
+        String req = (requestRaw == null) ? "" : requestRaw.trim();
+        if (req.startsWith(BUILTIN_PREFIX)) {
+            // Direct builtin require doesn't need auto-init of the whole suite.
+            // But we still allow initBuiltIns() to be called explicitly.
+        }
+
+        // For any user-script require, make sure builtins (bootstrap + aliases) are ready.
+        //initBuiltIns();
+    }
+
+    /**
+     * Loads built-in modules BEFORE user scripts:
+     * - @builtin/bootstrap (must exist)
+     * - optionally: other builtins (assert/deepMerge/events/paths/schema)
+     * <p>
+     * Also loads aliases from bootstrap exports.config.aliases into MutableAliasResolver.
+     * <p>
+     * Safe to call multiple times.
+     */
+    public void initBuiltIns(EngineApi api) {
+        assertOwnerThread();
+
+        if (builtinsInitialized) return;
+        builtinsInitialized = true;
+
+        if (this.streamLoader == null) {
+            String msg = "ModuleStreamProvider not set before initBuiltIns(). " + "Call setModuleStreamProvider(...) with your project/asset loader first.";
+            log.error("[script] {}", msg);
+            throw new IllegalStateException(msg);
+        }
+
+        log.debug("[script] builtins: loading {}", builtinBootstrapId);
+        long t0 = System.nanoTime();
+        Value boot = require(builtinBootstrapId);
+        boot.invokeMember("attachEngine", api);
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        log.debug("[script] builtins: loaded {} ({} ms)", builtinBootstrapId, ms);
+
+        applyBootstrapAliases(boot);
+    }
+
+    private ModuleStreamProvider wrapWithBuiltIns(ModuleStreamProvider downstream) {
+        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
+
+        return moduleId -> {
+            String id = normalizeId(moduleId);
+
+            if (id.startsWith(BUILTIN_PREFIX)) {
+                InputStream in = openBuiltInStream(cl, id);
+                if (in != null) {
+                    String rel = id.substring(BUILTIN_PREFIX.length());
+                    if (!rel.endsWith(".js")) rel = rel + ".js";
+                    log.debug("[script] builtins: stream=open resource {}{}", BUILTIN_RES_DIR, rel);
+                    return in;
+                }
+                log.error("[script] builtins: resource not found for {}", id);
+                return null;
+            }
+
+            return downstream != null ? downstream.openStream(id) : null;
+        };
+    }
+
+    private void warmupBuiltIn(String id) {
+        try {
+            log.debug("[script] builtins: loading {}", id);
+            long t0 = System.nanoTime();
+            require(id);
+            long ms = (System.nanoTime() - t0) / 1_000_000L;
+            log.debug("[script] builtins: loaded {} ({} ms)", id, ms);
+        } catch (Throwable t) {
+            // Optional ones: warn, but don't kill runtime
+            log.warn("[script] builtins: failed to load {}: {}", id, t.toString());
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Public API
+    // ---------------------------------------------------------------------
+
+    public ScriptRuntime setModuleStreamProvider(ModuleStreamProvider loader) {
+        this.streamLoader = (loader == null) ? null : wrapWithBuiltIns(loader);
+        return this;
+    }
+
+    /**
+     * Loads aliases from bootstrap exports:
+     * module.exports = { config: { aliases: { "@core":"Scripts/core", ... } } }
+     */
+    private void applyBootstrapAliases(Value bootExports) {
+        try {
+            if (bootExports == null) return;
+
+            Value cfg = bootExports.getMember("config");
+            if (cfg == null) {
+                log.warn("[script] builtins: bootstrap has no 'config' export (aliases not applied)");
+                return;
+            }
+
+            Value aliases = cfg.getMember("aliases");
+            if (aliases == null || !aliases.hasMembers()) {
+                log.warn("[script] builtins: bootstrap config has no 'aliases' (aliases not applied)");
+                return;
+            }
+
+            Map<String, String> map = new LinkedHashMap<>();
+            for (String k : aliases.getMemberKeys()) {
+                Value v = aliases.getMember(k);
+                if (v != null && v.isString()) {
+                    map.put(k, v.asString());
+                }
+            }
+
+            if (map.isEmpty()) {
+                log.warn("[script] builtins: bootstrap aliases are empty");
+                return;
+            }
+
+            aliasResolver.setAliases(map);
+            log.debug("[script] builtins: aliases applied ({}) {}", map.size(), map.keySet());
+
+        } catch (Throwable t) {
+            log.warn("[script] builtins: failed to apply bootstrap aliases", t);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Core module loader
+    // ---------------------------------------------------------------------
+
+    /**
+     * Minimal built-in-only loader: serves @builtin/* from resources/kalitech/builtin/*.js.
+     * Used only as a fallback if user didn't set any ModuleStreamProvider.
+     */
+    private ModuleStreamProvider openBuiltInStreamFallback() {
+        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
+        return moduleId -> openBuiltInStream(cl, normalizeId(moduleId));
+    }
+
+    public Value require(String moduleId) {
+        assertOwnerThread();
+        return requireFrom("", moduleId);
+    }
+
+    public long moduleVersion(String moduleId) {
+        AtomicLong v = moduleVersions.get(normalizeId(moduleId));
+        return v == null ? 0L : v.get();
     }
 
     private Value requireFrom(String parentModuleId, String requestRaw) {
@@ -657,7 +625,6 @@ public final class ScriptRuntime implements Closeable {
         }
     }
 
-
     /**
      * Strict rule:
      * - if baseId is builtin or already has extension -> [baseId]
@@ -704,7 +671,6 @@ public final class ScriptRuntime implements Closeable {
         return sb.toString();
     }
 
-
     /**
      * Resolves a request to a final canonical module id:
      * - apply relative resolution (./ ../)
@@ -715,10 +681,6 @@ public final class ScriptRuntime implements Closeable {
         String rawResolved = resolveRequest(parentModuleId, requestRaw);
         String afterChain = resolver.resolveOrThrow(parentModuleId, rawResolved);
         return normalizeId(afterChain);
-    }
-
-    private static String readUtf8(InputStream in) throws IOException {
-        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     }
 
     private void evalCommonJsInto(String moduleId, String code, ModuleRecord rec, Set<String> addedChildren) {
@@ -767,10 +729,6 @@ public final class ScriptRuntime implements Closeable {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Dependency tracking
-    // ---------------------------------------------------------------------
-
     private void recordDependency(String parent, String child) {
         if (parent == null || parent.isEmpty()) return;
         if (child == null || child.isEmpty()) return;
@@ -783,17 +741,21 @@ public final class ScriptRuntime implements Closeable {
         reverseDeps.computeIfAbsent(c, k -> ConcurrentHashMap.newKeySet()).add(p);
     }
 
-    // ---------------------------------------------------------------------
-    // Invalidation / Hot Reload
-    // ---------------------------------------------------------------------
-
     public boolean invalidate(String moduleId) {
         return invalidateWithReason(moduleId, "invalidate");
     }
 
+    // ---------------------------------------------------------------------
+    // Dependency tracking
+    // ---------------------------------------------------------------------
+
     public int invalidateMany(Collection<String> moduleIds) {
         return invalidateManyWithReason(moduleIds, "invalidateMany");
     }
+
+    // ---------------------------------------------------------------------
+    // Invalidation / Hot Reload
+    // ---------------------------------------------------------------------
 
     public int invalidatePrefix(String prefix) {
         return invalidatePrefixWithReason(prefix, "invalidatePrefix");
@@ -863,7 +825,6 @@ public final class ScriptRuntime implements Closeable {
         return total;
     }
 
-
     private int removeModuleAndDependents(String id, Set<String> visited) {
         if (!visited.add(id)) return 0;
         int removed = 0;
@@ -901,10 +862,6 @@ public final class ScriptRuntime implements Closeable {
         moduleVersions.computeIfAbsent(moduleId, k -> new AtomicLong(0L)).incrementAndGet();
     }
 
-    // ---------------------------------------------------------------------
-    // Host handles (optional)
-    // ---------------------------------------------------------------------
-
     public ScriptRuntime registerHostHandle(String name, MethodHandle handle) {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(handle, "handle");
@@ -917,7 +874,7 @@ public final class ScriptRuntime implements Closeable {
     }
 
     // ---------------------------------------------------------------------
-    // Reset / Close
+    // Host handles (optional)
     // ---------------------------------------------------------------------
 
     public void reset() {
@@ -947,6 +904,18 @@ public final class ScriptRuntime implements Closeable {
     }
 
     // ---------------------------------------------------------------------
+    // Reset / Close
+    // ---------------------------------------------------------------------
+
+    public Context getCtx() {
+        return ctx;
+    }
+
+    private long nextInvalidateEpoch() {
+        return ++invalidateEpoch;
+    }
+
+    // ---------------------------------------------------------------------
     // Internal module record
     // ---------------------------------------------------------------------
     private enum ModuleState {
@@ -954,6 +923,26 @@ public final class ScriptRuntime implements Closeable {
         LOADING,
         LOADED,
         FAILED
+    }
+
+    /**
+     * Legacy text provider (kept for compatibility).
+     * Prefer {@link ModuleStreamProvider} for builtins/resources/files.
+     */
+    @FunctionalInterface
+    public interface ModuleSourceProvider {
+        String loadText(String moduleId) throws Exception;
+    }
+
+    /**
+     * Stream provider. MUST return a fresh InputStream each call.
+     * Caller closes the stream.
+     *
+     * @return stream or null if module not found.
+     */
+    @FunctionalInterface
+    public interface ModuleStreamProvider {
+        InputStream openStream(String moduleId) throws Exception;
     }
 
     private static final class ModuleRecord {
@@ -979,13 +968,5 @@ public final class ScriptRuntime implements Closeable {
             this.moduleObj = module;
             this.exportsObj = module.getMember("exports");
         }
-    }
-
-    public Context getCtx() {
-        return ctx;
-    }
-
-    private long nextInvalidateEpoch() {
-        return ++invalidateEpoch;
     }
 }

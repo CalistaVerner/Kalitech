@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 /**
  * ScriptJobQueue — официальный мост "любой поток -> owner thread (скриптовый/главный)".
  *
- * <p>Автор: Calista Verner</p>
+ * <p>Author: Calista Verner</p>
  *
  * <p>Design:</p>
  * <ul>
@@ -26,15 +26,17 @@ public final class ScriptJobQueue {
     private final Queue<Job> q = new ConcurrentLinkedQueue<>();
     private volatile java.util.function.Consumer<Throwable> onError;
 
-    private record Job(long id, Runnable run) {}
-
-    /** Post a fire-and-forget job from any thread. */
+    /**
+     * Post a fire-and-forget job from any thread.
+     */
     public void post(Runnable run) {
         Objects.requireNonNull(run, "run");
         q.add(new Job(IDS.getAndIncrement(), run));
     }
 
-    /** Call supplier on owner thread; result will complete the returned future. */
+    /**
+     * Call supplier on owner thread; result will complete the returned future.
+     */
     public <T> CompletableFuture<T> call(Supplier<T> supplier) {
         Objects.requireNonNull(supplier, "supplier");
         CompletableFuture<T> f = new CompletableFuture<>();
@@ -59,6 +61,7 @@ public final class ScriptJobQueue {
 
     /**
      * Drain queued jobs without time budget. Must be called on owner thread.
+     *
      * @return executed jobs count
      */
     public int drain(int maxJobs) {
@@ -88,7 +91,10 @@ public final class ScriptJobQueue {
                 // jobs must never crash engine
                 java.util.function.Consumer<Throwable> h = this.onError;
                 if (h != null) {
-                    try { h.accept(t); } catch (Throwable ignored) {}
+                    try {
+                        h.accept(t);
+                    } catch (Throwable ignored) {
+                    }
                 }
             }
             n++;
@@ -97,7 +103,6 @@ public final class ScriptJobQueue {
         }
         return n;
     }
-
 
     public void clear() {
         q.clear();
@@ -110,5 +115,8 @@ public final class ScriptJobQueue {
     public int size() {
         // Queue#size may be O(n) for CLQ; still useful for debug / telemetry.
         return q.size();
+    }
+
+    private record Job(long id, Runnable run) {
     }
 }
