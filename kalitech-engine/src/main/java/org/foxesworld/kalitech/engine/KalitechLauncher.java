@@ -40,7 +40,6 @@ public final class KalitechLauncher {
         settings.setRenderer(AppSettings.LWJGL_OPENGL45);
         //settings.setCustomRenderer(AWTSettingsDialog.class);
         settings.setSettingsDialogImage(System.getProperty("banner.path"));
-        settings.setAudioRenderer(null);
         app.setShowSettings(true);
         app.setSettings(settings);
 

@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 
 public final class AssetsApiImpl implements AssetsApi {
 
