@@ -7,7 +7,7 @@ import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 
@@ -41,7 +41,7 @@ public final class ScriptSystem implements KSystem {
 
     private SimpleApplication app;
     private ScriptEventBus bus;
-    private GraalScriptRuntime runtime;
+    private ScriptRuntime runtime;
 
     private HotReloadWatcher watcher;
     private float cooldown = 0f;

@@ -6,7 +6,7 @@ package org.foxesworld.kalitech.engine.world.systems;
  *
  * <p>Important constraints:
  * <ul>
- *   <li>In this project, {@code GraalScriptRuntime} is thread-confined: a runtime is owned by one thread.</li>
+ *   <li>In this project, {@code ScriptRuntime} is thread-confined: a runtime is owned by one thread.</li>
  *   <li>In jME, most scenegraph mutations are expected to happen on the main/render thread.</li>
  * </ul>
  *

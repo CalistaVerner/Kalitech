@@ -6,7 +6,7 @@ import com.jme3.asset.AssetManager;
 import com.jme3.bullet.PhysicsSpace;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
@@ -57,8 +57,8 @@ public final class SystemContext {
     public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
 
     // CDPR: runtime access
-    GraalScriptRuntime runtime() { return worldAppState.getRuntime(); }
-    GraalScriptRuntime runtime(String profile) { return worldAppState.getRuntime(profile); }
+    ScriptRuntime runtime() { return worldAppState.getRuntime(); }
+    ScriptRuntime runtime(String profile) { return worldAppState.getRuntime(profile); }
 
     // CDPR: system scheduler (worker threads)
     public SystemScheduler scheduler() {

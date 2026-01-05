@@ -3,7 +3,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 
 import java.util.IdentityHashMap;
@@ -148,7 +148,7 @@ public final class SystemScheduler implements AutoCloseable {
         private final String profile;
 
         private final ExecutorService exec;
-        private final GraalScriptRuntime runtime;
+        private final ScriptRuntime runtime;
 
         private volatile boolean started = false;
         private volatile Future<?> inFlight;

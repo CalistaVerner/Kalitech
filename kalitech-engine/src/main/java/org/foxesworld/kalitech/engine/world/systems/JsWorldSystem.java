@@ -2,8 +2,8 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.graalvm.polyglot.Value;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
@@ -106,15 +106,15 @@ public final class JsWorldSystem implements KSystem {
     private void ensureLoaded(SystemContext ctx) throws Exception {
         if (exports != null) return;
 
-        final GraalScriptRuntime rt = ctx.runtime(runtimeProfile);
+        final ScriptRuntime rt = ctx.runtime(runtimeProfile);
 
         exports = requireViaReflection(rt, module);
         if (exports == null) {
-            throw new IllegalStateException("GraalScriptRuntime returned null exports for module=" + module);
+            throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
         }
     }
 
-    private static Value requireViaReflection(GraalScriptRuntime rt, String module) throws Exception {
+    private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
         final Class<?> c = rt.getClass();
 
         Value v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class}, new Object[]{module});
@@ -153,7 +153,7 @@ public final class JsWorldSystem implements KSystem {
         }
 
         throw new IllegalStateException(
-                "Cannot load module via GraalScriptRuntime reflection. " +
+                "Cannot load module via ScriptRuntime reflection. " +
                         "Tried: require/requireModule/loadModule/evalModule/evaluateModule. " +
                         "Candidates: " + sb
         );

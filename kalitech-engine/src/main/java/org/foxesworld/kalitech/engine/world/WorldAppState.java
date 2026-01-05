@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.*;
@@ -69,7 +69,7 @@ public final class WorldAppState extends BaseAppState {
         this.bus = runtimeAppState.getBus();
         this.ecs = runtimeAppState.getEcs();
 
-        final GraalScriptRuntime base = runtimeAppState.getRuntime();
+        final ScriptRuntime base = runtimeAppState.getRuntime();
         this.api = runtimeAppState.getEngineApi();
         this.physicsSpace = runtimeAppState.getSpace();
 
@@ -305,7 +305,7 @@ public final class WorldAppState extends BaseAppState {
      * - engine/api/render are MAIN-THREAD proxies (worker cannot touch engine directly)
      * - method calls from worker are marshaled via ctx.jobs() to world thread synchronously
      */
-    public void installWorkerSandboxGlobals(GraalScriptRuntime workerRt, SystemContext sysCtx, String systemName) {
+    public void installWorkerSandboxGlobals(ScriptRuntime workerRt, SystemContext sysCtx, String systemName) {
         if (workerRt == null) throw new IllegalArgumentException("workerRt is null");
         if (sysCtx == null) throw new IllegalArgumentException("sysCtx is null");
 
@@ -345,8 +345,8 @@ public final class WorldAppState extends BaseAppState {
     public EcsWorld getEcs() { return ecs; }
     public ScriptEventBus getBus() { return bus; }
 
-    public GraalScriptRuntime getRuntime() { return runtimePool.get("world"); }
-    public GraalScriptRuntime getRuntime(String profile) { return runtimePool.get(profile); }
+    public ScriptRuntime getRuntime() { return runtimePool.get("world"); }
+    public ScriptRuntime getRuntime(String profile) { return runtimePool.get(profile); }
 
     public SystemScheduler getScheduler() { return scheduler; }
 
@@ -487,19 +487,19 @@ public final class WorldAppState extends BaseAppState {
 
     static final class RuntimePool {
 
-        private final GraalScriptRuntime base; // "world"
+        private final ScriptRuntime base; // "world"
         private final RuntimePolicy policy;
 
         private final Object lock = new Object();
         private final LinkedHashMap<String, Entry> map = new LinkedHashMap<>(16, 0.75f, true);
 
-        RuntimePool(GraalScriptRuntime base, RuntimePolicy policy) {
+        RuntimePool(ScriptRuntime base, RuntimePolicy policy) {
             this.base = Objects.requireNonNull(base, "base runtime");
             this.policy = Objects.requireNonNull(policy, "policy");
             map.put("world", new Entry(base, true, System.nanoTime()));
         }
 
-        GraalScriptRuntime get(String requestedProfile) {
+        ScriptRuntime get(String requestedProfile) {
             final String profile = policy.resolveProfile(requestedProfile, RequestOrigin.JAVA_PROVIDER);
             if ("world".equals(profile)) return base;
 
@@ -511,7 +511,7 @@ public final class WorldAppState extends BaseAppState {
                     return e.runtime;
                 }
 
-                GraalScriptRuntime rt = forkOrFallback(profile);
+                ScriptRuntime rt = forkOrFallback(profile);
                 boolean pinned = policy.isPinned(profile);
 
                 map.put(profile, new Entry(rt, pinned, now));
@@ -603,8 +603,8 @@ public final class WorldAppState extends BaseAppState {
             }
         }
 
-        private GraalScriptRuntime forkOrFallback(String profile) {
-            GraalScriptRuntime rt = tryCall0(base, "fork");
+        private ScriptRuntime forkOrFallback(String profile) {
+            ScriptRuntime rt = tryCall0(base, "fork");
             if (rt != null) return rt;
 
             rt = tryCall1(base, "fork", String.class, profile);
@@ -616,30 +616,30 @@ public final class WorldAppState extends BaseAppState {
             rt = tryCall0(base, "child");
             if (rt != null) return rt;
 
-            log.warn("[runtimePool] no fork method found in GraalScriptRuntime; using base runtime for profile={}", profile);
+            log.warn("[runtimePool] no fork method found in ScriptRuntime; using base runtime for profile={}", profile);
             return base;
         }
 
-        private static void closeQuiet(GraalScriptRuntime rt) {
+        private static void closeQuiet(ScriptRuntime rt) {
             if (rt == null) return;
             boolean closed = tryCallVoid(rt, "close") || tryCallVoid(rt, "shutdown") || tryCallVoid(rt, "dispose");
         }
 
-        private static GraalScriptRuntime tryCall0(Object target, String name) {
+        private static ScriptRuntime tryCall0(Object target, String name) {
             try {
                 Method m = target.getClass().getMethod(name);
                 Object r = m.invoke(target);
-                return (r instanceof GraalScriptRuntime gr) ? gr : null;
+                return (r instanceof ScriptRuntime gr) ? gr : null;
             } catch (Throwable ignored) {
                 return null;
             }
         }
 
-        private static GraalScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
+        private static ScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
             try {
                 Method m = target.getClass().getMethod(name, p0);
                 Object r = m.invoke(target, a0);
-                return (r instanceof GraalScriptRuntime gr) ? gr : null;
+                return (r instanceof ScriptRuntime gr) ? gr : null;
             } catch (Throwable ignored) {
                 return null;
             }
@@ -656,11 +656,11 @@ public final class WorldAppState extends BaseAppState {
         }
 
         static final class Entry {
-            final GraalScriptRuntime runtime;
+            final ScriptRuntime runtime;
             final boolean pinned;
             long lastAccessNanos;
 
-            Entry(GraalScriptRuntime runtime, boolean pinned, long lastAccessNanos) {
+            Entry(ScriptRuntime runtime, boolean pinned, long lastAccessNanos) {
                 this.runtime = runtime;
                 this.pinned = pinned;
                 this.lastAccessNanos = lastAccessNanos;
