@@ -1,4 +1,3 @@
-// FILE: RawCollector.java
 package org.foxesworld.kalitech.engine.modules.input;
 
 import com.jme3.input.KeyInput;
@@ -17,12 +16,25 @@ public final class RawCollector implements RawInputListener {
         this.frame = frame;
     }
 
-    @Override public void beginInput() {}
-    @Override public void endInput() {}
+    @Override
+    public void beginInput() {
+    }
 
-    @Override public void onJoyAxisEvent(JoyAxisEvent evt) {}
-    @Override public void onJoyButtonEvent(JoyButtonEvent evt) {}
-    @Override public void onTouchEvent(TouchEvent evt) {}
+    @Override
+    public void endInput() {
+    }
+
+    @Override
+    public void onJoyAxisEvent(JoyAxisEvent evt) {
+    }
+
+    @Override
+    public void onJoyButtonEvent(JoyButtonEvent evt) {
+    }
+
+    @Override
+    public void onTouchEvent(TouchEvent evt) {
+    }
 
     @Override
     public void onKeyEvent(KeyInputEvent evt) {

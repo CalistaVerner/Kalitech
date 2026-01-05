@@ -7,26 +7,6 @@ import java.util.Set;
 
 public final class InputSnapshot implements ProxyObject {
 
-    public final long frameId;
-    public final long timeNanos;
-
-    public final double mx;
-    public final double my;
-
-    public final double dx;
-    public final double dy;
-
-    public final double wheel;
-
-    public final int mouseMask;
-
-    public final boolean grabbed;
-    public final boolean cursorVisible;
-
-    public final int[] keysDown;
-    public final int[] justPressed;
-    public final int[] justReleased;
-
     private static final Set<String> KEYS = Set.of(
             "frame", "timeNanos",
             "mx", "my",
@@ -36,6 +16,19 @@ public final class InputSnapshot implements ProxyObject {
             "grabbed", "cursorVisible",
             "keysDown", "justPressed", "justReleased"
     );
+    public final long frameId;
+    public final long timeNanos;
+    public final double mx;
+    public final double my;
+    public final double dx;
+    public final double dy;
+    public final double wheel;
+    public final int mouseMask;
+    public final boolean grabbed;
+    public final boolean cursorVisible;
+    public final int[] keysDown;
+    public final int[] justPressed;
+    public final int[] justReleased;
 
     public InputSnapshot(
             long frameId,

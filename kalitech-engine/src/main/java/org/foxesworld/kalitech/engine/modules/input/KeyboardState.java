@@ -31,6 +31,29 @@ public final class KeyboardState {
     private int[] justReleased = new int[0];
     private int[] keysDown = new int[0];
 
+    private static int resolveKeyCode(String raw) {
+        String key = normalizeKeyName(raw);
+        if (key == null) return -1;
+        Integer v = KeyNames.MAP.get(key);
+        return v != null ? v : -1;
+    }
+
+    private static String normalizeKeyName(String raw) {
+        if (raw == null) return null;
+        String k = raw.trim();
+        if (k.isEmpty()) return null;
+        return k.toUpperCase();
+    }
+
+    private static int guessKeyMax() {
+        try {
+            Object v = KeyInput.class.getField("KEY_LAST").get(null);
+            if (v instanceof Integer) return ((Integer) v) + 1;
+        } catch (Exception ignored) {
+        }
+        return 512;
+    }
+
     public int keyMax() {
         return down.length;
     }
@@ -115,29 +138,6 @@ public final class KeyboardState {
         keysDown = kd;
         justPressed = jp;
         justReleased = jr;
-    }
-
-    private static int resolveKeyCode(String raw) {
-        String key = normalizeKeyName(raw);
-        if (key == null) return -1;
-        Integer v = KeyNames.MAP.get(key);
-        return v != null ? v : -1;
-    }
-
-    private static String normalizeKeyName(String raw) {
-        if (raw == null) return null;
-        String k = raw.trim();
-        if (k.isEmpty()) return null;
-        return k.toUpperCase();
-    }
-
-    private static int guessKeyMax() {
-        try {
-            Object v = KeyInput.class.getField("KEY_LAST").get(null);
-            if (v instanceof Integer) return ((Integer) v) + 1;
-        } catch (Exception ignored) {
-        }
-        return 512;
     }
 
     private static final class KeyNames {

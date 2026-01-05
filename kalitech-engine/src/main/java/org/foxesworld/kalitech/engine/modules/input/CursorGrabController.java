@@ -18,15 +18,23 @@ public final class CursorGrabController {
         this.mouse = mouse;
     }
 
-    public boolean isCursorVisible() { return cursorVisible; }
-    public boolean isGrabbed() { return grabbed; }
+    public boolean isCursorVisible() {
+        return cursorVisible;
+    }
 
     public void setCursorVisible(boolean visible) {
         this.cursorVisible = visible;
         engine.getApp().enqueue(() -> {
-            try { input.setCursorVisible(visible); } catch (Exception ignored) {}
+            try {
+                input.setCursorVisible(visible);
+            } catch (Exception ignored) {
+            }
             return null;
         });
+    }
+
+    public boolean isGrabbed() {
+        return grabbed;
     }
 
     public void setGrabbed(boolean grab) {

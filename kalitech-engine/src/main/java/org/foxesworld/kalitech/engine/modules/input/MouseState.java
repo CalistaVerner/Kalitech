@@ -15,22 +15,27 @@ public final class MouseState {
     private double prevAbsX = 0.0;
     private double prevAbsY = 0.0;
 
-    public record Consumed(double dx, double dy, double wheel) {}
-
     public void setAbsolute(double x, double y) {
         this.mx = x;
         this.my = y;
     }
 
-    public double mouseX() { return mx; }
-    public double mouseY() { return my; }
+    public double mouseX() {
+        return mx;
+    }
+
+    public double mouseY() {
+        return my;
+    }
 
     public boolean mouseDown(int button) {
         if (button < 0 || button >= 31) return false;
         return (mouseMask & (1 << button)) != 0;
     }
 
-    public int peekMouseMask() { return mouseMask; }
+    public int peekMouseMask() {
+        return mouseMask;
+    }
 
     public void setMouseDown(int button, boolean down) {
         if (button < 0 || button >= 31) return;
@@ -44,11 +49,21 @@ public final class MouseState {
         mdy += dy;
     }
 
-    public double mouseDx() { return mdx; }
-    public double mouseDy() { return mdy; }
+    public double mouseDx() {
+        return mdx;
+    }
 
-    public void addWheel(double w) { wheel += w; }
-    public double peekWheel() { return wheel; }
+    public double mouseDy() {
+        return mdy;
+    }
+
+    public void addWheel(double w) {
+        wheel += w;
+    }
+
+    public double peekWheel() {
+        return wheel;
+    }
 
     public double consumeWheelOnly() {
         double w = wheel;
@@ -97,5 +112,8 @@ public final class MouseState {
 
         mdx += dx;
         mdy += dy;
+    }
+
+    public record Consumed(double dx, double dy, double wheel) {
     }
 }
