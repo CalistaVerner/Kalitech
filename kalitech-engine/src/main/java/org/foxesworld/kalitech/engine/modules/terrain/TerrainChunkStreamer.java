@@ -15,20 +15,19 @@ import java.util.Set;
 
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.clampInt;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
-import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
 
 /**
  * Chunked terrain streamer with LOD rings.
- *
+ * <p>
  * This is an engine-side utility: it owns chunk surfaces and can be ticked from JS or Java.
- *
+ * <p>
  * Design:
- *  - World is divided into (size-1) grid chunks in heightmap space.
- *  - Each ring can specify its own chunk size (resolution) to keep far terrain cheaper.
- *  - Seamless sampling is achieved by using noise offsets based on global sample coordinates.
- *
+ * - World is divided into (size-1) grid chunks in heightmap space.
+ * - Each ring can specify its own chunk size (resolution) to keep far terrain cheaper.
+ * - Seamless sampling is achieved by using noise offsets based on global sample coordinates.
+ * <p>
  * NOTE:
- *  - This is not a full open-world streaming system (no paging IO), but a solid base.
+ * - This is not a full open-world streaming system (no paging IO), but a solid base.
  */
 public final class TerrainChunkStreamer {
 
@@ -61,18 +60,27 @@ public final class TerrainChunkStreamer {
         this.rings = Ring.parseRings(cfg);
     }
 
+    private static long key(int cx, int cz, int size) {
+        // pack: 21 bits each coord + 10 bits size (enough for <=8193)
+        long x = (cx & 0x1FFFFF);
+        long z = (cz & 0x1FFFFF);
+        long s = (size & 0x3FF);
+        return (s << 42) | (x << 21) | z;
+    }
+
     /**
      * Update streamer around a focus point.
      * cfg:
-     *  - x: world x
-     *  - z: world z
+     * - x: world x
+     * - z: world z
      */
     @HostAccess.Export
     public void update(Value cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("streamer.update: cfg is null");
         double fx = num(cfg, "x", Double.NaN);
         double fz = num(cfg, "z", Double.NaN);
-        if (!Double.isFinite(fx) || !Double.isFinite(fz)) throw new IllegalArgumentException("streamer.update: x/z required");
+        if (!Double.isFinite(fx) || !Double.isFinite(fz))
+            throw new IllegalArgumentException("streamer.update: x/z required");
 
         // Determine base chunk index in world space.
         // Each chunk spans (size-1) samples * xzScale.
@@ -117,13 +125,13 @@ public final class TerrainChunkStreamer {
         return chunks.size();
     }
 
+    // ---------------------------------------------------------------------
+
     @HostAccess.Export
     public void destroy() {
         for (Chunk c : chunks.values()) destroyChunk(c);
         chunks.clear();
     }
-
-    // ---------------------------------------------------------------------
 
     private void createChunk(int cx, int cz, Ring ring) {
         int size = ring.size;
@@ -157,15 +165,8 @@ public final class TerrainChunkStreamer {
         registry.destroy(c.handle.id());
     }
 
-    private static long key(int cx, int cz, int size) {
-        // pack: 21 bits each coord + 10 bits size (enough for <=8193)
-        long x = (cx & 0x1FFFFF);
-        long z = (cz & 0x1FFFFF);
-        long s = (size & 0x3FF);
-        return (s << 42) | (x << 21) | z;
+    private record Chunk(int cx, int cz, int size, SurfaceApi.SurfaceHandle handle) {
     }
-
-    private record Chunk(int cx, int cz, int size, SurfaceApi.SurfaceHandle handle) {}
 
     // ---------------------------------------------------------------------
     // Config

@@ -19,6 +19,7 @@ public final class TerrainEmitter {
                 m.put(String.valueOf(kv[i]), kv[i + 1]);
             }
             bus.emit(topic, m);
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
     }
 }

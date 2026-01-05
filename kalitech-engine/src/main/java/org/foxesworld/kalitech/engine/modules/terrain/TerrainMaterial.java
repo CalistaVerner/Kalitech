@@ -18,18 +18,6 @@ public final class TerrainMaterial {
         this.assets = assets;
     }
 
-    public void applyTerrainDefault(TerrainQuad tq, Value cfg) {
-        Material def = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
-        def.setColor("Color", readColor(cfg, "color", TerrainDefaults.TERRAIN_COLOR));
-        tq.setMaterial(def);
-    }
-
-    public void applyGeometryDefault(Geometry g, Value cfg) {
-        Material def = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
-        def.setColor("Color", readColor(cfg, "color", TerrainDefaults.GEOM_COLOR));
-        g.setMaterial(def);
-    }
-
     public static ColorRGBA readColor(Value cfg, String key, ColorRGBA def) {
         Value v = member(cfg, key);
         if (v == null || v.isNull()) return def;
@@ -49,7 +37,20 @@ public final class TerrainMaterial {
                 float a = (float) num(v, "a", def.a);
                 return new ColorRGBA(r, g, b, a);
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
         return def;
+    }
+
+    public void applyTerrainDefault(TerrainQuad tq, Value cfg) {
+        Material def = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
+        def.setColor("Color", readColor(cfg, "color", TerrainDefaults.TERRAIN_COLOR));
+        tq.setMaterial(def);
+    }
+
+    public void applyGeometryDefault(Geometry g, Value cfg) {
+        Material def = new Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
+        def.setColor("Color", readColor(cfg, "color", TerrainDefaults.GEOM_COLOR));
+        g.setMaterial(def);
     }
 }

@@ -13,6 +13,77 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
 public final class TerrainUV {
 
+    private static void scaleUvRecursively(Spatial root, Vector2f scale) {
+        if (root == null || scale == null) return;
+
+        if (root instanceof Geometry g) {
+            try {
+                if (g.getMesh() != null) g.getMesh().scaleTextureCoordinates(scale);
+            } catch (Throwable ignored) {
+            }
+            return;
+        }
+
+        if (root instanceof Node n) {
+            try {
+                for (Spatial ch : n.getChildren()) {
+                    if (ch != null) scaleUvRecursively(ch, scale);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static Vector2f readUvScale(Value uv, float defX, float defY) {
+        try {
+            if (uv == null || uv.isNull()) return null;
+
+            // uv: [sx,sy]
+            if (uv.hasArrayElements()) {
+                float sx = (float) (uv.getArraySize() > 0 ? uv.getArrayElement(0).asDouble() : defX);
+                float sy = (float) (uv.getArraySize() > 1 ? uv.getArrayElement(1).asDouble() : defY);
+                return new Vector2f(sx, sy);
+            }
+
+            // uv: {scale:[sx,sy]} or {scale:s}
+            Value sc = member(uv, "scale");
+            if (sc != null && !sc.isNull()) {
+                if (sc.hasArrayElements()) {
+                    float sx = (float) (sc.getArraySize() > 0 ? sc.getArrayElement(0).asDouble() : defX);
+                    float sy = (float) (sc.getArraySize() > 1 ? sc.getArrayElement(1).asDouble() : defY);
+                    return new Vector2f(sx, sy);
+                }
+                if (sc.isNumber()) {
+                    float s = (float) sc.asDouble();
+                    return new Vector2f(s, s);
+                }
+            }
+
+            // uv: {sx,sy}
+            if (uv.hasMember("sx") || uv.hasMember("sy")) {
+                float sx = (float) (uv.hasMember("sx") ? uv.getMember("sx").asDouble() : defX);
+                float sy = (float) (uv.hasMember("sy") ? uv.getMember("sy").asDouble() : defY);
+                return new Vector2f(sx, sy);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static void trySetFloat(Material m, String name, float v) {
+        try {
+            m.setFloat(name, v);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void trySetVector2(Material m, String name, Vector2f v) {
+        try {
+            m.setVector2(name, v);
+        } catch (Throwable ignored) {
+        }
+    }
+
     public void apply(Spatial s, Value cfgOrUv) {
         if (s == null) throw new IllegalArgumentException("terrain.uv: spatial is null");
         if (cfgOrUv == null || cfgOrUv.isNull()) return;
@@ -48,67 +119,5 @@ public final class TerrainUV {
         }
 
         s.setUserData("uvScale", scale);
-    }
-
-    private static void scaleUvRecursively(Spatial root, Vector2f scale) {
-        if (root == null || scale == null) return;
-
-        if (root instanceof Geometry g) {
-            try {
-                if (g.getMesh() != null) g.getMesh().scaleTextureCoordinates(scale);
-            } catch (Throwable ignored) {}
-            return;
-        }
-
-        if (root instanceof Node n) {
-            try {
-                for (Spatial ch : n.getChildren()) {
-                    if (ch != null) scaleUvRecursively(ch, scale);
-                }
-            } catch (Throwable ignored) {}
-        }
-    }
-
-    private static Vector2f readUvScale(Value uv, float defX, float defY) {
-        try {
-            if (uv == null || uv.isNull()) return null;
-
-            // uv: [sx,sy]
-            if (uv.hasArrayElements()) {
-                float sx = (float) (uv.getArraySize() > 0 ? uv.getArrayElement(0).asDouble() : defX);
-                float sy = (float) (uv.getArraySize() > 1 ? uv.getArrayElement(1).asDouble() : defY);
-                return new Vector2f(sx, sy);
-            }
-
-            // uv: {scale:[sx,sy]} or {scale:s}
-            Value sc = member(uv, "scale");
-            if (sc != null && !sc.isNull()) {
-                if (sc.hasArrayElements()) {
-                    float sx = (float) (sc.getArraySize() > 0 ? sc.getArrayElement(0).asDouble() : defX);
-                    float sy = (float) (sc.getArraySize() > 1 ? sc.getArrayElement(1).asDouble() : defY);
-                    return new Vector2f(sx, sy);
-                }
-                if (sc.isNumber()) {
-                    float s = (float) sc.asDouble();
-                    return new Vector2f(s, s);
-                }
-            }
-
-            // uv: {sx,sy}
-            if (uv.hasMember("sx") || uv.hasMember("sy")) {
-                float sx = (float) (uv.hasMember("sx") ? uv.getMember("sx").asDouble() : defX);
-                float sy = (float) (uv.hasMember("sy") ? uv.getMember("sy").asDouble() : defY);
-                return new Vector2f(sx, sy);
-            }
-        } catch (Throwable ignored) {}
-        return null;
-    }
-
-    private static void trySetFloat(Material m, String name, float v) {
-        try { m.setFloat(name, v); } catch (Throwable ignored) {}
-    }
-
-    private static void trySetVector2(Material m, String name, Vector2f v) {
-        try { m.setVector2(name, v); } catch (Throwable ignored) {}
     }
 }

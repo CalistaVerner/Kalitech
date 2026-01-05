@@ -49,9 +49,11 @@ public final class TerrainOps {
         float lx, lz;
         if (world) {
             Vector3f local = tq.worldToLocal(new Vector3f((float) x, 0f, (float) z), null);
-            lx = local.x; lz = local.z;
+            lx = local.x;
+            lz = local.z;
         } else {
-            lx = (float) x; lz = (float) z;
+            lx = (float) x;
+            lz = (float) z;
         }
 
         Float h = tq.getHeight(new Vector2f(lx, lz));
@@ -67,9 +69,11 @@ public final class TerrainOps {
         float lx, lz;
         if (world) {
             Vector3f local = tq.worldToLocal(new Vector3f((float) x, 0f, (float) z), null);
-            lx = local.x; lz = local.z;
+            lx = local.x;
+            lz = local.z;
         } else {
-            lx = (float) x; lz = (float) z;
+            lx = (float) x;
+            lz = (float) z;
         }
 
         Vector3f n = tq.getNormal(new Vector2f(lx, lz));

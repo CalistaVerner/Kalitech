@@ -6,12 +6,18 @@ import com.jme3.terrain.geomipmap.TerrainQuad;
 
 /**
  * Terrain editing ops (tooling/runtime sculpt).
- *
+ * <p>
  * Separated from {@link TerrainOps} so query/LOD stays lean.
  */
 public final class TerrainEditOps {
 
-    public TerrainEditOps() {}
+    public TerrainEditOps() {
+    }
+
+    static Vector2f worldXZToLocalXZ(TerrainQuad tq, float wx, float wz) {
+        Vector3f local = tq.worldToLocal(new Vector3f(wx, 0f, wz), null);
+        return new Vector2f(local.x, local.z);
+    }
 
     /**
      * Replace terrain heightmap.
@@ -23,7 +29,9 @@ public final class TerrainEditOps {
         if (rebuild) rebuild(tq);
     }
 
-    /** Copy current heightmap (defensive). */
+    /**
+     * Copy current heightmap (defensive).
+     */
     public float[] heightmapCopy(TerrainQuad tq) {
         float[] hm = tq.getHeightMap();
         if (hm == null || hm.length == 0) return new float[0];
@@ -32,7 +40,9 @@ public final class TerrainEditOps {
         return out;
     }
 
-    /** Set height at (x,z). world=true uses world x/z, otherwise local. */
+    /**
+     * Set height at (x,z). world=true uses world x/z, otherwise local.
+     */
     public void setHeight(TerrainQuad tq, double x, double z, double height, boolean world) {
         Vector2f p = world ? new Vector2f((float) x, (float) z) : worldXZToLocalXZ(tq, (float) x, (float) z);
         tq.setHeight(p, (float) height);
@@ -48,10 +58,5 @@ public final class TerrainEditOps {
     public void rebuild(TerrainQuad tq) {
         tq.updateModelBound();
         tq.updateGeometricState();
-    }
-
-    static Vector2f worldXZToLocalXZ(TerrainQuad tq, float wx, float wz) {
-        Vector3f local = tq.worldToLocal(new Vector3f(wx, 0f, wz), null);
-        return new Vector2f(local.x, local.z);
     }
 }
