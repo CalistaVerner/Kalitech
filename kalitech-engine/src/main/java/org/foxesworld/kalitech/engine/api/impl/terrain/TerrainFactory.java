@@ -52,42 +52,55 @@ public final class TerrainFactory {
     }
 
     public TerrainQuad createTerrainFromHeights(Value cfg) {
-        Value heightsV = member(cfg, "heights");
+        if (cfg == null || cfg.isNull()) {
+            throw new IllegalArgumentException("terrain.terrainHeights: cfg is null");
+        }
+
+        // --- heights required
+        final Value heightsV = member(cfg, "heights");
         if (heightsV == null || heightsV.isNull()) {
             throw new IllegalArgumentException("terrain.terrainHeights: cfg.heights is required");
         }
 
-        int size = clampInt(num(cfg, "size", 0), 33, 8193);
-        if (size <= 0) throw new IllegalArgumentException("terrain.terrainHeights: cfg.size is required");
+        // --- size required
+        final int size = clampInt(num(cfg, "size", 0), 33, 8193);
+        if (size <= 1) {
+            throw new IllegalArgumentException("terrain.terrainHeights: cfg.size is required");
+        }
 
-        long expectedL = (long) size * (long) size;
+        final long expectedL = (long) size * (long) size;
         if (expectedL > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("terrain.terrainHeights: size*size too large: " + expectedL);
         }
-        int expected = (int) expectedL;
+        final int expected = (int) expectedL;
 
-        // --- Read heights length safely (JS array OR host float[])
-        int n = heightsLength(heightsV);
-        if (n != expected) {
-            //throw new IllegalArgumentException("terrain.terrainHeights: heights length must be size*size (" + expected + "), got " + n);
+        // --- Convert heights (supports JS Array/TypedArray AND HostObject float[])
+        // Never call heightsV.getArraySize() directly: HostObject(float[]) may not support it.
+        final float[] heights = readFloatArray(heightsV);
+        if (heights.length != expected) {
+            throw new IllegalArgumentException(
+                    "terrain.terrainHeights: heights length must be size*size (" + expected + "), got " + heights.length
+            );
         }
 
-        int patchSize = clampInt(num(cfg, "patchSize", TerrainDefaults.PATCH_SIZE), 17, 257);
-        float xzScale = (float) num(cfg, "xzScale", TerrainDefaults.XZ_SCALE);
-        float yScale  = (float) num(cfg, "yScale", TerrainDefaults.Y_SCALE);
+        // --- config
+        final int patchSize = clampInt(num(cfg, "patchSize", TerrainDefaults.PATCH_SIZE), 17, 257);
+        final float xzScale = (float) num(cfg, "xzScale", TerrainDefaults.XZ_SCALE);
+        final float yScale  = (float) num(cfg, "yScale", TerrainDefaults.Y_SCALE);
 
-        // --- Convert heights to float[] efficiently
-        float[] heights = readHeightsToFloatArray(heightsV, expected);
+        final String name = str(cfg, "name", TerrainDefaults.NAME_TERRAIN);
 
-        TerrainQuad tq = new TerrainQuad(str(cfg, "name", TerrainDefaults.NAME_TERRAIN), patchSize, size, heights);
+        // --- build
+        final TerrainQuad tq = new TerrainQuad(name, patchSize, size, heights);
         tq.setLocalScale(xzScale, yScale, xzScale);
 
-        boolean shadows = bool(cfg, "shadows", TerrainDefaults.SHADOWS_BOOL_DEFAULT);
+        final boolean shadows = bool(cfg, "shadows", TerrainDefaults.SHADOWS_BOOL_DEFAULT);
         tq.setShadowMode(shadows ? RenderQueue.ShadowMode.CastAndReceive : RenderQueue.ShadowMode.Receive);
 
         mat.applyTerrainDefault(tq, cfg);
         return tq;
     }
+
 
     private static int heightsLength(Value v) {
         // JS Array / TypedArray path

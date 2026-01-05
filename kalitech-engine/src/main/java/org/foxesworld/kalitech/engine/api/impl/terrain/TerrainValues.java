@@ -65,46 +65,56 @@ public final class TerrainValues {
             throw new IllegalArgumentException("readFloatArray: value is null");
         }
 
-        if (!v.hasArrayElements()) {
-            throw new IllegalArgumentException(
-                    "readFloatArray: value is not array-like: " + v
-            );
-        }
+        // 1) JS Array / TypedArray / ArrayLike
+        if (v.hasArrayElements()) {
+            final int len = (int) v.getArraySize();
+            final float[] out = new float[len];
+            for (int i = 0; i < len; i++) {
+                Value e = v.getArrayElement(i);
+                if (e == null || e.isNull()) { out[i] = 0f; continue; }
+                if (e.isNumber()) { out[i] = (float) e.asDouble(); continue; }
 
-        final int len = (int) v.getArraySize();
-        final float[] out = new float[len];
-
-        for (int i = 0; i < len; i++) {
-            Value e = v.getArrayElement(i);
-
-            if (e == null || e.isNull()) {
-                out[i] = 0f;
-                continue;
-            }
-
-            // Fast path: number
-            if (e.isNumber()) {
-                out[i] = (float) e.asDouble();
-                continue;
-            }
-
-            // valueOf() fallback (rare, but real with Graal wrappers)
-            if (e.hasMember("valueOf")) {
-                try {
-                    Value vo = e.invokeMember("valueOf");
-                    if (vo != null && vo.isNumber()) {
-                        out[i] = (float) vo.asDouble();
-                        continue;
-                    }
-                } catch (Throwable ignored) {
+                // valueOf() fallback for wrapped numerics
+                if (e.hasMember("valueOf")) {
+                    try {
+                        Value vo = e.invokeMember("valueOf");
+                        if (vo != null && vo.isNumber()) {
+                            out[i] = (float) vo.asDouble();
+                            continue;
+                        }
+                    } catch (Throwable ignored) {}
                 }
-            }
 
-            throw new IllegalArgumentException(
-                    "readFloatArray: element[" + i + "] is not numeric: " + e
-            );
+                throw new IllegalArgumentException("readFloatArray: element[" + i + "] is not numeric: " + e);
+            }
+            return out;
         }
 
-        return out;
+        // 2) HostObject float[] / double[] (your error case: (language: Java, type: float[]))
+        if (v.isHostObject()) {
+            Object host = v.asHostObject();
+
+            if (host instanceof float[]) {
+                float[] a = (float[]) host;
+                // IMPORTANT: return copy to avoid accidental shared mutation through JS references
+                float[] out = new float[a.length];
+                System.arraycopy(a, 0, out, 0, a.length);
+                return out;
+            }
+            if (host instanceof double[]) {
+                double[] a = (double[]) host;
+                float[] out = new float[a.length];
+                for (int i = 0; i < a.length; i++) out[i] = (float) a[i];
+                return out;
+            }
+            if (host instanceof int[]) {
+                int[] a = (int[]) host;
+                float[] out = new float[a.length];
+                for (int i = 0; i < a.length; i++) out[i] = (float) a[i];
+                return out;
+            }
+        }
+
+        throw new IllegalArgumentException("readFloatArray: value is not array-like or host float[]: " + v);
     }
 }
