@@ -14,7 +14,8 @@ import java.util.Map;
  */
 public final class PhysicsColliderFactory {
 
-    private PhysicsColliderFactory() {}
+    private PhysicsColliderFactory() {
+    }
 
     public static CollisionShape create(Object colliderCfg, Spatial spatial) {
         if (colliderCfg == null) return CollisionShapeFactory.createMeshShape(spatial);
@@ -29,8 +30,10 @@ public final class PhysicsColliderFactory {
                     yield CollisionShapeFactory.createDynamicMeshShape(spatial);
                 }
                 case "sphere" -> new SphereCollisionShape((float) num(v, "radius", 1.0));
-                case "capsule" -> new CapsuleCollisionShape((float) num(v, "radius", 0.5), (float) num(v, "height", 1.0));
-                case "cylinder" -> new CylinderCollisionShape(PhysicsValueParsers.vec3(member(v, "halfExtents"), 0.5f, 0.5f, 0.5f));
+                case "capsule" ->
+                        new CapsuleCollisionShape((float) num(v, "radius", 0.5), (float) num(v, "height", 1.0));
+                case "cylinder" ->
+                        new CylinderCollisionShape(PhysicsValueParsers.vec3(member(v, "halfExtents"), 0.5f, 0.5f, 0.5f));
                 case "mesh" -> CollisionShapeFactory.createMeshShape(spatial);
                 case "dynamicMesh" -> CollisionShapeFactory.createDynamicMeshShape(spatial);
                 default -> throw new IllegalArgumentException("Unknown collider.type: " + type);
@@ -48,8 +51,10 @@ public final class PhysicsColliderFactory {
                     yield CollisionShapeFactory.createDynamicMeshShape(spatial);
                 }
                 case "sphere" -> new SphereCollisionShape((float) PhysicsValueParsers.asNum(m.get("radius"), 1.0));
-                case "capsule" -> new CapsuleCollisionShape((float) PhysicsValueParsers.asNum(m.get("radius"), 0.5), (float) PhysicsValueParsers.asNum(m.get("height"), 1.0));
-                case "cylinder" -> new CylinderCollisionShape(PhysicsValueParsers.vec3(m.get("halfExtents"), 0.5f, 0.5f, 0.5f));
+                case "capsule" ->
+                        new CapsuleCollisionShape((float) PhysicsValueParsers.asNum(m.get("radius"), 0.5), (float) PhysicsValueParsers.asNum(m.get("height"), 1.0));
+                case "cylinder" ->
+                        new CylinderCollisionShape(PhysicsValueParsers.vec3(m.get("halfExtents"), 0.5f, 0.5f, 0.5f));
                 case "mesh" -> CollisionShapeFactory.createMeshShape(spatial);
                 case "dynamicMesh" -> CollisionShapeFactory.createDynamicMeshShape(spatial);
                 default -> throw new IllegalArgumentException("Unknown collider.type: " + type);

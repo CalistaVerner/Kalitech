@@ -11,7 +11,8 @@ import java.util.Map;
  */
 public final class PhysicsValueParsers {
 
-    private PhysicsValueParsers() {}
+    private PhysicsValueParsers() {
+    }
 
     public static Object member(Object obj, String key) {
         if (obj == null) return null;
