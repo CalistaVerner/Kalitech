@@ -14,6 +14,9 @@ import org.graalvm.polyglot.Value;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
+import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.has;
+import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.readFloatArray;
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.clampInt;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 public final class TerrainFactory {

@@ -5,6 +5,7 @@ import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.graalvm.polyglot.Value;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
 
 /**
  * Sculpt brushes for terrain heightmaps (raise/lower/smooth/flatten + falloff).

@@ -13,7 +13,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.clampInt;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
 
 /**
  * Chunked terrain streamer with LOD rings.
