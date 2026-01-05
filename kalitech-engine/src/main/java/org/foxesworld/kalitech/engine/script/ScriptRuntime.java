@@ -1,4 +1,4 @@
-// FILE: GraalScriptRuntime.java
+// FILE: ScriptRuntime.java
 package org.foxesworld.kalitech.engine.script;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * GraalScriptRuntime is responsible for loading and executing JavaScript modules
+ * ScriptRuntime is responsible for loading and executing JavaScript modules
  * inside a GraalVM {@link Context}. It provides a CommonJS-style {@code require}
  * implementation, manages module caching, supports hot reloading and tracks
  * dependencies to allow transitive invalidation when a module changes.
@@ -35,9 +35,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * Author: Calista Verner
  */
-public final class GraalScriptRuntime implements Closeable {
+public final class ScriptRuntime implements Closeable {
 
-    private static final Logger log = LogManager.getLogger(GraalScriptRuntime.class);
+    private static final Logger log = LogManager.getLogger(ScriptRuntime.class);
 
     /**
      * Legacy text provider (kept for compatibility).
@@ -124,11 +124,11 @@ public final class GraalScriptRuntime implements Closeable {
      */
     private volatile boolean builtinsInitialized = false;
 
-    public GraalScriptRuntime() {
+    public ScriptRuntime() {
         this(ScriptCaches.defaults());
     }
 
-    public GraalScriptRuntime(ScriptCaches caches) {
+    public ScriptRuntime(ScriptCaches caches) {
         this.caches = Objects.requireNonNull(caches, "caches");
         this.aliasResolver = new MutableAliasResolver();
 
@@ -200,7 +200,7 @@ public final class GraalScriptRuntime implements Closeable {
      * Legacy setter: wraps text provider into stream provider (UTF-8).
      */
     @Deprecated
-    public GraalScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
+    public ScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
         if (loader == null) {
             this.streamLoader = null;
             return this;
@@ -234,7 +234,7 @@ public final class GraalScriptRuntime implements Closeable {
             return;
         }
         if (owner != t) {
-            throw new IllegalStateException("GraalScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
+            throw new IllegalStateException("ScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
         }
     }
 
@@ -291,10 +291,10 @@ public final class GraalScriptRuntime implements Closeable {
         applyBootstrapAliases(boot);
     }
 
-    // --- add this method inside GraalScriptRuntime ---
+    // --- add this method inside ScriptRuntime ---
 
     private ModuleStreamProvider wrapWithBuiltIns(ModuleStreamProvider downstream) {
-        final ClassLoader cl = GraalScriptRuntime.class.getClassLoader();
+        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
 
         return moduleId -> {
             String id = normalizeId(moduleId);
@@ -329,7 +329,7 @@ public final class GraalScriptRuntime implements Closeable {
         }
     }
 
-    public GraalScriptRuntime setModuleStreamProvider(ModuleStreamProvider loader) {
+    public ScriptRuntime setModuleStreamProvider(ModuleStreamProvider loader) {
         this.streamLoader = (loader == null) ? null : wrapWithBuiltIns(loader);
         return this;
     }
@@ -380,7 +380,7 @@ public final class GraalScriptRuntime implements Closeable {
      * Used only as a fallback if user didn't set any ModuleStreamProvider.
      */
     private ModuleStreamProvider openBuiltInStreamFallback() {
-        final ClassLoader cl = GraalScriptRuntime.class.getClassLoader();
+        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
         return moduleId -> openBuiltInStream(cl, normalizeId(moduleId));
     }
 
@@ -905,7 +905,7 @@ public final class GraalScriptRuntime implements Closeable {
     // Host handles (optional)
     // ---------------------------------------------------------------------
 
-    public GraalScriptRuntime registerHostHandle(String name, MethodHandle handle) {
+    public ScriptRuntime registerHostHandle(String name, MethodHandle handle) {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(handle, "handle");
         hostHandles.put(name, handle);
@@ -933,11 +933,11 @@ public final class GraalScriptRuntime implements Closeable {
 
     @Override
     public void close() {
-        log.info("Closing GraalScriptRuntime");
+        log.info("Closing ScriptRuntime");
         try {
             reset();
         } catch (Exception e) {
-            log.warn("Error during GraalScriptRuntime reset", e);
+            log.warn("Error during ScriptRuntime reset", e);
         }
         try {
             ctx.close(true);
