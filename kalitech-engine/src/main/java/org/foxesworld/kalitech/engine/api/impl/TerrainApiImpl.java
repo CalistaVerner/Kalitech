@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.*;
+import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
 
 public final class TerrainApiImpl implements TerrainApi {
 
@@ -24,7 +25,9 @@ public final class TerrainApiImpl implements TerrainApi {
     private final TerrainFactory factory;
     private final TerrainUV uv;
     private final TerrainOps ops;
+    private final TerrainEditOps editOps;
     private final TerrainPhysics physics;
+    private final TerrainNoise noise;
 
     public TerrainApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
@@ -34,7 +37,9 @@ public final class TerrainApiImpl implements TerrainApi {
         this.factory = new TerrainFactory(engine.getAssets());
         this.uv = new TerrainUV();
         this.ops = new TerrainOps(engine.getApp().getCamera());
+        this.editOps = new TerrainEditOps();
         this.physics = new TerrainPhysics(engine, registry);
+        this.noise = new TerrainNoise();
     }
 
     // ---------------------------------------------------------------------
@@ -165,6 +170,106 @@ public final class TerrainApiImpl implements TerrainApi {
     public void scale(SurfaceApi.SurfaceHandle handle, double xzScale, Value cfg) {
         TerrainQuad tq = requireTerrain(handle);
         ops.scale(tq, xzScale, cfg);
+    }
+
+    // ---------------------------------------------------------------------
+    // TERRAINQUAD (editing/query)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Replace terrain heightmap at runtime.
+     * cfg:
+     *  - heights: ArrayLike<number> (Float32Array recommended)
+     *  - size?: int (optional validation)
+     *  - rebuild?: boolean (default true)
+     */
+    @HostAccess.Export
+    public void setHeightmap(SurfaceApi.SurfaceHandle handle, Value cfg) {
+        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("terrain.setHeightmap(handle,cfg): cfg is null");
+        TerrainQuad tq = requireTerrain(handle);
+
+        Value hv = member(cfg, "heights");
+        if (hv == null || hv.isNull()) throw new IllegalArgumentException("terrain.setHeightmap: cfg.heights is required");
+
+        float[] heights = readFloatArray(hv);
+        int size = i32(cfg, "size", 0);
+        if (size > 0) {
+            int need = size * size;
+            if (heights.length != need) {
+                throw new IllegalArgumentException("terrain.setHeightmap: heights length=" + heights.length + " expected=" + need + " (size=" + size + ")");
+            }
+        }
+
+        editOps.setHeightmap(tq, heights, bool(cfg, "rebuild", true));
+    }
+
+    /** Get a copy of the current heightmap (float[]). */
+    @HostAccess.Export
+    public float[] heightmap(SurfaceApi.SurfaceHandle handle) {
+        TerrainQuad tq = requireTerrain(handle);
+        return editOps.heightmapCopy(tq);
+    }
+
+    /** Set height at (x,z). world=true uses world x/z, otherwise local. */
+    @HostAccess.Export
+    public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height, boolean world) {
+        TerrainQuad tq = requireTerrain(handle);
+        editOps.setHeight(tq, x, z, height, world);
+    }
+
+    /** Add delta to height at (x,z). world=true uses world x/z, otherwise local. */
+    @HostAccess.Export
+    public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta, boolean world) {
+        TerrainQuad tq = requireTerrain(handle);
+        editOps.adjustHeight(tq, x, z, delta, world);
+    }
+
+    @HostAccess.Export
+    public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height) {
+        setHeight(handle, x, z, height, true);
+    }
+
+
+
+    @HostAccess.Export
+    public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta) {
+        adjustHeight(handle, x, z, delta, true);
+    }
+
+    /** Force bounds/state refresh for tools after bulk edits. */
+    @HostAccess.Export
+    public void rebuild(SurfaceApi.SurfaceHandle handle) {
+        TerrainQuad tq = requireTerrain(handle);
+        editOps.rebuild(tq);
+    }
+
+    /*
+    @HostAccess.Export
+    public int size(SurfaceApi.SurfaceHandle handle) {
+        TerrainQuad tq = requireTerrain(handle);
+        return ops.size(tq);
+    }
+
+    @HostAccess.Export
+    public int patchSize(SurfaceApi.SurfaceHandle handle) {
+        TerrainQuad tq = requireTerrain(handle);
+        return ops.patchSize(tq);
+    } */
+
+    // ---------------------------------------------------------------------
+    // PROCEDURAL (noise generation for editor/runtime parity)
+    // ---------------------------------------------------------------------
+
+    @HostAccess.Export
+    public float[] perlinHeights(Value cfg) {
+        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("terrain.perlinHeights(cfg): cfg is null");
+        return noise.perlinHeights(cfg);
+    }
+
+    @HostAccess.Export
+    public float[] ridgedHeights(Value cfg) {
+        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("terrain.ridgedHeights(cfg): cfg is null");
+        return noise.ridgedHeights(cfg);
     }
 
     @HostAccess.Export

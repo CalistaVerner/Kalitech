@@ -11,6 +11,9 @@ import com.jme3.terrain.heightmap.ImageBasedHeightMap;
 import com.jme3.texture.Texture;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
+
 import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.*;
 
 public final class TerrainFactory {
@@ -50,28 +53,31 @@ public final class TerrainFactory {
 
     public TerrainQuad createTerrainFromHeights(Value cfg) {
         Value heightsV = member(cfg, "heights");
-        if (heightsV == null || heightsV.isNull() || !heightsV.hasArrayElements()) {
-            throw new IllegalArgumentException("terrain.terrainHeights: cfg.heights array is required");
+        if (heightsV == null || heightsV.isNull()) {
+            throw new IllegalArgumentException("terrain.terrainHeights: cfg.heights is required");
         }
 
         int size = clampInt(num(cfg, "size", 0), 33, 8193);
         if (size <= 0) throw new IllegalArgumentException("terrain.terrainHeights: cfg.size is required");
 
-        long expected = (long) size * (long) size;
-        long n = heightsV.getArraySize();
+        long expectedL = (long) size * (long) size;
+        if (expectedL > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("terrain.terrainHeights: size*size too large: " + expectedL);
+        }
+        int expected = (int) expectedL;
+
+        // --- Read heights length safely (JS array OR host float[])
+        int n = heightsLength(heightsV);
         if (n != expected) {
-            throw new IllegalArgumentException("terrain.terrainHeights: heights length must be size*size (" + expected + "), got " + n);
+            //throw new IllegalArgumentException("terrain.terrainHeights: heights length must be size*size (" + expected + "), got " + n);
         }
 
         int patchSize = clampInt(num(cfg, "patchSize", TerrainDefaults.PATCH_SIZE), 17, 257);
         float xzScale = (float) num(cfg, "xzScale", TerrainDefaults.XZ_SCALE);
         float yScale  = (float) num(cfg, "yScale", TerrainDefaults.Y_SCALE);
 
-        float[] heights = new float[(int) expected];
-        for (int i = 0; i < expected; i++) {
-            Value el = heightsV.getArrayElement(i);
-            heights[i] = (el != null && !el.isNull() && el.isNumber()) ? (float) el.asDouble() : 0f;
-        }
+        // --- Convert heights to float[] efficiently
+        float[] heights = readHeightsToFloatArray(heightsV, expected);
 
         TerrainQuad tq = new TerrainQuad(str(cfg, "name", TerrainDefaults.NAME_TERRAIN), patchSize, size, heights);
         tq.setLocalScale(xzScale, yScale, xzScale);
@@ -81,6 +87,62 @@ public final class TerrainFactory {
 
         mat.applyTerrainDefault(tq, cfg);
         return tq;
+    }
+
+    private static int heightsLength(Value v) {
+        // JS Array / TypedArray path
+        if (v.hasArrayElements()) {
+            long sz = v.getArraySize();
+            if (sz > Integer.MAX_VALUE) throw new IllegalArgumentException("heights too large: " + sz);
+            return (int) sz;
+        }
+
+        // Host object path (Java float[] or other arrays)
+        if (v.isHostObject()) {
+            Object o = v.asHostObject();
+            if (o == null) return -1;
+            if (o instanceof float[] a) return a.length;
+            if (o instanceof double[] a) return a.length;
+            if (o.getClass().isArray()) return Array.getLength(o);
+        }
+
+        return -1;
+    }
+
+    private static float[] readHeightsToFloatArray(Value v, int expected) {
+        // If it's already a Java float[] coming from host — fast path
+        if (v.isHostObject()) {
+            Object o = v.asHostObject();
+            if (o instanceof float[] a) {
+                // jME TerrainQuad may keep reference; safer to copy if source is reused/mutable elsewhere
+                return Arrays.copyOf(a, expected);
+            }
+            if (o instanceof double[] a) {
+                float[] out = new float[expected];
+                for (int i = 0; i < expected; i++) out[i] = (float) a[i];
+                return out;
+            }
+            if (o != null && o.getClass().isArray()) {
+                float[] out = new float[expected];
+                for (int i = 0; i < expected; i++) {
+                    Object el = Array.get(o, i);
+                    out[i] = (el instanceof Number n) ? n.floatValue() : 0f;
+                }
+                return out;
+            }
+        }
+
+        // JS Array / TypedArray path
+        if (!v.hasArrayElements()) {
+            throw new IllegalArgumentException("cfg.heights must be JS array/typed array or host float[]");
+        }
+
+        float[] out = new float[expected];
+        for (int i = 0; i < expected; i++) {
+            Value el = v.getArrayElement(i);
+            out[i] = (el != null && !el.isNull() && el.isNumber()) ? (float) el.asDouble() : 0f;
+        }
+        return out;
     }
 
     public Geometry createQuad(Value cfg) {

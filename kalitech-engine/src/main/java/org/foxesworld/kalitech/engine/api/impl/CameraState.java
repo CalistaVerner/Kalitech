@@ -13,6 +13,7 @@ import com.jme3.math.Vector3f;
  *  - The long-term plan: scripts drive camera directly using CameraApi primitives,
  *    so most of these fields become optional/legacy.
  */
+@Deprecated
 public final class CameraState {
 
     // -------------------------------------------------------------------------

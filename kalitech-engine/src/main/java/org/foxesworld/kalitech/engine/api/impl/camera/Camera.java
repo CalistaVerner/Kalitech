@@ -19,7 +19,7 @@ public final class Camera {
     private static final Logger log = LogManager.getLogger(Camera.class);
 
     private final EngineApiImpl engine;
-    private final CameraState state;
+    private CameraState state;
     private final CameraDirty dirty = new CameraDirty();
 
     // temps (JME thread only)
@@ -44,9 +44,9 @@ public final class Camera {
     private final Vec3View rightView = new Vec3View();
     private final Vec3View upView = new Vec3View();
 
-    public Camera(EngineApiImpl engine, CameraState state) {
+    public Camera(EngineApiImpl engine) {
         this.engine = engine;
-        this.state = state;
+        //this.state = state;
 
         // init from native camera (best effort)
         try {
@@ -191,8 +191,9 @@ public final class Camera {
 
     // ---------- helpers ----------
 
+    @Deprecated
     private float clampPitch(float pitch) {
-        float limit = state.pitchLimit;
+        float limit = 1;
         if (limit <= 0f) return pitch;
         if (pitch > limit) return limit;
         if (pitch < -limit) return -limit;

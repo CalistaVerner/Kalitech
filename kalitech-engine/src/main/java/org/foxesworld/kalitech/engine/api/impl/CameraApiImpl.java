@@ -29,7 +29,7 @@ public final class CameraApiImpl implements CameraApi {
     public CameraApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.state = engine.getCameraState();
-        this.orch = new Camera(engine, state);
+        this.orch = new Camera(engine);
     }
 
     /** Internal: called once per frame by EngineApiImpl.__updateTime() on JME thread. */

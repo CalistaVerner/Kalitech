@@ -1,9 +1,12 @@
 package org.foxesworld.kalitech.engine.api.impl.terrain;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.*;
 import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
@@ -15,14 +18,81 @@ import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
  *  - Domain warp
  *  - Biome masks (temperature/moisture + derived biome weights)
  *
- * Goals:
- *  - deterministic
- *  - editor/runtime parity
- *  - explicit parameterization (no hidden randomness)
+ * Debug:
+ *  - cfg.debug: boolean
+ *  - cfg.debugStepPct: int (default 1 for noise, 2 for biomes)
+ *
+ * Stage progress (absolute):
+ *  - init ~10%
+ *  - warp setup ~20%
+ *  - main generation ~90%
+ *  - finalize ~100%
  */
 public final class TerrainNoise {
 
+    private static final Logger log = LogManager.getLogger(TerrainNoise.class);
+
     public enum Type { PERLIN, RIDGED }
+
+    // ---------------------------------------------------------------------
+    // Debug progress helper (throttled)
+    // ---------------------------------------------------------------------
+
+    static final class Progress {
+        final boolean enabled;
+        final int stepPct;     // 1 => log each 1%
+        final String name;
+        int lastBucket = Integer.MIN_VALUE;
+
+        Progress(boolean enabled, int stepPct, String name) {
+            this.enabled = enabled;
+            this.stepPct = Math.max(1, stepPct);
+            this.name = name;
+        }
+
+        void start(String msg) {
+            if (enabled) log.debug("[terrain] {}: {}", name, msg);
+        }
+
+        /** log absolute progress 0..100 */
+        void abs(int pct) {
+            if (!enabled) return;
+            int p = (pct < 0) ? 0 : (pct > 100) ? 100 : pct;
+            int bucket = p / stepPct;
+            if (bucket != lastBucket) {
+                lastBucket = bucket;
+                log.debug("[terrain] {}: {}%", name, p);
+            }
+        }
+
+        /** map a 0..total progress into a [from..to] stage range */
+        void stageRange(int fromPct, int toPct, int done, int total) {
+            if (!enabled || total <= 0) return;
+            int lo = clampInt(fromPct, 0, 100);
+            int hi = clampInt(toPct,   0, 100);
+            if (hi < lo) { int t = lo; lo = hi; hi = t; }
+
+            int span = hi - lo;
+            int frac = (int) ((done * 100L) / (long) total); // 0..100
+            int p = lo + (span * frac) / 100;
+            abs(p);
+        }
+
+        void stage(String label, int pct) {
+            if (!enabled) return;
+            log.debug("[terrain] {}: stage={} ({}%)", name, label, clampInt(pct, 0, 100));
+            abs(pct);
+        }
+
+        void done(String msg) {
+            if (enabled) log.debug("[terrain] {}: {} (100%)", name, msg);
+            abs(100);
+        }
+
+        private static int clampInt(int v, int lo, int hi) {
+            return (v < lo) ? lo : (v > hi) ? hi : v;
+        }
+    }
 
     // ---------------------------------------------------------------------
     // Public API (Value-based for Graal)
@@ -31,11 +101,6 @@ public final class TerrainNoise {
     public float[] perlinHeights(Value cfg) { return heights(Type.PERLIN, cfg); }
     public float[] ridgedHeights(Value cfg) { return heights(Type.RIDGED, cfg); }
 
-    /**
-     * Domain-warped variant.
-     * cfg = normal noise cfg plus:
-     *  - warp: { enabled?:bool=true, seed?:int, scale?:double=32, amp?:double=12, octaves?:int=3, lacunarity?:double=2, persistence?:double=0.5 }
-     */
     public float[] perlinWarpHeights(Value cfg) { return heights(Type.PERLIN, cfg, true); }
     public float[] ridgedWarpHeights(Value cfg) { return heights(Type.RIDGED, cfg, true); }
 
@@ -44,30 +109,35 @@ public final class TerrainNoise {
      * cfg:
      *  - size: int (required)
      *  - seed?: int
-     *  - elevation: noise cfg (same as perlin cfg) OR you can pass heights directly as cfg.heights
-     *  - temp: { seed?:int, scale?:double=256, octaves?:int=4, persistence?:double=0.5, lacunarity?:double=2, offsetX?:double, offsetZ?:double }
-     *  - moist: { seed?:int, scale?:double=256, octaves?:int=4, persistence?:double=0.5, lacunarity?:double=2, offsetX?:double, offsetZ?:double }
-     *  - tempLapse?: double (default 0.6)   // temperature decreases with elevation
-     *  - seaLevel?: double (default 0.35)   // affects beach/swamp masks
-     *
-     * Returns a Java Map<String,float[]> (Graal exposes it as JS object).
+     *  - elevation: noise cfg OR pass heights directly as cfg.heights
+     *  - temp/moist: perlin cfg (subcfg)
+     *  - tempLapse?: double (default 0.6)
+     *  - seaLevel?: double (default 0.35)
+     *  - debug?: bool
+     *  - debugStepPct?: int
      */
     public Map<String, float[]> biomeMasks(Value cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("biome cfg is null");
         int size = i32(cfg, "size", 0);
         if (size <= 1) throw new IllegalArgumentException("biome.size must be > 1");
 
-        // Elevation field: either provided heights, or generated from cfg.elevation
+        final boolean debug = bool(cfg, "debug", false);
+        final int debugStep = Math.max(1, i32(cfg, "debugStepPct", 2));
+        final Progress bio = new Progress(debug, debugStep, "biomes/size=" + size);
+
+        bio.start("start");
+        bio.stage("init", 5);
+
+        // Elevation field
         float[] elev;
         Value heightsV = member(cfg, "heights");
         if (heightsV != null && !heightsV.isNull() && heightsV.hasArrayElements()) {
+            bio.stage("elevation-read", 10);
             elev = readFloatArray(heightsV);
         } else {
             Value elevCfg = member(cfg, "elevation");
-            if (elevCfg == null || elevCfg.isNull()) {
-                // fallback: treat cfg itself as elevation noise cfg
-                elevCfg = cfg;
-            }
+            if (elevCfg == null || elevCfg.isNull()) elevCfg = cfg;
+            bio.stage("elevation-generate", 10);
             elev = heights(Type.PERLIN, elevCfg);
         }
         if (elev.length != size * size) {
@@ -78,19 +148,26 @@ public final class TerrainNoise {
         double tempLapse = clamp(num(cfg, "tempLapse", 0.6), 0.0, 2.0);
         double seaLevel = clamp(num(cfg, "seaLevel", 0.35), 0.0, 1.0);
 
-        // temperature & moisture noise
-        float[] temp = fieldFrom(cfg, "temp", size, seed ^ 0xA2C2_1B3D, 256.0);
-        float[] moist = fieldFrom(cfg, "moist", size, seed ^ 0x77D1_9F21, 256.0);
+        bio.stage("temp-field", 20);
+        float[] temp = fieldFrom(cfg, "temp", size, seed ^ 0xA2C2_1B3D, 256.0, debug, debugStep, "temp");
 
-        // Apply lapse rate: colder at high elevation
+        bio.stage("moist-field", 30);
+        float[] moist = fieldFrom(cfg, "moist", size, seed ^ 0x77D1_9F21, 256.0, debug, debugStep, "moist");
+
+        // lapse: 30..50
+        bio.stage("lapse", 30);
         for (int i = 0; i < temp.length; i++) {
             double e = elev[i];
             double t = temp[i];
             t = t - (e * tempLapse);
             temp[i] = (float) clamp01(t);
+            if ((i & 8191) == 0) bio.stageRange(30, 50, i, temp.length);
         }
+        bio.abs(50);
 
-        // Derived biome weights (soft classification)
+        // masks build: 50..100
+        bio.stage("masks", 50);
+
         float[] ocean = new float[temp.length];
         float[] beach = new float[temp.length];
         float[] desert = new float[temp.length];
@@ -106,7 +183,7 @@ public final class TerrainNoise {
             double t = temp[i];
             double m = moist[i];
 
-            double oce = smoothstep(seaLevel, seaLevel + 0.06, seaLevel - e); // below sea
+            double oce = smoothstep(seaLevel, seaLevel + 0.06, seaLevel - e);
             oce = clamp01(oce);
 
             double bch = (1.0 - oce) * band(e, seaLevel, seaLevel + 0.06);
@@ -131,7 +208,11 @@ public final class TerrainNoise {
             tundra[i] = (float) clamp01(tnd);
             snow[i] = (float) clamp01(snw);
             mountain[i] = (float) clamp01(mtn);
+
+            if ((i & 8191) == 0) bio.stageRange(50, 100, i, temp.length);
         }
+
+        bio.done("masks built");
 
         Map<String, float[]> out = new HashMap<>();
         out.put("elevation", elev);
@@ -170,9 +251,11 @@ public final class TerrainNoise {
         double oz = num(cfg, "offsetZ", 0.0);
         boolean normalize = bool(cfg, "normalize", true);
 
-        // optional amplitude/base AFTER normalization
         double amplitude = num(cfg, "amplitude", 1.0);
         double base = num(cfg, "base", 0.0);
+
+        final boolean debug = bool(cfg, "debug", false);
+        final int debugStep = Math.max(1, i32(cfg, "debugStepPct", 1));
 
         // Domain warp
         Value warpV = member(cfg, "warp");
@@ -180,7 +263,10 @@ public final class TerrainNoise {
 
         WarpParams warp = null;
         if (warpEnabled) {
-            int wSeed = (warpV != null && !warpV.isNull()) ? i32(warpV, "seed", seed ^ 0x9E37_79B9) : (seed ^ 0x9E37_79B9);
+            int wSeed = (warpV != null && !warpV.isNull())
+                    ? i32(warpV, "seed", seed ^ 0x9E37_79B9)
+                    : (seed ^ 0x9E37_79B9);
+
             warp = new WarpParams(
                     wSeed,
                     Math.max(0.0001, (warpV != null && !warpV.isNull()) ? num(warpV, "scale", 32.0) : 32.0),
@@ -191,17 +277,28 @@ public final class TerrainNoise {
             );
         }
 
-        return generate(type, size, seed, scale, octaves, persistence, lacunarity, ox, oz, normalize, amplitude, base, warp);
+        Progress prog = new Progress(
+                debug,
+                debugStep,
+                "noise/" + type + (warp != null ? "+warp" : "") + "/size=" + size
+        );
+
+        return generate(type, size, seed, scale, octaves, persistence, lacunarity, ox, oz,
+                normalize, amplitude, base, warp, prog);
     }
 
     // ---------------------------------------------------------------------
     // Helpers: biome fields + math
     // ---------------------------------------------------------------------
 
-    private static float[] fieldFrom(Value cfg, String key, int size, int defaultSeed, double defaultScale) {
+    private static float[] fieldFrom(Value cfg, String key, int size, int defaultSeed, double defaultScale,
+                                     boolean debug, int debugStepPct, String name) {
         Value sub = member(cfg, key);
+
         if (sub == null || sub.isNull()) {
-            return generate(Type.PERLIN, size, defaultSeed, defaultScale, 4, 0.5, 2.0, 0.0, 0.0, true, 1.0, 0.0, null);
+            Progress p = new Progress(debug, debugStepPct, "noise/" + name + "/default");
+            return generate(Type.PERLIN, size, defaultSeed, defaultScale, 4, 0.5, 2.0,
+                    0.0, 0.0, true, 1.0, 0.0, null, p);
         }
 
         Value s = sub;
@@ -213,8 +310,14 @@ public final class TerrainNoise {
         double ox = num(s, "offsetX", 0.0);
         double oz = num(s, "offsetZ", 0.0);
 
-        return generate(Type.PERLIN, size, seed, scale, oct, pers, lac, ox, oz, true, 1.0, 0.0, null);
+        Progress p = new Progress(debug, debugStepPct, "noise/" + name);
+        return generate(Type.PERLIN, size, seed, scale, oct, pers, lac, ox, oz,
+                true, 1.0, 0.0, null, p);
     }
+
+    // ---------------------------------------------------------------------
+    // Generator (with stage progress)
+    // ---------------------------------------------------------------------
 
     static float[] generate(Type type,
                             int size,
@@ -228,10 +331,31 @@ public final class TerrainNoise {
                             boolean normalize,
                             double amplitude,
                             double base,
-                            WarpParams warp) {
+                            WarpParams warp,
+                            Progress prog) {
+
+        // Stage plan:
+        //  0..10  init & precompute
+        // 10..20  warp setup (or skip fast to 20)
+        // 20..90  main generation (rows progress)
+        // 90..100 finalize
+        if (prog != null) {
+            prog.start("start seed=" + seed
+                    + " scale=" + scale
+                    + " oct=" + octaves
+                    + " pers=" + persistence
+                    + " lac=" + lacunarity
+                    + " normalize=" + normalize
+                    + " amp=" + amplitude
+                    + " base=" + base
+                    + (warp != null ? (" warp{seed=" + warp.seed + " scale=" + warp.scale + " amp=" + warp.amp
+                    + " oct=" + warp.octaves + " pers=" + warp.persistence + " lac=" + warp.lacunarity + "}") : ""));
+            prog.stage("init", 0);
+        }
 
         float[] out = new float[size * size];
 
+        // init precompute (0..10)
         double maxAmp = 0.0;
         {
             double amp = 1.0;
@@ -243,8 +367,23 @@ public final class TerrainNoise {
         }
 
         Perlin2D basePerlin = new Perlin2D(seed);
-        Perlin2D warpPerlinX = (warp != null) ? new Perlin2D(warp.seed ^ 0x1234ABCD) : null;
-        Perlin2D warpPerlinZ = (warp != null) ? new Perlin2D(warp.seed ^ 0xCDEF5678) : null;
+
+        if (prog != null) prog.stage("init-done", 10);
+
+        // warp setup (10..20)
+        Perlin2D warpPerlinX = null;
+        Perlin2D warpPerlinZ = null;
+        if (warp != null) {
+            if (prog != null) prog.stage("warp-setup", 12);
+            warpPerlinX = new Perlin2D(warp.seed ^ 0x1234ABCD);
+            warpPerlinZ = new Perlin2D(warp.seed ^ 0xCDEF5678);
+            if (prog != null) prog.stage("warp-ready", 20);
+        } else {
+            if (prog != null) prog.stage("no-warp", 20);
+        }
+
+        // main generation (20..90), per-row progress mapped into stage range
+        if (prog != null) prog.stage("generate", 20);
 
         for (int z = 0; z < size; z++) {
             for (int x = 0; x < size; x++) {
@@ -253,9 +392,11 @@ public final class TerrainNoise {
                 double wz = z;
 
                 if (warp != null && warp.amp > 0.0) {
-                    double dx = fbm(warpPerlinX, (wx / warp.scale) + ox, (wz / warp.scale) + oz,
+                    double dx = fbm(warpPerlinX,
+                            (wx / warp.scale) + ox, (wz / warp.scale) + oz,
                             warp.octaves, warp.lacunarity, warp.persistence);
-                    double dz = fbm(warpPerlinZ, (wx / warp.scale) - ox, (wz / warp.scale) - oz,
+                    double dz = fbm(warpPerlinZ,
+                            (wx / warp.scale) - ox, (wz / warp.scale) - oz,
                             warp.octaves, warp.lacunarity, warp.persistence);
                     wx += dx * warp.amp;
                     wz += dz * warp.amp;
@@ -292,9 +433,23 @@ public final class TerrainNoise {
                 v = base + v * amplitude;
                 out[z * size + x] = (float) v;
             }
+
+            if (prog != null) prog.stageRange(20, 90, z + 1, size);
         }
+
+        // finalize (90..100)
+        if (prog != null) prog.stage("finalize", 90);
+
+        // (сейчас finalize почти пустой — оставлено место под future: remap/curve/erosion post-pass)
+        if (prog != null) prog.abs(100);
+        if (prog != null) prog.done("generated");
+
         return out;
     }
+
+    // ---------------------------------------------------------------------
+    // Math
+    // ---------------------------------------------------------------------
 
     private static double clamp01(double v) { return (v < 0.0) ? 0.0 : (v > 1.0) ? 1.0 : v; }
 
@@ -304,13 +459,13 @@ public final class TerrainNoise {
         return t * t * (3.0 - 2.0 * t);
     }
 
-    // weight band around [a..b]
     private static double band(double x, double a, double b) {
         double t = (x - a) / (b - a);
         return clamp01(1.0 - Math.abs(t * 2.0 - 1.0));
     }
 
     private static double fbm(Perlin2D perlin, double x, double y, int oct, double lac, double pers) {
+        Objects.requireNonNull(perlin, "perlin");
         double amp = 1.0;
         double freq = 1.0;
         double sum = 0.0;
@@ -325,7 +480,7 @@ public final class TerrainNoise {
     record WarpParams(int seed, double scale, double amp, int octaves, double persistence, double lacunarity) {}
 
     // ---------------------------------------------------------------------
-    // Perlin implementation (package-private for reuse)
+    // Perlin implementation
     // ---------------------------------------------------------------------
 
     static final class Perlin2D {

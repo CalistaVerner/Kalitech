@@ -228,7 +228,12 @@ public final class TerrainChunkStreamer {
                     normalize,
                     1.0,
                     0.0,
-                    warp
+                    warp,
+                    new TerrainNoise.Progress(
+                            true,
+                            10,
+                            "noise/" + type + (warp != null ? "+warp" : "") + "/size=" + size
+                    )
             );
         }
     }
