@@ -72,13 +72,14 @@ class SkySystem {
         this.dbgAcc += dt;
         if (this.dbgAcc > 2.0) {
             this.dbgAcc = 0.0;
+            /*
             try {
                 LOG.debug(
                     "[sky] phase=" + this.clock.time01.toFixed(3) +
                     " t=" + this.clock.t.toFixed(2) +
                     " dt=" + dt.toFixed(4)
                 );
-            } catch (_) {}
+            } catch (_) {} */
         }
     }
 

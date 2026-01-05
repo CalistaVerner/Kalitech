@@ -5,6 +5,8 @@ import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Array;
+
 public final class JsCfg {
     private JsCfg() {}
 
@@ -64,6 +66,30 @@ public final class JsCfg {
         return def;
     }
 
+    public static int i32(Value cfg, String key, int def) {
+        if (cfg == null || cfg.isNull() || !cfg.hasMember(key)) return def;
+        Value v = cfg.getMember(key);
+        if (v == null || v.isNull()) return def;
+        try { return v.asInt(); } catch (Exception ignored) { return def; }
+    }
+
+    public static double f64(Value cfg, String key, double def) {
+        if (cfg == null || cfg.isNull() || !cfg.hasMember(key)) return def;
+        Value v = cfg.getMember(key);
+        if (v == null || v.isNull()) return def;
+        try { return v.asDouble(); } catch (Exception ignored) { return def; }
+    }
+
+    public static boolean has(Value v, String k) {
+        Value m = member(v, k);
+        return m != null && !m.isNull();
+    }
+
+    public static int clampInt(double v, int a, int b) {
+        int x = (int) Math.round(v);
+        return Math.max(a, Math.min(b, x));
+    }
+
     public static Vector3f vec3(Value v, Vector3f def) {
         if (!has(v)) return def;
         try {
@@ -109,6 +135,78 @@ public final class JsCfg {
             }
         } catch (Exception ignored) {}
         return def;
+    }
+
+    /**
+     * Reads JS Array / TypedArray / ArrayLike into float[].
+     *
+     * Supported:
+     *  - JS Array [1,2,3]
+     *  - Float32Array / Float64Array / Int32Array / etc
+     *  - Any object with hasArrayElements()
+     *
+     * @throws IllegalArgumentException if value is not array-like
+     */
+    public static float[] readFloatArray(Value v) {
+        if (v == null || v.isNull()) {
+            throw new IllegalArgumentException("readFloatArray: value is null");
+        }
+
+        // 1) HostObject primitive arrays: float[], double[], int[], Number[] etc
+        if (v.isHostObject()) {
+            Object o = v.asHostObject();
+            if (o == null) throw new IllegalArgumentException("readFloatArray: host object is null");
+
+            if (o instanceof float[] a) {
+                return a; // можно copyOf(a,a.length) если хочешь защититься от мутаций
+            }
+            if (o instanceof double[] a) {
+                float[] out = new float[a.length];
+                for (int i = 0; i < a.length; i++) out[i] = (float) a[i];
+                return out;
+            }
+            if (o.getClass().isArray()) {
+                int len = Array.getLength(o);
+                float[] out = new float[len];
+                for (int i = 0; i < len; i++) {
+                    Object el = Array.get(o, i);
+                    out[i] = (el instanceof Number n) ? n.floatValue() : 0f;
+                }
+                return out;
+            }
+
+            throw new IllegalArgumentException("readFloatArray: unsupported host object: " + o.getClass());
+        }
+
+        // 2) JS Array / TypedArray / Polyglot arrays
+        if (v.hasArrayElements()) {
+            long sz = v.getArraySize();
+            if (sz > Integer.MAX_VALUE) throw new IllegalArgumentException("readFloatArray: too large: " + sz);
+
+            int len = (int) sz;
+            float[] out = new float[len];
+
+            for (int i = 0; i < len; i++) {
+                Value e = v.getArrayElement(i);
+                if (e == null || e.isNull()) { out[i] = 0f; continue; }
+
+                if (e.isNumber()) { out[i] = (float) e.asDouble(); continue; }
+
+                // valueOf fallback
+                if (e.hasMember("valueOf")) {
+                    try {
+                        Value vo = e.invokeMember("valueOf");
+                        if (vo != null && vo.isNumber()) { out[i] = (float) vo.asDouble(); continue; }
+                    } catch (Throwable ignored) {}
+                }
+
+                out[i] = 0f; // не падаем: JS должен быть простым
+            }
+
+            return out;
+        }
+
+        throw new IllegalArgumentException("readFloatArray: value is not array-like/host-array: " + v);
     }
 
     // ---------- Clamp ----------

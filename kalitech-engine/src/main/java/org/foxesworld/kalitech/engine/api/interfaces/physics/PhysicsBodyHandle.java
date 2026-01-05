@@ -4,7 +4,7 @@ package org.foxesworld.kalitech.engine.api.interfaces.physics;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.math.Vector3f;
 import org.graalvm.polyglot.HostAccess;
-import org.foxesworld.kalitech.engine.api.impl.physics.PhysicsValueParsers;
+import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
 
 @SuppressWarnings("unused")
 public final class PhysicsBodyHandle {

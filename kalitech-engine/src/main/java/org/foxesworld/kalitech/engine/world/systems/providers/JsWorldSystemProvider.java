@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
-import org.foxesworld.kalitech.engine.util.ValueCfg;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
@@ -15,6 +14,9 @@ import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
+
 public final class JsWorldSystemProvider implements SystemProvider {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
@@ -23,7 +25,7 @@ public final class JsWorldSystemProvider implements SystemProvider {
 
     @Override
     public KSystem create(SystemContext ctx, Value config) {
-        final String module = ValueCfg.str(config, "module", null);
+        final String module = str(config, "module", null);
         if (module == null || module.isBlank()) {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
@@ -31,8 +33,8 @@ public final class JsWorldSystemProvider implements SystemProvider {
         // Requested by SCRIPT CONFIG:
         // config.runtime: world|ui|tools|hotreload|sandbox
         // OR config.sandbox=true (alias for runtime=sandbox)
-        final boolean sandboxReq = ValueCfg.bool(config, "sandbox", false);
-        final String rtReq = ValueCfg.str(config, "runtime", null);
+        final boolean sandboxReq = bool(config, "sandbox", false);
+        final String rtReq = str(config, "runtime", null);
         final String requested = sandboxReq ? "sandbox" : ((rtReq == null || rtReq.isBlank()) ? "world" : rtReq.trim());
 
         // Enforce CDPR contract

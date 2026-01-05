@@ -2,7 +2,7 @@
   "preset": "UE6_SMOOTH_TIGHT",
 
   "debug": {
-    "enabled": false,
+    "enabled": true,
     "everyFrames": 120
   },
 

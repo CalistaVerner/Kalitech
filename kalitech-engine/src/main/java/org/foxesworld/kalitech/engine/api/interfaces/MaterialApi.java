@@ -1,7 +1,7 @@
 // Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.foxesworld.kalitech.engine.api.impl.material.MaterialApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 

@@ -23,17 +23,17 @@
 -Xms8g
 -Xmx8g
 -XX:MaxMetaspaceSize=512m
--XX:+AlwaysPreTouch
+#-XX:+AlwaysPreTouch
 
 # ===== GC =====
--XX:+UseZGC
--XX:ZUncommitDelay=300
--XX:+DisableExplicitGC
+#-XX:+UseZGC
+#-XX:ZUncommitDelay=300
+#-XX:+DisableExplicitGC
 
 # ===== Performance =====
--XX:+UnlockExperimentalVMOptions
--XX:+TrustFinalNonStaticFields
--XX:+UseFastUnorderedTimeStamps
+#-XX:+UnlockExperimentalVMOptions
+#-XX:+TrustFinalNonStaticFields
+#-XX:+UseFastUnorderedTimeStamps
 
 # ===== Threads =====
 -XX:ThreadStackSize=1024

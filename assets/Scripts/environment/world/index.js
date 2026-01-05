@@ -11,15 +11,44 @@ class Index {
     init(ctx) {
         LOG.info("[scene] init");
 
+        const size = 513;
+        const xz = 2.0;
+        const half = (size - 1) * xz * 0.5; // 512
 
-        const ground = TERR.plane({
-            w: 1000, h: 1000,
-            uv: { scale: [50, 50] },
+        const t = TERR.create({
+            name: "proc",
+            kind: "heights",
+
+            // ✅ ВСЁ: высоты передаём как есть (host/polyglot/typed) — Java сама разберёт
+            heights: TERR.heights.perlin({
+                size,
+                seed: 1337,
+                scale: 120,
+                octaves: 6,
+                warp: { amp: 18, scale: 42, octaves: 3 }
+            }),
+
+            // size можно оставить здесь (или убрать, если Java умеет инферить из длины)
+            terrain: { size, patchSize: 65 },
+
+            // ✅ масштаб и позиция
+            scale: { xz, y: 60.0 },
+            pos: { x: -half, y: 0, z: -half },
+
+            // ✅ материал и UV
             material: MAT.getMaterial("unshaded.grass"),
+            uv: { scale: [50, 50] },
+
             attach: true,
-            physics: { mass: 0, collider: { type: "box" }, friction: 1.0 }
+
+            // ⚠️ для статического террейна лучше mesh (если dynamicMesh даёт джиттер)
+            physics: { mass: 0, friction: 1.0 }
+
+            // (опционально) если Java поддерживает:
+            // autoCenter: true, // 0..1 -> -0.5..+0.5 автоматически
         });
     }
+
 
     destroy(ctx) {
         const st = ctx.state();

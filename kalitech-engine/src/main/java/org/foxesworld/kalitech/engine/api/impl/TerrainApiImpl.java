@@ -4,17 +4,16 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.api.impl.terrain.*;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainApi;
+import org.foxesworld.kalitech.engine.modules.terrain.*;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.Map;
 import java.util.Objects;
 
-import static org.foxesworld.kalitech.engine.api.impl.terrain.TerrainValues.*;
-import static org.foxesworld.kalitech.engine.util.ValueCfg.i32;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 public final class TerrainApiImpl implements TerrainApi {
 

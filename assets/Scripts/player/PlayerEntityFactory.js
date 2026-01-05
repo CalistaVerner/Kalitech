@@ -202,7 +202,7 @@ class PlayerEntityFactory {
         const h = ENT.create({
             name: (cfg.name != null) ? cfg.name : "player",
             surface: {
-                type: "capsule",
+                type: "box",
                 name: cfg.surfaceName,
                 radius,
                 height,
@@ -215,8 +215,8 @@ class PlayerEntityFactory {
                 friction,
                 restitution,
                 damping,
-                lockRotation: true,
-                collider: { type: "capsule", radius, height }
+                lockRotation: false,
+                collider: { type: "box", radius, height }
             },
             components: {
                 Player: (ctx) => ({

@@ -90,7 +90,7 @@ class Player {
         this.cfg = U.deepMerge({
             character: { radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65 },
             spawn: { pos: { x: 129, y: 3, z: -300 }, radius: 0.35, height: 1.80, mass: 80.0 },
-            camera: { type: "third" },
+            camera: { type: "first" },
             ui: {},
             events: { enabled: true }
         }, this.cfg);

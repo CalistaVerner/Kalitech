@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.foxesworld.kalitech.engine.api.impl.light.LightApiImpl;
+import org.foxesworld.kalitech.engine.api.impl.LightApiImpl;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 

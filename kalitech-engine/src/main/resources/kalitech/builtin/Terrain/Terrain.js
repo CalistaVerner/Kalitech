@@ -1,23 +1,60 @@
 // FILE: resources/kalitech/builtin/Terrain.js
-// Author: Calista Verner
+// Author: Calista Verner (v2 API overhaul)
+//
+// Terrain Builtin — v2.0.1 (Kalitech)
+// Changes / Fixes in this patch:
+//  - FIX: TerrainQuad physics collider is now created AFTER post-processing scale is applied
+//         for declarative builders: kind="heights" and kind="noise".
+//         This prevents "no collisions / falling through terrain" caused by collider being built
+//         from the unscaled TerrainQuad and then visually scaling the terrain later.
+//  - FIX: Default collider hint for terrain builders uses "dynamicMesh" (TerrainQuad is a Node of patches),
+//         which is required for reliable collision shape creation.
+//  - Behavior: JS API remains simple — TERR.create({ kind:"heights", heights, ... , physics:{...} })
+//         works without requiring the script to pre-bake/convert height arrays specifically for physics timing.
+//
+// Compatibility notes:
+//  - Low-level functions terrain()/terrainHeights()/plane()/quad() are kept compatible.
+//  - Declarative create() path for heights/noise builds physics post-scale; others remain unchanged.
+//
+// "physics" in cfg is optional; when provided, a static body is attached to the created surface.
+// For TerrainQuad, prefer collider.type="dynamicMesh" (or omit type and let defaults apply).
 "use strict";
 
-const META = {
+const META = Object.freeze({
     name: "Terrain",
     globalName: "TERR",
-    version: "1.0.0",
+    version: "2.0.0",
     engineMin: "0.1.0",
-    description: "Terrain helpers (TerrainQuad, plane/quad) + physics integration",
-};
+    description: "Declarative terrain builder (plane/quad/heightmap/heights/noise) + physics + edit/query",
+});
 
-function _isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-function _num(v, def) { const n = +v; return Number.isFinite(n) ? n : (def || 0); }
+function isObj(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+}
 
-function _warn(msg) {
+function num(v, def) {
+    const n = +v;
+    return Number.isFinite(n) ? n : def;
+}
+
+function i32(v, def) {
+    const n = (v | 0);
+    return n !== 0 ? n : (def | 0);
+}
+
+function warn(msg) {
     try { if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn(String(msg)); } catch (_) {}
 }
 
-function _surfaceIdOf(h) {
+function errStr(e) {
+    try {
+        return (e && (e.stack || e.message)) ? String(e.stack || e.message) : String(e);
+    } catch (_) {
+        return "" + e;
+    }
+}
+
+function surfaceIdOf(h) {
     if (typeof h === "number") return h | 0;
     if (!h) return 0;
     if (typeof h.id === "function") return h.id() | 0;
@@ -26,7 +63,7 @@ function _surfaceIdOf(h) {
     return 0;
 }
 
-function _bodyIdOf(h) {
+function bodyIdOf(h) {
     if (typeof h === "number") return h | 0;
     if (!h) return 0;
     if (typeof h.id === "function") return h.id() | 0;
@@ -35,55 +72,96 @@ function _bodyIdOf(h) {
     return 0;
 }
 
-/**
- * Resolve bodyId for surface without creating duplicates.
- * Order:
- *  1) engine.surface().attachedBody(surfaceId)
- *  2) engine.physics().bodyOfSurface(surfaceId)
- *  3) if we got a handle from terrain.physics(..) use its id
- */
-function _resolveBodyId(engine, surfaceHandleOrId, maybeBodyHandleOrId) {
-    const sid = _surfaceIdOf(surfaceHandleOrId);
+function toFloat32Array(raw) {
+    if (!raw) return null;
+    if (raw instanceof Float32Array) return raw;
+
+    try {
+        if (typeof Java !== "undefined" && Java && typeof Java.from === "function") {
+            const a = Java.from(raw);
+            if (Array.isArray(a)) {
+                const out = new Float32Array(a.length);
+                for (let i = 0; i < a.length; i++) out[i] = +a[i] || 0;
+                return out;
+            }
+        }
+    } catch (_) {
+    }
+
+    if (Array.isArray(raw)) {
+        const out = new Float32Array(raw.length);
+        for (let i = 0; i < out.length; i++) out[i] = +raw[i] || 0;
+        return out;
+    }
+
+    try {
+        if (typeof raw.length === "number") {
+            const out = new Float32Array(raw.length | 0);
+            for (let i = 0; i < out.length; i++) out[i] = +raw[i] || 0;
+            return out;
+        }
+    } catch (_) {
+    }
+
+    return raw;
+}
+
+function inferSizeFromHeights(heights) {
+    if (!heights) return 0;
+    const len = (typeof heights.length === "number") ? (heights.length | 0) : 0;
+    if (len <= 0) return 0;
+    const s = Math.round(Math.sqrt(len));
+    return (s > 0 && s * s === len) ? s : 0;
+}
+
+function isPow2(n) {
+    return n > 0 && (n & (n - 1)) === 0;
+}
+
+function isJmeTerrainSize(n) {
+    const x = (n | 0) - 1;
+    return x > 0 && isPow2(x);
+}
+
+function validateTerrainDims(size, patchSize) {
+    const s = size | 0;
+    const p = patchSize | 0;
+    if (s > 0 && !isJmeTerrainSize(s)) throw new Error(`[TERR] size must be (2^k + 1). Got size=${s}`);
+    if (p > 0 && !isJmeTerrainSize(p)) throw new Error(`[TERR] patchSize must be (2^k + 1). Got patchSize=${p}`);
+    if (s > 0 && p > 0 && p > s) throw new Error(`[TERR] patchSize must be <= size. Got patchSize=${p} size=${s}`);
+}
+
+function resolveBodyId(engine, surfaceHandleOrId, maybeBodyHandleOrId) {
+    const sid = surfaceIdOf(surfaceHandleOrId);
     if (sid <= 0) return 0;
 
     try {
         const s = engine.surface && engine.surface();
         if (s && typeof s.attachedBody === "function") {
-            const bid = _bodyIdOf(s.attachedBody(sid));
+            const bid = bodyIdOf(s.attachedBody(sid));
             if (bid > 0) return bid;
         }
-    } catch (e) {
-        // ignore
+    } catch (_) {
     }
 
     try {
         const p = engine.physics && engine.physics();
         if (p && typeof p.bodyOfSurface === "function") {
-            const bid = _bodyIdOf(p.bodyOfSurface(sid));
+            const bid = bodyIdOf(p.bodyOfSurface(sid));
             if (bid > 0) return bid;
         }
-    } catch (e) {
-        // ignore
+    } catch (_) {
     }
 
-    const bid = _bodyIdOf(maybeBodyHandleOrId);
+    const bid = bodyIdOf(maybeBodyHandleOrId);
     return (bid > 0) ? bid : 0;
 }
 
-function _cloneCfg(cfg) {
-    return _isObj(cfg) ? Object.assign({}, cfg) : {};
-}
-
-/**
- * Create a static body for a surface without creating duplicates.
- * Prefers already-attached body if present.
- */
-function _ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderType) {
-    const sid = _surfaceIdOf(surfaceHandleOrId);
+function ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderType) {
+    const sid = surfaceIdOf(surfaceHandleOrId);
     if (sid <= 0) return { bodyId: 0, bodyHandle: null };
 
-    // If already attached, don't create a duplicate.
-    const existing = _resolveBodyId(engine, sid, null);
+    const existing = resolveBodyId(engine, sid, null);
     if (existing > 0) return { bodyId: existing, bodyHandle: null };
 
     const base = {
@@ -92,8 +170,7 @@ function _ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderTy
         kinematic: true,
         collider: { type: defaultColliderType || "mesh" },
     };
-
-    const cfg = _isObj(physCfg) ? Object.assign(base, physCfg) : base;
+    const cfg = isObj(physCfg) ? Object.assign(base, physCfg) : base;
 
     let bodyHandle = null;
     try {
@@ -104,11 +181,38 @@ function _ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderTy
             if (p && typeof p.body === "function") bodyHandle = p.body(cfg);
         }
     } catch (e) {
-        _warn("[TERR] ensureStaticBody failed: " + (e && e.message ? e.message : e));
+        warn("[TERR] ensureStaticBody failed: " + errStr(e));
     }
 
-    const bodyId = _resolveBodyId(engine, sid, bodyHandle);
+    const bodyId = resolveBodyId(engine, sid, bodyHandle);
     return { bodyId, bodyHandle };
+}
+
+function withBody(engine, terr, surface, physCfg, defaultColliderType) {
+    if (physCfg == null) return surface;
+
+    let bodyHandle = null;
+
+    try {
+        if (terr && typeof terr.physics === "function") {
+            bodyHandle = terr.physics(surface, physCfg);
+        }
+    } catch (_) {
+    }
+
+    const sid = surfaceIdOf(surface);
+    let bodyId = resolveBodyId(engine, sid, bodyHandle);
+    if (bodyId <= 0) {
+        const made = ensureStaticBody(engine, surface, physCfg, defaultColliderType || "mesh");
+        bodyId = made.bodyId;
+        bodyHandle = bodyHandle || made.bodyHandle;
+    }
+
+    const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function")
+        ? PHYS.ref(bodyId)
+        : undefined;
+
+    return Object.freeze({surface, bodyId, body: bodyRef, handle: bodyHandle});
 }
 
 function makeApi(engine) {
@@ -116,122 +220,70 @@ function makeApi(engine) {
     const terr = engine.terrain ? engine.terrain() : null;
     if (!terr) throw new Error("[TERR] engine.terrain() is not available");
 
-    /**
-     * Create heightmap terrain.
-     * If cfg.physics is provided: creates (or resolves) static body for the terrain.
-     * Returns:
-     *  - surface handle by default
-     *  - { surface, bodyId, body? } when cfg.physics provided
-     */
     function terrain(cfg) {
-        const c = _cloneCfg(cfg);
+        const c = isObj(cfg) ? Object.assign({}, cfg) : {};
         const physCfg = c.physics;
         if (physCfg != null) delete c.physics;
-
+        if (c.size || c.patchSize) validateTerrainDims(i32(c.size, 0), i32(c.patchSize, 0));
         const surface = terr.terrain(c);
-
-        if (physCfg == null) return surface;
-
-        // Prefer Java-side convenience wrapper (terrain.physics)
-        let bodyHandle;
-        try {
-            bodyHandle = terr.physics(surface, physCfg);
-        } catch (e) {
-            // Fallback (older builds): PHYS.ensureBodyForSurface
-            try {
-                if (typeof PHYS !== "undefined" && PHYS && typeof PHYS.ensureBodyForSurface === "function") {
-                    bodyHandle = PHYS.ensureBodyForSurface(surface, Object.assign({ mass: 0, kinematic: true, collider: { type: "mesh" } }, physCfg || {}));
-                } else {
-                    throw e;
-                }
-            } catch (e2) {
-                _warn("[TERR] terrain.physics failed: " + (e2 && e2.message ? e2.message : e2));
-            }
-        }
-
-        const bodyId = _resolveBodyId(engine, surface, bodyHandle);
-        const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function") ? PHYS.ref(bodyId) : undefined;
-        return Object.freeze({ surface, bodyId, body: bodyRef });
+        return withBody(engine, terr, surface, physCfg, "mesh");
     }
 
     function terrainHeights(cfg) {
-        const c = _cloneCfg(cfg);
+        const c = isObj(cfg) ? Object.assign({}, cfg) : {};
         const physCfg = c.physics;
         if (physCfg != null) delete c.physics;
 
-        const surface = terr.terrainHeights(c);
-        if (physCfg == null) return surface;
+        const heights = c.heights;
+        if (heights != null) {
+            const h = (heights instanceof Float32Array) ? heights : toFloat32Array(heights);
+            c.heights = h;
+        }
 
-        let bodyHandle;
-        try {
-            bodyHandle = terr.physics(surface, physCfg);
-        } catch (e) {
-            try {
-                if (typeof PHYS !== "undefined" && PHYS && typeof PHYS.ensureBodyForSurface === "function") {
-                    bodyHandle = PHYS.ensureBodyForSurface(surface, Object.assign({ mass: 0, kinematic: true, collider: { type: "mesh" } }, physCfg || {}));
-                } else {
-                    throw e;
-                }
-            } catch (e2) {
-                _warn("[TERR] terrainHeights.physics failed: " + (e2 && e2.message ? e2.message : e2));
+        const size = i32(c.size, 0) || inferSizeFromHeights(c.heights);
+        if (size > 0) c.size = size;
+
+        if (c.size || c.patchSize) validateTerrainDims(i32(c.size, 0), i32(c.patchSize, 0));
+
+        if (c.heights != null && i32(c.size, 0) > 0) {
+            const need = (c.size | 0) * (c.size | 0);
+            const got = (typeof c.heights.length === "number") ? (c.heights.length | 0) : 0;
+            if (got && got !== need) {
+                throw new Error(`[TERR] terrainHeights: heights length must be size*size (${need}), got ${got} (size=${c.size})`);
             }
         }
 
-        const bodyId = _resolveBodyId(engine, surface, bodyHandle);
-        const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function") ? PHYS.ref(bodyId) : undefined;
-        return Object.freeze({ surface, bodyId, body: bodyRef });
+        const surface = terr.terrainHeights(c);
+        return withBody(engine, terr, surface, physCfg, "mesh");
     }
 
     function quad(cfg) {
-        const c = _cloneCfg(cfg);
+        const c = isObj(cfg) ? Object.assign({}, cfg) : {};
         const physCfg = c.physics;
         if (physCfg != null) delete c.physics;
-
         const surface = terr.quad(c);
-        if (physCfg == null) return surface;
-
-        // quad() returns Geometry (not TerrainQuad) -> use generic surface-based body.
-        const made = _ensureStaticBody(engine, surface, physCfg, "mesh");
-        const bodyId = made.bodyId;
-        const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function") ? PHYS.ref(bodyId) : undefined;
-        return Object.freeze({ surface, bodyId, body: bodyRef });
+        return withBody(engine, terr, surface, physCfg, "mesh");
     }
 
     function plane(cfg) {
-        const c = _cloneCfg(cfg);
+        const c = isObj(cfg) ? Object.assign({}, cfg) : {};
         const physCfg = c.physics;
         if (physCfg != null) delete c.physics;
-
         const surface = terr.plane(c);
-        if (physCfg == null) return surface;
-
-        // plane() returns Geometry (not TerrainQuad) -> use generic surface-based body.
-        const made = _ensureStaticBody(engine, surface, physCfg, "mesh");
-        const bodyId = made.bodyId;
-        const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function") ? PHYS.ref(bodyId) : undefined;
-        return Object.freeze({ surface, bodyId, body: bodyRef });
+        return withBody(engine, terr, surface, physCfg, "mesh");
     }
 
     function physics(surfaceHandleOrId, cfg) {
         if (!surfaceHandleOrId) throw new Error("TERR.physics(surface,cfg): surface handle/id required");
-
-        // terrain.physics(...) supports only TerrainQuad. For other surfaces (plane/quad/geometry), fallback to PHYS.body.
-        let bodyHandle = null;
-        let bodyId = 0;
-        try {
-            bodyHandle = terr.physics(surfaceHandleOrId, cfg || {});
-            bodyId = _resolveBodyId(engine, surfaceHandleOrId, bodyHandle);
-        } catch (e) {
-            const made = _ensureStaticBody(engine, surfaceHandleOrId, cfg || {}, "mesh");
-            bodyId = made.bodyId;
-            bodyHandle = made.bodyHandle;
-        }
-        const bodyRef = (bodyId > 0 && typeof PHYS !== "undefined" && PHYS && typeof PHYS.ref === "function") ? PHYS.ref(bodyId) : undefined;
-        return Object.freeze({ bodyId, body: bodyRef, handle: bodyHandle });
+        return withBody(engine, terr, surfaceHandleOrId, cfg || {}, "mesh");
     }
 
     function material(surfaceHandle, materialHandleOrCfg) {
         return terr.material(surfaceHandle, materialHandleOrCfg);
+    }
+
+    function uv(surfaceHandle, cfg) {
+        return terr.uv(surfaceHandle, cfg);
     }
 
     function lod(surfaceHandle, cfg) {
@@ -239,231 +291,52 @@ function makeApi(engine) {
     }
 
     function scale(surfaceHandle, xzScale, cfg) {
-        return terr.scale(surfaceHandle, _num(xzScale, 1.0), cfg || null);
+        return terr.scale(surfaceHandle, num(xzScale, 1.0), cfg || null);
     }
-
     function heightAt(surfaceHandle, x, z, world) {
-        if (world === undefined) return terr.heightAt(surfaceHandle, _num(x, 0), _num(z, 0));
-        return terr.heightAt(surfaceHandle, _num(x, 0), _num(z, 0), !!world);
+        if (world === undefined) return terr.heightAt(surfaceHandle, num(x, 0), num(z, 0));
+        return terr.heightAt(surfaceHandle, num(x, 0), num(z, 0), !!world);
     }
-
     function normalAt(surfaceHandle, x, z, world) {
-        if (world === undefined) return terr.normalAt(surfaceHandle, _num(x, 0), _num(z, 0));
-        return terr.normalAt(surfaceHandle, _num(x, 0), _num(z, 0), !!world);
+        if (world === undefined) return terr.normalAt(surfaceHandle, num(x, 0), num(z, 0));
+        return terr.normalAt(surfaceHandle, num(x, 0), num(z, 0), !!world);
     }
-
-    // ------------------------------------------------------------------
-    // TerrainQuad editing
-    // ------------------------------------------------------------------
 
     function setHeightmap(surfaceHandle, heights, size, rebuild) {
-        // Accept cfg object OR positional args.
-        if (_isObj(heights)) {
-            return terr.setHeightmap(surfaceHandle, heights);
+        if (isObj(heights)) return terr.setHeightmap(surfaceHandle, heights);
+
+        const h = (heights instanceof Float32Array) ? heights : toFloat32Array(heights);
+        const s = (size | 0) || inferSizeFromHeights(h);
+
+        if (s > 0) {
+            const need = s * s;
+            const got = (typeof h.length === "number") ? (h.length | 0) : 0;
+            if (got && got !== need) {
+                throw new Error(`[TERR] setHeightmap: heights length=${got} expected=${need} (size=${s})`);
+            }
         }
+
         return terr.setHeightmap(surfaceHandle, {
-            heights: heights,
-            size: (size | 0) || undefined,
+            heights: h,
+            size: s || undefined,
             rebuild: (rebuild === undefined) ? true : !!rebuild,
         });
     }
 
     function heightmap(surfaceHandle) {
-        return terr.heightmap(surfaceHandle);
+        return toFloat32Array(terr.heightmap(surfaceHandle));
     }
-
     function setHeight(surfaceHandle, x, z, height, world) {
-        if (world === undefined) return terr.setHeight(surfaceHandle, _num(x, 0), _num(z, 0), _num(height, 0));
-        return terr.setHeight(surfaceHandle, _num(x, 0), _num(z, 0), _num(height, 0), !!world);
+        if (world === undefined) return terr.setHeight(surfaceHandle, num(x, 0), num(z, 0), num(height, 0));
+        return terr.setHeight(surfaceHandle, num(x, 0), num(z, 0), num(height, 0), !!world);
     }
-
     function adjustHeight(surfaceHandle, x, z, delta, world) {
-        if (world === undefined) return terr.adjustHeight(surfaceHandle, _num(x, 0), _num(z, 0), _num(delta, 0));
-        return terr.adjustHeight(surfaceHandle, _num(x, 0), _num(z, 0), _num(delta, 0), !!world);
+        if (world === undefined) return terr.adjustHeight(surfaceHandle, num(x, 0), num(z, 0), num(delta, 0));
+        return terr.adjustHeight(surfaceHandle, num(x, 0), num(z, 0), num(delta, 0), !!world);
     }
 
     function rebuild(surfaceHandle) {
         return terr.rebuild(surfaceHandle);
-    }
-
-    function size(surfaceHandle) {
-        return terr.size(surfaceHandle) | 0;
-    }
-
-    function patchSize(surfaceHandle) {
-        return terr.patchSize(surfaceHandle) | 0;
-    }
-
-    // ------------------------------------------------------------------
-    // Procedural generation (pure JS)
-    // ------------------------------------------------------------------
-
-    function _hash2(ix, iy, seed) {
-        // 32-bit mix (deterministic across JS runtimes)
-        let h = (ix | 0) * 374761393 + (iy | 0) * 668265263 + (seed | 0) * 1442695041;
-        h = (h ^ (h >>> 13)) | 0;
-        h = (h * 1274126177) | 0;
-        h = (h ^ (h >>> 16)) | 0;
-        return h | 0;
-    }
-
-    function _fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-    function _lerp(a, b, t) { return a + (b - a) * t; }
-
-    function _grad(ix, iy, seed) {
-        const h = _hash2(ix, iy, seed);
-        // 8 directions on unit circle (cheap)
-        const r = h & 7;
-        switch (r) {
-            case 0: return [ 1, 0];
-            case 1: return [-1, 0];
-            case 2: return [ 0, 1];
-            case 3: return [ 0,-1];
-            case 4: return [ 0.70710678, 0.70710678];
-            case 5: return [-0.70710678, 0.70710678];
-            case 6: return [ 0.70710678,-0.70710678];
-            default:return [-0.70710678,-0.70710678];
-        }
-    }
-
-    function _perlin2(x, y, seed) {
-        const x0 = Math.floor(x), y0 = Math.floor(y);
-        const x1 = x0 + 1, y1 = y0 + 1;
-        const sx = x - x0, sy = y - y0;
-
-        const g00 = _grad(x0, y0, seed), g10 = _grad(x1, y0, seed);
-        const g01 = _grad(x0, y1, seed), g11 = _grad(x1, y1, seed);
-
-        const dx0 = sx,     dy0 = sy;
-        const dx1 = sx - 1, dy1 = sy;
-        const dx2 = sx,     dy2 = sy - 1;
-        const dx3 = sx - 1, dy3 = sy - 1;
-
-        const n00 = g00[0] * dx0 + g00[1] * dy0;
-        const n10 = g10[0] * dx1 + g10[1] * dy1;
-        const n01 = g01[0] * dx2 + g01[1] * dy2;
-        const n11 = g11[0] * dx3 + g11[1] * dy3;
-
-        const u = _fade(sx);
-        const v = _fade(sy);
-        const nx0 = _lerp(n00, n10, u);
-        const nx1 = _lerp(n01, n11, u);
-        return _lerp(nx0, nx1, v);
-    }
-
-    function perlinHeights(cfg) {
-        // Prefer native generator when available (editor/runtime parity)
-        try {
-            if (terr && typeof terr.perlinHeights === "function") {
-                const raw = terr.perlinHeights(cfg || {});
-                // Convert Java float[] (or array-like) to Float32Array for fast JS loops.
-                if (raw instanceof Float32Array) return raw;
-                if (raw && typeof raw.length === "number") {
-                    const out = new Float32Array(raw.length | 0);
-                    for (let i = 0; i < out.length; i++) out[i] = +raw[i] || 0;
-                    return out;
-                }
-                return raw;
-            }
-        } catch (e) {
-            // fall back to pure JS
-        }
-
-        const c = _isObj(cfg) ? cfg : {};
-        const size = (c.size | 0) || 513;
-        const seed = (c.seed | 0) || 0;
-        const scale = Math.max(0.0001, _num(c.scale, 64));
-        const octaves = Math.max(1, (c.octaves | 0) || 5);
-        const persistence = _num(c.persistence, 0.5);
-        const lacunarity = _num(c.lacunarity, 2.0);
-        const normalize = (c.normalize === undefined) ? true : !!c.normalize;
-
-        const out = new Float32Array(size * size);
-        let min =  1e9, max = -1e9;
-
-        for (let z = 0; z < size; z++) {
-            for (let x = 0; x < size; x++) {
-                let amp = 1.0;
-                let freq = 1.0;
-                let sum = 0.0;
-                for (let o = 0; o < octaves; o++) {
-                    const nx = (x / scale) * freq;
-                    const nz = (z / scale) * freq;
-                    sum += _perlin2(nx, nz, seed + o * 1013) * amp;
-                    amp *= persistence;
-                    freq *= lacunarity;
-                }
-                const i = z * size + x;
-                out[i] = sum;
-                if (sum < min) min = sum;
-                if (sum > max) max = sum;
-            }
-        }
-
-        if (normalize && max > min) {
-            const inv = 1.0 / (max - min);
-            for (let i = 0; i < out.length; i++) out[i] = (out[i] - min) * inv;
-        }
-
-        return out;
-    }
-
-    function ridgedHeights(cfg) {
-        // Prefer native generator when available
-        try {
-            if (terr && typeof terr.ridgedHeights === "function") {
-                const raw = terr.ridgedHeights(cfg || {});
-                if (raw instanceof Float32Array) return raw;
-                if (raw && typeof raw.length === "number") {
-                    const out = new Float32Array(raw.length | 0);
-                    for (let i = 0; i < out.length; i++) out[i] = +raw[i] || 0;
-                    return out;
-                }
-                return raw;
-            }
-        } catch (e) {
-            // fall back to pure JS
-        }
-
-        const c = _isObj(cfg) ? cfg : {};
-        const base = perlinHeights(Object.assign({}, c, { normalize: false }));
-        let min =  1e9, max = -1e9;
-        for (let i = 0; i < base.length; i++) {
-            const v = 1.0 - Math.abs(base[i]);
-            base[i] = v;
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-        const normalize = (c.normalize === undefined) ? true : !!c.normalize;
-        if (normalize && max > min) {
-            const inv = 1.0 / (max - min);
-            for (let i = 0; i < base.length; i++) base[i] = (base[i] - min) * inv;
-        }
-        return base;
-    }
-
-    function procedural(cfg) {
-        const c = _cloneCfg(cfg);
-        const gen = _isObj(c.gen) ? c.gen : {};
-        const type = String(gen.type || "perlin");
-        const size = (c.size | 0) || (gen.size | 0) || 513;
-        const yScale = _num(c.yScale, _num(c.heightScale, 1));
-
-        let heights;
-        if (type === "ridged") heights = ridgedHeights(Object.assign({}, gen, { size }));
-        else heights = perlinHeights(Object.assign({}, gen, { size }));
-
-        // If normalized to [0..1], remap to [-1..1] then scale
-        if (gen.normalize !== false) {
-            for (let i = 0; i < heights.length; i++) heights[i] = (heights[i] * 2.0 - 1.0) * yScale;
-        } else {
-            for (let i = 0; i < heights.length; i++) heights[i] = heights[i] * yScale;
-        }
-
-        c.heights = heights;
-        c.size = size;
-        // yScale already baked; keep xzScale etc
-        return terrainHeights(c);
     }
 
     function attach(surfaceHandle, entityId) {
@@ -474,15 +347,176 @@ function makeApi(engine) {
         return terr.detach(surfaceHandle);
     }
 
+    function perlinHeights(cfg) {
+        try {
+            if (terr && typeof terr.perlinHeights === "function") {
+                return toFloat32Array(terr.perlinHeights(cfg || {}));
+            }
+        } catch (_) {
+        }
+        throw new Error("[TERR] perlinHeights: native generator not available in this build");
+    }
+
+    function ridgedHeights(cfg) {
+        try {
+            if (terr && typeof terr.ridgedHeights === "function") {
+                return toFloat32Array(terr.ridgedHeights(cfg || {}));
+            }
+        } catch (_) {
+        }
+        throw new Error("[TERR] ridgedHeights: native generator not available in this build");
+    }
+
+    const heightsNS = Object.freeze({
+        perlin: perlinHeights,
+        ridged: ridgedHeights,
+        sizeOf: inferSizeFromHeights,
+        toF32: toFloat32Array,
+    });
+
+    function create(cfg) {
+        const c = isObj(cfg) ? cfg : {};
+        const kind = String(c.kind || "terrain");
+        const attachFlag = (c.attach === undefined) ? true : !!c.attach;
+
+        const materialH = c.material;
+        const uvCfg = c.uv;
+        const lodCfg = c.lod;
+        const physCfg = c.physics;
+
+        const scaleCfg = isObj(c.scale) ? c.scale : null;
+        const xz = scaleCfg ? num(scaleCfg.xz, num(c.xzScale, 1.0)) : num(c.xzScale, 1.0);
+        const y = scaleCfg ? num(scaleCfg.y, num(c.yScale, num(c.heightScale, 1.0))) : num(c.yScale, num(c.heightScale, 1.0));
+
+        function post(surfaceOrBundle) {
+            const surface = surfaceOrBundle && surfaceOrBundle.surface ? surfaceOrBundle.surface : surfaceOrBundle;
+
+            try {
+                if (materialH != null) material(surface, materialH);
+            } catch (e) {
+                warn("[TERR] material failed: " + errStr(e));
+            }
+            try {
+                if (uvCfg != null) uv(surface, uvCfg);
+            } catch (e) {
+                warn("[TERR] uv failed: " + errStr(e));
+            }
+            try {
+                if (lodCfg != null) lod(surface, lodCfg);
+            } catch (e) {
+                warn("[TERR] lod failed: " + errStr(e));
+            }
+
+            try {
+                if (kind !== "plane" && kind !== "quad") {
+                    if (Number.isFinite(xz) && xz !== 1.0) scale(surface, xz, {yScale: y});
+                    else if (Number.isFinite(y) && y !== 1.0) scale(surface, 1.0, {yScale: y});
+                }
+            } catch (e) {
+                warn("[TERR] scale failed: " + errStr(e));
+            }
+
+            return surfaceOrBundle;
+        }
+
+        if (kind === "plane") {
+            const planeCfg = Object.assign({}, isObj(c.plane) ? c.plane : {}, {
+                name: c.name,
+                attach: attachFlag,
+                physics: physCfg,
+            });
+            return post(plane(planeCfg));
+        }
+
+        if (kind === "quad") {
+            const quadCfg = Object.assign({}, isObj(c.quad) ? c.quad : {}, {
+                name: c.name,
+                attach: attachFlag,
+                physics: physCfg,
+            });
+            return post(quad(quadCfg));
+        }
+
+        if (kind === "heightmap") {
+            const tcfg = Object.assign({}, isObj(c.terrain) ? c.terrain : {}, {
+                name: c.name,
+                attach: attachFlag,
+                physics: physCfg,
+            });
+            if (c.heightmap && !tcfg.heightmap) tcfg.heightmap = c.heightmap;
+            if (tcfg.heightScale == null && Number.isFinite(y)) tcfg.heightScale = y;
+            if (tcfg.xzScale == null && Number.isFinite(xz)) tcfg.xzScale = xz;
+            return post(terrain(tcfg));
+        }
+
+        if (kind === "noise") {
+            const noise = isObj(c.noise) ? c.noise : {};
+            const type = String(noise.type || "perlin");
+            const size = i32((isObj(c.terrain) ? c.terrain.size : c.size), i32(noise.size, 513)) || 513;
+            const patchSize = i32((isObj(c.terrain) ? c.terrain.patchSize : c.patchSize), 65) || 65;
+
+            validateTerrainDims(size, patchSize);
+
+            const h = (type === "ridged") ? ridgedHeights(Object.assign({}, noise, {size})) : perlinHeights(Object.assign({}, noise, {size}));
+            const normalize = (noise.normalize === undefined) ? true : !!noise.normalize;
+
+            const out = new Float32Array(h.length);
+            if (normalize) {
+                for (let i = 0; i < h.length; i++) out[i] = (h[i] * 2.0 - 1.0) * y;
+            } else {
+                for (let i = 0; i < h.length; i++) out[i] = h[i] * y;
+            }
+
+            const tcfg0 = isObj(c.terrain) ? c.terrain : {};
+            const tcfgNoPhys = Object.assign({}, tcfg0, {
+                name: c.name,
+                size,
+                patchSize,
+                heights: out,
+                attach: attachFlag,
+            });
+
+            let surface = terr.terrainHeights(tcfgNoPhys);
+            surface = post(surface);
+
+            if (physCfg != null) surface = withBody(engine, terr, surface, physCfg, "dynamicMesh");
+            return surface;
+        }
+
+        if (kind === "heights") {
+            const heightsIn = c.heights;
+            if (!heightsIn) throw new Error("[TERR] create(kind='heights'): cfg.heights is required");
+
+            const tcfg0 = isObj(c.terrain) ? c.terrain : {};
+            const tcfgNoPhys = Object.assign({}, tcfg0, {
+                name: c.name,
+                heights: heightsIn,
+                attach: attachFlag,
+            });
+
+            let surface = terr.terrainHeights(tcfgNoPhys);
+            surface = post(surface);
+
+            if (physCfg != null) surface = withBody(engine, terr, surface, physCfg, "dynamicMesh");
+            return surface;
+        }
+
+        return post(terrain(Object.assign({}, isObj(c.terrain) ? c.terrain : c)));
+    }
+
     return Object.freeze({
         META,
+        create,
+        heights: heightsNS,
 
         terrain,
         terrainHeights,
         quad,
         plane,
 
+        physics,
         material,
+        uv,
         lod,
         scale,
         heightAt,
@@ -493,14 +527,7 @@ function makeApi(engine) {
         setHeight,
         adjustHeight,
         rebuild,
-        size,
-        patchSize,
 
-        perlinHeights,
-        ridgedHeights,
-        procedural,
-
-        physics,
         attach,
         detach,
     });
@@ -509,5 +536,4 @@ function makeApi(engine) {
 module.exports = function TerrainModule(engine, K) {
     return makeApi(engine, K);
 };
-
 module.exports.META = META;
