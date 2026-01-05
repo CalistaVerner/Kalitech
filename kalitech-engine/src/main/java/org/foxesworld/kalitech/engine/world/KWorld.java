@@ -31,8 +31,6 @@ public final class KWorld {
     public void addSystem(KSystem system, int order) {
         systems.add(new Entry(system, order));
         if (started) {
-            // Если мир уже стартовал и ты добавляешь систему на лету — можно решить:
-            // либо запрещать, либо стартовать сразу. Я бы запрещал.
             throw new IllegalStateException("Cannot add system after world started");
         }
     }
@@ -40,9 +38,10 @@ public final class KWorld {
     public void start(SystemContext ctx) {
         if (started) return;
         systems.sort(Comparator.comparingInt(e -> e.order));
-        // Start MAIN systems inline, WORKER systems via scheduler on their dedicated threads.
+
         for (Entry e : systems) {
-            if (e.system.threadMode() == ThreadMode.WORKER_DEDICATED) {
+            ThreadMode m = e.system.threadMode();
+            if (m == ThreadMode.WORKER_DEDICATED || m == ThreadMode.WORKER_STRIPED) {
                 ctx.scheduler().ensureStarted(e.system, ctx);
             } else {
                 e.system.onStart(ctx);
@@ -55,22 +54,22 @@ public final class KWorld {
         if (!started) start(ctx);
 
         for (Entry e : systems) {
-            if (e.system.threadMode() == ThreadMode.WORKER_DEDICATED) {
+            ThreadMode m = e.system.threadMode();
+            if (m == ThreadMode.WORKER_DEDICATED || m == ThreadMode.WORKER_STRIPED) {
                 ctx.scheduler().submitUpdate(e.system, ctx, tpf);
             } else {
                 e.system.onUpdate(ctx, tpf);
             }
         }
-
-        // Best-effort: wait a tiny budget for worker completion (AAA stable frame time).
-        ctx.scheduler().awaitDefaultBudget();
     }
 
     public void stop(SystemContext ctx) {
         if (!started) return;
+
         for (int i = systems.size() - 1; i >= 0; i--) {
             KSystem s = systems.get(i).system;
-            if (s.threadMode() == ThreadMode.WORKER_DEDICATED) {
+            ThreadMode m = s.threadMode();
+            if (m == ThreadMode.WORKER_DEDICATED || m == ThreadMode.WORKER_STRIPED) {
                 ctx.scheduler().stopSystem(s);
             } else {
                 s.onStop(ctx);
@@ -82,7 +81,6 @@ public final class KWorld {
     private static final class Entry {
         final KSystem system;
         final int order;
-
         Entry(KSystem system, int order) {
             this.system = system;
             this.order = order;

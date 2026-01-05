@@ -1,25 +1,31 @@
 // FILE: WorkerSystemStats.java
 package org.foxesworld.kalitech.engine.world.systems;
 
+import org.graalvm.polyglot.HostAccess;
+
+/**
+ * Immutable snapshot of a worker system slot.
+ *
+ * <p>Designed to be safely exposed to JS via {@link HostAccess.Export}.
+ */
 public final class WorkerSystemStats {
 
-    public final String systemName;
-    public final String profile;
-    public final String threadName;
+    @HostAccess.Export public final String systemName;
+    @HostAccess.Export public final String profile;
+    @HostAccess.Export public final String threadName;
+    @HostAccess.Export public final boolean running;
 
-    public final boolean running;
-    public final long lastSubmitNanos;
-    public final long lastStartNanos;
-    public final long lastEndNanos;
+    @HostAccess.Export public final long lastSubmitNanos;
+    @HostAccess.Export public final long lastStartNanos;
+    @HostAccess.Export public final long lastEndNanos;
 
-    public final long lastTickNanos;
-    public final long emaTickNanos;
-    public final long maxTickNanos;
+    @HostAccess.Export public final long lastTickNanos;
+    @HostAccess.Export public final long emaTickNanos;
+    @HostAccess.Export public final long maxTickNanos;
+    @HostAccess.Export public final long lastQueueLagNanos;
+    @HostAccess.Export public final int skippedTicks;
 
-    public final long lastQueueLagNanos;
-    public final long skippedTicks;
-
-    WorkerSystemStats(
+    public WorkerSystemStats(
             String systemName,
             String profile,
             String threadName,
@@ -31,7 +37,7 @@ public final class WorkerSystemStats {
             long emaTickNanos,
             long maxTickNanos,
             long lastQueueLagNanos,
-            long skippedTicks
+            int skippedTicks
     ) {
         this.systemName = systemName;
         this.profile = profile;

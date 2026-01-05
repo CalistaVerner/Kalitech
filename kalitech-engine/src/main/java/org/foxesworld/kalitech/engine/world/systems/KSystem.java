@@ -2,14 +2,9 @@
 package org.foxesworld.kalitech.engine.world.systems;
 
 public interface KSystem {
-    default void onStart(SystemContext ctx) {
-    }
-
-    default void onUpdate(SystemContext ctx, float tpf) {
-    }
-
-    default void onStop(SystemContext ctx) {
-    }
+    default void onStart(SystemContext ctx) {}
+    default void onUpdate(SystemContext ctx, float tpf) {}
+    default void onStop(SystemContext ctx) {}
 
     /**
      * Execution model for this system.
@@ -21,10 +16,9 @@ public interface KSystem {
      *   <li>Safe to call engine/api, touch ECS and scene (subject to your engine threading rules).</li>
      * </ul>
      *
-     * <p><b>WORKER_DEDICATED</b>:
+     * <p><b>WORKER_DEDICATED / WORKER_STRIPED</b>:
      * <ul>
-     *   <li>Runs on a dedicated single thread owned by the system.</li>
-     *   <li>Must use an isolated runtime profile (see {@link #runtimeProfile()}).</li>
+     *   <li>Runs off the world thread (dedicated thread per system or shared striped lane).</li>
      *   <li>Must not touch jME scenegraph directly; push changes through {@link SystemContext#jobs()}.</li>
      * </ul>
      */
@@ -36,8 +30,10 @@ public interface KSystem {
      * Runtime profile requested for this system.
      *
      * <p>For MAIN systems, "world" is recommended (default).
-     * For WORKER_DEDICATED systems, return a unique profile per system (e.g. "sys.ai", "sys.ui", ...)
-     * to ensure proper isolation and owner-thread confinement.
+     * For worker systems, return a unique profile per system (e.g. "sys.ai", "sys.ui", ...)
+     *
+     * <p>NOTE: for {@link ThreadMode#WORKER_STRIPED} the scheduler will internally suffix ".laneN"
+     * to preserve ScriptRuntime owner-thread confinement.
      */
     default String runtimeProfile() {
         return "world";

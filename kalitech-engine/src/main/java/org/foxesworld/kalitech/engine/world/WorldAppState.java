@@ -1,4 +1,3 @@
-// FILE: WorldAppState.java
 package org.foxesworld.kalitech.engine.world;
 
 import com.jme3.app.Application;
@@ -13,9 +12,7 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
-import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
-import org.foxesworld.kalitech.engine.world.systems.WorkerSystemStats;
+import org.foxesworld.kalitech.engine.world.systems.*;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadDispatcher;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadProxyFactory;
 import org.graalvm.polyglot.Value;
@@ -30,6 +27,7 @@ import java.util.concurrent.TimeUnit;
  * - isolated runtimes on demand via RuntimePool + Policy
  * - worker runtimes get hard sandbox (API-level): engine/api/render are main-thread proxies
  * - per-worker stats via SystemScheduler
+ * - frame budget guard (60fps baseline)
  */
 public final class WorldAppState extends BaseAppState {
 
@@ -47,6 +45,16 @@ public final class WorldAppState extends BaseAppState {
     private HotReloadWatcher hotReload;
 
     private int jobDrainBudget = 256;
+
+    // AAA perf budget (default: 60 FPS)
+    private volatile int targetFps = 60;
+    private volatile long frameBudgetNanos = fpsToBudgetNanos(60);
+    private long frameIndex = 0L;
+    private volatile FrameStats lastFrameStats;
+
+    // overload logging (rare, but loud)
+    private long lastFrameOverBudgetLogNanos = 0L;
+    private long frameOverBudgetLogEveryNanos = TimeUnit.SECONDS.toNanos(1);
 
     private KWorld world;
     private SystemContext ctx;
@@ -79,10 +87,6 @@ public final class WorldAppState extends BaseAppState {
         this.runtimePool = new RuntimePool(base, runtimePolicy);
     }
 
-    private static long nsToMs(long ns) {
-        return TimeUnit.NANOSECONDS.toMillis(Math.max(0L, ns));
-    }
-
     public RuntimePolicy getRuntimePolicy() {
         return runtimePolicy;
     }
@@ -97,6 +101,29 @@ public final class WorldAppState extends BaseAppState {
 
     public void setStatsLogEverySeconds(int sec) {
         this.statsLogEveryNanos = TimeUnit.SECONDS.toNanos(Math.max(0, sec));
+    }
+
+    /** Target FPS used by the frame budget guard (default: 60). */
+    public void setTargetFps(int fps) {
+        int f = Math.max(10, fps);
+        this.targetFps = f;
+        this.frameBudgetNanos = fpsToBudgetNanos(f);
+        log.info("[perf] targetFps={} budgetMs={}", f, TimeUnit.NANOSECONDS.toMicros(frameBudgetNanos) / 1000.0);
+    }
+
+    public int getTargetFps() { return targetFps; }
+    public long getFrameBudgetNanos() { return frameBudgetNanos; }
+
+    /** How often to print over-budget frame breakdown logs (0 = never). */
+    public void setFrameOverBudgetLogEverySeconds(int sec) {
+        this.frameOverBudgetLogEveryNanos = TimeUnit.SECONDS.toNanos(Math.max(0, sec));
+    }
+
+    public FrameStats getLastFrameStats() { return lastFrameStats; }
+
+    public WorkerSystemStats[] getWorkerStatsSnapshot() {
+        SystemScheduler s = this.scheduler;
+        return (s != null) ? s.statsSnapshot() : new WorkerSystemStats[0];
     }
 
     @Override
@@ -118,17 +145,11 @@ public final class WorldAppState extends BaseAppState {
         this.dispatcher.setDefaultTimeoutMs(2000);
 
         this.proxyFactory = new MainThreadProxyFactory(dispatcher);
-        // Optional hard denylist example (can be empty)
-        // proxyFactory.setDenylist(MainThreadProxyFactory.MethodDenylist.byNamePrefix("shutdown", "exit"));
 
         // Bind globals into WORLD runtime only (main pipeline)
         installWorldGlobals(this.ctx, this.api);
 
         tryStartWorld();
-    }
-
-    public KWorld getWorld() {
-        return world;
     }
 
     public void setWorld(KWorld newWorld) {
@@ -138,15 +159,27 @@ public final class WorldAppState extends BaseAppState {
         tryStartWorld();
     }
 
-    public SystemContext getContextForJs() {
-        return ctx;
-    }
+    public KWorld getWorld() { return world; }
+    public SystemContext getContextForJs() { return ctx; }
 
     @Override
     public void update(float tpf) {
         if (!isEnabled() || ctx == null) return;
 
+        final long frameStart = System.nanoTime();
+        final long budget = frameBudgetNanos;
+        final long fi = ++frameIndex;
+
+        long t0, t1;
+        long drainJobsNanos = 0L;
+        long hotReloadNanos = 0L;
+        long eventsNanos = 0L;
+        long worldUpdateNanos = 0L;
+        long awaitWorkersNanos = 0L;
+        long poolMaintenanceNanos = 0L;
+
         // 1) Drain world ScriptJobQueue (critical for worker->main calls)
+        t0 = System.nanoTime();
         try {
             if (jobDrainBudget > 0) {
                 runtimePool.get("world").jobs().drain(jobDrainBudget);
@@ -154,9 +187,13 @@ public final class WorldAppState extends BaseAppState {
         } catch (NoSuchMethodError ignored) {
         } catch (Exception e) {
             log.error("Script job drain failed", e);
+        } finally {
+            t1 = System.nanoTime();
+            drainJobsNanos = Math.max(0L, t1 - t0);
         }
 
         // 2) Hot reload invalidation (optional)
+        t0 = System.nanoTime();
         try {
             HotReloadWatcher hr = this.hotReload;
             if (hr != null) {
@@ -177,6 +214,9 @@ public final class WorldAppState extends BaseAppState {
             }
         } catch (Exception e) {
             log.error("HotReload poll/invalidate failed", e);
+        } finally {
+            t1 = System.nanoTime();
+            hotReloadNanos = Math.max(0L, t1 - t0);
         }
 
         // 3) Restart after reload
@@ -193,29 +233,70 @@ public final class WorldAppState extends BaseAppState {
         }
 
         // 4) Pump events
-        try {
-            bus.pump();
-        } catch (Exception e) {
-            log.error("Event bus pump failed", e);
+        t0 = System.nanoTime();
+        try { bus.pump(); } catch (Exception e) { log.error("Event bus pump failed", e); }
+        finally {
+            t1 = System.nanoTime();
+            eventsNanos = Math.max(0L, t1 - t0);
         }
 
         // 5) Update world
+        t0 = System.nanoTime();
         if (world != null && running) {
-            try {
-                world.update(ctx, tpf);
-            } catch (Exception e) {
-                log.error("World update failed", e);
-            }
+            try { world.update(ctx, tpf); } catch (Exception e) { log.error("World update failed", e); }
         }
+        t1 = System.nanoTime();
+        worldUpdateNanos = Math.max(0L, t1 - t0);
 
-        // 6) RuntimePool maintenance ~ once per second
+        // 6) Best-effort wait for worker ticks — BUT do not kill the frame.
+        t0 = System.nanoTime();
+        if (scheduler != null) {
+            long elapsed = t0 - frameStart;
+            long remaining = budget - elapsed;
+
+            long awaitBudget = 0L;
+            if (remaining > 0L) {
+                long def = TimeUnit.MILLISECONDS.toNanos(scheduler.getDefaultAwaitBudgetMs());
+                awaitBudget = Math.min(def, remaining);
+            }
+            scheduler.awaitBudgetNanos(awaitBudget);
+        }
+        t1 = System.nanoTime();
+        awaitWorkersNanos = Math.max(0L, t1 - t0);
+
+        // 7) RuntimePool maintenance ~ once per second
         final long now = System.nanoTime();
+        t0 = now;
         if (now - lastPoolMaintenanceNanos >= TimeUnit.SECONDS.toNanos(1)) {
             lastPoolMaintenanceNanos = now;
             runtimePool.evictIdle(now);
         }
+        t1 = System.nanoTime();
+        poolMaintenanceNanos = Math.max(0L, t1 - t0);
 
-        // 7) Periodic worker stats logging
+        final long frameNanos = Math.max(0L, now - frameStart);
+        this.lastFrameStats = new FrameStats(
+                fi,
+                budget,
+                frameNanos,
+                drainJobsNanos,
+                hotReloadNanos,
+                eventsNanos,
+                worldUpdateNanos,
+                awaitWorkersNanos,
+                poolMaintenanceNanos,
+                jobDrainBudget,
+                dispatcher != null ? dispatcher.getCalls() : 0L,
+                dispatcher != null ? dispatcher.getTimeouts() : 0L
+        );
+
+        // Over-budget frame breakdown log (rare, but loud)
+        if (frameOverBudgetLogEveryNanos > 0 && frameNanos > budget && (now - lastFrameOverBudgetLogNanos) >= frameOverBudgetLogEveryNanos) {
+            lastFrameOverBudgetLogNanos = now;
+            logFrameOverBudget(lastFrameStats);
+        }
+
+        // Periodic worker stats logging
         if (statsLogEveryNanos > 0 && now - lastStatsLogNanos >= statsLogEveryNanos) {
             lastStatsLogNanos = now;
             logWorkerStats();
@@ -246,19 +327,70 @@ public final class WorldAppState extends BaseAppState {
         log.info(b.toString());
     }
 
+    private void logFrameOverBudget(FrameStats fs) {
+        if (fs == null) return;
+
+        StringBuilder b = new StringBuilder(512);
+        b.append("[frame] OVER BUDGET ⚠ fpsTarget=")
+                .append(targetFps)
+                .append(" totalMs=").append(nsToMs(fs.frameNanos))
+                .append(" budgetMs=").append(nsToMs(fs.budgetNanos))
+                .append(" calls=").append(fs.dispatcherCalls)
+                .append(" timeouts=").append(fs.dispatcherTimeouts)
+                .append(" lanes=").append(scheduler != null ? scheduler.getLaneCount() : 0);
+
+        b.append("\n  breakdownMs:")
+                .append(" jobs=").append(nsToMs(fs.drainJobsNanos))
+                .append(" hotReload=").append(nsToMs(fs.hotReloadNanos))
+                .append(" events=").append(nsToMs(fs.eventsNanos))
+                .append(" world=").append(nsToMs(fs.worldUpdateNanos))
+                .append(" awaitWorkers=").append(nsToMs(fs.awaitWorkersNanos))
+                .append(" pool=").append(nsToMs(fs.poolMaintenanceNanos));
+
+        WorkerSystemStats[] ws = (scheduler != null) ? scheduler.statsSnapshot() : new WorkerSystemStats[0];
+        if (ws.length > 0) {
+            Arrays.sort(ws, (a, c) -> {
+                long av = (a.emaTickNanos != 0L) ? a.emaTickNanos : a.lastTickNanos;
+                long cv = (c.emaTickNanos != 0L) ? c.emaTickNanos : c.lastTickNanos;
+                return Long.compare(cv, av);
+            });
+
+            int top = Math.min(3, ws.length);
+            b.append("\n  worstWorkers:");
+            for (int i = 0; i < top; i++) {
+                WorkerSystemStats s = ws[i];
+                long score = (s.emaTickNanos != 0L) ? s.emaTickNanos : s.lastTickNanos;
+                b.append("\n    - ").append(s.systemName)
+                        .append(" prof=").append(s.profile)
+                        .append(" thr=").append(s.threadName)
+                        .append(" emaMs=").append(nsToMs(s.emaTickNanos))
+                        .append(" tickMs=").append(nsToMs(s.lastTickNanos))
+                        .append(" maxMs=").append(nsToMs(s.maxTickNanos))
+                        .append(" lagMs=").append(nsToMs(s.lastQueueLagNanos))
+                        .append(" skip=").append(s.skippedTicks)
+                        .append(" scoreMs=").append(nsToMs(score));
+            }
+        }
+
+        log.warn(b.toString());
+    }
+
+    private static long nsToMs(long ns) {
+        return TimeUnit.NANOSECONDS.toMillis(Math.max(0L, ns));
+    }
+
+    private static long fpsToBudgetNanos(int fps) {
+        int f = Math.max(1, fps);
+        return 1_000_000_000L / (long) f;
+    }
+
     @Override
     protected void cleanup(Application app) {
         tryStopWorld();
-        try {
-            if (scheduler != null) scheduler.close();
-        } catch (Throwable ignored) {
-        }
+        try { if (scheduler != null) scheduler.close(); } catch (Throwable ignored) {}
         scheduler = null;
 
-        try {
-            runtimePool.closeAll();
-        } catch (Throwable ignored) {
-        }
+        try { runtimePool.closeAll(); } catch (Throwable ignored) {}
 
         ctx = null;
         dispatcher = null;
@@ -268,15 +400,8 @@ public final class WorldAppState extends BaseAppState {
         log.info("WorldAppState cleaned up");
     }
 
-    @Override
-    protected void onEnable() {
-        tryStartWorld();
-    }
-
-    @Override
-    protected void onDisable() {
-        tryStopWorld();
-    }
+    @Override protected void onEnable() { tryStartWorld(); }
+    @Override protected void onDisable() { tryStopWorld(); }
 
     private void tryStartWorld() {
         if (!isInitialized() || !isEnabled()) return;
@@ -340,10 +465,8 @@ public final class WorldAppState extends BaseAppState {
         try {
             Value bindings = workerRt.ctx().getBindings("js");
 
-            // keep ctx for state + jobs bridge
             bindings.putMember("ctx", sysCtx);
 
-            // wrap engine/api in main-thread proxy to keep JS API identical
             EngineApi engineProxy = (proxyFactory != null)
                     ? proxyFactory.wrap(this.api, EngineApi.class)
                     : this.api;
@@ -351,16 +474,13 @@ public final class WorldAppState extends BaseAppState {
             bindings.putMember("api", engineProxy);
             bindings.putMember("engine", engineProxy);
 
-            // render shortcut
             try {
                 Object renderApi = this.api.render();
-                // If render() returns interface, you can also wrap it; else bind as-is.
                 bindings.putMember("render", renderApi);
             } catch (Throwable t) {
                 bindings.putMember("render", engineProxy);
             }
 
-            // Optional: tag for debugging
             bindings.putMember("__workerSystem", systemName != null ? systemName : "worker");
 
         } catch (Exception e) {
@@ -368,39 +488,74 @@ public final class WorldAppState extends BaseAppState {
         }
     }
 
-    public PhysicsSpace getPhysicsSpace() {
-        return physicsSpace;
-    }
+    public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
+    public EngineApi getApi() { return api; }
+    public EcsWorld getEcs() { return ecs; }
+    public ScriptEventBus getBus() { return bus; }
 
-    public EngineApi getApi() {
-        return api;
-    }
+    public ScriptRuntime getRuntime() { return runtimePool.get("world"); }
+    public ScriptRuntime getRuntime(String profile) { return runtimePool.get(profile); }
 
-    public EcsWorld getEcs() {
-        return ecs;
-    }
+    public SystemScheduler getScheduler() { return scheduler; }
 
-    public ScriptEventBus getBus() {
-        return bus;
-    }
+    // =====================================================================
+    // AAA: perf stats access (for JS overlays / live debugging)
+    // =====================================================================
 
-    public ScriptRuntime getRuntime() {
-        return runtimePool.get("world");
-    }
+    /** Print a full perf snapshot even if the frame isn't over budget. */
+    public void dumpPerfSnapshotToLog() {
+        FrameStats fs = lastFrameStats;
+        if (fs == null) {
+            log.info("[perf] no frame stats yet");
+            return;
+        }
+        StringBuilder b = new StringBuilder(512);
+        b.append("[perf] frame=").append(fs.frameIndex)
+                .append(" totalMs=").append(nsToMs(fs.frameNanos))
+                .append(" budgetMs=").append(nsToMs(fs.budgetNanos))
+                .append(" fpsTarget=").append(targetFps)
+                .append(" calls=").append(fs.dispatcherCalls)
+                .append(" timeouts=").append(fs.dispatcherTimeouts)
+                .append(" lanes=").append(scheduler != null ? scheduler.getLaneCount() : 0);
 
-    public ScriptRuntime getRuntime(String profile) {
-        return runtimePool.get(profile);
-    }
+        b.append("\n  breakdownMs:")
+                .append(" jobs=").append(nsToMs(fs.drainJobsNanos))
+                .append(" hotReload=").append(nsToMs(fs.hotReloadNanos))
+                .append(" events=").append(nsToMs(fs.eventsNanos))
+                .append(" world=").append(nsToMs(fs.worldUpdateNanos))
+                .append(" awaitWorkers=").append(nsToMs(fs.awaitWorkersNanos))
+                .append(" pool=").append(nsToMs(fs.poolMaintenanceNanos));
 
-    public SystemScheduler getScheduler() {
-        return scheduler;
+        WorkerSystemStats[] ws = getWorkerStatsSnapshot();
+        if (ws.length > 0) {
+            Arrays.sort(ws, (a, c) -> {
+                long av = (a.emaTickNanos != 0L) ? a.emaTickNanos : a.lastTickNanos;
+                long cv = (c.emaTickNanos != 0L) ? c.emaTickNanos : c.lastTickNanos;
+                return Long.compare(cv, av);
+            });
+            int top = Math.min(8, ws.length);
+            b.append("\n  workers(top").append(top).append("):");
+            for (int i = 0; i < top; i++) {
+                WorkerSystemStats s = ws[i];
+                b.append("\n    - ").append(s.systemName)
+                        .append(" prof=").append(s.profile)
+                        .append(" thr=").append(s.threadName)
+                        .append(" tickMs=").append(nsToMs(s.lastTickNanos))
+                        .append(" emaMs=").append(nsToMs(s.emaTickNanos))
+                        .append(" maxMs=").append(nsToMs(s.maxTickNanos))
+                        .append(" lagMs=").append(nsToMs(s.lastQueueLagNanos))
+                        .append(" skip=").append(s.skippedTicks);
+            }
+        }
+
+        log.info(b.toString());
     }
 
     // ======================================================================
     // CDPR CONTRACT: RuntimePolicy
     // ======================================================================
 
-    public enum RequestOrigin {JAVA_PROVIDER, SCRIPT_CONFIG}
+    public enum RequestOrigin { JAVA_PROVIDER, SCRIPT_CONFIG }
 
     public static final class RuntimePolicy {
 
@@ -435,9 +590,10 @@ public final class WorldAppState extends BaseAppState {
 
         public static RuntimePolicy fromSystemProps() {
             boolean allowScriptProfiles = boolProp("kalitech.runtime.allowScriptProfiles", false);
-            boolean allowScriptSandbox = boolProp("kalitech.runtime.allowScriptSandbox", false);
+            boolean allowScriptSandbox  = boolProp("kalitech.runtime.allowScriptSandbox", false);
 
-            int maxIsolated = intProp("kalitech.runtime.maxIsolated", 3);
+            // AAA default: enough isolated runtimes for multiple worker systems + tools.
+            int maxIsolated = intProp("kalitech.runtime.maxIsolated", 16);
             long idleEvictMs = longProp("kalitech.runtime.idleEvictMs", 120_000L);
 
             Set<String> allowed = csvLowerProp(
@@ -473,6 +629,30 @@ public final class WorldAppState extends BaseAppState {
             return p;
         }
 
+        public String resolveProfile(String requested, RequestOrigin origin) {
+            String p = norm(requested);
+            if (p == null) return "world";
+
+            // AAA: internal Java providers may request dynamic isolated profiles:
+            // sys.* (and sys.*.laneN for striped workers).
+            if (origin == RequestOrigin.JAVA_PROVIDER && p.startsWith("sys.")) {
+                return p;
+            }
+
+            if (!allowedProfiles.contains(p)) return "world";
+
+            if (origin == RequestOrigin.SCRIPT_CONFIG) {
+                if (!allowScriptProfileRequests) return "world";
+                if ("sandbox".equals(p) && !allowScriptSandboxRequests) return "world";
+            }
+            return p;
+        }
+
+        public boolean isPinned(String profile) {
+            String p = norm(profile);
+            return p != null && pinnedProfiles.contains(p);
+        }
+
         private static String norm(String s) {
             if (s == null) return null;
             String t = s.trim().toLowerCase(Locale.ROOT);
@@ -490,21 +670,13 @@ public final class WorldAppState extends BaseAppState {
         private static int intProp(String key, int def) {
             String v = System.getProperty(key);
             if (v == null) return def;
-            try {
-                return Integer.parseInt(v.trim());
-            } catch (Exception ignored) {
-                return def;
-            }
+            try { return Integer.parseInt(v.trim()); } catch (Exception ignored) { return def; }
         }
 
         private static long longProp(String key, long def) {
             String v = System.getProperty(key);
             if (v == null) return def;
-            try {
-                return Long.parseLong(v.trim());
-            } catch (Exception ignored) {
-                return def;
-            }
+            try { return Long.parseLong(v.trim()); } catch (Exception ignored) { return def; }
         }
 
         private static Set<String> csvLowerProp(String key, String defCsv) {
@@ -516,27 +688,10 @@ public final class WorldAppState extends BaseAppState {
             }
             return set;
         }
-
-        public String resolveProfile(String requested, RequestOrigin origin) {
-            String p = norm(requested);
-            if (p == null) return "world";
-            if (!allowedProfiles.contains(p)) return "world";
-
-            if (origin == RequestOrigin.SCRIPT_CONFIG) {
-                if (!allowScriptProfileRequests) return "world";
-                if ("sandbox".equals(p) && !allowScriptSandboxRequests) return "world";
-            }
-            return p;
-        }
-
-        public boolean isPinned(String profile) {
-            String p = norm(profile);
-            return p != null && pinnedProfiles.contains(p);
-        }
     }
 
     // ======================================================================
-    // RuntimePool (unchanged logic)
+    // RuntimePool
     // ======================================================================
 
     static final class RuntimePool {
@@ -551,41 +706,6 @@ public final class WorldAppState extends BaseAppState {
             this.base = Objects.requireNonNull(base, "base runtime");
             this.policy = Objects.requireNonNull(policy, "policy");
             map.put("world", new Entry(base, true, System.nanoTime()));
-        }
-
-        private static void closeQuiet(ScriptRuntime rt) {
-            if (rt == null) return;
-            boolean closed = tryCallVoid(rt, "close") || tryCallVoid(rt, "shutdown") || tryCallVoid(rt, "dispose");
-        }
-
-        private static ScriptRuntime tryCall0(Object target, String name) {
-            try {
-                Method m = target.getClass().getMethod(name);
-                Object r = m.invoke(target);
-                return (r instanceof ScriptRuntime gr) ? gr : null;
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-
-        private static ScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
-            try {
-                Method m = target.getClass().getMethod(name, p0);
-                Object r = m.invoke(target, a0);
-                return (r instanceof ScriptRuntime gr) ? gr : null;
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-
-        private static boolean tryCallVoid(Object target, String name) {
-            try {
-                Method m = target.getClass().getMethod(name);
-                m.invoke(target);
-                return true;
-            } catch (Throwable ignored) {
-                return false;
-            }
         }
 
         ScriptRuntime get(String requestedProfile) {
@@ -680,33 +800,94 @@ public final class WorldAppState extends BaseAppState {
                     break;
                 }
 
-                String k = eldest.getKey();
+                String key = eldest.getKey();
                 Entry e = eldest.getValue();
-
                 if (policy.debugLogs) {
-                    log.info("[runtimePool] LRU-evict profile={} (limit={}, isolatedNow={})", k, maxIsolated, (map.size() - 1));
+                    log.info("[runtimePool] lru-evict profile={} limit={} size={}", key, maxIsolated, map.size() - 1);
                 }
-
                 closeQuiet(e.runtime);
-                map.remove(k);
+                map.remove(key);
             }
         }
 
+        // -------- Optional invalidate helpers for HotReload --------
+
+        int invalidateMany(Set<String> moduleIds) {
+            ScriptRuntime rt = base;
+            Object caches = tryCall0(rt, "caches");
+            if (caches == null) return 0;
+            Object inv = tryCall1(caches, "invalidateMany", Set.class, moduleIds);
+            return (inv instanceof Integer i) ? i : 0;
+        }
+
+        int invalidateManyWithReason(Set<String> moduleIds, String reason) {
+            ScriptRuntime rt = base;
+            Object caches = tryCall0(rt, "caches");
+            if (caches == null) return invalidateMany(moduleIds);
+
+            try {
+                Method m = caches.getClass().getMethod("invalidateManyWithReason", Set.class, String.class);
+                Object r = m.invoke(caches, moduleIds, reason);
+                return (r instanceof Integer i) ? i : invalidateMany(moduleIds);
+            } catch (Throwable ignored) {
+                return invalidateMany(moduleIds);
+            }
+        }
+
+        // -------- Fork/close helpers (reflection to avoid hard deps) --------
+
         private ScriptRuntime forkOrFallback(String profile) {
-            ScriptRuntime rt = tryCall0(base, "fork");
+            // Try: base.fork(profile) / base.fork()
+            ScriptRuntime rt = tryCall1(base, "fork", String.class, profile);
             if (rt != null) return rt;
 
-            rt = tryCall1(base, "fork", String.class, profile);
+            rt = tryCall0(base, "fork");
             if (rt != null) return rt;
 
-            rt = tryCall1(base, "createIsolated", String.class, profile);
-            if (rt != null) return rt;
-
-            rt = tryCall0(base, "child");
-            if (rt != null) return rt;
-
-            log.warn("[runtimePool] no fork method found in ScriptRuntime; using base runtime for profile={}", profile);
+            // fallback to base (not ideal, but safe)
+            if (policy.debugLogs) {
+                log.warn("[runtimePool] Could not fork runtime for profile={}, using world runtime", profile);
+            }
             return base;
+        }
+
+        private static void closeQuiet(ScriptRuntime rt) {
+            if (rt == null) return;
+            if (rt == rt) {
+                // try close() / shutdown() but ignore if absent
+                tryCallVoid(rt, "close");
+                tryCallVoid(rt, "shutdown");
+            }
+        }
+
+        private static ScriptRuntime tryCall0(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                Object r = m.invoke(target);
+                return (r instanceof ScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static ScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
+            try {
+                Method m = target.getClass().getMethod(name, p0);
+                Object r = m.invoke(target, a0);
+                return (r instanceof ScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static boolean tryCallVoid(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                m.invoke(target);
+                return true;
+            } catch (Throwable ignored) {
+                return false;
+            }
         }
 
         static final class Entry {
