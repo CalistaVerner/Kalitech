@@ -104,6 +104,28 @@ declare namespace KalitechTerrain {
         h?: number;
     }
 
+    export interface SetHeightmapCfg {
+        heights: ArrayLike<number>;
+        /** Optional validation: expected terrain size (size*size). */
+        size?: number;
+        rebuild?: boolean;
+    }
+
+    export interface NoiseCfg {
+        size?: number;
+        seed?: number;
+        scale?: number;
+        octaves?: number;
+        persistence?: number;
+        lacunarity?: number;
+        normalize?: boolean;
+        [k: string]: unknown;
+    }
+
+    export interface ProceduralCfg extends Omit<HeightsTerrainCfg, "heights"> {
+        gen?: ({ type?: "perlin" | "ridged" } & NoiseCfg);
+    }
+
     export interface TerrainApi {
         readonly META: BuiltinMeta;
 
@@ -118,6 +140,21 @@ declare namespace KalitechTerrain {
 
         heightAt(surface: SurfaceRef, x: number, z: number, world?: boolean): number;
         normalAt(surface: SurfaceRef, x: number, z: number, world?: boolean): { x: number; y: number; z: number };
+
+        setHeightmap(surface: SurfaceRef, cfg: SetHeightmapCfg): void;
+        /** Convenience positional form: setHeightmap(surface, heights, size?, rebuild?) */
+        setHeightmap(surface: SurfaceRef, heights: ArrayLike<number>, size?: number, rebuild?: boolean): void;
+        heightmap(surface: SurfaceRef): Float32Array | number[];
+
+        setHeight(surface: SurfaceRef, x: number, z: number, height: number, world?: boolean): void;
+        adjustHeight(surface: SurfaceRef, x: number, z: number, delta: number, world?: boolean): void;
+        rebuild(surface: SurfaceRef): void;
+        size(surface: SurfaceRef): number;
+        patchSize(surface: SurfaceRef): number;
+
+        perlinHeights(cfg: NoiseCfg): Float32Array;
+        ridgedHeights(cfg: NoiseCfg): Float32Array;
+        procedural(cfg: ProceduralCfg): SurfaceHandle | CreateResult;
 
         physics(surface: SurfaceRef, cfg?: Record<string, unknown>): PhysicsResult;
         attach(surface: SurfaceRef, entityId: number): void;

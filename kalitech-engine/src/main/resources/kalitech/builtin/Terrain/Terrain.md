@@ -8,23 +8,23 @@ JS модуль-обёртка над `engine.terrain()` (Java: `TerrainApiImpl`
 
 ```js
 const t = TERR.terrain({
-  name: "world-terrain",
-  heightmap: "Textures/heightmaps/hm.png",
-  patchSize: 65,
-  size: 513,
-  heightScale: 2.0,
-  xzScale: 2.0,
-  material: MAT.getMaterial("unshaded.grass"),
-  attach: true,
+    name: "world-terrain",
+    heightmap: "Textures/heightmaps/hm.png",
+    patchSize: 65,
+    size: 513,
+    heightScale: 2.0,
+    xzScale: 2.0,
+    material: MAT.getMaterial("unshaded.grass"),
+    attach: true,
 
-  // если есть: создаём static body и возвращаем {surface, bodyId, body}
-  physics: {
-    mass: 0,
-    kinematic: true,
-    collider: { type: "mesh" },
-    friction: 1.0,
-    restitution: 0.0,
-  }
+    // если есть: создаём static body и возвращаем {surface, bodyId, body}
+    physics: {
+        mass: 0,
+        kinematic: true,
+        collider: { type: "mesh" },
+        friction: 1.0,
+        restitution: 0.0,
+    }
 });
 
 // одинаково работает и если вернулся handle, и если {surface,body}
@@ -39,13 +39,35 @@ const heights = new Float32Array(size * size);
 // ... fill heights
 
 const t = TERR.terrainHeights({
-  name: "proc",
-  size,
+    name: "proc",
+    size,
+    patchSize: 65,
+    xzScale: 2.0,
+    yScale: 1.0,
+    heights,
+    attach: true,
+    physics: { collider: { type: "mesh" } }
+});
+```
+
+### Встроенная генерация (Perlin / Ridged)
+
+```js
+const t = TERR.procedural({
+  name: "auto",
+  size: 513,
   patchSize: 65,
   xzScale: 2.0,
-  yScale: 1.0,
-  heights,
-  attach: true,
+  yScale: 40.0,
+  gen: {
+    type: "perlin", // or "ridged"
+    seed: 1337,
+    scale: 120,
+    octaves: 6,
+    persistence: 0.5,
+    lacunarity: 2.0,
+    normalize: true
+  },
   physics: { collider: { type: "mesh" } }
 });
 ```
@@ -90,16 +112,33 @@ const y = TERR.heightAt(surface, worldX, worldZ, true);
 const n = TERR.normalAt(surface, worldX, worldZ, true); // {x,y,z}
 ```
 
+### Sculpt / runtime editing (TerrainQuad)
+
+```js
+// точечные правки
+TERR.adjustHeight(surface, 10, 10, +0.25, true);
+TERR.setHeight(surface, 12, 10, 3.0, true);
+
+// после массовых правок — refresh (bounds/state)
+TERR.rebuild(surface);
+
+// заменить целиком heightmap
+const size = TERR.size(surface);
+const heights = TERR.heightmap(surface); // float[]/Float32Array
+// ...modify heights...
+TERR.setHeightmap(surface, { heights, size, rebuild: true });
+```
+
 ## Физика
 
 `TERR` **не создаёт дубликаты тел**.
 
 - Если ты передал `physics:` в `terrain/terrainHeights/plane/quad`, модуль:
-  1) создаст тело через `terrain.physics(surface,cfg)`
-  2) **резолвит `bodyId` без создания второго тела** через:
-     - `engine.surface().attachedBody(surfaceId)`
-     - `engine.physics().bodyOfSurface(surfaceId)`
-  3) если доступен `PHYS.ref(bodyId)`, вернёт `body` (ref-объект)
+    1) создаст тело через `terrain.physics(surface,cfg)`
+    2) **резолвит `bodyId` без создания второго тела** через:
+        - `engine.surface().attachedBody(surfaceId)`
+        - `engine.physics().bodyOfSurface(surfaceId)`
+    3) если доступен `PHYS.ref(bodyId)`, вернёт `body` (ref-объект)
 
 Также можно вызвать напрямую:
 
@@ -113,6 +152,6 @@ const { bodyId, body } = TERR.physics(surface, { mass: 0, collider: { type: "mes
 
 ```js
 PHYS.onCollisionBegin({ surfaceId: surface.id() }, (e) => {
-  // e.a / e.b / e.contact
+    // e.a / e.b / e.contact
 });
 ```
