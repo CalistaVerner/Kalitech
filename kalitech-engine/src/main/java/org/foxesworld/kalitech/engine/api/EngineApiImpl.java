@@ -14,7 +14,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
-import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -37,7 +37,7 @@ public final class EngineApiImpl implements EngineApi {
     private final EcsWorld ecs;
     private final Thread jmeThread;
     private volatile PhysicsSpace physicsSpace;
-    private final GraalScriptRuntime runtime;
+    private final ScriptRuntime runtime;
 
     private final CameraState cameraState;
     private final BulletAppState bullet;
@@ -306,7 +306,7 @@ public final class EngineApiImpl implements EngineApi {
     }
 
 
-    public GraalScriptRuntime getRuntime() {
+    public ScriptRuntime getRuntime() {
         return runtime;
     }
     public SurfaceRegistry getSurfaceRegistry() {

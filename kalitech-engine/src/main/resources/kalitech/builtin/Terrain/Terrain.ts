@@ -27,18 +27,27 @@ declare namespace KalitechTerrain {
 
     export interface SurfaceHandle {
         id(): number;
+
         type(): string;
     }
 
     export interface BodyRefApi {
         id(): number;
+
         position(v?: Vec3): any;
+
         warp(pos: Vec3): any;
+
         velocity(v?: Vec3): any;
+
         yaw(yawRad: number): any;
+
         applyImpulse(impulse: Vec3): any;
+
         lockRotation(lock: boolean): any;
+
         setKinematic?(k: boolean): any;
+
         remove(): any;
     }
 
@@ -56,6 +65,7 @@ declare namespace KalitechTerrain {
 
     export interface LodCfg {
         enabled?: boolean;
+
         [k: string]: unknown;
     }
 
@@ -119,6 +129,7 @@ declare namespace KalitechTerrain {
         persistence?: number;
         lacunarity?: number;
         normalize?: boolean;
+
         [k: string]: unknown;
     }
 
@@ -130,34 +141,50 @@ declare namespace KalitechTerrain {
         readonly META: BuiltinMeta;
 
         terrain(cfg: HeightmapTerrainCfg): SurfaceHandle | CreateResult;
+
         terrainHeights(cfg: HeightsTerrainCfg): SurfaceHandle | CreateResult;
+
         quad(cfg?: QuadCfg): SurfaceHandle | CreateResult;
+
         plane(cfg?: PlaneCfg): SurfaceHandle | CreateResult;
 
         material(surface: SurfaceRef, material: any): void;
+
         lod(surface: SurfaceRef, cfg?: LodCfg): void;
+
         scale(surface: SurfaceRef, xzScale: number, cfg?: { yScale?: number }): void;
 
         heightAt(surface: SurfaceRef, x: number, z: number, world?: boolean): number;
+
         normalAt(surface: SurfaceRef, x: number, z: number, world?: boolean): { x: number; y: number; z: number };
 
         setHeightmap(surface: SurfaceRef, cfg: SetHeightmapCfg): void;
+
         /** Convenience positional form: setHeightmap(surface, heights, size?, rebuild?) */
         setHeightmap(surface: SurfaceRef, heights: ArrayLike<number>, size?: number, rebuild?: boolean): void;
+
         heightmap(surface: SurfaceRef): Float32Array | number[];
 
         setHeight(surface: SurfaceRef, x: number, z: number, height: number, world?: boolean): void;
+
         adjustHeight(surface: SurfaceRef, x: number, z: number, delta: number, world?: boolean): void;
+
         rebuild(surface: SurfaceRef): void;
+
         size(surface: SurfaceRef): number;
+
         patchSize(surface: SurfaceRef): number;
 
         perlinHeights(cfg: NoiseCfg): Float32Array;
+
         ridgedHeights(cfg: NoiseCfg): Float32Array;
+
         procedural(cfg: ProceduralCfg): SurfaceHandle | CreateResult;
 
         physics(surface: SurfaceRef, cfg?: Record<string, unknown>): PhysicsResult;
+
         attach(surface: SurfaceRef, entityId: number): void;
+
         detach(surface: SurfaceRef): void;
     }
 }

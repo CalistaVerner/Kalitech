@@ -16,9 +16,18 @@
  *  - NO silent try/catch: fail loudly with context
  */
 
-function _isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-function _num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
-function _bool(v, fb) { return (v == null) ? !!fb : !!v; }
+function _isObj(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function _num(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fb || 0);
+}
+
+function _bool(v, fb) {
+    return (v == null) ? !!fb : !!v;
+}
 
 function _vec3(v, fbX, fbY, fbZ) {
     if (Array.isArray(v)) return [_num(v[0], fbX), _num(v[1], fbY), _num(v[2], fbZ)];
@@ -65,7 +74,7 @@ function idOf(h, kind /* "body"|"surface"|"entity" */) {
 
     const bodyFns = ["id", "getId", "bodyId", "getBodyId", "handle"];
     const surfFns = ["id", "getId", "surfaceId", "getSurfaceId", "handle"];
-    const entFns  = ["id", "getId", "entityId", "getEntityId"];
+    const entFns = ["id", "getId", "entityId", "getEntityId"];
 
     const fnNames = kind === "body" ? bodyFns : (kind === "surface" ? surfFns : entFns);
 
@@ -100,11 +109,13 @@ function _bodyIdFromHandle(bodyOrId) {
             const v = bodyOrId.valueOf();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof bodyOrId.id === "number") return bodyOrId.id | 0;
         if (typeof bodyOrId.bodyId === "number") return bodyOrId.bodyId | 0;
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof bodyOrId.id === "function") {
             const v = bodyOrId.id();
@@ -118,7 +129,8 @@ function _bodyIdFromHandle(bodyOrId) {
             const v = bodyOrId.getId();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     return 0;
 }
 
@@ -128,7 +140,8 @@ function _surfaceId(handleOrId) {
     try {
         if (typeof handleOrId.id === "number") return handleOrId.id | 0;
         if (typeof handleOrId.surfaceId === "number") return handleOrId.surfaceId | 0;
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof handleOrId.id === "function") {
             const v = handleOrId.id();
@@ -138,7 +151,8 @@ function _surfaceId(handleOrId) {
             const v = handleOrId.surfaceId();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     return 0;
 }
 
@@ -153,7 +167,8 @@ function _resolveBodyIdBySurface(engine, surfaceHandleOrId) {
             const bid = s.attachedBody(sid);
             if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     // fallback: PhysicsApi mapping
     try {
@@ -162,7 +177,8 @@ function _resolveBodyIdBySurface(engine, surfaceHandleOrId) {
             const bid = p.bodyOfSurface(sid);
             if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     return 0;
 }
@@ -174,11 +190,11 @@ class EntityHandle {
         this._engine = engine;
 
         // primitives only
-        this.entityId  = (ctx.entityId | 0);
-        this.surface   = ctx.surface || null;
-        this.body      = ctx.body || null;
+        this.entityId = (ctx.entityId | 0);
+        this.surface = ctx.surface || null;
+        this.body = ctx.body || null;
         this.surfaceId = (ctx.surfaceId | 0);
-        this.bodyId    = (ctx.bodyId | 0);
+        this.bodyId = (ctx.bodyId | 0);
 
         this._destroyers = Array.isArray(ctx._destroyers) ? ctx._destroyers : [];
 
@@ -193,12 +209,26 @@ class EntityHandle {
     }
 
     // --- ids ---
-    id() { return (this.entityId | 0); }
-    surfaceHandleId() { return (this.surfaceId | 0); }
-    bodyHandleId() { return (this.bodyId | 0); }
+    id() {
+        return (this.entityId | 0);
+    }
 
-    valueOf() { return (this.entityId | 0); }
-    toString() { return String(this.entityId | 0); }
+    surfaceHandleId() {
+        return (this.surfaceId | 0);
+    }
+
+    bodyHandleId() {
+        return (this.bodyId | 0);
+    }
+
+    valueOf() {
+        return (this.entityId | 0);
+    }
+
+    toString() {
+        return String(this.entityId | 0);
+    }
+
     [Symbol.toPrimitive](hint) {
         if (hint === "number") return (this.entityId | 0);
         return String(this.entityId | 0);
@@ -230,7 +260,9 @@ class EntityHandle {
 
     // ---------------- physics helpers ----------------
 
-    hasBody() { return (this.bodyId | 0) > 0; }
+    hasBody() {
+        return (this.bodyId | 0) > 0;
+    }
 
     requireBodyId(opName) {
         const id = (this.bodyId | 0);
@@ -426,11 +458,11 @@ class EntityHandle {
         const py = (typeof p.y === "function") ? _num(p.y(), 0) : _num(p.y, 0);
         const pz = (typeof p.z === "function") ? _num(p.z(), 0) : _num(p.z, 0);
 
-        const from = { x: px, y: py + _num(startOffsetY, 0.15), z: pz };
-        const to   = { x: px, y: py - _num(distance, 2.0), z: pz };
+        const from = {x: px, y: py + _num(startOffsetY, 0.15), z: pz};
+        const to = {x: px, y: py - _num(distance, 2.0), z: pz};
 
         try {
-            return phys.raycast({ from, to });
+            return phys.raycast({from, to});
         } catch (e) {
             throw new Error(_errCtx("[ENT] raycastDown failed bodyId=" + id, e));
         }
@@ -534,15 +566,15 @@ class EntApi {
                 height: 1.8,
                 pos: [0, 3, 0],
                 attach: true,
-                physics: { mass: 80, lockRotation: true }
+                physics: {mass: 80, lockRotation: true}
             },
             body: {
                 mass: 80,
                 friction: 0.9,
                 restitution: 0.0,
-                damping: { linear: 0.15, angular: 0.95 },
+                damping: {linear: 0.15, angular: 0.95},
                 lockRotation: true,
-                collider: { type: "capsule", radius: 0.35, height: 1.8 }
+                collider: {type: "capsule", radius: 0.35, height: 1.8}
             },
             attachSurface: true,
             debug: true
@@ -550,19 +582,19 @@ class EntApi {
 
         this._presets.capsule = {
             name: "entity",
-            surface: { type: "capsule", name: "entity.capsule", radius: 0.35, height: 1.8, pos: [0, 3, 0], attach: true },
+            surface: {type: "capsule", name: "entity.capsule", radius: 0.35, height: 1.8, pos: [0, 3, 0], attach: true},
             attachSurface: true
         };
 
         this._presets.box = {
             name: "entity",
-            surface: { type: "box", name: "entity.box", size: 1, pos: [0, 3, 0], attach: true },
+            surface: {type: "box", name: "entity.box", size: 1, pos: [0, 3, 0], attach: true},
             attachSurface: true
         };
 
         this._presets.sphere = {
             name: "entity",
-            surface: { type: "sphere", name: "entity.sphere", radius: 0.5, pos: [0, 3, 0], attach: true },
+            surface: {type: "sphere", name: "entity.sphere", radius: 0.5, pos: [0, 3, 0], attach: true},
             attachSurface: true
         };
 
@@ -571,7 +603,7 @@ class EntApi {
             mass: 1,
             friction: 0.9,
             restitution: 0.0,
-            damping: { linear: 0.15, angular: 0.95 },
+            damping: {linear: 0.15, angular: 0.95},
             lockRotation: false
         };
 
@@ -596,16 +628,31 @@ class EntApi {
         return this;
     }
 
-    presets() { return Object.keys(this._presets); }
+    presets() {
+        return Object.keys(this._presets);
+    }
 
     // ---------- builder ----------
 
-    $(presetName) { return new EntBuilder(this, presetName ? String(presetName) : ""); }
+    $(presetName) {
+        return new EntBuilder(this, presetName ? String(presetName) : "");
+    }
 
-    player$(cfg) { return this.$("player").merge(cfg); }
-    capsule$(cfg) { return this.$("capsule").merge(cfg); }
-    box$(cfg) { return this.$("box").merge(cfg); }
-    sphere$(cfg) { return this.$("sphere").merge(cfg); }
+    player$(cfg) {
+        return this.$("player").merge(cfg);
+    }
+
+    capsule$(cfg) {
+        return this.$("capsule").merge(cfg);
+    }
+
+    box$(cfg) {
+        return this.$("box").merge(cfg);
+    }
+
+    sphere$(cfg) {
+        return this.$("sphere").merge(cfg);
+    }
 
     // ---------- main: create ----------
 
@@ -667,11 +714,15 @@ class EntApi {
             if (!bCfg.collider && surfCfg && surfCfg.type) {
                 const t = String(surfCfg.type);
                 if (t === "capsule") {
-                    bCfg.collider = { type: "capsule", radius: (surfCfg.radius != null) ? surfCfg.radius : 0.35, height: (surfCfg.height != null) ? surfCfg.height : 1.8 };
+                    bCfg.collider = {
+                        type: "capsule",
+                        radius: (surfCfg.radius != null) ? surfCfg.radius : 0.35,
+                        height: (surfCfg.height != null) ? surfCfg.height : 1.8
+                    };
                 } else if (t === "sphere") {
-                    bCfg.collider = { type: "sphere", radius: (surfCfg.radius != null) ? surfCfg.radius : 0.5 };
+                    bCfg.collider = {type: "sphere", radius: (surfCfg.radius != null) ? surfCfg.radius : 0.5};
                 } else if (t === "box") {
-                    bCfg.collider = { type: "box", size: (surfCfg.size != null) ? surfCfg.size : 1 };
+                    bCfg.collider = {type: "box", size: (surfCfg.size != null) ? surfCfg.size : 1};
                 }
             }
 
@@ -722,7 +773,9 @@ class EntApi {
     }
 
     // ---------- helpers ----------
-    idOf(h, kind) { return idOf(h, kind); }
+    idOf(h, kind) {
+        return idOf(h, kind);
+    }
 }
 
 class EntBuilder {
@@ -732,15 +785,35 @@ class EntBuilder {
         this._cfg = {};
     }
 
-    merge(cfg) { this._cfg = _deepMerge(this._cfg, cfg || {}); return this; }
+    merge(cfg) {
+        this._cfg = _deepMerge(this._cfg, cfg || {});
+        return this;
+    }
 
-    name(v) { this._cfg.name = String(v || "entity"); return this; }
-    debug(v = true) { this._cfg.debug = !!v; return this; }
+    name(v) {
+        this._cfg.name = String(v || "entity");
+        return this;
+    }
 
-    surface(v) { this._cfg.surface = _deepMerge(this._cfg.surface || {}, v || {}); return this; }
-    body(v) { this._cfg.body = _deepMerge(this._cfg.body || {}, v || {}); return this; }
+    debug(v = true) {
+        this._cfg.debug = !!v;
+        return this;
+    }
 
-    attachSurface(v = true) { this._cfg.attachSurface = !!v; return this; }
+    surface(v) {
+        this._cfg.surface = _deepMerge(this._cfg.surface || {}, v || {});
+        return this;
+    }
+
+    body(v) {
+        this._cfg.body = _deepMerge(this._cfg.body || {}, v || {});
+        return this;
+    }
+
+    attachSurface(v = true) {
+        this._cfg.attachSurface = !!v;
+        return this;
+    }
 
     component(name, dataOrFn) {
         const n = String(name || "");

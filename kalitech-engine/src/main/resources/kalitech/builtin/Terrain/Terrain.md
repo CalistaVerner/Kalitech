@@ -16,13 +16,13 @@
 // (или через require в вашей системе модулей)
 
 const ground = TERR.create({
-  name: "ground",
-  kind: "plane",
-  plane: { w: 1000, h: 1000 },
-  material: MAT.getMaterial("unshaded.grass"),
-  uv: { scale: [50, 50] },
-  attach: true,
-  physics: { mass: 0, collider: { type: "mesh" }, friction: 1.0 }
+    name: "ground",
+    kind: "plane",
+    plane: {w: 1000, h: 1000},
+    material: MAT.getMaterial("unshaded.grass"),
+    uv: {scale: [50, 50]},
+    attach: true,
+    physics: {mass: 0, collider: {type: "mesh"}, friction: 1.0}
 });
 ```
 
@@ -77,11 +77,11 @@ scale: { xz: 2.0, y: 40.0 }
 
 ```js
 const g = TERR.create({
-  kind: "plane",
-  plane: { w: 1000, h: 1000 },
-  material: MAT.getMaterial("unshaded.grass"),
-  uv: { scale: [50, 50] },
-  physics: { mass: 0, collider: { type: "mesh" } }
+    kind: "plane",
+    plane: {w: 1000, h: 1000},
+    material: MAT.getMaterial("unshaded.grass"),
+    uv: {scale: [50, 50]},
+    physics: {mass: 0, collider: {type: "mesh"}}
 });
 ```
 
@@ -98,10 +98,10 @@ const g = TERR.create({
 
 ```js
 const q = TERR.create({
-  kind: "quad",
-  quad: { w: 200, h: 200 },
-  material: MAT.getMaterial("unshaded.grass"),
-  physics: { mass: 0, collider: { type: "mesh" } }
+    kind: "quad",
+    quad: {w: 200, h: 200},
+    material: MAT.getMaterial("unshaded.grass"),
+    physics: {mass: 0, collider: {type: "mesh"}}
 });
 ```
 
@@ -113,16 +113,16 @@ const q = TERR.create({
 
 ```js
 const t = TERR.create({
-  kind: "heightmap",
-  terrain: {
-    heightmap: "Textures/heightmaps/hm.png",
-    size: 513,
-    patchSize: 65
-  },
-  scale: { xz: 2.0, y: 40.0 },
-  material: MAT.getMaterial("unshaded.grass"),
-  lod: { enabled: true },
-  physics: { mass: 0, collider: { type: "mesh" } }
+    kind: "heightmap",
+    terrain: {
+        heightmap: "Textures/heightmaps/hm.png",
+        size: 513,
+        patchSize: 65
+    },
+    scale: {xz: 2.0, y: 40.0},
+    material: MAT.getMaterial("unshaded.grass"),
+    lod: {enabled: true},
+    physics: {mass: 0, collider: {type: "mesh"}}
 });
 ```
 
@@ -253,13 +253,13 @@ const size = TERR.heights.sizeOf(f32); // 0 если не квадрат
 
 ```js
 const t = TERR.terrainHeights({
-  name: "t",
-  size: 513,
-  patchSize: 65,
-  heights,
-  heightScale: 40,
-  xzScale: 2,
-  physics: { mass: 0, collider: { type: "mesh" } }
+    name: "t",
+    size: 513,
+    patchSize: 65,
+    heights,
+    heightScale: 40,
+    xzScale: 2,
+    physics: {mass: 0, collider: {type: "mesh"}}
 });
 ```
 
@@ -288,9 +288,9 @@ TERR.setHeightmap(terrainSurface, heights, 513, true);
 
 ```js
 TERR.setHeightmap(terrainSurface, {
-  heights,
-  size: 513,
-  rebuild: true
+    heights,
+    size: 513,
+    rebuild: true
 });
 ```
 
@@ -321,8 +321,8 @@ TERR.uv(terrainSurface, { scale: [50, 50] });
 
 ```js
 TERR.lod(terrainSurface, {
-  enabled: true,
-  // любые параметры, которые поддерживает ваша Java реализация
+    enabled: true,
+    // любые параметры, которые поддерживает ваша Java реализация
 });
 ```
 

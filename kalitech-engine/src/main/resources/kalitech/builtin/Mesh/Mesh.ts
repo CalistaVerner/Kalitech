@@ -52,6 +52,7 @@ export interface PhysicsCfg {
     restitution?: number;
     damping?: PhysicsDampingCfg;
     collider?: ColliderCfg | Record<string, unknown>;
+
     [key: string]: unknown;
 }
 
@@ -116,6 +117,7 @@ export type StrLike = string | (() => string);
 export interface SurfaceHandle {
     id?: IdLike;
     kind?: StrLike;
+
     [key: string]: unknown;
 }
 
@@ -159,6 +161,7 @@ export interface PrimitiveHandle extends SurfaceHandle {
      * Physics sugar (provided by wrapper).
      */
     applyImpulse?(v: Vec3): void;
+
     applyCentralForce?(v: Vec3): void;
 
     /**
@@ -167,9 +170,11 @@ export interface PrimitiveHandle extends SurfaceHandle {
      *  - g.velocity(v) -> void
      */
     velocity?(): Vec3 | undefined;
+
     velocity?(v: Vec3): void;
 
     position?(): Vec3 | undefined;
+
     position?(p: Vec3): void;
 
     teleport?(p: Vec3): void;
@@ -185,9 +190,11 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
     name(v: string): this;
 
     pos(x: number, y: number, z: number): this;
+
     pos(v: Vec3): this;
 
     rot(v: Vec3 | Vec4): this;
+
     scale(v: Vec3 | number): this;
 
     material(m: MaterialCfg | unknown): this;
@@ -196,8 +203,11 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
      * Physics sugar. Writes to cfg.physics.
      */
     physics(mass?: number, opts?: Omit<PhysicsCfg, "mass"> & Record<string, unknown>): this;
+
     mass(v: number): this;
+
     lockRotation(v: boolean): this;
+
     kinematic(v: boolean): this;
 
     /**
@@ -205,7 +215,9 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
      * Some fields may be ignored depending on primitive type.
      */
     size(v: number): this;
+
     radius(v: number): this;
+
     height(v: number): this;
 
     attach(v?: boolean): this;
@@ -226,15 +238,20 @@ export interface PrimitivesApi {
     create(cfg: PrimitiveCfgBase): PrimitiveHandle;
 
     box(cfg?: BoxCfg): PrimitiveHandle;
+
     cube(cfg?: BoxCfg): PrimitiveHandle;
+
     sphere(cfg?: SphereCfg): PrimitiveHandle;
+
     cylinder(cfg?: CylinderCfg): PrimitiveHandle;
+
     capsule(cfg?: CapsuleCfg): PrimitiveHandle;
 
     /**
      * Load model via engine.mesh().create({type:"model", path:"..."}).
      */
     loadModel(path: string, cfg?: PrimitiveCfgBase): PrimitiveHandle;
+
     loadModel(cfg: PrimitiveCfgBase & { path: string }): PrimitiveHandle;
 
     many(list: PrimitiveCfgBase[]): PrimitiveHandle[];
@@ -262,9 +279,13 @@ export interface PrimitivesApi {
      * Sugar aliases (if you add them in Primitives.js export):
      */
     box$(): PrimitiveBuilder<BoxCfg>;
+
     cube$(): PrimitiveBuilder<BoxCfg>;
+
     sphere$(): PrimitiveBuilder<SphereCfg>;
+
     cylinder$(): PrimitiveBuilder<CylinderCfg>;
+
     capsule$(): PrimitiveBuilder<CapsuleCfg>;
 
     /** Model builder (type="model"). */

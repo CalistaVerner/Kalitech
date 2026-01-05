@@ -13,10 +13,10 @@ const DEFAULT_CONFIG = {
     },
 
     dataConfig: {
-        materials: { path: "data/materials.json" },
-        camera:    { path: "data/camera/camera.config.json" },
-        movement:  { path: "data/player/movement.config.json" },
-        player: { path: "data/player.json" }
+        materials: {path: "data/materials.json"},
+        camera: {path: "data/camera/camera.config.json"},
+        movement: {path: "data/player/movement.config.json"},
+        player: {path: "data/player.json"}
     },
 
     builtins: {
@@ -55,9 +55,16 @@ function ensureRootState(root) {
     if (!root.dataConfigApi) root.dataConfigApi = null;
     return root;
 }
+
 ensureRootState(K);
 
-function safeJson(v) { try { return JSON.stringify(v); } catch (_) { return String(v); } }
+function safeJson(v) {
+    try {
+        return JSON.stringify(v);
+    } catch (_) {
+        return String(v);
+    }
+}
 
 function deepMergePlain(dst, src) {
     if (!src || typeof src !== "object") return dst;
@@ -77,13 +84,16 @@ function parseSemver(v) {
     if (!m) return null;
     return [m[1] | 0, m[2] | 0, m[3] | 0];
 }
+
 function semverGte(a, b) {
-    const A = parseSemver(String(a || "")); const B = parseSemver(String(b || ""));
+    const A = parseSemver(String(a || ""));
+    const B = parseSemver(String(b || ""));
     if (!A || !B) return true;
     if (A[0] !== B[0]) return A[0] > B[0];
     if (A[1] !== B[1]) return A[1] > B[1];
     return A[2] >= B[2];
 }
+
 function readEngineVersion(engine) {
     try {
         if (!engine) return null;
@@ -93,12 +103,13 @@ function readEngineVersion(engine) {
             const info = engine.info();
             if (info && info.version) return String(info.version);
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     return null;
 }
 
 function createDeferredProxy(resolveFn, label) {
-    const state = { resolved: null };
+    const state = {resolved: null};
 
     function ensureResolved() {
         if (state.resolved) return state.resolved;
@@ -108,15 +119,16 @@ function createDeferredProxy(resolveFn, label) {
     }
 
     function makeChain(steps) {
-        return new Proxy(function () {}, {
+        return new Proxy(function () {
+        }, {
             get(_t, prop) {
                 if (prop === "__isDeferred") return true;
                 if (prop === "__label") return label;
                 if (prop === "then") return undefined;
-                return makeChain(steps.concat([{ type: "get", key: prop }]));
+                return makeChain(steps.concat([{type: "get", key: prop}]));
             },
             apply(_t, _thisArg, args) {
-                return makeChain(steps.concat([{ type: "call", args: args || [] }]));
+                return makeChain(steps.concat([{type: "call", args: args || []}]));
             }
         });
     }
@@ -129,7 +141,7 @@ function createDeferredProxy(resolveFn, label) {
                 if (typeof v === "function") return v.bind(api);
                 return v;
             }
-            return makeChain([{ type: "get", key: prop }]);
+            return makeChain([{type: "get", key: prop}]);
         }
     });
 }
@@ -148,11 +160,13 @@ function _readTextAsset(engine, path) {
             if (typeof a.text === "function") return a.text(path);
             if (typeof a.getText === "function") return a.getText(path);
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         const fs = engine && engine.fs && engine.fs();
         if (fs && typeof fs.readText === "function") return fs.readText(path);
-    } catch (_) {}
+    } catch (_) {
+    }
     return null;
 }
 
@@ -162,7 +176,9 @@ function _buildDataConfigApi(engine, cfgSection) {
     const cacheText = Object.create(null);
     const cacheJson = Object.create(null);
 
-    function list() { return Object.keys(cfg); }
+    function list() {
+        return Object.keys(cfg);
+    }
 
     function pathOf(name) {
         const k = String(name || "");
@@ -187,7 +203,10 @@ function _buildDataConfigApi(engine, cfgSection) {
         if (!p) return null;
         if (cacheJson[p] != null) return cacheJson[p];
         const txt = readText(name);
-        if (!txt) { cacheJson[p] = null; return null; }
+        if (!txt) {
+            cacheJson[p] = null;
+            return null;
+        }
         try {
             const obj = JSON.parse(String(txt));
             cacheJson[p] = obj;
@@ -217,14 +236,22 @@ function _buildDataConfigApi(engine, cfgSection) {
         if (!cfg[k]) return null;
         return {
             name: k,
-            get path() { return pathOf(k); },
-            text: function () { return readText(k); },
-            json: function () { return readJson(k); },
-            reload: function () { return reload(k); }
+            get path() {
+                return pathOf(k);
+            },
+            text: function () {
+                return readText(k);
+            },
+            json: function () {
+                return readJson(k);
+            },
+            reload: function () {
+                return reload(k);
+            }
         };
     }
 
-    const api = { list, get, pathOf, readText, readJson, reload, reloadAll };
+    const api = {list, get, pathOf, readText, readJson, reload, reloadAll};
 
     const keys = Object.keys(cfg);
     for (let i = 0; i < keys.length; i++) {
@@ -235,10 +262,16 @@ function _buildDataConfigApi(engine, cfgSection) {
     return api;
 }
 
-function _isObj(x) { return x && typeof x === "object"; }
+function _isObj(x) {
+    return x && typeof x === "object";
+}
 
 function _readJsonSafe(text) {
-    try { return JSON.parse(String(text == null ? "" : text)); } catch (_) { return null; }
+    try {
+        return JSON.parse(String(text == null ? "" : text));
+    } catch (_) {
+        return null;
+    }
 }
 
 function _dirOf(p) {
@@ -300,12 +333,13 @@ function normalizeMeta(exp, fallbackName, moduleId, engine) {
     const version = (src && src.version) ? String(src.version) : "0.0.0";
     const description = (src && src.description) ? String(src.description) : "";
     const engineMin = (src && src.engineMin) ? String(src.engineMin) : "";
-    return { name, globalName, version, description, engineMin };
+    return {name, globalName, version, description, engineMin};
 }
 
 function requireModule(moduleId) {
-    try { return require(moduleId); }
-    catch (e) {
+    try {
+        return require(moduleId);
+    } catch (e) {
         throw new Error("[builtin/bootstrap] require failed: " + moduleId + " :: " + (e && e.message ? e.message : e));
     }
 }
@@ -373,7 +407,10 @@ class KalitechBootstrap {
             K.dataConfigApi = _buildDataConfigApi(engine, K.dataConfig);
             if (expose) globalThis.DATA_CONFIG = K.dataConfigApi;
         } catch (e) {
-            try { LOG && LOG.error && LOG.error("[builtin/bootstrap] DATA_CONFIG init failed: " + (e && e.message ? e.message : e)); } catch (_) {}
+            try {
+                LOG && LOG.error && LOG.error("[builtin/bootstrap] DATA_CONFIG init failed: " + (e && e.message ? e.message : e));
+            } catch (_) {
+            }
         }
 
         for (const name of Object.keys(K.modules)) {
@@ -404,7 +441,10 @@ class KalitechBootstrap {
         const q = K._deferred;
         K._deferred = [];
         for (let i = 0; i < q.length; i++) {
-            try { q[i](engine); } catch (_) {}
+            try {
+                q[i](engine);
+            } catch (_) {
+            }
         }
 
         return true;
@@ -412,7 +452,10 @@ class KalitechBootstrap {
 
     whenEngine(fn) {
         if (K._engineAttached && K._engine) {
-            try { fn(K._engine); } catch (_) {}
+            try {
+                fn(K._engine);
+            } catch (_) {
+            }
             return true;
         }
         K._deferred.push(fn);

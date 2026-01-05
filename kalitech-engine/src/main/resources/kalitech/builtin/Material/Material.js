@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/Material.js
 // Author: Calista Verner
 "use strict";
 
@@ -95,7 +94,11 @@ class MaterialsRegistry {
     }
 
     keys() {
-        try { return Object.keys(this.loadDefs()); } catch (_) { return []; }
+        try {
+            return Object.keys(this.loadDefs());
+        } catch (_) {
+            return [];
+        }
     }
 
     base(name) {
@@ -132,7 +135,7 @@ class MaterialsRegistry {
         }
 
         if (isPlainJsObject(overrides)) {
-            return { params: shallowClone(overrides), scales: null };
+            return {params: shallowClone(overrides), scales: null};
         }
 
         return null;
@@ -149,7 +152,8 @@ class MaterialsRegistry {
 
         try {
             if (m && typeof m.__material === "function") m = m.__material();
-        } catch (_) {}
+        } catch (_) {
+        }
 
         if (!m) throw new Error("[MAT] expected Material, got: " + String(m));
 
@@ -238,8 +242,13 @@ class MaterialsRegistry {
 
     // ---------- sugar ----------
 
-    get(name, overrides = null) { return this.getMaterial(name, overrides); }
-    handle(name, overrides = null) { return this.getHandle(name, overrides); }
+    get(name, overrides = null) {
+        return this.getMaterial(name, overrides);
+    }
+
+    handle(name, overrides = null) {
+        return this.getHandle(name, overrides);
+    }
 
     preset(name, overrides) {
         const self = this;
@@ -248,10 +257,10 @@ class MaterialsRegistry {
 
         function fn(moreOverrides) {
             if (moreOverrides) {
-                const a = self.normalizeOverrides(ov) || { params: null, scales: null };
-                const b = self.normalizeOverrides(moreOverrides) || { params: null, scales: null };
+                const a = self.normalizeOverrides(ov) || {params: null, scales: null};
+                const b = self.normalizeOverrides(moreOverrides) || {params: null, scales: null};
 
-                const merged = { params: null, scales: null };
+                const merged = {params: null, scales: null};
                 if (a.params || b.params) merged.params = Object.assign({}, a.params || null, b.params || null);
                 if (a.scales || b.scales) merged.scales = Object.assign({}, a.scales || null, b.scales || null);
 
@@ -262,10 +271,10 @@ class MaterialsRegistry {
 
         fn.handle = function (moreOverrides) {
             if (moreOverrides) {
-                const a = self.normalizeOverrides(ov) || { params: null, scales: null };
-                const b = self.normalizeOverrides(moreOverrides) || { params: null, scales: null };
+                const a = self.normalizeOverrides(ov) || {params: null, scales: null};
+                const b = self.normalizeOverrides(moreOverrides) || {params: null, scales: null};
 
-                const merged = { params: null, scales: null };
+                const merged = {params: null, scales: null};
                 if (a.params || b.params) merged.params = Object.assign({}, a.params || null, b.params || null);
                 if (a.scales || b.scales) merged.scales = Object.assign({}, a.scales || null, b.scales || null);
 
@@ -280,7 +289,7 @@ class MaterialsRegistry {
     }
 
     params(name, paramsObj) {
-        return this.getMaterial(name, { params: paramsObj || null });
+        return this.getMaterial(name, {params: paramsObj || null});
     }
 
     configure(cfg) {

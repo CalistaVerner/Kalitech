@@ -5,10 +5,15 @@ declare namespace KalitechLog {
 
     export interface LoggerMethods {
         trace(...args: LogArg[]): string;
+
         debug(...args: LogArg[]): string;
+
         info(...args: LogArg[]): string;
+
         warn(...args: LogArg[]): string;
+
         error(...args: LogArg[]): string;
+
         fatal(...args: LogArg[]): string;
     }
 
@@ -20,6 +25,7 @@ declare namespace KalitechLog {
         enabled(): boolean;
 
         child(scopeName: string): ScopedLogger;
+
         scope(scopeName: string): ScopedLogger;
 
         safeJson(v: unknown): string;

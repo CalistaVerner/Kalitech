@@ -13,7 +13,8 @@
 > * `bodyId()` / `bodyRef()` (доступ к id‑based физике)
 >
 > При этом **физическое тело создаётся на Java‑стороне** (через `mesh.create({ physics: ... })`).
-> JS‑обёртка НЕ создаёт второе тело и работает через **bodyId** (через `PHYS.ref(bodyId)` либо `engine.physics()` id‑API).
+> JS‑обёртка НЕ создаёт второе тело и работает через **bodyId** (через `PHYS.ref(bodyId)` либо `engine.physics()`
+> id‑API).
 
 ---
 
@@ -205,7 +206,8 @@ const m = Mesh.loadModel("Models/thing.obj", {
 });
 ```
 
-Если в вашей Java‑реализации `rot/scale` ещё не поддерживаются — добавьте их в `MeshApiImpl` (вы уже это делали в патче).
+Если в вашей Java‑реализации `rot/scale` ещё не поддерживаются — добавьте их в `MeshApiImpl` (вы уже это делали в
+патче).
 
 ---
 

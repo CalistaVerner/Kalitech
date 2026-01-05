@@ -3,8 +3,14 @@
 "use strict";
 
 function safeJson(v) {
-    try { return JSON.stringify(v); } catch (_) {}
-    try { return String(v); } catch (_) {}
+    try {
+        return JSON.stringify(v);
+    } catch (_) {
+    }
+    try {
+        return String(v);
+    } catch (_) {
+    }
     return "[unserializable]";
 }
 
@@ -38,7 +44,9 @@ function makePrefix(scope) {
 function makeApi(engine /*, K */) {
     const log = (engine && engine.log && typeof engine.log === "function") ? engine.log() : null;
 
-    function has(fn) { return !!(log && typeof log[fn] === "function"); }
+    function has(fn) {
+        return !!(log && typeof log[fn] === "function");
+    }
 
     function write(levelFn, scope, args) {
         const msg = makePrefix(scope) + normalizeArgs(args);
@@ -46,34 +54,66 @@ function makeApi(engine /*, K */) {
         try {
             if (has(levelFn)) log[levelFn](msg);
             else if (has("info")) log.info(msg);
-        } catch (_) {}
+        } catch (_) {
+        }
         return msg;
     }
 
-    function trace() { return write("trace", "", arguments); }
-    function debug() { return write("debug", "", arguments); }
-    function info()  { return write("info",  "", arguments); }
-    function warn()  { return write("warn",  "", arguments); }
-    function error() { return write("error", "", arguments); }
-    function fatal() { return write("fatal", "", arguments); }
+    function trace() {
+        return write("trace", "", arguments);
+    }
+
+    function debug() {
+        return write("debug", "", arguments);
+    }
+
+    function info() {
+        return write("info", "", arguments);
+    }
+
+    function warn() {
+        return write("warn", "", arguments);
+    }
+
+    function error() {
+        return write("error", "", arguments);
+    }
+
+    function fatal() {
+        return write("fatal", "", arguments);
+    }
 
     function scoped(scopeName) {
         const scope = String(scopeName || "").trim();
 
         const s = Object.freeze({
-            trace: function () { return write("trace", scope, arguments); },
-            debug: function () { return write("debug", scope, arguments); },
-            info:  function () { return write("info",  scope, arguments); },
-            warn:  function () { return write("warn",  scope, arguments); },
-            error: function () { return write("error", scope, arguments); },
-            fatal: function () { return write("fatal", scope, arguments); },
+            trace: function () {
+                return write("trace", scope, arguments);
+            },
+            debug: function () {
+                return write("debug", scope, arguments);
+            },
+            info: function () {
+                return write("info", scope, arguments);
+            },
+            warn: function () {
+                return write("warn", scope, arguments);
+            },
+            error: function () {
+                return write("error", scope, arguments);
+            },
+            fatal: function () {
+                return write("fatal", scope, arguments);
+            },
             scope: scope
         });
 
         return s;
     }
 
-    function enabled() { return !!log; }
+    function enabled() {
+        return !!log;
+    }
 
     return Object.freeze({
         enabled,

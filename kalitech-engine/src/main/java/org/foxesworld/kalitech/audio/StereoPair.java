@@ -1,7 +1,10 @@
 package org.foxesworld.kalitech.audio;
 
-import com.jme3.audio.*;
 import com.jme3.asset.AssetManager;
+import com.jme3.audio.AudioData;
+import com.jme3.audio.AudioKey;
+import com.jme3.audio.AudioNode;
+import com.jme3.audio.Filter;
 import com.jme3.math.Vector3f;
 
 import java.util.Objects;
@@ -26,13 +29,32 @@ final class StereoPair {
         this.cfg = Objects.requireNonNull(cfg, "cfg");
     }
 
-    void setConfig(StereoConfig cfg) { this.cfg = Objects.requireNonNull(cfg); }
+    private static void enforceMono(AudioNode n, String tag) {
+        AudioData d = n.getAudioData();
+        if (d != null && d.getChannels() > 1) {
+            throw new IllegalStateException("SpatialStereoAudioNode: " + tag + " channel must be MONO. Got " + d.getChannels() + "ch");
+        }
+    }
 
-    boolean isAttached() { return left != null && right != null; }
+    void setConfig(StereoConfig cfg) {
+        this.cfg = Objects.requireNonNull(cfg);
+    }
 
-    AudioKey getLeftKey() { return leftKey; }
-    AudioKey getRightKey() { return rightKey; }
-    int getDataTypeOrdinal() { return type == AudioData.DataType.Stream ? 1 : 0; }
+    boolean isAttached() {
+        return left != null && right != null;
+    }
+
+    AudioKey getLeftKey() {
+        return leftKey;
+    }
+
+    AudioKey getRightKey() {
+        return rightKey;
+    }
+
+    int getDataTypeOrdinal() {
+        return type == AudioData.DataType.Stream ? 1 : 0;
+    }
 
     void attach(AssetManager am, String leftFile, String rightFile, AudioData.DataType type) {
         Objects.requireNonNull(am, "assetManager");
@@ -66,13 +88,6 @@ final class StereoPair {
         owner.attachChild(right);
     }
 
-    private static void enforceMono(AudioNode n, String tag) {
-        AudioData d = n.getAudioData();
-        if (d != null && d.getChannels() > 1) {
-            throw new IllegalStateException("SpatialStereoAudioNode: " + tag + " channel must be MONO. Got " + d.getChannels() + "ch");
-        }
-    }
-
     void setLocalOffsets(Vector3f leftOffset, Vector3f rightOffset) {
         if (!isAttached()) return;
         left.setLocalTranslation(leftOffset);
@@ -103,15 +118,80 @@ final class StereoPair {
     }
 
     // mirror params
-    void setLooping(boolean v){ if(isAttached()){ left.setLooping(v); right.setLooping(v);} }
-    void setVolume(float v){ if(isAttached()){ left.setVolume(v); right.setVolume(v);} }
-    void setPitch(float v){ if(isAttached()){ left.setPitch(v); right.setPitch(v);} }
-    void setTimeOffset(float v){ if(isAttached()){ left.setTimeOffset(v); right.setTimeOffset(v);} }
-    void setDirectional(boolean v){ if(isAttached()){ left.setDirectional(v); right.setDirectional(v);} }
-    void setDirection(Vector3f v){ if(isAttached()){ left.setDirection(v); right.setDirection(v);} }
-    void setMaxDistance(float v){ if(isAttached()){ left.setMaxDistance(v); right.setMaxDistance(v);} }
-    void setRefDistance(float v){ if(isAttached()){ left.setRefDistance(v); right.setRefDistance(v);} }
-    void setReverbEnabled(boolean v){ if(isAttached()){ left.setReverbEnabled(v); right.setReverbEnabled(v);} }
-    void setReverbFilter(Filter f){ if(isAttached()){ left.setReverbFilter(f); right.setReverbFilter(f);} }
-    void setDryFilter(Filter f){ if(isAttached()){ left.setDryFilter(f); right.setDryFilter(f);} }
+    void setLooping(boolean v) {
+        if (isAttached()) {
+            left.setLooping(v);
+            right.setLooping(v);
+        }
+    }
+
+    void setVolume(float v) {
+        if (isAttached()) {
+            left.setVolume(v);
+            right.setVolume(v);
+        }
+    }
+
+    void setPitch(float v) {
+        if (isAttached()) {
+            left.setPitch(v);
+            right.setPitch(v);
+        }
+    }
+
+    void setTimeOffset(float v) {
+        if (isAttached()) {
+            left.setTimeOffset(v);
+            right.setTimeOffset(v);
+        }
+    }
+
+    void setDirectional(boolean v) {
+        if (isAttached()) {
+            left.setDirectional(v);
+            right.setDirectional(v);
+        }
+    }
+
+    void setDirection(Vector3f v) {
+        if (isAttached()) {
+            left.setDirection(v);
+            right.setDirection(v);
+        }
+    }
+
+    void setMaxDistance(float v) {
+        if (isAttached()) {
+            left.setMaxDistance(v);
+            right.setMaxDistance(v);
+        }
+    }
+
+    void setRefDistance(float v) {
+        if (isAttached()) {
+            left.setRefDistance(v);
+            right.setRefDistance(v);
+        }
+    }
+
+    void setReverbEnabled(boolean v) {
+        if (isAttached()) {
+            left.setReverbEnabled(v);
+            right.setReverbEnabled(v);
+        }
+    }
+
+    void setReverbFilter(Filter f) {
+        if (isAttached()) {
+            left.setReverbFilter(f);
+            right.setReverbFilter(f);
+        }
+    }
+
+    void setDryFilter(Filter f) {
+        if (isAttached()) {
+            left.setDryFilter(f);
+            right.setDryFilter(f);
+        }
+    }
 }

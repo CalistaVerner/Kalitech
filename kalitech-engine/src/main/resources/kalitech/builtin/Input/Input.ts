@@ -45,47 +45,58 @@ export interface InputApi {
     consumeSnapshot(): InputSnapshot | any;
 
     keyDown(key: string | number): boolean;
+
     keyCode(name: string): number;
 
     mouseX(): number;
+
     mouseY(): number;
 
     cursorPosition(): Vec2;
 
     mouseDx(): number;
+
     mouseDy(): number;
 
     mouseDX(): number;
+
     mouseDY(): number;
 
     mouseDelta(): Delta2;
+
     consumeMouseDelta(): Delta2;
 
     wheelDelta(): number;
+
     consumeWheelDelta(): number;
 
     mouseDown(button: number): boolean;
 
     cursorVisible(): boolean;
+
     cursorVisible(visible: boolean): InputApi;
 
     grabMouse(grab: boolean): InputApi;
+
     grabbed(): boolean;
 
     endFrame(): InputApi;
 
     beginFrame(): InputSnapshot | any;
+
     poll(): InputSnapshot | any;
 
     lastSnapshot(): InputSnapshot | null | any;
 
     pressed(key: string | number): boolean;
+
     released(key: string | number): boolean;
 
     mousePos(): Vec2;
+
     delta(): Delta2;
 }
 
 declare const INP: InputApi;
 export default INP;
-export { INP };
+export {INP};

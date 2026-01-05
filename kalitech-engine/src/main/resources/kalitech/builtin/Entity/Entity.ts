@@ -48,6 +48,7 @@ declare namespace KalitechEntity {
     export interface SurfacePhysicsInlineCfg {
         mass?: number;
         lockRotation?: boolean;
+
         [k: string]: unknown;
     }
 
@@ -96,6 +97,7 @@ declare namespace KalitechEntity {
         halfExtents?: Vec3;
         radius?: number;
         height?: number;
+
         [k: string]: unknown;
     }
 
@@ -179,7 +181,9 @@ declare namespace KalitechEntity {
 
         // id helpers
         id(): number;
+
         surfaceHandleId(): number;
+
         bodyHandleId(): number;
 
         /**
@@ -204,26 +208,38 @@ declare namespace KalitechEntity {
 
         // transforms
         position(): unknown;
+
         position(v: Vec3): unknown;
+
         warp(pos: Vec3): unknown;
+
         velocity(): unknown;
+
         velocity(v: Vec3): unknown;
+
         yaw(yawRad: number): unknown;
 
         // forces
         applyImpulse(imp: Vec3): unknown;
+
         applyCentralForce(force: Vec3): unknown;
+
         applyTorque(torque: Vec3): unknown;
+
         angularVelocity(): unknown;
+
         angularVelocity(v: Vec3): unknown;
+
         clearForces(): unknown;
 
         // flags / collision
         lockRotation(lock?: boolean): unknown;
+
         collisionGroups(group: number, mask: number): unknown;
 
         // queries
         raycast(cfg: unknown): unknown;
+
         raycastDown(distance?: number, startOffsetY?: number): unknown;
 
         /**
@@ -237,6 +253,7 @@ declare namespace KalitechEntity {
          * - components(builderFn)
          */
         components(map: Record<string, unknown>): this;
+
         components(builder: (ctx: {
             entityId: number;
             surface: unknown | null;
@@ -253,6 +270,7 @@ declare namespace KalitechEntity {
 
         // JS coercion helpers (for Graal)
         valueOf(): number;
+
         toString(): string;
     }
 
@@ -264,9 +282,11 @@ declare namespace KalitechEntity {
         merge(cfg: Partial<EntityCreateCfg>): this;
 
         name(v: string): this;
+
         debug(v?: boolean): this;
 
         surface(v: Partial<SurfaceCfg>): this;
+
         body(v: Partial<BodyCfg>): this;
 
         attachSurface(v?: boolean): this;
@@ -288,13 +308,18 @@ declare namespace KalitechEntity {
         $(presetName?: string): EntBuilder;
 
         player$(cfg?: Partial<EntityCreateCfg>): EntBuilder;
+
         capsule$(cfg?: Partial<EntityCreateCfg>): EntBuilder;
+
         box$(cfg?: Partial<EntityCreateCfg>): EntBuilder;
+
         sphere$(cfg?: Partial<EntityCreateCfg>): EntBuilder;
 
         // config
         preset(name: string, cfg: Partial<EntityCreateCfg>): this;
+
         bodyDefaults(cfg: Partial<BodyCfg>): this;
+
         presets(): string[];
 
         // utility

@@ -48,6 +48,7 @@ export type MaterialOverrides = MaterialOverridesFull | MaterialOverridesShort |
 export interface MaterialHandle {
     id?: number | (() => number);
     __material?: () => unknown;
+
     [key: string]: unknown;
 }
 
@@ -64,14 +65,13 @@ export type HostMaterial = unknown;
  * - carries some metadata for debugging/tooling
  */
 export interface MaterialPresetFn {
-    (overrides?: MaterialOverrides): HostMaterial;
     handle: (overrides?: MaterialOverrides) => MaterialHandle;
-
     /** Name of base material (best-effort) */
     name?: string;
-
     /** Original preset overrides (best-effort) */
     overrides?: MaterialOverridesFull | null;
+
+    (overrides?: MaterialOverrides): HostMaterial;
 }
 
 /**

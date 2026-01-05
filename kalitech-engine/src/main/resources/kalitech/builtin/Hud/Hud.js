@@ -28,13 +28,24 @@ function isObj(o) {
     return !!o && typeof o === "object" &&
         (Object.getPrototypeOf(o) === Object.prototype || Object.getPrototypeOf(o) === null);
 }
-function num(v, fb = 0) { v = +v; return Number.isFinite(v) ? v : fb; }
-function bool(v, fb = true) { return typeof v === "boolean" ? v : fb; }
+
+function num(v, fb = 0) {
+    v = +v;
+    return Number.isFinite(v) ? v : fb;
+}
+
+function bool(v, fb = true) {
+    return typeof v === "boolean" ? v : fb;
+}
+
 function idOf(h) {
     return h && typeof h.id === "function" ? h.id() :
         h && h.id != null ? h.id : 0;
 }
-function round(v) { return (v + 0.5) | 0; }
+
+function round(v) {
+    return (v + 0.5) | 0;
+}
 
 // ------------------------------------------------------------
 // coords + placement
@@ -56,7 +67,7 @@ function parsePlace(cfg) {
     const a = String(p.anchor || "tl");
     const x = num(p.x != null ? p.x : p.mx, 0);
     const y = num(p.y != null ? p.y : p.my, 0);
-    return { a, x, y };
+    return {a, x, y};
 }
 
 // anchors for rect (panel)
@@ -68,21 +79,48 @@ function placeRect(containerW, containerH, w, h, place) {
     let x = 0, y = 0;
 
     switch (a) {
-        case "tr": x = containerW - w; y = 0; break;
-        case "bl": x = 0; y = containerH - h; break;
-        case "br": x = containerW - w; y = containerH - h; break;
+        case "tr":
+            x = containerW - w;
+            y = 0;
+            break;
+        case "bl":
+            x = 0;
+            y = containerH - h;
+            break;
+        case "br":
+            x = containerW - w;
+            y = containerH - h;
+            break;
 
-        case "t":  x = (containerW - w) * 0.5; y = 0; break;
-        case "b":  x = (containerW - w) * 0.5; y = containerH - h; break;
-        case "l":  x = 0; y = (containerH - h) * 0.5; break;
-        case "r":  x = containerW - w; y = (containerH - h) * 0.5; break;
-        case "c":  x = (containerW - w) * 0.5; y = (containerH - h) * 0.5; break;
+        case "t":
+            x = (containerW - w) * 0.5;
+            y = 0;
+            break;
+        case "b":
+            x = (containerW - w) * 0.5;
+            y = containerH - h;
+            break;
+        case "l":
+            x = 0;
+            y = (containerH - h) * 0.5;
+            break;
+        case "r":
+            x = containerW - w;
+            y = (containerH - h) * 0.5;
+            break;
+        case "c":
+            x = (containerW - w) * 0.5;
+            y = (containerH - h) * 0.5;
+            break;
 
         case "tl":
-        default:   x = 0; y = 0; break;
+        default:
+            x = 0;
+            y = 0;
+            break;
     }
 
-    return { x: round(x + ox), y: round(y + oy) };
+    return {x: round(x + ox), y: round(y + oy)};
 }
 
 // anchors for point (label). We DO NOT know label size reliably.
@@ -94,21 +132,48 @@ function placePoint(containerW, containerH, place) {
     let x = 0, y = 0;
 
     switch (a) {
-        case "tr": x = containerW; y = 0; break;
-        case "bl": x = 0; y = containerH; break;
-        case "br": x = containerW; y = containerH; break;
+        case "tr":
+            x = containerW;
+            y = 0;
+            break;
+        case "bl":
+            x = 0;
+            y = containerH;
+            break;
+        case "br":
+            x = containerW;
+            y = containerH;
+            break;
 
-        case "t":  x = containerW * 0.5; y = 0; break;
-        case "b":  x = containerW * 0.5; y = containerH; break;
-        case "l":  x = 0; y = containerH * 0.5; break;
-        case "r":  x = containerW; y = containerH * 0.5; break;
-        case "c":  x = containerW * 0.5; y = containerH * 0.5; break;
+        case "t":
+            x = containerW * 0.5;
+            y = 0;
+            break;
+        case "b":
+            x = containerW * 0.5;
+            y = containerH;
+            break;
+        case "l":
+            x = 0;
+            y = containerH * 0.5;
+            break;
+        case "r":
+            x = containerW;
+            y = containerH * 0.5;
+            break;
+        case "c":
+            x = containerW * 0.5;
+            y = containerH * 0.5;
+            break;
 
         case "tl":
-        default:   x = 0; y = 0; break;
+        default:
+            x = 0;
+            y = 0;
+            break;
     }
 
-    return { x: round(x + ox), y: round(y + oy) };
+    return {x: round(x + ox), y: round(y + oy)};
 }
 
 // ------------------------------------------------------------
@@ -131,17 +196,34 @@ class Element {
         this._h = 0;
     }
 
-    text(v) { this._api.setText(this.handle, String(v ?? "")); return this; }
-    visible(v) { this._api.setVisible(this.handle, !!v); return this; }
-    pos(x, y) { this._api.setPosition(this.handle, num(x), num(y)); return this; }
+    text(v) {
+        this._api.setText(this.handle, String(v ?? ""));
+        return this;
+    }
+
+    visible(v) {
+        this._api.setVisible(this.handle, !!v);
+        return this;
+    }
+
+    pos(x, y) {
+        this._api.setPosition(this.handle, num(x), num(y));
+        return this;
+    }
+
     size(w, h) {
-        w = num(w); h = num(h);
-        this._w = w; this._h = h;
+        w = num(w);
+        h = num(h);
+        this._w = w;
+        this._h = h;
         this._api.setSize(this.handle, w, h);
         return this;
     }
 
-    remove() { this._api.remove(this.handle); return this; }
+    remove() {
+        this._api.remove(this.handle);
+        return this;
+    }
 
     fontSize(px) {
         if (typeof this._api.setFontSize === "function") this._api.setFontSize(this.handle, num(px, 16));
@@ -149,7 +231,10 @@ class Element {
     }
 
     // store place for relayout (used by Layer)
-    _setPlace(place) { this._place = place; return this; }
+    _setPlace(place) {
+        this._place = place;
+        return this;
+    }
 }
 
 class Panel extends Element {
@@ -162,20 +247,31 @@ class Panel extends Element {
         this.content = null;
 
         // flow state
-        this.flow = { y: 0, gap: meta.gap, fontSize: meta.fontSize };
+        this.flow = {y: 0, gap: meta.gap, fontSize: meta.fontSize};
 
         // panel-local registry (convenience)
         this._kids = Object.create(null);
     }
 
     // panel registry
-    get(id) { return this._kids[String(id)] || null; }
-    has(id) { return !!this._kids[String(id)]; }
+    get(id) {
+        return this._kids[String(id)] || null;
+    }
+
+    has(id) {
+        return !!this._kids[String(id)];
+    }
+
     drop(id, remove = false) {
         const k = String(id);
         const el = this._kids[k];
         if (el) {
-            if (remove) { try { this._api.remove(el.handle); } catch (e) {} }
+            if (remove) {
+                try {
+                    this._api.remove(el.handle);
+                } catch (e) {
+                }
+            }
             delete this._kids[k];
         }
         return el || null;
@@ -183,13 +279,13 @@ class Panel extends Element {
 
     // helpers
     text(id, text, cfg) {
-        const el = this.layer.text(Object.assign({}, cfg || {}, { parent: this, id, text }));
+        const el = this.layer.text(Object.assign({}, cfg || {}, {parent: this, id, text}));
         if (id != null) this._kids[String(id)] = el;
         return el;
     }
 
     stack(id, text, cfg) {
-        const el = this.layer.stackText(this, Object.assign({}, cfg || {}, { id, text }));
+        const el = this.layer.stackText(this, Object.assign({}, cfg || {}, {id, text}));
         if (id != null) this._kids[String(id)] = el;
         return el;
     }
@@ -201,7 +297,10 @@ class Panel extends Element {
         return el;
     }
 
-    resetFlow(y = 0) { this.flow.y = num(y, 0); return this; }
+    resetFlow(y = 0) {
+        this.flow.y = num(y, 0);
+        return this;
+    }
 }
 
 // ------------------------------------------------------------
@@ -215,7 +314,7 @@ class UIBuilder {
     }
 
     panel(id, cfg) {
-        const p = this.layer.panel(Object.assign({}, cfg || {}, { id }));
+        const p = this.layer.panel(Object.assign({}, cfg || {}, {id}));
         this.panel = p;
         return this;
     }
@@ -228,7 +327,7 @@ class UIBuilder {
 
     text(id, text, cfg) {
         if (this.panel && this.panel.kind === "panel") this.panel.text(id, text, cfg);
-        else this.layer.text(Object.assign({}, cfg || {}, { id, text }));
+        else this.layer.text(Object.assign({}, cfg || {}, {id, text}));
         return this;
     }
 
@@ -240,7 +339,9 @@ class UIBuilder {
         return this;
     }
 
-    done() { return this.panel; }
+    done() {
+        return this.panel;
+    }
 }
 
 // ------------------------------------------------------------
@@ -256,14 +357,21 @@ class Layer {
 
         this._reg = Object.create(null);       // id -> Element
         this._placed = [];                     // list of elements that have place stored (for relayout)
-        this._lastVp = { w: 0, h: 0 };          // cached viewport
+        this._lastVp = {w: 0, h: 0};          // cached viewport
     }
 
-    destroy() { this._api.destroyLayer(this.handle); }
-    clear() { this._api.clearLayer(this.handle); }
+    destroy() {
+        this._api.destroyLayer(this.handle);
+    }
+
+    clear() {
+        this._api.clearLayer(this.handle);
+    }
 
     // builder
-    ui() { return new UIBuilder(this); }
+    ui() {
+        return new UIBuilder(this);
+    }
 
     // registry
     _regPut(id, el) {
@@ -273,13 +381,25 @@ class Layer {
         el.key = k;
         return el;
     }
-    get(id) { return this._reg[String(id)] || null; }
-    has(id) { return !!this._reg[String(id)]; }
+
+    get(id) {
+        return this._reg[String(id)] || null;
+    }
+
+    has(id) {
+        return !!this._reg[String(id)];
+    }
+
     drop(id, remove = false) {
         const k = String(id);
         const el = this._reg[k];
         if (el) {
-            if (remove) { try { this._api.remove(el.handle); } catch (e) {} }
+            if (remove) {
+                try {
+                    this._api.remove(el.handle);
+                } catch (e) {
+                }
+            }
             delete this._reg[k];
         }
         return el || null;
@@ -291,6 +411,7 @@ class Layer {
         if (el) el.text(text);
         return el;
     }
+
     setVisible(id, v) {
         const el = this.get(id);
         if (el) el.visible(v);
@@ -306,7 +427,9 @@ class Layer {
     }
 
     // coordinate mode (inherits hud)
-    _coord() { return this._hud._coord; }
+    _coord() {
+        return this._hud._coord;
+    }
 
     // mark element as placed for relayout
     _trackPlaced(el) {
@@ -409,7 +532,8 @@ class Layer {
         };
 
         const panel = new Panel(this._hud, hPanel, this, meta);
-        panel._w = w; panel._h = h;
+        panel._w = w;
+        panel._h = h;
 
         if (!bool(c.visible, true)) panel.visible(false);
 
@@ -428,14 +552,16 @@ class Layer {
         return panel;
     }
 
-    rect(cfg = {}) { return this.panel(cfg); }
+    rect(cfg = {}) {
+        return this.panel(cfg);
+    }
 
     // --------------------------------------------------------
     // text / label
     // --------------------------------------------------------
 
     _parentInfo(parent0) {
-        if (!parent0) return { ph: null, insetX: 0, insetY: 0, cw: 0, ch: 0 };
+        if (!parent0) return {ph: null, insetX: 0, insetY: 0, cw: 0, ch: 0};
 
         if (parent0 && parent0.kind === "panel") {
             const m = parent0.meta;
@@ -448,7 +574,7 @@ class Layer {
             };
         }
 
-        return { ph: parent0.handle, insetX: 0, insetY: 0, cw: 0, ch: 0 };
+        return {ph: parent0.handle, insetX: 0, insetY: 0, cw: 0, ch: 0};
     }
 
     /**
@@ -503,7 +629,9 @@ class Layer {
         return el;
     }
 
-    label(cfg = {}) { return this.text(cfg); }
+    label(cfg = {}) {
+        return this.text(cfg);
+    }
 
     // --------------------------------------------------------
     // flow stacking
@@ -571,7 +699,10 @@ function HudModule(engine, opts) {
             engineMin: "0.1.0"
         },
 
-        coord(mode) { this._coord = String(mode || "topLeft"); return this; },
+        coord(mode) {
+            this._coord = String(mode || "topLeft");
+            return this;
+        },
 
         layer(name = "dev") {
             return new Layer(hud, api.createLayer(String(name)));
@@ -579,18 +710,22 @@ function HudModule(engine, opts) {
 
         viewport() {
             const vp = api.viewport();
-            return vp ? { w: num(vp.w), h: num(vp.h) } : { w: 0, h: 0 };
+            return vp ? {w: num(vp.w), h: num(vp.h)} : {w: 0, h: 0};
         },
 
-        clearLayer(l) { api.clearLayer(l.handle || l); },
-        destroyLayer(l) { api.destroyLayer(l.handle || l); }
+        clearLayer(l) {
+            api.clearLayer(l.handle || l);
+        },
+        destroyLayer(l) {
+            api.destroyLayer(l.handle || l);
+        }
     };
 
     return hud;
 }
 
 module.exports = HudModule;
-module.exports.META = { name: "hud", globalName: "HUD", version: "2.4.0" };
+module.exports.META = {name: "hud", globalName: "HUD", version: "2.4.0"};
 
 /* ------------------------------------------------------------
 USAGE (recommended):

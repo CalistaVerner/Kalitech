@@ -7,10 +7,13 @@ import com.jme3.audio.ListenerParam;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 
-/** Syncs Kalitech camera pose -> jME listener each frame. */
+/**
+ * Syncs Kalitech camera pose -> jME listener each frame.
+ */
 public final class KalitechAudioBridge {
 
-    private KalitechAudioBridge() {}
+    private KalitechAudioBridge() {
+    }
 
     public static void syncListener(Vector3f worldPos, Quaternion worldRot) {
         syncListener(worldPos, worldRot, null);

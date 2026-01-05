@@ -3,7 +3,8 @@ package org.foxesworld.kalitech.audio;
 import com.jme3.math.Vector3f;
 
 final class StereoMath {
-    private StereoMath() {}
+    private StereoMath() {
+    }
 
     static boolean isFinite(Vector3f v) {
         if (v == null) return false;

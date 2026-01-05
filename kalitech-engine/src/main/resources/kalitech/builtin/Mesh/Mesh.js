@@ -32,8 +32,14 @@
  *     This is safe only if PhysicsApiImpl caches body per surfaceId.
  */
 
-function _isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-function _num(v, fb) { const n = +v; return Number.isFinite(n) ? n : (fb || 0); }
+function _isObj(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function _num(v, fb) {
+    const n = +v;
+    return Number.isFinite(n) ? n : (fb || 0);
+}
 
 function _normalizePos(p) {
     if (Array.isArray(p)) return [_num(p[0], 0), _num(p[1], 0), _num(p[2], 0)];
@@ -49,7 +55,7 @@ function _normalizePos(p) {
 function _normalizePhysics(cfg) {
     let p = cfg.physics;
 
-    if (typeof p === "number") p = { mass: p };
+    if (typeof p === "number") p = {mass: p};
     else if (!_isObj(p)) p = (_isObj(p) ? p : undefined);
 
     // legacy/top-level compatibility
@@ -135,12 +141,12 @@ function withType(type, cfg) {
 
 function unshadedColor(rgba) {
     const c = Array.isArray(rgba) ? rgba : [1, 1, 1, 1];
-    return { def: "Common/MatDefs/Misc/Unshaded.j3md", params: { Color: c } };
+    return {def: "Common/MatDefs/Misc/Unshaded.j3md", params: {Color: c}};
 }
 
 function physics(mass, opts) {
     const o = opts || {};
-    const p = { mass: (mass != null ? mass : 0) };
+    const p = {mass: (mass != null ? mass : 0)};
 
     if (o.enabled != null) p.enabled = !!o.enabled;
     if (o.lockRotation != null) p.lockRotation = !!o.lockRotation;
@@ -173,19 +179,22 @@ function _surfaceId(handle) {
     try {
         if (typeof handle.id === "number") return handle.id | 0;
         if (typeof handle.surfaceId === "number") return handle.surfaceId | 0;
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof handle.id === "function") {
             const v = handle.id();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof handle.surfaceId === "function") {
             const v = handle.surfaceId();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     return 0;
 }
 
@@ -199,7 +208,8 @@ function _resolveBodyIdBySurface(engine, surfaceHandleOrId) {
             const bid = s.attachedBody(sid);
             if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     try {
         const p = engine.physics && engine.physics();
@@ -207,7 +217,8 @@ function _resolveBodyIdBySurface(engine, surfaceHandleOrId) {
             const bid = p.bodyOfSurface(sid);
             if (typeof bid === "number" && isFinite(bid) && bid > 0) return bid | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     return 0;
 }
@@ -222,7 +233,8 @@ function _resolveBodyHandleById(engine, bodyId) {
             const r = globalThis.PHYS.ref(bid);
             if (r != null) return r;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     // legacy: engine.physics().handle(id)
     try {
@@ -231,7 +243,8 @@ function _resolveBodyHandleById(engine, bodyId) {
             const h = p.handle(bid);
             if (h != null) return h;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     // last resort: physics ops might accept id directly
     return bid;
@@ -245,11 +258,13 @@ function _bodyIdFromHandle(bodyOrId) {
             const v = bodyOrId.valueOf();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof bodyOrId.id === "number") return bodyOrId.id | 0;
         if (typeof bodyOrId.bodyId === "number") return bodyOrId.bodyId | 0;
-    } catch (_) {}
+    } catch (_) {
+    }
     try {
         if (typeof bodyOrId.id === "function") {
             const v = bodyOrId.id();
@@ -263,7 +278,8 @@ function _bodyIdFromHandle(bodyOrId) {
             const v = bodyOrId.getId();
             if (typeof v === "number" && isFinite(v)) return v | 0;
         }
-    } catch (_) {}
+    } catch (_) {
+    }
     return 0;
 }
 
@@ -299,14 +315,15 @@ function wrapSurface(engine, handle, cfg) {
             try {
                 const p = engine.physics && engine.physics();
                 if (p && typeof p.body === "function") {
-                    const b = p.body({ surface: handle, mass: massHint });
+                    const b = p.body({surface: handle, mass: massHint});
                     cachedBody = b || null;
                     // if body() returned handle, try extract id for id-based physics
                     const id = _bodyIdFromHandle(cachedBody);
                     if (id) cachedBodyId = id;
                     return cachedBody;
                 }
-            } catch (_) {}
+            } catch (_) {
+            }
         }
 
         return null;
@@ -326,7 +343,9 @@ function wrapSurface(engine, handle, cfg) {
         get(_t, prop) {
             if (prop === "__isPrimitiveWrapper") return true;
             if (prop === "__surface") return handle;
-            if (prop === "bodyId") return function bodyId() { return _bodyId() | 0; };
+            if (prop === "bodyId") return function bodyId() {
+                return _bodyId() | 0;
+            };
             if (prop === "bodyRef") return function bodyRef() {
                 const bid = _requireBodyId("bodyRef()");
                 // ensure cachedBody becomes the ref where possible
@@ -339,7 +358,10 @@ function wrapSurface(engine, handle, cfg) {
                     const b = _bodyHandle();
                     if (!b) return;
                     // prefer ref/handle method
-                    try { if (typeof b.applyImpulse === "function") return b.applyImpulse(vec3); } catch (_) {}
+                    try {
+                        if (typeof b.applyImpulse === "function") return b.applyImpulse(vec3);
+                    } catch (_) {
+                    }
                     // id-based physics api (new)
                     const bid = _bodyIdFromHandle(b) || _bodyId();
                     const p = _phys();
@@ -377,7 +399,10 @@ function wrapSurface(engine, handle, cfg) {
                 return function applyCentralForce(vec3) {
                     const b = _bodyHandle();
                     if (!b) return;
-                    try { if (typeof b.applyCentralForce === "function") return b.applyCentralForce(vec3); } catch (_) {}
+                    try {
+                        if (typeof b.applyCentralForce === "function") return b.applyCentralForce(vec3);
+                    } catch (_) {
+                    }
                     const bid = _bodyIdFromHandle(b) || _bodyId();
                     const p = _phys();
                     if (p && typeof p.applyCentralForce === "function" && bid) return p.applyCentralForce(bid, vec3);
@@ -391,11 +416,17 @@ function wrapSurface(engine, handle, cfg) {
                     const p = _phys();
                     const bid = _bodyIdFromHandle(b) || _bodyId();
                     if (arguments.length === 0) {
-                        try { if (b && typeof b.velocity === "function") return b.velocity(); } catch (_) {}
+                        try {
+                            if (b && typeof b.velocity === "function") return b.velocity();
+                        } catch (_) {
+                        }
                         if (p && typeof p.velocity === "function" && bid) return p.velocity(bid);
                         return undefined;
                     }
-                    try { if (b && typeof b.velocity === "function") return b.velocity(v); } catch (_) {}
+                    try {
+                        if (b && typeof b.velocity === "function") return b.velocity(v);
+                    } catch (_) {
+                    }
                     if (p && typeof p.velocity === "function" && bid) return p.velocity(bid, v);
                 };
             }
@@ -407,12 +438,18 @@ function wrapSurface(engine, handle, cfg) {
                     const p = _phys();
                     const bid = _bodyIdFromHandle(b) || _bodyId();
                     if (arguments.length === 0) {
-                        try { if (b && typeof b.position === "function") return b.position(); } catch (_) {}
+                        try {
+                            if (b && typeof b.position === "function") return b.position();
+                        } catch (_) {
+                        }
                         if (p && typeof p.position === "function" && bid) return p.position(bid);
                         return undefined;
                     }
                     // setter
-                    try { if (b && typeof b.teleport === "function") return b.teleport(v); } catch (_) {}
+                    try {
+                        if (b && typeof b.teleport === "function") return b.teleport(v);
+                    } catch (_) {
+                    }
                     if (p && typeof p.warp === "function" && bid) return p.warp(bid, v);
                     if (p && typeof p.position === "function" && bid) return p.position(bid, v);
                 };
@@ -424,7 +461,10 @@ function wrapSurface(engine, handle, cfg) {
                     if (!b) return;
                     const p = _phys();
                     const bid = _bodyIdFromHandle(b) || _bodyId();
-                    try { if (b && typeof b.teleport === "function") return b.teleport(v); } catch (_) {}
+                    try {
+                        if (b && typeof b.teleport === "function") return b.teleport(v);
+                    } catch (_) {
+                    }
                     if (p && typeof p.warp === "function" && bid) return p.warp(bid, v);
                     if (p && typeof p.position === "function" && bid) return p.position(bid, v);
                 };
@@ -436,7 +476,10 @@ function wrapSurface(engine, handle, cfg) {
                     if (!b) return;
                     const p = _phys();
                     const bid = _bodyIdFromHandle(b) || _bodyId();
-                    try { if (b && typeof b.lockRotation === "function") return b.lockRotation(!!lock); } catch (_) {}
+                    try {
+                        if (b && typeof b.lockRotation === "function") return b.lockRotation(!!lock);
+                    } catch (_) {
+                    }
                     if (p && typeof p.lockRotation === "function" && bid) return p.lockRotation(bid, !!lock);
                 };
             }
@@ -446,11 +489,20 @@ function wrapSurface(engine, handle, cfg) {
             if (typeof v === "function") return v.bind(handle);
             return v;
         },
-        set(_t, prop, value) { _t[prop] = value; return true; },
-        has(_t, prop) { if (prop in _t) return true; return prop in handle; },
+        set(_t, prop, value) {
+            _t[prop] = value;
+            return true;
+        },
+        has(_t, prop) {
+            if (prop in _t) return true;
+            return prop in handle;
+        },
         ownKeys(_t) {
             const keys = new Set(Object.keys(_t));
-            try { Object.keys(handle).forEach(k => keys.add(k)); } catch (_) {}
+            try {
+                Object.keys(handle).forEach(k => keys.add(k));
+            } catch (_) {
+            }
             keys.add("applyImpulse");
             keys.add("applyCentralForce");
             keys.add("velocity");
@@ -463,7 +515,7 @@ function wrapSurface(engine, handle, cfg) {
         },
         getOwnPropertyDescriptor(_t, prop) {
             if (prop in _t) return Object.getOwnPropertyDescriptor(_t, prop);
-            return { configurable: true, enumerable: true, writable: true, value: this.get(_t, prop) };
+            return {configurable: true, enumerable: true, writable: true, value: this.get(_t, prop)};
         }
     });
 
@@ -489,11 +541,25 @@ function create(engine /*, K */) {
         return wrapSurface(engine, h, cfg);
     }
 
-    function box(cfg) { return createOne(withType("box", cfg)); }
-    function cube(cfg) { return createOne(withType("box", cfg)); }
-    function sphere(cfg) { return createOne(withType("sphere", cfg)); }
-    function cylinder(cfg) { return createOne(withType("cylinder", cfg)); }
-    function capsule(cfg) { return createOne(withType("capsule", cfg)); }
+    function box(cfg) {
+        return createOne(withType("box", cfg));
+    }
+
+    function cube(cfg) {
+        return createOne(withType("box", cfg));
+    }
+
+    function sphere(cfg) {
+        return createOne(withType("sphere", cfg));
+    }
+
+    function cylinder(cfg) {
+        return createOne(withType("cylinder", cfg));
+    }
+
+    function capsule(cfg) {
+        return createOne(withType("capsule", cfg));
+    }
 
     // NEW: loadModel(pathOrCfg, cfg?)
     // Usage:
@@ -530,41 +596,91 @@ function create(engine /*, K */) {
     }
 
     function builder(type) {
-        const state = normalizeCfg({ type });
+        const state = normalizeCfg({type});
 
         const b = {
-            size(v) { state.size = _num(v, state.size); return b; },
-            name(v) { state.name = String(v); return b; },
+            size(v) {
+                state.size = _num(v, state.size);
+                return b;
+            },
+            name(v) {
+                state.name = String(v);
+                return b;
+            },
             pos(x, y, z) {
                 if (Array.isArray(x) || _isObj(x)) state.pos = _normalizePos(x);
                 else state.pos = [_num(x, 0), _num(y, 0), _num(z, 0)];
                 return b;
             },
-            material(m) { state.material = m; return b; },
-
-            // NEW: model path setter (works for type=model, harmless otherwise)
-            path(v) { state.path = String(v); return b; },
-            model(v) { state.path = String(v); return b; },
-
-            // physics builder
-            physics(mass, opts) { state.physics = physics(mass, opts || {}); return b; },
-
-            // alias setters (handy)
-            mass(v) { state.physics = state.physics || {}; state.physics.mass = _num(v, 0); return b; },
-            kinematic(v = true) { state.physics = state.physics || {}; state.physics.kinematic = !!v; return b; },
-            enabled(v = true) { state.physics = state.physics || {}; state.physics.enabled = !!v; return b; },
-            lockRotation(v = true) { state.physics = state.physics || {}; state.physics.lockRotation = !!v; return b; },
-            friction(v) { state.physics = state.physics || {}; state.physics.friction = v; return b; },
-            restitution(v) { state.physics = state.physics || {}; state.physics.restitution = v; return b; },
-            damping(linear, angular) {
-                state.physics = state.physics || {};
-                state.physics.damping = { linear: linear, angular: angular };
+            material(m) {
+                state.material = m;
                 return b;
             },
-            collider(v) { state.physics = state.physics || {}; state.physics.collider = v; return b; },
 
-            create() { return createOne(state); },
-            cfg() { return Object.assign({}, state); }
+            // NEW: model path setter (works for type=model, harmless otherwise)
+            path(v) {
+                state.path = String(v);
+                return b;
+            },
+            model(v) {
+                state.path = String(v);
+                return b;
+            },
+
+            // physics builder
+            physics(mass, opts) {
+                state.physics = physics(mass, opts || {});
+                return b;
+            },
+
+            // alias setters (handy)
+            mass(v) {
+                state.physics = state.physics || {};
+                state.physics.mass = _num(v, 0);
+                return b;
+            },
+            kinematic(v = true) {
+                state.physics = state.physics || {};
+                state.physics.kinematic = !!v;
+                return b;
+            },
+            enabled(v = true) {
+                state.physics = state.physics || {};
+                state.physics.enabled = !!v;
+                return b;
+            },
+            lockRotation(v = true) {
+                state.physics = state.physics || {};
+                state.physics.lockRotation = !!v;
+                return b;
+            },
+            friction(v) {
+                state.physics = state.physics || {};
+                state.physics.friction = v;
+                return b;
+            },
+            restitution(v) {
+                state.physics = state.physics || {};
+                state.physics.restitution = v;
+                return b;
+            },
+            damping(linear, angular) {
+                state.physics = state.physics || {};
+                state.physics.damping = {linear: linear, angular: angular};
+                return b;
+            },
+            collider(v) {
+                state.physics = state.physics || {};
+                state.physics.collider = v;
+                return b;
+            },
+
+            create() {
+                return createOne(state);
+            },
+            cfg() {
+                return Object.assign({}, state);
+            }
         };
 
         return b;

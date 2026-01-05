@@ -1,8 +1,14 @@
 package org.foxesworld.kalitech.audio;
 
-import com.jme3.audio.*;
 import com.jme3.asset.AssetManager;
-import com.jme3.export.*;
+import com.jme3.audio.AudioData;
+import com.jme3.audio.AudioKey;
+import com.jme3.audio.AudioNode;
+import com.jme3.audio.Filter;
+import com.jme3.export.InputCapsule;
+import com.jme3.export.JmeExporter;
+import com.jme3.export.JmeImporter;
+import com.jme3.export.OutputCapsule;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 
@@ -11,16 +17,16 @@ import java.util.Objects;
 
 /**
  * Kalitech AAA spatial stereo source.
- *
+ * <p>
  * Design goals:
- *  - Keep engine API stable: this class extends AudioNode.
- *  - SOLID: placement math/strategy/config extracted into helper classes.
- *  - Better stereo placement: channel offsets follow listener right-vector.
- *
+ * - Keep engine API stable: this class extends AudioNode.
+ * - SOLID: placement math/strategy/config extracted into helper classes.
+ * - Better stereo placement: channel offsets follow listener right-vector.
+ * <p>
  * Usage:
- *  - Provide two mono files (L/R) for true spatial stereo:
- *      new SpatialStereoAudioNode(am, "Sounds/a_L.ogg", "Sounds/a_R.ogg", AudioData.DataType.Buffer)
- *  - Or use mono-to-stereo (same mono for both) with setSeparation().
+ * - Provide two mono files (L/R) for true spatial stereo:
+ * new SpatialStereoAudioNode(am, "Sounds/a_L.ogg", "Sounds/a_R.ogg", AudioData.DataType.Buffer)
+ * - Or use mono-to-stereo (same mono for both) with setSeparation().
  */
 public final class SpatialStereoAudioNode extends AudioNode {
 

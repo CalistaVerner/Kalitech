@@ -7,7 +7,10 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -15,72 +18,94 @@ import java.util.Map;
 
 /**
  * Minimal per-frame profiler for the engine.
- *
+ * <p>
  * Design goals:
  * - Near-zero overhead when disabled.
  * - No allocations per frame (after warmup).
  * - Rolling-window stats avg/p50/p95/max and spike counts.
  * - Optional JSONL output to file for offline analysis.
- *
+ * <p>
  * Usage pattern:
- *   perf.beginFrame();
- *   long t = perf.begin("camera.flush");
- *   ... work ...
- *   perf.end("camera.flush", t);
- *   perf.endFrame(dtSeconds);
- *
+ * perf.beginFrame();
+ * long t = perf.begin("camera.flush");
+ * ... work ...
+ * perf.end("camera.flush", t);
+ * perf.endFrame(dtSeconds);
+ * <p>
  * Notes:
  * - File format is JSON Lines: one JSON object per line.
  * - When enabled+writeToFile, a header and footer meta records are written.
  */
 public final class PerfProfiler implements Closeable {
 
-    public static final class Config {
-        public boolean enabled = true;
-
-        /** Rolling window size per block. */
-        public int windowFrames = 600;
-
-        /** Emit summary every N frames. Set <=0 to disable periodic summaries. */
-        public int summaryEveryFrames = 120;
-
-        /** Spike threshold (nanos). Spike counter increments when block >= threshold. */
-        public long spikeThresholdNanos = 1_000_000; // 1ms default
-
-        /** Optional console prefix (if you also print to log). */
-        public String prefix = "[perf]";
-
-        /** Output to file in JSONL format. */
-        public boolean writeToFile = true;
-
-        /** Where to write JSONL; parent directories are created. */
-        public String outputFile = "logs/perf-engine.jsonl";
-
-        /** Flush file on each summary to keep data safe (slightly more IO). */
-        public boolean flushEverySummary = true;
-
-        /** Also print summary to log4j2 (in addition to file). */
-        public boolean writeToLog = false;
-    }
-
     private final Logger log;
     private final Config cfg;
-
-    private int frameIndex = 0;
-
     // keep insertion order for stable output
     private final LinkedHashMap<String, StatWindow> windows = new LinkedHashMap<>();
-
+    private int frameIndex = 0;
     // optional file output
     private BufferedWriter file;
     private boolean fileOk = false;
-
     public PerfProfiler(Logger log, Config cfg) {
         this.log = log;
         this.cfg = (cfg != null) ? cfg : new Config();
         if (this.cfg.enabled && this.cfg.writeToFile) {
             openFileSafe();
         }
+    }
+
+    private static String padRight(String s, int n) {
+        if (s == null) s = "";
+        if (s.length() >= n) return s;
+        StringBuilder sb = new StringBuilder(n);
+        sb.append(s);
+        while (sb.length() < n) sb.append(' ');
+        return sb.toString();
+    }
+
+    private static String formatMs(long nanos) {
+        return String.format("%.3fms", nanos / 1_000_000.0);
+    }
+
+    private static String nanosToMsNum(long nanos) {
+        return String.format("%.3f", nanos / 1_000_000.0);
+    }
+
+    private static String fmtMsNum(double ms) {
+        return String.format("%.3f", ms);
+    }
+
+    private static String escapeJson(String s) {
+        if (s == null || s.isEmpty()) return "";
+        // minimal escaping for JSON string
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '"':
+                    sb.append("\\\"");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
+                    if (c < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
     }
 
     public boolean enabled() {
@@ -100,13 +125,17 @@ public final class PerfProfiler implements Closeable {
         }
     }
 
-    /** Call once per frame. */
+    /**
+     * Call once per frame.
+     */
     public void beginFrame() {
         if (!cfg.enabled) return;
         // no-op
     }
 
-    /** Call once per frame with dt. */
+    /**
+     * Call once per frame with dt.
+     */
     public void endFrame(double dtSeconds) {
         if (!cfg.enabled) return;
 
@@ -116,13 +145,17 @@ public final class PerfProfiler implements Closeable {
         }
     }
 
-    /** Start measuring a block. Returns start time (nano). */
+    /**
+     * Start measuring a block. Returns start time (nano).
+     */
     public long begin(String name) {
         if (!cfg.enabled) return 0L;
         return System.nanoTime();
     }
 
-    /** End measuring a block, given the start time from begin(). */
+    /**
+     * End measuring a block, given the start time from begin().
+     */
     public void end(String name, long startNanos) {
         if (!cfg.enabled) return;
         if (startNanos == 0L) return;
@@ -138,31 +171,12 @@ public final class PerfProfiler implements Closeable {
         w.add(dt);
     }
 
-    /** Convenience scoped helper (manual try/finally). */
+    /**
+     * Convenience scoped helper (manual try/finally).
+     */
     public Scope scope(String name) {
         if (!cfg.enabled) return Scope.NOOP;
         return new Scope(this, name);
-    }
-
-    public static class Scope implements AutoCloseable {
-        static final Scope NOOP = new Scope(null, null) {
-            @Override public void close() {}
-        };
-
-        private final PerfProfiler p;
-        private final String name;
-        private final long t0;
-
-        Scope(PerfProfiler p, String name) {
-            this.p = p;
-            this.name = name;
-            this.t0 = (p != null) ? System.nanoTime() : 0L;
-        }
-
-        @Override
-        public void close() {
-            if (p != null) p.end(name, t0);
-        }
     }
 
     private void dumpSummary(double dtSeconds) {
@@ -247,7 +261,10 @@ public final class PerfProfiler implements Closeable {
             fileOk = false;
             closeFileOnly();
             // Do not spam; one warning is enough.
-            try { log.warn("PerfProfiler: file output disabled: {}", t.toString()); } catch (Throwable ignored) {}
+            try {
+                log.warn("PerfProfiler: file output disabled: {}", t.toString());
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -259,7 +276,10 @@ public final class PerfProfiler implements Closeable {
         } catch (IOException e) {
             fileOk = false;
             closeFileOnly();
-            try { log.warn("PerfProfiler: file write failed, disabling: {}", e.toString()); } catch (Throwable ignored) {}
+            try {
+                log.warn("PerfProfiler: file write failed, disabling: {}", e.toString());
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -270,13 +290,19 @@ public final class PerfProfiler implements Closeable {
         } catch (IOException e) {
             fileOk = false;
             closeFileOnly();
-            try { log.warn("PerfProfiler: file flush failed, disabling: {}", e.toString()); } catch (Throwable ignored) {}
+            try {
+                log.warn("PerfProfiler: file flush failed, disabling: {}", e.toString());
+            } catch (Throwable ignored) {
+            }
         }
     }
 
     private void closeFileOnly() {
         if (file != null) {
-            try { file.close(); } catch (Throwable ignored) {}
+            try {
+                file.close();
+            } catch (Throwable ignored) {
+            }
         }
         file = null;
         fileOk = false;
@@ -296,48 +322,71 @@ public final class PerfProfiler implements Closeable {
         }
     }
 
-    private static String padRight(String s, int n) {
-        if (s == null) s = "";
-        if (s.length() >= n) return s;
-        StringBuilder sb = new StringBuilder(n);
-        sb.append(s);
-        while (sb.length() < n) sb.append(' ');
-        return sb.toString();
+    public static final class Config {
+        public boolean enabled = true;
+
+        /**
+         * Rolling window size per block.
+         */
+        public int windowFrames = 600;
+
+        /**
+         * Emit summary every N frames. Set <=0 to disable periodic summaries.
+         */
+        public int summaryEveryFrames = 120;
+
+        /**
+         * Spike threshold (nanos). Spike counter increments when block >= threshold.
+         */
+        public long spikeThresholdNanos = 1_000_000; // 1ms default
+
+        /**
+         * Optional console prefix (if you also print to log).
+         */
+        public String prefix = "[perf]";
+
+        /**
+         * Output to file in JSONL format.
+         */
+        public boolean writeToFile = true;
+
+        /**
+         * Where to write JSONL; parent directories are created.
+         */
+        public String outputFile = "logs/perf-engine.jsonl";
+
+        /**
+         * Flush file on each summary to keep data safe (slightly more IO).
+         */
+        public boolean flushEverySummary = true;
+
+        /**
+         * Also print summary to log4j2 (in addition to file).
+         */
+        public boolean writeToLog = false;
     }
 
-    private static String formatMs(long nanos) {
-        return String.format("%.3fms", nanos / 1_000_000.0);
-    }
-
-    private static String nanosToMsNum(long nanos) {
-        return String.format("%.3f", nanos / 1_000_000.0);
-    }
-
-    private static String fmtMsNum(double ms) {
-        return String.format("%.3f", ms);
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null || s.isEmpty()) return "";
-        // minimal escaping for JSON string
-        StringBuilder sb = new StringBuilder(s.length() + 16);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '\\': sb.append("\\\\"); break;
-                case '"': sb.append("\\\""); break;
-                case '\n': sb.append("\\n"); break;
-                case '\r': sb.append("\\r"); break;
-                case '\t': sb.append("\\t"); break;
-                default:
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
+    public static class Scope implements AutoCloseable {
+        static final Scope NOOP = new Scope(null, null) {
+            @Override
+            public void close() {
             }
+        };
+
+        private final PerfProfiler p;
+        private final String name;
+        private final long t0;
+
+        Scope(PerfProfiler p, String name) {
+            this.p = p;
+            this.name = name;
+            this.t0 = (p != null) ? System.nanoTime() : 0L;
         }
-        return sb.toString();
+
+        @Override
+        public void close() {
+            if (p != null) p.end(name, t0);
+        }
     }
 
     // -----------------------------
@@ -361,6 +410,17 @@ public final class PerfProfiler implements Closeable {
             this.ring = new long[sz];
             this.scratch = new long[sz];
             this.spikeThreshold = Math.max(0, spikeThreshold);
+        }
+
+        static long percentileSorted(long[] sorted, int n, double q) {
+            if (n <= 0) return 0;
+            if (q <= 0) return sorted[0];
+            if (q >= 1) return sorted[n - 1];
+            // nearest-rank
+            int rank = (int) Math.ceil(q * n) - 1;
+            if (rank < 0) rank = 0;
+            if (rank >= n) rank = n - 1;
+            return sorted[rank];
         }
 
         void add(long nanos) {
@@ -405,19 +465,9 @@ public final class PerfProfiler implements Closeable {
             return new Summary(avg, p50, p95, localMax, spikes);
         }
 
-        static long percentileSorted(long[] sorted, int n, double q) {
-            if (n <= 0) return 0;
-            if (q <= 0) return sorted[0];
-            if (q >= 1) return sorted[n - 1];
-            // nearest-rank
-            int rank = (int) Math.ceil(q * n) - 1;
-            if (rank < 0) rank = 0;
-            if (rank >= n) rank = n - 1;
-            return sorted[rank];
-        }
-
         static final class Summary {
             final long avg, p50, p95, max, spikes;
+
             Summary(long avg, long p50, long p95, long max, long spikes) {
                 this.avg = avg;
                 this.p50 = p50;

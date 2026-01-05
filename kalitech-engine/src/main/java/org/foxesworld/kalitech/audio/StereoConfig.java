@@ -6,16 +6,16 @@ public record StereoConfig(float separationMeters) {
     public static final float MIN_SEPARATION = 0.00f;
     public static final float MAX_SEPARATION = 2.00f;
 
-    public static StereoConfig defaults() {
-        return new StereoConfig(DEFAULT_SEPARATION_METERS);
-    }
-
     public StereoConfig {
         if (Float.isNaN(separationMeters) || Float.isInfinite(separationMeters)) {
             separationMeters = DEFAULT_SEPARATION_METERS;
         }
         if (separationMeters < MIN_SEPARATION) separationMeters = MIN_SEPARATION;
         if (separationMeters > MAX_SEPARATION) separationMeters = MAX_SEPARATION;
+    }
+
+    public static StereoConfig defaults() {
+        return new StereoConfig(DEFAULT_SEPARATION_METERS);
     }
 
     public StereoConfig withSeparationMeters(float meters) {

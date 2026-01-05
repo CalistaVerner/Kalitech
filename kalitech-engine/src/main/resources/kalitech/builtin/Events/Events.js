@@ -17,7 +17,9 @@
  *   EVENTS.enabled() -> boolean
  */
 
-function _isFn(x) { return typeof x === "function"; }
+function _isFn(x) {
+    return typeof x === "function";
+}
 
 function _getBus(engine, K) {
     // 1) direct inject: K.bus
@@ -36,7 +38,8 @@ function _getBus(engine, K) {
             if (api && _isFn(api.getBus)) return api.getBus();
             if (api && _isFn(api.bus)) return api.bus();
         }
-    } catch (_) {}
+    } catch (_) {
+    }
 
     return null;
 }
@@ -58,17 +61,53 @@ function _busOff(bus, topic, fn, token) {
 
     // token-based unsubscribe
     if (token != null) {
-        if (_isFn(bus.unsubscribe)) { try { bus.unsubscribe(token); return true; } catch (_) {} }
-        if (_isFn(bus.offToken)) { try { bus.offToken(token); return true; } catch (_) {} }
+        if (_isFn(bus.unsubscribe)) {
+            try {
+                bus.unsubscribe(token);
+                return true;
+            } catch (_) {
+            }
+        }
+        if (_isFn(bus.offToken)) {
+            try {
+                bus.offToken(token);
+                return true;
+            } catch (_) {
+            }
+        }
     }
 
     // classic off/removeListener
-    if (_isFn(bus.off)) { try { bus.off(topic, fn); return true; } catch (_) {} }
-    if (_isFn(bus.removeListener)) { try { bus.removeListener(topic, fn); return true; } catch (_) {} }
-    if (_isFn(bus.removeEventListener)) { try { bus.removeEventListener(topic, fn); return true; } catch (_) {} }
+    if (_isFn(bus.off)) {
+        try {
+            bus.off(topic, fn);
+            return true;
+        } catch (_) {
+        }
+    }
+    if (_isFn(bus.removeListener)) {
+        try {
+            bus.removeListener(topic, fn);
+            return true;
+        } catch (_) {
+        }
+    }
+    if (_isFn(bus.removeEventListener)) {
+        try {
+            bus.removeEventListener(topic, fn);
+            return true;
+        } catch (_) {
+        }
+    }
 
     // last resort: unsubscribe(topic, fn)
-    if (_isFn(bus.unsubscribe)) { try { bus.unsubscribe(topic, fn); return true; } catch (_) {} }
+    if (_isFn(bus.unsubscribe)) {
+        try {
+            bus.unsubscribe(topic, fn);
+            return true;
+        } catch (_) {
+        }
+    }
 
     return false;
 }
@@ -76,9 +115,27 @@ function _busOff(bus, topic, fn, token) {
 function _busEmit(bus, topic, payload) {
     if (!bus) return false;
 
-    if (_isFn(bus.emit)) { try { bus.emit(topic, payload); return true; } catch (_) {} }
-    if (_isFn(bus.publish)) { try { bus.publish(topic, payload); return true; } catch (_) {} }
-    if (_isFn(bus.dispatch)) { try { bus.dispatch(topic, payload); return true; } catch (_) {} }
+    if (_isFn(bus.emit)) {
+        try {
+            bus.emit(topic, payload);
+            return true;
+        } catch (_) {
+        }
+    }
+    if (_isFn(bus.publish)) {
+        try {
+            bus.publish(topic, payload);
+            return true;
+        } catch (_) {
+        }
+    }
+    if (_isFn(bus.dispatch)) {
+        try {
+            bus.dispatch(topic, payload);
+            return true;
+        } catch (_) {
+        }
+    }
 
     return false;
 }
@@ -132,7 +189,9 @@ class EventsApi {
         if (!_isFn(handler)) throw new Error("[EVENTS] handler must be a function");
 
         const bus = this._needBus();
-        if (!bus) return function offNoop() { return false; };
+        if (!bus) return function offNoop() {
+            return false;
+        };
 
         const token = _busOn(bus, t, handler);
 
@@ -149,7 +208,10 @@ class EventsApi {
         let offFn = null;
 
         function wrapped(data) {
-            try { if (offFn) offFn(); } catch (_) {}
+            try {
+                if (offFn) offFn();
+            } catch (_) {
+            }
             return handler(data);
         }
 
@@ -186,10 +248,18 @@ class EventsApi {
         const self = this;
         return Object.freeze({
             scope,
-            on:   function (topic, handler) { return self.on(prefix + String(topic || ""), handler); },
-            once: function (topic, handler) { return self.once(prefix + String(topic || ""), handler); },
-            off:  function (topic, handler) { return self.off(prefix + String(topic || ""), handler); },
-            emit: function (topic, payload) { return self.emit(prefix + String(topic || ""), payload); }
+            on: function (topic, handler) {
+                return self.on(prefix + String(topic || ""), handler);
+            },
+            once: function (topic, handler) {
+                return self.once(prefix + String(topic || ""), handler);
+            },
+            off: function (topic, handler) {
+                return self.off(prefix + String(topic || ""), handler);
+            },
+            emit: function (topic, payload) {
+                return self.emit(prefix + String(topic || ""), payload);
+            }
         });
     }
 

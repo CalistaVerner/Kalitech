@@ -8,7 +8,7 @@ import java.util.Arrays;
  * - No boxing (Long)
  * - No Iterator allocations
  * - O(1) average add/contains
- *
+ * <p>
  * Not thread-safe.
  */
 public final class LongHashSet {
@@ -31,7 +31,21 @@ public final class LongHashSet {
         this.size = 0;
     }
 
-    public int size() { return size; }
+    /**
+     * Fast mixing: 64 -> 32 bits.
+     */
+    private static int mix64to32(long z) {
+        z ^= (z >>> 33);
+        z *= 0xff51afd7ed558ccdL;
+        z ^= (z >>> 33);
+        z *= 0xc4ceb9fe1a85ec53L;
+        z ^= (z >>> 33);
+        return (int) z;
+    }
+
+    public int size() {
+        return size;
+    }
 
     public void clear() {
         // O(n) but no allocations
@@ -53,7 +67,9 @@ public final class LongHashSet {
         }
     }
 
-    /** @return true if added (was not present) */
+    /**
+     * @return true if added (was not present)
+     */
     public boolean add(long k) {
         if (k == EMPTY) return false; // reserved sentinel; our pairKey never becomes 0 if we build it right
         if (size >= resizeAt) rehash(table.length << 1);
@@ -106,18 +122,6 @@ public final class LongHashSet {
         this.mask = nm;
         this.resizeAt = (int) (newCap * 0.65f);
         // size unchanged
-    }
-
-    /**
-     * Fast mixing: 64 -> 32 bits.
-     */
-    private static int mix64to32(long z) {
-        z ^= (z >>> 33);
-        z *= 0xff51afd7ed558ccdL;
-        z ^= (z >>> 33);
-        z *= 0xc4ceb9fe1a85ec53L;
-        z ^= (z >>> 33);
-        return (int) z;
     }
 
     @FunctionalInterface

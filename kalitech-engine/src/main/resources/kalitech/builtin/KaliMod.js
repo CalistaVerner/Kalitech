@@ -1,9 +1,15 @@
 "use strict";
 
-function _isObj(x) { return x && typeof x === "object"; }
+function _isObj(x) {
+    return x && typeof x === "object";
+}
 
 function _readJsonSafe(text) {
-    try { return JSON.parse(String(text == null ? "" : text)); } catch { return null; }
+    try {
+        return JSON.parse(String(text == null ? "" : text));
+    } catch {
+        return null;
+    }
 }
 
 function _dirOf(p) {
@@ -27,7 +33,11 @@ function _join(a, b) {
 
 function _freeze(o) {
     if (!_isObj(o)) return o;
-    try { return Object.freeze(o); } catch { return o; }
+    try {
+        return Object.freeze(o);
+    } catch {
+        return o;
+    }
 }
 
 function _clonePlain(o) {

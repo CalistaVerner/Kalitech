@@ -81,6 +81,7 @@ declare namespace KalitechSound {
         __node(): SoundNodeHandle;
 
         play(): this;
+
         stop(): this;
 
         /**
@@ -89,13 +90,16 @@ declare namespace KalitechSound {
         pause(): this;
 
         volume(v: number): this;
+
         pitch(v: number): this;
+
         loop(v?: boolean): this;
 
         /**
          * Sets positional sound position (enables positional internally if engine supports it).
          */
         pos(x: number, y: number, z: number): this;
+
         pos(v: Vec3): this;
 
         /**
@@ -137,12 +141,14 @@ declare namespace KalitechSound {
          * Optional. Works only if engine.sound().setDirection exists.
          */
         direction(x: number, y: number, z: number): this;
+
         direction(v: Vec3): this;
 
         /**
          * Optional. Works only if engine.sound().setVelocity exists.
          */
         velocity(x: number, y: number, z: number): this;
+
         velocity(v: Vec3): this;
 
         /**

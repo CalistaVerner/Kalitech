@@ -5,7 +5,10 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.MatParam;
 import com.jme3.material.Material;
-import com.jme3.math.*;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector2f;
+import com.jme3.math.Vector3f;
+import com.jme3.math.Vector4f;
 import com.jme3.texture.Image;
 import com.jme3.texture.Texture;
 import com.jme3.texture.Texture2D;
@@ -16,7 +19,10 @@ import org.graalvm.polyglot.Value;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
@@ -30,20 +36,52 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
  */
 public final class MaterialUtils {
     private static final Logger log = LogManager.getLogger(MaterialUtils.class);
-
-    private MaterialUtils() {}
+    private static final ExecutorService TEX_IO = Executors.newFixedThreadPool(
+            Math.max(2, Math.min(6, Runtime.getRuntime().availableProcessors() / 2)),
+            r -> {
+                Thread t = new Thread(r, "kalitech-tex-io");
+                t.setDaemon(true);
+                t.setPriority(Thread.NORM_PRIORITY - 1);
+                return t;
+            }
+    );
 
     // ---------------------------------
     // Debug / switches
     // ---------------------------------
-
+    private static final Cache<TextureKey, Texture> textureCache = Caffeine.newBuilder()
+            .maximumSize(8192)
+            .softValues()
+            .recordStats()
+            .build();
+    /**
+     * Dedupe in-flight loads.
+     */
+    private static final ConcurrentHashMap<TextureKey, CompletableFuture<Texture>> inFlight = new ConcurrentHashMap<>();
     private static volatile boolean DEBUG = false;
-
-    /** If true: always sync load textures (disables async entirely). */
+    /**
+     * If true: always sync load textures (disables async entirely).
+     */
     private static volatile boolean FORCE_SYNC_TEXTURES = false;
-
-    /** If true: async texture load is allowed only when we have a CONFIRMED scheduler. */
+    /**
+     * If true: async texture load is allowed only when we have a CONFIRMED scheduler.
+     */
     private static volatile boolean REQUIRE_SCHEDULER_FOR_ASYNC = true;
+    private static volatile AssetManager assets;
+
+    // ---------------------------------
+    // Engine hooks (render thread)
+    // ---------------------------------
+    /**
+     * Render-thread scheduler hook.
+     * We treat it as "confirmed" only if we actually bound to a real engine method.
+     */
+    private static volatile RenderThreadScheduler scheduler;
+    private static volatile boolean schedulerConfirmed = false;
+    private static volatile Texture PLACEHOLDER;
+
+    private MaterialUtils() {
+    }
 
     public static void setDebug(boolean enabled) {
         DEBUG = enabled;
@@ -55,26 +93,13 @@ public final class MaterialUtils {
         log.warn("[MAT] forceSyncTextures=" + (enabled ? "ON" : "OFF"));
     }
 
+    // ---------------------------------
+    // Background texture loading
+    // ---------------------------------
+
     public static void requireSchedulerForAsync(boolean enabled) {
         REQUIRE_SCHEDULER_FOR_ASYNC = enabled;
         log.warn("[MAT] requireSchedulerForAsync=" + (enabled ? "ON" : "OFF"));
-    }
-
-    // ---------------------------------
-    // Engine hooks (render thread)
-    // ---------------------------------
-
-    private static volatile AssetManager assets;
-
-    /**
-     * Render-thread scheduler hook.
-     * We treat it as "confirmed" only if we actually bound to a real engine method.
-     */
-    private static volatile RenderThreadScheduler scheduler;
-    private static volatile boolean schedulerConfirmed = false;
-
-    private record RenderThreadScheduler(Consumer<Runnable> enqueue) {
-        void onRenderThread(Runnable r) { enqueue.accept(r); }
     }
 
     /**
@@ -95,25 +120,31 @@ public final class MaterialUtils {
         try {
             Method m = engineApiImpl.getClass().getMethod("runOnRenderThread", Runnable.class);
             scheduler = new RenderThreadScheduler(r -> {
-                try { m.invoke(engineApiImpl, r); } catch (Throwable e) {
+                try {
+                    m.invoke(engineApiImpl, r);
+                } catch (Throwable e) {
                     log.error("[MAT] runOnRenderThread invoke failed: {}", e.toString(), e);
                 }
             });
             schedulerConfirmed = true;
             log.info("[MAT] scheduler bound: EngineApiImpl.runOnRenderThread(Runnable)");
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
 
         if (!schedulerConfirmed) {
             try {
                 Method m = engineApiImpl.getClass().getMethod("enqueue", Runnable.class);
                 scheduler = new RenderThreadScheduler(r -> {
-                    try { m.invoke(engineApiImpl, r); } catch (Throwable e) {
+                    try {
+                        m.invoke(engineApiImpl, r);
+                    } catch (Throwable e) {
                         log.error("[MAT] enqueue invoke failed: {}", e.toString(), e);
                     }
                 });
                 schedulerConfirmed = true;
                 log.info("[MAT] scheduler bound: EngineApiImpl.enqueue(Runnable)");
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
 
         if (!schedulerConfirmed) {
@@ -135,33 +166,8 @@ public final class MaterialUtils {
     }
 
     // ---------------------------------
-    // Background texture loading
-    // ---------------------------------
-
-    private static final ExecutorService TEX_IO = Executors.newFixedThreadPool(
-            Math.max(2, Math.min(6, Runtime.getRuntime().availableProcessors() / 2)),
-            r -> {
-                Thread t = new Thread(r, "kalitech-tex-io");
-                t.setDaemon(true);
-                t.setPriority(Thread.NORM_PRIORITY - 1);
-                return t;
-            }
-    );
-
-    private static final Cache<TextureKey, Texture> textureCache = Caffeine.newBuilder()
-            .maximumSize(8192)
-            .softValues()
-            .recordStats()
-            .build();
-
-    /** Dedupe in-flight loads. */
-    private static final ConcurrentHashMap<TextureKey, CompletableFuture<Texture>> inFlight = new ConcurrentHashMap<>();
-
-    // ---------------------------------
     // Placeholder
     // ---------------------------------
-
-    private static volatile Texture PLACEHOLDER;
 
     private static Texture placeholder() {
         Texture p = PLACEHOLDER;
@@ -187,56 +193,6 @@ public final class MaterialUtils {
         }
     }
 
-    // ---------------------------------
-    // Data records
-    // ---------------------------------
-
-    private record TextureKey(
-            String path,
-            Texture.WrapMode wrap,
-            Texture.MinFilter min,
-            Texture.MagFilter mag,
-            int aniso,
-            int hash
-    ) {
-        static TextureKey of(TextureDesc td) {
-            String p = td.texture().trim();
-            Texture.WrapMode w = td.wrap();
-            Texture.MinFilter mi = td.minFilter();
-            Texture.MagFilter ma = td.magFilter();
-            int a = Math.max(0, td.anisotropy());
-            int h = Objects.hash(p, w, mi, ma, a);
-            return new TextureKey(p, w, mi, ma, a, h);
-        }
-        @Override public int hashCode() { return hash; }
-        @Override public boolean equals(Object o) {
-            if (!(o instanceof TextureKey k)) return false;
-            return hash == k.hash &&
-                    aniso == k.aniso &&
-                    Objects.equals(path, k.path) &&
-                    wrap == k.wrap &&
-                    min == k.min &&
-                    mag == k.mag;
-        }
-    }
-
-    public record TileWorld(float x, float z) {}
-
-    public record TextureDesc(
-            String texture,
-            Texture.WrapMode wrap,
-            Texture.MinFilter minFilter,
-            Texture.MagFilter magFilter,
-            int anisotropy,
-            TileWorld tileWorld
-    ) {}
-
-    public record ParsedTex(String path, Texture.WrapMode wrap) {}
-
-    // ---------------------------------
-    // Public API: apply param (safe)
-    // ---------------------------------
-
     public static boolean applyParamAsync(Material m, String name, Value v) {
         if (m == null || name == null || name.isBlank() || isNull(v)) return false;
 
@@ -245,22 +201,43 @@ public final class MaterialUtils {
 
         // Inference
         TextureDesc td = parseTextureDesc(v);
-        if (td != null) { setTextureSafe(m, name, td); return true; }
+        if (td != null) {
+            setTextureSafe(m, name, td);
+            return true;
+        }
 
         ColorRGBA c = parseColor(v);
-        if (c != null) { m.setColor(name, c); return true; }
+        if (c != null) {
+            m.setColor(name, c);
+            return true;
+        }
 
         Vector2f v2 = parseVec2(v);
-        if (v2 != null) { m.setVector2(name, v2); return true; }
+        if (v2 != null) {
+            m.setVector2(name, v2);
+            return true;
+        }
 
         Vector3f v3 = parseVec3(v);
-        if (v3 != null) { m.setVector3(name, v3); return true; }
+        if (v3 != null) {
+            m.setVector3(name, v3);
+            return true;
+        }
 
         Vector4f v4 = parseVec4(v);
-        if (v4 != null) { m.setVector4(name, v4); return true; }
+        if (v4 != null) {
+            m.setVector4(name, v4);
+            return true;
+        }
 
-        if (v.isBoolean()) { m.setBoolean(name, v.asBoolean()); return true; }
-        if (v.isNumber())  { m.setFloat(name, (float) v.asDouble()); return true; }
+        if (v.isBoolean()) {
+            m.setBoolean(name, v.asBoolean());
+            return true;
+        }
+        if (v.isNumber()) {
+            m.setFloat(name, (float) v.asDouble());
+            return true;
+        }
 
         if (v.isString()) {
             ParsedTex pt = parseTextureShorthand(v.asString());
@@ -274,23 +251,70 @@ public final class MaterialUtils {
         return false;
     }
 
+    // ---------------------------------
+    // Data records
+    // ---------------------------------
+
     private static boolean applyByDeclared(Material m, String name, MatParam declared, Value v) {
         String type = declared.getVarType().name();
         try {
             switch (type) {
                 case "Boolean" -> {
-                    if (v.isBoolean()) { m.setBoolean(name, v.asBoolean()); return true; }
-                    if (v.isNumber())  { m.setBoolean(name, v.asDouble() != 0.0); return true; }
+                    if (v.isBoolean()) {
+                        m.setBoolean(name, v.asBoolean());
+                        return true;
+                    }
+                    if (v.isNumber()) {
+                        m.setBoolean(name, v.asDouble() != 0.0);
+                        return true;
+                    }
                 }
-                case "Int" -> { if (v.isNumber()) { m.setInt(name, (int) Math.round(v.asDouble())); return true; } }
-                case "Float" -> { if (v.isNumber()) { m.setFloat(name, (float) v.asDouble()); return true; } }
-                case "Color" -> { ColorRGBA c = parseColor(v); if (c != null) { m.setColor(name, c); return true; } }
-                case "Vector2" -> { Vector2f vv = parseVec2(v); if (vv != null) { m.setVector2(name, vv); return true; } }
-                case "Vector3" -> { Vector3f vv = parseVec3(v); if (vv != null) { m.setVector3(name, vv); return true; } }
-                case "Vector4" -> { Vector4f vv = parseVec4(v); if (vv != null) { m.setVector4(name, vv); return true; } }
+                case "Int" -> {
+                    if (v.isNumber()) {
+                        m.setInt(name, (int) Math.round(v.asDouble()));
+                        return true;
+                    }
+                }
+                case "Float" -> {
+                    if (v.isNumber()) {
+                        m.setFloat(name, (float) v.asDouble());
+                        return true;
+                    }
+                }
+                case "Color" -> {
+                    ColorRGBA c = parseColor(v);
+                    if (c != null) {
+                        m.setColor(name, c);
+                        return true;
+                    }
+                }
+                case "Vector2" -> {
+                    Vector2f vv = parseVec2(v);
+                    if (vv != null) {
+                        m.setVector2(name, vv);
+                        return true;
+                    }
+                }
+                case "Vector3" -> {
+                    Vector3f vv = parseVec3(v);
+                    if (vv != null) {
+                        m.setVector3(name, vv);
+                        return true;
+                    }
+                }
+                case "Vector4" -> {
+                    Vector4f vv = parseVec4(v);
+                    if (vv != null) {
+                        m.setVector4(name, vv);
+                        return true;
+                    }
+                }
                 case "Texture2D", "Texture3D", "TextureCubeMap" -> {
                     TextureDesc td = parseTextureDesc(v);
-                    if (td != null) { setTextureSafe(m, name, td); return true; }
+                    if (td != null) {
+                        setTextureSafe(m, name, td);
+                        return true;
+                    }
                 }
             }
         } catch (Throwable e) {
@@ -298,10 +322,6 @@ public final class MaterialUtils {
         }
         return false;
     }
-
-    // ---------------------------------
-    // Texture apply (STRICT SAFE)
-    // ---------------------------------
 
     private static void setTextureSafe(Material m, String param, TextureDesc td) {
         if (td == null || td.texture() == null || td.texture().isBlank()) {
@@ -322,7 +342,8 @@ public final class MaterialUtils {
 
         // 1) If async is not allowed -> SYNC load (prevents white)
         if (!canAsyncTextures()) {
-            if (DEBUG) log.warn("[MAT] setTexture SYNC fallback param='{}' tex='{}' overrides={}", param, path, hasOverrides ? 1 : 0);
+            if (DEBUG)
+                log.warn("[MAT] setTexture SYNC fallback param='{}' tex='{}' overrides={}", param, path, hasOverrides ? 1 : 0);
             try {
                 Texture t = assets.loadTexture(path);
                 if (hasOverrides) t = cloneWithOverrides(t, td);
@@ -332,7 +353,10 @@ public final class MaterialUtils {
                 log.error("[MAT] SYNC texture load FAILED: param='{}' tex='{}' err={}", param, path, e.toString(), e);
                 Texture ph = placeholder();
                 if (ph != null) {
-                    try { m.setTexture(param, ph); } catch (Throwable ignored) {}
+                    try {
+                        m.setTexture(param, ph);
+                    } catch (Throwable ignored) {
+                    }
                 }
                 return;
             }
@@ -341,7 +365,10 @@ public final class MaterialUtils {
         // 2) Async path
         Texture ph = placeholder();
         if (ph != null) {
-            try { m.setTexture(param, ph); } catch (Throwable ignored) {}
+            try {
+                m.setTexture(param, ph);
+            } catch (Throwable ignored) {
+            }
         }
 
         TextureKey key = TextureKey.of(td);
@@ -419,17 +446,20 @@ public final class MaterialUtils {
     private static void safeSetTex(Material m, String param, Texture t, String reason) {
         try {
             m.setTexture(param, t);
-            if (DEBUG) log.info("[MAT] texture set OK param='{}' reason={} texClass={}", param, reason, t.getClass().getSimpleName());
+            if (DEBUG)
+                log.info("[MAT] texture set OK param='{}' reason={} texClass={}", param, reason, t.getClass().getSimpleName());
         } catch (Throwable e) {
             log.error("[MAT] texture set FAILED param='{}' reason={} err={}", param, reason, e.toString(), e);
         }
     }
 
     // ---------------------------------
-    // Parsing helpers
+    // Public API: apply param (safe)
     // ---------------------------------
 
-    private static boolean isNull(Value v) { return v == null || v.isNull(); }
+    private static boolean isNull(Value v) {
+        return v == null || v.isNull();
+    }
 
     private static String safeType(Value v) {
         if (v == null) return "null";
@@ -440,9 +470,14 @@ public final class MaterialUtils {
             if (v.isString()) return "string";
             if (v.hasArrayElements()) return "array";
             if (v.hasMembers()) return "object";
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+        }
         return "unknown";
     }
+
+    // ---------------------------------
+    // Texture apply (STRICT SAFE)
+    // ---------------------------------
 
     public static ParsedTex parseTextureShorthand(String s) {
         if (s == null) return new ParsedTex(null, null);
@@ -488,6 +523,10 @@ public final class MaterialUtils {
         return null;
     }
 
+    // ---------------------------------
+    // Parsing helpers
+    // ---------------------------------
+
     public static Texture.MagFilter parseMagFilter(String s) {
         if (s == null || s.isBlank()) return null;
         String t = s.trim();
@@ -527,7 +566,8 @@ public final class MaterialUtils {
                 try {
                     Value a = v.getMember("anisotropy");
                     if (a != null && !a.isNull() && a.isNumber()) aniso = Math.max(0, a.asInt());
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                }
             }
 
             TileWorld tw = null;
@@ -539,7 +579,8 @@ public final class MaterialUtils {
                         float z = (float) num(t, "z", 0.0);
                         if (x > 0f && z > 0f) tw = new TileWorld(x, z);
                     }
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                }
             }
 
             return new TextureDesc(
@@ -634,10 +675,6 @@ public final class MaterialUtils {
         return null;
     }
 
-    // ---------------------------------
-    // Unknown-param heuristic
-    // ---------------------------------
-
     public static boolean isProbablyUnknownParam(Material m, String name) {
         if (m == null || name == null || name.isBlank()) return false;
         if (name.equals("Time") || name.equals("T") || name.equals("Debug")) return false;
@@ -651,5 +688,66 @@ public final class MaterialUtils {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private record RenderThreadScheduler(Consumer<Runnable> enqueue) {
+        void onRenderThread(Runnable r) {
+            enqueue.accept(r);
+        }
+    }
+
+    private record TextureKey(
+            String path,
+            Texture.WrapMode wrap,
+            Texture.MinFilter min,
+            Texture.MagFilter mag,
+            int aniso,
+            int hash
+    ) {
+        static TextureKey of(TextureDesc td) {
+            String p = td.texture().trim();
+            Texture.WrapMode w = td.wrap();
+            Texture.MinFilter mi = td.minFilter();
+            Texture.MagFilter ma = td.magFilter();
+            int a = Math.max(0, td.anisotropy());
+            int h = Objects.hash(p, w, mi, ma, a);
+            return new TextureKey(p, w, mi, ma, a, h);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof TextureKey k)) return false;
+            return hash == k.hash &&
+                    aniso == k.aniso &&
+                    Objects.equals(path, k.path) &&
+                    wrap == k.wrap &&
+                    min == k.min &&
+                    mag == k.mag;
+        }
+    }
+
+    public record TileWorld(float x, float z) {
+    }
+
+    public record TextureDesc(
+            String texture,
+            Texture.WrapMode wrap,
+            Texture.MinFilter minFilter,
+            Texture.MagFilter magFilter,
+            int anisotropy,
+            TileWorld tileWorld
+    ) {
+    }
+
+    // ---------------------------------
+    // Unknown-param heuristic
+    // ---------------------------------
+
+    public record ParsedTex(String path, Texture.WrapMode wrap) {
     }
 }

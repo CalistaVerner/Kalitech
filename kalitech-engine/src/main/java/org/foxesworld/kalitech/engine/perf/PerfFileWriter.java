@@ -1,10 +1,15 @@
 package org.foxesworld.kalitech.engine.perf;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.Closeable;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 
+@Deprecated
 public final class PerfFileWriter implements Closeable {
 
     private final BufferedWriter out;
@@ -27,11 +32,15 @@ public final class PerfFileWriter implements Closeable {
         try {
             out.write(jsonLine);
             out.newLine();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     public synchronized void flush() {
-        try { out.flush(); } catch (IOException ignored) {}
+        try {
+            out.flush();
+        } catch (IOException ignored) {
+        }
     }
 
     @Override
@@ -40,6 +49,7 @@ public final class PerfFileWriter implements Closeable {
             writeRaw("{\"type\":\"meta\",\"ended\":\"" + Instant.now() + "\"}");
             out.flush();
             out.close();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 }

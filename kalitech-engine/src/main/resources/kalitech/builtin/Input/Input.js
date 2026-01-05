@@ -5,9 +5,18 @@ const META = {
     engineMin: "0.0.0",
 };
 
-function _isObj(x) { return x && typeof x === "object"; }
-function _num(x, def = 0) { x = Number(x); return Number.isFinite(x) ? x : def; }
-function _bool(x) { return !!x; }
+function _isObj(x) {
+    return x && typeof x === "object";
+}
+
+function _num(x, def = 0) {
+    x = Number(x);
+    return Number.isFinite(x) ? x : def;
+}
+
+function _bool(x) {
+    return !!x;
+}
 
 function _keyNameNormalize(name) {
     if (name == null) return "";
@@ -34,8 +43,13 @@ module.exports = function InputModule(engine, K) {
     let _lastJustPressed = new Set();
     let _lastJustReleased = new Set();
 
-    function _vec2(x, y) { return { x: _num(x), y: _num(y) }; }
-    function _delta2(dx, dy) { return { dx: _num(dx), dy: _num(dy) }; }
+    function _vec2(x, y) {
+        return {x: _num(x), y: _num(y)};
+    }
+
+    function _delta2(dx, dy) {
+        return {dx: _num(dx), dy: _num(dy)};
+    }
 
     function _readSnapshot() {
         const snap = input.consumeSnapshot();
@@ -57,7 +71,9 @@ module.exports = function InputModule(engine, K) {
     const api = {
         META,
 
-        consumeSnapshot() { return _readSnapshot(); },
+        consumeSnapshot() {
+            return _readSnapshot();
+        },
 
         keyDown(key) {
             if (typeof key === "string") return !!input.keyDown(_keyNameNormalize(key));
@@ -68,8 +84,12 @@ module.exports = function InputModule(engine, K) {
             return input.keyCode(_keyNameNormalize(name)) | 0;
         },
 
-        mouseX() { return _num(input.mouseX()); },
-        mouseY() { return _num(input.mouseY()); },
+        mouseX() {
+            return _num(input.mouseX());
+        },
+        mouseY() {
+            return _num(input.mouseY());
+        },
 
         cursorPosition() {
             const v = input.cursorPosition();
@@ -77,11 +97,19 @@ module.exports = function InputModule(engine, K) {
             return _vec2(api.mouseX(), api.mouseY());
         },
 
-        mouseDx() { return _num(input.mouseDx()); },
-        mouseDy() { return _num(input.mouseDy()); },
+        mouseDx() {
+            return _num(input.mouseDx());
+        },
+        mouseDy() {
+            return _num(input.mouseDy());
+        },
 
-        mouseDX() { return _num(input.mouseDX()); },
-        mouseDY() { return _num(input.mouseDY()); },
+        mouseDX() {
+            return _num(input.mouseDX());
+        },
+        mouseDY() {
+            return _num(input.mouseDY());
+        },
 
         mouseDelta() {
             const d = input.mouseDelta();
@@ -95,10 +123,16 @@ module.exports = function InputModule(engine, K) {
             return _delta2(0, 0);
         },
 
-        wheelDelta() { return _num(input.wheelDelta()); },
-        consumeWheelDelta() { return _num(input.consumeWheelDelta()); },
+        wheelDelta() {
+            return _num(input.wheelDelta());
+        },
+        consumeWheelDelta() {
+            return _num(input.consumeWheelDelta());
+        },
 
-        mouseDown(button) { return !!input.mouseDown(_num(button, 0) | 0); },
+        mouseDown(button) {
+            return !!input.mouseDown(_num(button, 0) | 0);
+        },
 
         cursorVisible(v) {
             if (arguments.length === 0) return !!input.cursorVisible();
@@ -111,7 +145,9 @@ module.exports = function InputModule(engine, K) {
             return api;
         },
 
-        grabbed() { return !!input.grabbed(); },
+        grabbed() {
+            return !!input.grabbed();
+        },
 
         endFrame() {
             input.endFrame();
@@ -128,7 +164,9 @@ module.exports = function InputModule(engine, K) {
             return snap;
         },
 
-        lastSnapshot() { return _lastSnap; },
+        lastSnapshot() {
+            return _lastSnap;
+        },
 
         pressed(key) {
             const code = (typeof key === "string") ? api.keyCode(key) : (_num(key, -1) | 0);
@@ -140,8 +178,12 @@ module.exports = function InputModule(engine, K) {
             return _lastJustReleased.has(code);
         },
 
-        mousePos() { return api.cursorPosition(); },
-        delta() { return api.mouseDelta(); },
+        mousePos() {
+            return api.cursorPosition();
+        },
+        delta() {
+            return api.mouseDelta();
+        },
     };
 
     return api;

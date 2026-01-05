@@ -9,18 +9,28 @@ const META = {
     engineMin: "0.1.0",
 };
 
-function num(x, def = 0) { x = Number(x); return Number.isFinite(x) ? x : def; }
-function isObj(x) { return x && typeof x === "object"; }
+function num(x, def = 0) {
+    x = Number(x);
+    return Number.isFinite(x) ? x : def;
+}
+
+function isObj(x) {
+    return x && typeof x === "object";
+}
 
 function warn(s) {
-    try { if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn(String(s)); } catch (_) {}
+    try {
+        if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn(String(s));
+    } catch (_) {
+    }
 }
 
 function vec3Obj(v, dx, dy, dz) {
-    if (Array.isArray(v)) return { x: num(v[0], dx), y: num(v[1], dy), z: num(v[2], dz) };
-    if (isObj(v)) return { x: num(v.x, dx), y: num(v.y, dy), z: num(v.z, dz) };
-    return { x: dx, y: dy, z: dz };
+    if (Array.isArray(v)) return {x: num(v[0], dx), y: num(v[1], dy), z: num(v[2], dz)};
+    if (isObj(v)) return {x: num(v.x, dx), y: num(v.y, dy), z: num(v.z, dz)};
+    return {x: dx, y: dy, z: dz};
 }
+
 function vec3Arr(v, dx, dy, dz) {
     if (Array.isArray(v)) return [num(v[0], dx), num(v[1], dy), num(v[2], dz)];
     if (isObj(v)) return [num(v.x, dx), num(v.y, dy), num(v.z, dz)];
@@ -137,20 +147,28 @@ function makeApi(engine) {
     }
 
     function debug(enabled) {
-        try { phys.debug(!!enabled); } catch (e) { warn("[PHYS] debug() failed: " + (e && e.message ? e.message : e)); }
+        try {
+            phys.debug(!!enabled);
+        } catch (e) {
+            warn("[PHYS] debug() failed: " + (e && e.message ? e.message : e));
+        }
     }
 
     function gravity(g) {
-        try { phys.gravity(vec3Obj(g, 0, -9.81, 0)); } catch (e) { warn("[PHYS] gravity() failed: " + (e && e.message ? e.message : e)); }
+        try {
+            phys.gravity(vec3Obj(g, 0, -9.81, 0));
+        } catch (e) {
+            warn("[PHYS] gravity() failed: " + (e && e.message ? e.message : e));
+        }
     }
 
     const collider = {
-        box: (halfExtents) => ({ type: "box", halfExtents: vec3Obj(halfExtents, 0.5, 0.5, 0.5) }),
-        sphere: (radius) => ({ type: "sphere", radius: num(radius, 0.5) }),
-        capsule: (radius, height) => ({ type: "capsule", radius: num(radius, 0.35), height: num(height, 1.8) }),
-        cylinder: (radius, height) => ({ type: "cylinder", radius: num(radius, 0.5), height: num(height, 1.0) }),
-        mesh: () => ({ type: "mesh" }),
-        dynamicMesh: () => ({ type: "dynamicMesh" })
+        box: (halfExtents) => ({type: "box", halfExtents: vec3Obj(halfExtents, 0.5, 0.5, 0.5)}),
+        sphere: (radius) => ({type: "sphere", radius: num(radius, 0.5)}),
+        capsule: (radius, height) => ({type: "capsule", radius: num(radius, 0.35), height: num(height, 1.8)}),
+        cylinder: (radius, height) => ({type: "cylinder", radius: num(radius, 0.5), height: num(height, 1.0)}),
+        mesh: () => ({type: "mesh"}),
+        dynamicMesh: () => ({type: "dynamicMesh"})
     };
 
     function ensureBodyForSurface(surfaceHandleOrId, cfg) {
@@ -228,7 +246,10 @@ function makeApi(engine) {
     }
 
     function _onCollision(topic, filter, fn) {
-        if (typeof filter === "function") { fn = filter; filter = null; }
+        if (typeof filter === "function") {
+            fn = filter;
+            filter = null;
+        }
         if (typeof fn !== "function") throw new Error("[PHYS] handler must be a function");
 
         const E = _needEvents();
@@ -239,9 +260,17 @@ function makeApi(engine) {
         });
     }
 
-    function onCollisionBegin(filter, fn) { return _onCollision("engine.physics.collision.begin", filter, fn); }
-    function onCollisionStay(filter, fn)  { return _onCollision("engine.physics.collision.stay",  filter, fn); }
-    function onCollisionEnd(filter, fn)   { return _onCollision("engine.physics.collision.end",   filter, fn); }
+    function onCollisionBegin(filter, fn) {
+        return _onCollision("engine.physics.collision.begin", filter, fn);
+    }
+
+    function onCollisionStay(filter, fn) {
+        return _onCollision("engine.physics.collision.stay", filter, fn);
+    }
+
+    function onCollisionEnd(filter, fn) {
+        return _onCollision("engine.physics.collision.end", filter, fn);
+    }
 
     function onPostStep(fn) {
         const E = _needEvents();

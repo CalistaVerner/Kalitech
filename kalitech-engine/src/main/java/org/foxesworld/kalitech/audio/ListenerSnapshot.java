@@ -22,7 +22,7 @@ public record ListenerSnapshot(Vector3f position, Vector3f forward, Vector3f up)
             Vector3f up = rot.mult(Vector3f.UNIT_Y);
 
             if (!StereoMath.isFinite(fwd) || fwd.lengthSquared() < 1e-8f) fwd = Vector3f.UNIT_Z.clone();
-            if (!StereoMath.isFinite(up)  || up.lengthSquared()  < 1e-8f) up  = Vector3f.UNIT_Y.clone();
+            if (!StereoMath.isFinite(up) || up.lengthSquared() < 1e-8f) up = Vector3f.UNIT_Y.clone();
 
             fwd.normalizeLocal();
             up.normalizeLocal();

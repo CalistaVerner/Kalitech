@@ -43,7 +43,10 @@ function i32(v, def) {
 }
 
 function warn(msg) {
-    try { if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn(String(msg)); } catch (_) {}
+    try {
+        if (typeof LOG !== "undefined" && LOG && LOG.warn) LOG.warn(String(msg));
+    } catch (_) {
+    }
 }
 
 function errStr(e) {
@@ -159,16 +162,16 @@ function resolveBodyId(engine, surfaceHandleOrId, maybeBodyHandleOrId) {
 
 function ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderType) {
     const sid = surfaceIdOf(surfaceHandleOrId);
-    if (sid <= 0) return { bodyId: 0, bodyHandle: null };
+    if (sid <= 0) return {bodyId: 0, bodyHandle: null};
 
     const existing = resolveBodyId(engine, sid, null);
-    if (existing > 0) return { bodyId: existing, bodyHandle: null };
+    if (existing > 0) return {bodyId: existing, bodyHandle: null};
 
     const base = {
         surface: sid,
         mass: 0,
         kinematic: true,
-        collider: { type: defaultColliderType || "mesh" },
+        collider: {type: defaultColliderType || "mesh"},
     };
     const cfg = isObj(physCfg) ? Object.assign(base, physCfg) : base;
 
@@ -185,7 +188,7 @@ function ensureStaticBody(engine, surfaceHandleOrId, physCfg, defaultColliderTyp
     }
 
     const bodyId = resolveBodyId(engine, sid, bodyHandle);
-    return { bodyId, bodyHandle };
+    return {bodyId, bodyHandle};
 }
 
 function withBody(engine, terr, surface, physCfg, defaultColliderType) {
@@ -293,10 +296,12 @@ function makeApi(engine) {
     function scale(surfaceHandle, xzScale, cfg) {
         return terr.scale(surfaceHandle, num(xzScale, 1.0), cfg || null);
     }
+
     function heightAt(surfaceHandle, x, z, world) {
         if (world === undefined) return terr.heightAt(surfaceHandle, num(x, 0), num(z, 0));
         return terr.heightAt(surfaceHandle, num(x, 0), num(z, 0), !!world);
     }
+
     function normalAt(surfaceHandle, x, z, world) {
         if (world === undefined) return terr.normalAt(surfaceHandle, num(x, 0), num(z, 0));
         return terr.normalAt(surfaceHandle, num(x, 0), num(z, 0), !!world);
@@ -326,10 +331,12 @@ function makeApi(engine) {
     function heightmap(surfaceHandle) {
         return toFloat32Array(terr.heightmap(surfaceHandle));
     }
+
     function setHeight(surfaceHandle, x, z, height, world) {
         if (world === undefined) return terr.setHeight(surfaceHandle, num(x, 0), num(z, 0), num(height, 0));
         return terr.setHeight(surfaceHandle, num(x, 0), num(z, 0), num(height, 0), !!world);
     }
+
     function adjustHeight(surfaceHandle, x, z, delta, world) {
         if (world === undefined) return terr.adjustHeight(surfaceHandle, num(x, 0), num(z, 0), num(delta, 0));
         return terr.adjustHeight(surfaceHandle, num(x, 0), num(z, 0), num(delta, 0), !!world);
