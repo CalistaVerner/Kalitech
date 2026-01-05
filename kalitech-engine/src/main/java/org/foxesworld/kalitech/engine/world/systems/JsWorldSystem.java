@@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
  *  - ctx is stable/shared across systems
  *  - per-system config is applied ONLY during this system callback and then restored
  *  - module loading uses reflection against GraalScriptRuntime to avoid hard dependency on exact method names
+ *  - runtime profile support: ctx.runtime(profile) (isolation-on-demand)
  */
 public final class JsWorldSystem implements KSystem {
 
@@ -21,7 +22,8 @@ public final class JsWorldSystem implements KSystem {
 
     private final String module;
     private final Object cfg;     // JS-friendly config (ProxyObject/ProxyArray/primitives)
-    private final Object sysDesc; // ProxyObject with {provider,module,config}
+    private final Object sysDesc; // ProxyObject with {provider,module,runtime,config}
+    private final String runtimeProfile;
 
     // module exports cached
     private volatile Value exports;
@@ -30,20 +32,27 @@ public final class JsWorldSystem implements KSystem {
     private volatile boolean started = false;
 
     /**
-     * New constructor used by JsWorldSystemProvider (AAA scoped config).
+     * New constructor used by JsWorldSystemProvider (AAA scoped config + runtime profile).
      */
-    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
+    public JsWorldSystem(String module, Object cfg, Object sysDesc, String runtimeProfile) {
         this.module = Objects.requireNonNull(module, "module");
         this.cfg = cfg;
         this.sysDesc = sysDesc;
+        this.runtimeProfile = (runtimeProfile == null || runtimeProfile.isBlank()) ? "world" : runtimeProfile.trim();
+    }
+
+    /**
+     * Back-compat constructor if something still calls new JsWorldSystem(module, cfg, sysDesc).
+     */
+    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
+        this(module, cfg, sysDesc, "world");
     }
 
     /**
      * Back-compat constructor if something still calls new JsWorldSystem(module).
-     * In that case, scripts will see null config unless you pass it via ctx externally.
      */
     public JsWorldSystem(String module) {
-        this(module, null, null);
+        this(module, null, null, "world");
     }
 
     // -----------------------
@@ -138,12 +147,12 @@ public final class JsWorldSystem implements KSystem {
     private void ensureLoaded(SystemContext ctx) throws Exception {
         if (exports != null) return;
 
-        // SystemContext.runtime() is package-private; JsWorldSystem is in same package => доступ есть.
         final GraalScriptRuntime rt;
         try {
-            rt = ctx.runtime();
+            // Use runtime profile (isolation-on-demand)
+            rt = ctx.runtime(runtimeProfile);
         } catch (Throwable t) {
-            log.error("[jsSystem] cannot access ctx.runtime() for module {}: {}", module, t.toString());
+            log.error("[jsSystem] cannot access ctx.runtime({}) for module {}: {}", runtimeProfile, module, t.toString());
             throw t;
         }
 
@@ -153,7 +162,7 @@ public final class JsWorldSystem implements KSystem {
                 throw new IllegalStateException("GraalScriptRuntime returned null exports for module=" + module);
             }
         } catch (Throwable t) {
-            log.error("[jsSystem] failed to load module {}: {}", module, t.toString());
+            log.error("[jsSystem] failed to load module {} (runtime={}): {}", module, runtimeProfile, t.toString());
             throw t;
         }
     }

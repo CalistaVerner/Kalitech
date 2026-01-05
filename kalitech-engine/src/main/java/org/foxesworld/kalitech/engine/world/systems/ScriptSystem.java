@@ -57,7 +57,11 @@ public final class ScriptSystem implements KSystem {
     public void onStart(SystemContext ctx) {
         this.app = Objects.requireNonNull(ctx.app(), "ctx.app");
         this.bus = Objects.requireNonNull(ctx.events(), "ctx.events");
-        this.runtime = Objects.requireNonNull(ctx.runtime(), "ctx.runtime");
+
+        // Isolation-on-demand:
+        // - normal entity scripts => world runtime
+        // - hotReload entity scripts => hotreload runtime (separate cache/sandbox)
+        this.runtime = Objects.requireNonNull(ctx.runtime(hotReload ? "hotreload" : "world"), "ctx.runtime(profile)");
 
         if (hotReload) {
             try {
@@ -102,18 +106,12 @@ public final class ScriptSystem implements KSystem {
                     // Optional: allow JS to react (safe/no hard dependency)
                     try { bus.emit("hotreload:changed", changed); } catch (Throwable ignored) {}
                 } else {
-                    // nothing changed; continue polling normally
                     cooldown = 0f;
                 }
             }
         }
 
-        // NOTE:
-        // Globals rebinding is now owned by WorldAppState (bindings.putMember(...)).
-        // ScriptSystem should not call runtime.bindGlobals/consumeRebindRequested (they don't exist in your runtime).
-
         // 2) lifecycle for ScriptComponent
-        // NOTE: view() creates a snapshot map. If this becomes hot, switch ComponentStore to forEach().
         Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
         if (scripts.isEmpty()) return;
 
@@ -164,20 +162,15 @@ public final class ScriptSystem implements KSystem {
     // -------------------- lifecycle internals --------------------
 
     private void ensureStarted(int entityId, ScriptComponent sc) {
-        // Prefer cached/normalized module id if ScriptComponent provides it.
         String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
                 ? sc.moduleId
                 : normalize(sc.assetPath);
 
         long v = runtime.moduleVersion(moduleId);
 
-        // Restart entity instance if:
-        // - instance is missing
-        // - module version changed due to invalidation/hot reload
         boolean needsStart = (sc.instance == null) || (sc.moduleVersion != v);
         if (!needsStart) return;
 
-        // If exists but outdated -> destroy first
         if (sc.instance != null) {
             destroyInstance(entityId, sc);
             sc.instance = null;
@@ -189,7 +182,6 @@ public final class ScriptSystem implements KSystem {
         sc.instance = instance;
         sc.moduleVersion = v;
 
-        // IMPORTANT: use SystemContext-provided API access patterns
         EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, bus);
         callIfExists(sc.instance, "init", api);
     }

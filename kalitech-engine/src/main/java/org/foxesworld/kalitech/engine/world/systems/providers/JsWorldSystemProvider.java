@@ -17,6 +17,7 @@ import java.util.Map;
 /**
  * jsSystem provider (AAA):
  *  - reads module from config.module
+ *  - optional runtime profile from config.runtime OR config.sandbox=true
  *  - prepares JS-friendly config object (ProxyObject/ProxyArray)
  *  - DOES NOT write ctx.put("config") here (ctx is shared / stable and would be overwritten by other systems)
  *  - passes prepared config into JsWorldSystem, which will scope-bind it for each callback (init/update/destroy).
@@ -35,8 +36,14 @@ public final class JsWorldSystemProvider implements SystemProvider {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
 
-        // 2) (Optional) unwrap inner config if you ever start passing descriptors with { config: {...} }
-        // In your current logs, unwrapped=false and config already has shadows/fog/etc for sky.
+        // 2) runtime profile (isolation-on-demand)
+        //    config.runtime: "world"(default), "ui", "tools", "hotreload", "sandbox"
+        //    OR config.sandbox=true => "sandbox"
+        final boolean sandbox = ValueCfg.bool(config, "sandbox", false);
+        final String rtCfg = ValueCfg.str(config, "runtime", null);
+        final String runtimeProfile = sandbox ? "sandbox" : ((rtCfg == null || rtCfg.isBlank()) ? "world" : rtCfg.trim());
+
+        // 3) (Optional) unwrap inner config if you ever start passing descriptors with { config: {...} }
         Value inner = config;
         boolean unwrapped = false;
         try {
@@ -51,22 +58,23 @@ public final class JsWorldSystemProvider implements SystemProvider {
             log.warn("[jsSystem] unwrap inner config failed: {}", t.toString());
         }
 
-        // 3) Convert to JS-friendly objects (important: scripts can use cfg.shadows.mapSize directly)
+        // 4) Convert to JS-friendly objects (important: scripts can use cfg.shadows.mapSize directly)
         final Object cfgJs = toProxy(inner);
 
-        // 4) Build a small descriptor (scoped later by JsWorldSystem)
+        // 5) Build a small descriptor (scoped later by JsWorldSystem)
         final Map<String, Object> sysDesc = new LinkedHashMap<>();
         sysDesc.put("provider", id());
         sysDesc.put("module", module);
+        sysDesc.put("runtime", runtimeProfile);
         sysDesc.put("config", cfgJs);
 
         if (log.isDebugEnabled()) {
-            log.debug("[jsSystem] prepared (module={}, unwrapped={})", module, unwrapped);
+            log.debug("[jsSystem] prepared (module={}, unwrapped={}, runtime={})", module, unwrapped, runtimeProfile);
         }
-        log.info("[jsSystem] module={}", module);
+        log.info("[jsSystem] module={} runtime={}", module, runtimeProfile);
 
         // IMPORTANT: pass cfg into JsWorldSystem, do NOT write into ctx here
-        return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc));
+        return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtimeProfile);
     }
 
     // --------- Value -> Proxy converters ---------

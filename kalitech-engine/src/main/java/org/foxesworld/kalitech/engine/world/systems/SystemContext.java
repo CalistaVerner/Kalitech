@@ -24,7 +24,10 @@ public final class SystemContext {
     private final AssetManager assets;
     private final ScriptEventBus events;
     private final EcsWorld ecs;
-    private final GraalScriptRuntime runtime;
+
+    /** Runtime access is delegated to WorldAppState (RuntimePool). */
+    private final WorldAppState worldAppState;
+
     //private final PhysicsAccess physicsAccess;
     private final PhysicsSpace physicsSpace;
 
@@ -62,10 +65,11 @@ public final class SystemContext {
     public SystemContext(SimpleApplication app, WorldAppState worldAppState) {
 
         this.app = Objects.requireNonNull(app, "app");
+        this.worldAppState = Objects.requireNonNull(worldAppState, "worldAppState");
+
         this.assets = app.getAssetManager();
         this.events = worldAppState.getBus();
         this.ecs = worldAppState.getEcs();
-        this.runtime = worldAppState.getRuntime();
         this.api = worldAppState.getApi();
         this.physicsSpace = worldAppState.getPhysicsSpace();
 
@@ -99,8 +103,14 @@ public final class SystemContext {
         return ecs;
     }
 
+    /** Default world runtime (back-compat). */
     GraalScriptRuntime runtime() {
-        return runtime;
+        return worldAppState.getRuntime();
+    }
+
+    /** Runtime by profile: "world", "ui", "tools", "hotreload", "sandbox", etc. */
+    GraalScriptRuntime runtime(String profile) {
+        return worldAppState.getRuntime(profile);
     }
 
     /**
@@ -110,7 +120,7 @@ public final class SystemContext {
      */
     @HostAccess.Export
     public ScriptJobQueue jobs() {
-        return runtime.jobs();
+        return runtime().jobs();
     }
 
     // ---------------------------------------
@@ -151,7 +161,8 @@ public final class SystemContext {
     public PhysicsSpace getPhysicsSpace() {
         return physicsSpace;
     }
-// ------------------------------
+
+    // ------------------------------
     // Domains (small, stable, JS-safe)
     // ------------------------------
 

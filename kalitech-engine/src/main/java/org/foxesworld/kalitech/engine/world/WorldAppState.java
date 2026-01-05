@@ -17,8 +17,10 @@ import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Runs current KWorld and allows hot-swap world via setWorld().
@@ -31,7 +33,14 @@ public final class WorldAppState extends BaseAppState {
 
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
-    private final GraalScriptRuntime runtime;
+
+    /**
+     * Runtime pool:
+     *  - "world" (default) => base runtime (fast, shared cache)
+     *  - other profiles ("ui","tools","hotreload","sandbox") => isolated runtime if supported
+     */
+    private final RuntimePool runtimePool;
+
     private final EngineApi api;
     private final PhysicsSpace physicsSpace;
 
@@ -53,7 +62,7 @@ public final class WorldAppState extends BaseAppState {
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.bus = runtimeAppState.getBus();
         this.ecs = runtimeAppState.getEcs();
-        this.runtime = runtimeAppState.getRuntime();
+        this.runtimePool = new RuntimePool(runtimeAppState.getRuntime());
         this.api = runtimeAppState.getEngineApi();
         this.physicsSpace = runtimeAppState.getSpace();
     }
@@ -116,18 +125,16 @@ public final class WorldAppState extends BaseAppState {
         // 5) world update
         // ==========================================================
 
+        // World runtime (default profile)
+        final GraalScriptRuntime worldRt = runtimePool.get("world");
+
         // 1) Drain queued main-thread jobs (if your ScriptJobQueue supports draining).
-        // NOTE: adjust method name if your ScriptJobQueue differs.
         try {
             if (jobDrainBudget > 0) {
-                // Common naming variants: drain(budget), drainToMainThread(budget), run(budget), pump(budget)
-                // Replace "drain" below with the real one in your ScriptJobQueue.
-                runtime.jobs().drain(jobDrainBudget);
+                worldRt.jobs().drain(jobDrainBudget);
             }
         } catch (NoSuchMethodError nsme) {
-            // If ScriptJobQueue doesn't have drain(int) yet, we keep engine running.
-            // Add it later, or rename the call above.
-            // log.debug("ScriptJobQueue.drain(int) not available yet");
+            // job queue drain not available yet
         } catch (Exception e) {
             log.error("Script job drain failed", e);
         }
@@ -138,7 +145,13 @@ public final class WorldAppState extends BaseAppState {
             if (hr != null) {
                 Set<String> changed = hr.pollChanged();
                 if (changed != null && !changed.isEmpty()) {
-                    int removed = runtime.invalidateManyWithReason(changed, "hotReload");
+                    int removed;
+                    try {
+                        removed = worldRt.invalidateManyWithReason(changed, "hotReload");
+                    } catch (NoSuchMethodError e) {
+                        removed = worldRt.invalidateMany(changed);
+                    }
+
                     if (removed > 0) {
                         log.info("HotReload invalidated modules: {}", removed);
                         restartRequested = true;
@@ -153,15 +166,9 @@ public final class WorldAppState extends BaseAppState {
         if (restartRequested) {
             restartRequested = false;
             try {
-                // Stop the current world cleanly to drop subscriptions/state
                 tryStopWorld();
-
-                // Re-install globals (in case scripts rely on stable bindings across reload cycles)
                 installJsGlobals(this.ctx, this.api);
-
-                // Start again (world.start should bootstrap and require() entrypoints)
                 tryStartWorld();
-
                 log.info("World restarted after hot reload");
             } catch (Exception e) {
                 log.error("World restart after hot reload failed", e);
@@ -188,6 +195,7 @@ public final class WorldAppState extends BaseAppState {
     @Override
     protected void cleanup(Application app) {
         tryStopWorld();
+        try { runtimePool.closeAll(); } catch (Throwable ignored) {}
         ctx = null;
         log.info("WorldAppState cleaned up");
     }
@@ -233,7 +241,8 @@ public final class WorldAppState extends BaseAppState {
      */
     private void installJsGlobals(SystemContext sysCtx, EngineApi engineApi) {
         try {
-            Value bindings = runtime.ctx().getBindings("js");
+            // Bind into WORLD runtime only (main pipeline).
+            Value bindings = runtimePool.get("world").ctx().getBindings("js");
 
             bindings.putMember("ctx", sysCtx);
             bindings.putMember("api", engineApi);
@@ -242,18 +251,13 @@ public final class WorldAppState extends BaseAppState {
             bindings.putMember("engine", engineApi);
 
             // IMPORTANT: render must be RenderApi, not EngineApiImpl
-            // Adjust getter name to your real API: render(), renderApi(), renderer(), etc.
             try {
                 bindings.putMember("render", engineApi.render());
             } catch (Throwable t) {
-                // fallback: keep engine (but then render.* calls will still fail)
                 bindings.putMember("render", engineApi);
                 log.warn("Failed to bind render as EngineApi.render(); scripts may call missing render.* methods", t);
             }
 
-            // optional:
-            // bindings.putMember("events", engineApi.events());
-            // bindings.putMember("ecs", engineApi.ecs());
         } catch (Exception e) {
             log.error("Failed to install JS globals", e);
         }
@@ -267,8 +271,14 @@ public final class WorldAppState extends BaseAppState {
         return api;
     }
 
+    /** Default world runtime (back-compat). */
     public GraalScriptRuntime getRuntime() {
-        return runtime;
+        return runtimePool.get("world");
+    }
+
+    /** Runtime by profile: "world"(default), "ui", "tools", "hotreload", "sandbox", etc. */
+    public GraalScriptRuntime getRuntime(String profile) {
+        return runtimePool.get(profile);
     }
 
     public EcsWorld getEcs() {
@@ -284,6 +294,102 @@ public final class WorldAppState extends BaseAppState {
             bindings.putMember(name, value);
         } catch (Throwable ignored) {
             // Keep it silent: missing exports / host access restrictions are expected sometimes.
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // RuntimePool (lazy, per-world, isolation-on-demand, reflection-friendly)
+    // ----------------------------------------------------------------------
+    static final class RuntimePool {
+        private final GraalScriptRuntime base;
+        private final ConcurrentHashMap<String, GraalScriptRuntime> map = new ConcurrentHashMap<>();
+
+        RuntimePool(GraalScriptRuntime base) {
+            this.base = Objects.requireNonNull(base, "base runtime");
+            map.put("world", base);
+        }
+
+        GraalScriptRuntime get(String profile) {
+            final String key = (profile == null || profile.isBlank()) ? "world" : profile.trim();
+            if ("world".equals(key)) return base;
+            return map.computeIfAbsent(key, this::forkOrFallback);
+        }
+
+        private GraalScriptRuntime forkOrFallback(String profile) {
+            // Try: fork(), fork(String), createIsolated(String), child()
+            GraalScriptRuntime rt = tryCall0(base, "fork");
+            if (rt != null) {
+                log.info("[runtimePool] fork() -> profile={}", profile);
+                return rt;
+            }
+
+            rt = tryCall1(base, "fork", String.class, profile);
+            if (rt != null) {
+                log.info("[runtimePool] fork(String) -> profile={}", profile);
+                return rt;
+            }
+
+            rt = tryCall1(base, "createIsolated", String.class, profile);
+            if (rt != null) {
+                log.info("[runtimePool] createIsolated(String) -> profile={}", profile);
+                return rt;
+            }
+
+            rt = tryCall0(base, "child");
+            if (rt != null) {
+                log.info("[runtimePool] child() -> profile={}", profile);
+                return rt;
+            }
+
+            // Fallback: no isolation available yet
+            log.warn("[runtimePool] no fork method found in GraalScriptRuntime; using base runtime for profile={}", profile);
+            return base;
+        }
+
+        void closeAll() {
+            for (var e : map.entrySet()) {
+                final String k = e.getKey();
+                final GraalScriptRuntime rt = e.getValue();
+                if (rt == null || rt == base) continue;
+
+                boolean closed = tryCallVoid(rt, "close")
+                        || tryCallVoid(rt, "shutdown")
+                        || tryCallVoid(rt, "dispose");
+
+                log.info("[runtimePool] close profile={} closed={}", k, closed);
+            }
+            map.clear();
+            map.put("world", base);
+        }
+
+        private static GraalScriptRuntime tryCall0(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                Object r = m.invoke(target);
+                return (r instanceof GraalScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static GraalScriptRuntime tryCall1(Object target, String name, Class<?> p0, Object a0) {
+            try {
+                Method m = target.getClass().getMethod(name, p0);
+                Object r = m.invoke(target, a0);
+                return (r instanceof GraalScriptRuntime gr) ? gr : null;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static boolean tryCallVoid(Object target, String name) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                m.invoke(target);
+                return true;
+            } catch (Throwable ignored) {
+                return false;
+            }
         }
     }
 }
