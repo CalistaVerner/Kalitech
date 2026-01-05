@@ -1,3 +1,4 @@
+// FILE: WorldAppState.java
 package org.foxesworld.kalitech.engine.world;
 
 import com.jme3.app.Application;
@@ -28,6 +29,10 @@ import java.util.concurrent.TimeUnit;
  * - worker runtimes get hard sandbox (API-level): engine/api/render are main-thread proxies
  * - per-worker stats via SystemScheduler
  * - frame budget guard (60fps baseline)
+ *
+ * Extra AAA:
+ * - PerfMarks (ctx.perf().mark) to tag offender hints in logs
+ * - MainThreadBudgetQueue (ctx.perf().main().enqueue) to throttle heavy main-thread ops (spawn/physics/etc.)
  */
 public final class WorldAppState extends BaseAppState {
 
@@ -51,6 +56,13 @@ public final class WorldAppState extends BaseAppState {
     private volatile long frameBudgetNanos = fpsToBudgetNanos(60);
     private long frameIndex = 0L;
     private volatile FrameStats lastFrameStats;
+
+    // Spike hints + main-thread heavy-op throttling
+    private final PerfMarks perfMarks = new PerfMarks();
+    private final MainThreadBudgetQueue mainQueue = new MainThreadBudgetQueue();
+
+    // optional warmup: do not spam overbudget logs during startup
+    private long warmupUntilNanos = 0L;
 
     // overload logging (rare, but loud)
     private long lastFrameOverBudgetLogNanos = 0L;
@@ -126,6 +138,12 @@ public final class WorldAppState extends BaseAppState {
         return (s != null) ? s.statsSnapshot() : new WorkerSystemStats[0];
     }
 
+    public PerfMarks getPerfMarks() { return perfMarks; }
+    public MainThreadBudgetQueue getMainQueue() { return mainQueue; }
+
+    /** Convenience: tag frame offender hints from JS/Java (e.g. ctx.perf().mark("shoot:spawn")). */
+    public void perfMark(String mark) { perfMarks.mark(mark); }
+
     @Override
     protected void initialize(Application app) {
         if (!(app instanceof SimpleApplication sa)) {
@@ -150,6 +168,13 @@ public final class WorldAppState extends BaseAppState {
         installWorldGlobals(this.ctx, this.api);
 
         tryStartWorld();
+
+        // warmup window: skip overbudget spam during startup
+        warmupUntilNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+
+        // defaults for queue; tune as you like
+        mainQueue.setMaxOpsPerFrame(8);
+        mainQueue.setMaxMsPerFrame(2);
     }
 
     public void setWorld(KWorld newWorld) {
@@ -165,6 +190,8 @@ public final class WorldAppState extends BaseAppState {
     @Override
     public void update(float tpf) {
         if (!isEnabled() || ctx == null) return;
+
+        perfMarks.beginFrame();
 
         final long frameStart = System.nanoTime();
         final long budget = frameBudgetNanos;
@@ -240,6 +267,16 @@ public final class WorldAppState extends BaseAppState {
             eventsNanos = Math.max(0L, t1 - t0);
         }
 
+        // 4.5) Drain main-thread heavy op queue (spawn/physics/model instantiation throttling)
+        // Give it a slice of the remaining frame budget (best-effort).
+        try {
+            long now0 = System.nanoTime();
+            long remainingForQueue = budget - (now0 - frameStart);
+            mainQueue.drain(remainingForQueue);
+        } catch (Exception e) {
+            log.error("MainThreadBudgetQueue drain failed", e);
+        }
+
         // 5) Update world
         t0 = System.nanoTime();
         if (world != null && running) {
@@ -290,8 +327,12 @@ public final class WorldAppState extends BaseAppState {
                 dispatcher != null ? dispatcher.getTimeouts() : 0L
         );
 
-        // Over-budget frame breakdown log (rare, but loud)
-        if (frameOverBudgetLogEveryNanos > 0 && frameNanos > budget && (now - lastFrameOverBudgetLogNanos) >= frameOverBudgetLogEveryNanos) {
+        // Over-budget frame breakdown log (rare, but loud) + warmup skip
+        boolean inWarmup = (now < warmupUntilNanos);
+        if (!inWarmup
+                && frameOverBudgetLogEveryNanos > 0
+                && frameNanos > budget
+                && (now - lastFrameOverBudgetLogNanos) >= frameOverBudgetLogEveryNanos) {
             lastFrameOverBudgetLogNanos = now;
             logFrameOverBudget(lastFrameStats);
         }
@@ -330,7 +371,7 @@ public final class WorldAppState extends BaseAppState {
     private void logFrameOverBudget(FrameStats fs) {
         if (fs == null) return;
 
-        StringBuilder b = new StringBuilder(512);
+        StringBuilder b = new StringBuilder(768);
         b.append("[frame] OVER BUDGET ⚠ fpsTarget=")
                 .append(targetFps)
                 .append(" totalMs=").append(nsToMs(fs.frameNanos))
@@ -346,6 +387,22 @@ public final class WorldAppState extends BaseAppState {
                 .append(" world=").append(nsToMs(fs.worldUpdateNanos))
                 .append(" awaitWorkers=").append(nsToMs(fs.awaitWorkersNanos))
                 .append(" pool=").append(nsToMs(fs.poolMaintenanceNanos));
+
+        // Perf mark (spike hint)
+        String mark = perfMarks.getLastMark();
+        if (mark != null) {
+            b.append("\n  mark: ").append(mark);
+        }
+
+        // Main queue backlog
+        MainThreadBudgetQueue.Snapshot qs = mainQueue.snapshot();
+        b.append("\n  mainQueue:")
+                .append(" pending=").append(qs.pending)
+                .append(" maxDepth=").append(qs.maxDepth)
+                .append(" maxOps=").append(qs.maxOpsPerFrame)
+                .append(" maxMs=").append(qs.maxMsPerFrame)
+                .append(" executed=").append(qs.executed)
+                .append(" failed=").append(qs.failed);
 
         WorkerSystemStats[] ws = (scheduler != null) ? scheduler.statsSnapshot() : new WorkerSystemStats[0];
         if (ws.length > 0) {
@@ -509,7 +566,7 @@ public final class WorldAppState extends BaseAppState {
             log.info("[perf] no frame stats yet");
             return;
         }
-        StringBuilder b = new StringBuilder(512);
+        StringBuilder b = new StringBuilder(768);
         b.append("[perf] frame=").append(fs.frameIndex)
                 .append(" totalMs=").append(nsToMs(fs.frameNanos))
                 .append(" budgetMs=").append(nsToMs(fs.budgetNanos))
@@ -525,6 +582,20 @@ public final class WorldAppState extends BaseAppState {
                 .append(" world=").append(nsToMs(fs.worldUpdateNanos))
                 .append(" awaitWorkers=").append(nsToMs(fs.awaitWorkersNanos))
                 .append(" pool=").append(nsToMs(fs.poolMaintenanceNanos));
+
+        String mark = perfMarks.getLastMark();
+        if (mark != null) {
+            b.append("\n  mark: ").append(mark);
+        }
+
+        MainThreadBudgetQueue.Snapshot qs = mainQueue.snapshot();
+        b.append("\n  mainQueue:")
+                .append(" pending=").append(qs.pending)
+                .append(" maxDepth=").append(qs.maxDepth)
+                .append(" maxOps=").append(qs.maxOpsPerFrame)
+                .append(" maxMs=").append(qs.maxMsPerFrame)
+                .append(" executed=").append(qs.executed)
+                .append(" failed=").append(qs.failed);
 
         WorkerSystemStats[] ws = getWorkerStatsSnapshot();
         if (ws.length > 0) {
@@ -853,11 +924,9 @@ public final class WorldAppState extends BaseAppState {
 
         private static void closeQuiet(ScriptRuntime rt) {
             if (rt == null) return;
-            if (rt == rt) {
-                // try close() / shutdown() but ignore if absent
-                tryCallVoid(rt, "close");
-                tryCallVoid(rt, "shutdown");
-            }
+            // try close() / shutdown() but ignore if absent
+            tryCallVoid(rt, "close");
+            tryCallVoid(rt, "shutdown");
         }
 
         private static ScriptRuntime tryCall0(Object target, String name) {
