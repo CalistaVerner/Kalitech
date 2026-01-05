@@ -3,7 +3,6 @@ package org.foxesworld.kalitech.engine.world;
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
-import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,18 +13,18 @@ import org.foxesworld.kalitech.engine.script.GraalScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Method;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Runs current KWorld and allows hot-swap world via setWorld().
- *
- * Author: Calista Verner
+ * CDPR-style:
+ * - 1 runtime per world by default (fast, shared cache)
+ * - isolated runtimes on demand via RuntimePool + Policy
+ * - strict contract: who can request profiles, sandbox permissions
+ * - memory safety: max isolated runtimes + LRU eviction (+ optional idle eviction)
  */
 public final class WorldAppState extends BaseAppState {
 
@@ -34,15 +33,11 @@ public final class WorldAppState extends BaseAppState {
     private final ScriptEventBus bus;
     private final EcsWorld ecs;
 
-    /**
-     * Runtime pool:
-     *  - "world" (default) => base runtime (fast, shared cache)
-     *  - other profiles ("ui","tools","hotreload","sandbox") => isolated runtime if supported
-     */
-    private final RuntimePool runtimePool;
-
     private final EngineApi api;
     private final PhysicsSpace physicsSpace;
+
+    private final RuntimePolicy runtimePolicy;
+    private final RuntimePool runtimePool;
 
     /** Optional watcher (can be null). */
     private HotReloadWatcher hotReload;
@@ -52,19 +47,27 @@ public final class WorldAppState extends BaseAppState {
 
     private KWorld world;
     private SystemContext ctx;
-    private BulletAppState bullet;
 
     private boolean running = false;
-
-    /** When hot reload invalidates something, we restart world deterministically next update. */
     private boolean restartRequested = false;
+
+    // pool housekeeping (avoid doing evict scans every frame)
+    private long lastPoolMaintenanceNanos = 0L;
 
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.bus = runtimeAppState.getBus();
         this.ecs = runtimeAppState.getEcs();
-        this.runtimePool = new RuntimePool(runtimeAppState.getRuntime());
+
+        final GraalScriptRuntime base = runtimeAppState.getRuntime();
         this.api = runtimeAppState.getEngineApi();
         this.physicsSpace = runtimeAppState.getSpace();
+
+        this.runtimePolicy = RuntimePolicy.fromSystemProps();
+        this.runtimePool = new RuntimePool(base, runtimePolicy);
+    }
+
+    public RuntimePolicy getRuntimePolicy() {
+        return runtimePolicy;
     }
 
     public void setHotReloadWatcher(HotReloadWatcher watcher) {
@@ -91,7 +94,7 @@ public final class WorldAppState extends BaseAppState {
 
         this.ctx = new SystemContext(sa, this);
 
-        // New model: bind JS environment via Graal bindings, not via runtime.bindGlobals()
+        // Bind globals into WORLD runtime only (main pipeline)
         installJsGlobals(this.ctx, this.api);
 
         tryStartWorld();
@@ -101,45 +104,27 @@ public final class WorldAppState extends BaseAppState {
         if (this.world == newWorld) return;
         tryStopWorld();
         this.world = newWorld;
-
-        // World swap should be clean and deterministic.
-        // Keep JS env stable; world scripts can require() modules as needed.
         tryStartWorld();
     }
 
     public KWorld getWorld() { return world; }
-
-    /** For JS bootstrap(main.bootstrap(ctx)) we pass SystemContext itself. */
     public SystemContext getContextForJs() { return ctx; }
 
     @Override
     public void update(float tpf) {
         if (!isEnabled() || ctx == null) return;
 
-        // ==========================================================
-        // Deterministic pipeline:
-        // 1) drain ScriptJobQueue (commands from background threads)
-        // 2) hot reload poll -> invalidate -> request world restart
-        // 3) if restart requested: stop -> (re)install globals -> start
-        // 4) pump event bus
-        // 5) world update
-        // ==========================================================
-
-        // World runtime (default profile)
-        final GraalScriptRuntime worldRt = runtimePool.get("world");
-
-        // 1) Drain queued main-thread jobs (if your ScriptJobQueue supports draining).
+        // 1) Drain ScriptJobQueue on world runtime
         try {
             if (jobDrainBudget > 0) {
-                worldRt.jobs().drain(jobDrainBudget);
+                runtimePool.get("world").jobs().drain(jobDrainBudget);
             }
-        } catch (NoSuchMethodError nsme) {
-            // job queue drain not available yet
+        } catch (NoSuchMethodError ignored) {
         } catch (Exception e) {
             log.error("Script job drain failed", e);
         }
 
-        // 2) Hot reload poll (optional) -> invalidate -> request deterministic restart
+        // 2) Hot reload invalidation (optional)
         try {
             HotReloadWatcher hr = this.hotReload;
             if (hr != null) {
@@ -147,9 +132,9 @@ public final class WorldAppState extends BaseAppState {
                 if (changed != null && !changed.isEmpty()) {
                     int removed;
                     try {
-                        removed = worldRt.invalidateManyWithReason(changed, "hotReload");
+                        removed = runtimePool.get("world").invalidateManyWithReason(changed, "hotReload");
                     } catch (NoSuchMethodError e) {
-                        removed = worldRt.invalidateMany(changed);
+                        removed = runtimePool.get("world").invalidateMany(changed);
                     }
 
                     if (removed > 0) {
@@ -162,7 +147,7 @@ public final class WorldAppState extends BaseAppState {
             log.error("HotReload poll/invalidate failed", e);
         }
 
-        // 3) Deterministic restart after reload (no magic auto-rebind flags)
+        // 3) Restart world deterministically after reload
         if (restartRequested) {
             restartRequested = false;
             try {
@@ -175,7 +160,7 @@ public final class WorldAppState extends BaseAppState {
             }
         }
 
-        // 4) Pump event bus
+        // 4) Pump events
         try {
             bus.pump();
         } catch (Exception e) {
@@ -190,6 +175,13 @@ public final class WorldAppState extends BaseAppState {
                 log.error("World update failed", e);
             }
         }
+
+        // 6) RuntimePool maintenance (idle eviction) ~ once per second
+        final long now = System.nanoTime();
+        if (now - lastPoolMaintenanceNanos >= TimeUnit.SECONDS.toNanos(1)) {
+            lastPoolMaintenanceNanos = now;
+            runtimePool.evictIdle(now);
+        }
     }
 
     @Override
@@ -200,11 +192,8 @@ public final class WorldAppState extends BaseAppState {
         log.info("WorldAppState cleaned up");
     }
 
-    @Override
-    protected void onEnable() { tryStartWorld(); }
-
-    @Override
-    protected void onDisable() { tryStopWorld(); }
+    @Override protected void onEnable() { tryStartWorld(); }
+    @Override protected void onDisable() { tryStopWorld(); }
 
     private void tryStartWorld() {
         if (!isInitialized() || !isEnabled()) return;
@@ -235,13 +224,11 @@ public final class WorldAppState extends BaseAppState {
     }
 
     /**
-     * New global binding strategy compatible with your current GraalScriptRuntime:
-     * - require is already installed by runtime ctor
-     * - we bind ctx/api and common aliases here, via JS bindings
+     * Bind globals into WORLD runtime only.
+     * UI/tools/hotreload runtimes can bind their own stuff separately later if нужно.
      */
     private void installJsGlobals(SystemContext sysCtx, EngineApi engineApi) {
         try {
-            // Bind into WORLD runtime only (main pipeline).
             Value bindings = runtimePool.get("world").ctx().getBindings("js");
 
             bindings.putMember("ctx", sysCtx);
@@ -250,116 +237,355 @@ public final class WorldAppState extends BaseAppState {
             // old habit: engine === api
             bindings.putMember("engine", engineApi);
 
-            // IMPORTANT: render must be RenderApi, not EngineApiImpl
             try {
                 bindings.putMember("render", engineApi.render());
             } catch (Throwable t) {
                 bindings.putMember("render", engineApi);
                 log.warn("Failed to bind render as EngineApi.render(); scripts may call missing render.* methods", t);
             }
-
         } catch (Exception e) {
             log.error("Failed to install JS globals", e);
         }
     }
 
-    public PhysicsSpace getPhysicsSpace() {
-        return physicsSpace;
-    }
-
-    public EngineApi getApi() {
-        return api;
-    }
+    public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
+    public EngineApi getApi() { return api; }
+    public EcsWorld getEcs() { return ecs; }
+    public ScriptEventBus getBus() { return bus; }
 
     /** Default world runtime (back-compat). */
     public GraalScriptRuntime getRuntime() {
         return runtimePool.get("world");
     }
 
-    /** Runtime by profile: "world"(default), "ui", "tools", "hotreload", "sandbox", etc. */
+    /** Runtime by profile (validated by policy). */
     public GraalScriptRuntime getRuntime(String profile) {
         return runtimePool.get(profile);
     }
 
-    public EcsWorld getEcs() {
-        return ecs;
+    // ======================================================================
+    // CDPR CONTRACT: RuntimePolicy
+    // ======================================================================
+
+    public enum RequestOrigin {
+        JAVA_PROVIDER,
+        SCRIPT_CONFIG
     }
 
-    public ScriptEventBus getBus() {
-        return bus;
-    }
+    public static final class RuntimePolicy {
 
-    private static void tryPut(Value bindings, String name, Object value) {
-        try {
-            bindings.putMember(name, value);
-        } catch (Throwable ignored) {
-            // Keep it silent: missing exports / host access restrictions are expected sometimes.
+        // defaults = safe shipping posture
+        public final boolean allowScriptProfileRequests;
+        public final boolean allowScriptSandboxRequests;
+
+        public final int maxIsolatedRuntimes;        // excludes "world"
+        public final long idleEvictMs;               // 0 = disabled
+
+        public final Set<String> allowedProfiles;    // normalized lowercase
+        public final Set<String> pinnedProfiles;     // not evicted, normalized lowercase
+
+        public final boolean debugLogs;
+
+        private RuntimePolicy(
+                boolean allowScriptProfileRequests,
+                boolean allowScriptSandboxRequests,
+                int maxIsolatedRuntimes,
+                long idleEvictMs,
+                Set<String> allowedProfiles,
+                Set<String> pinnedProfiles,
+                boolean debugLogs
+        ) {
+            this.allowScriptProfileRequests = allowScriptProfileRequests;
+            this.allowScriptSandboxRequests = allowScriptSandboxRequests;
+            this.maxIsolatedRuntimes = Math.max(0, maxIsolatedRuntimes);
+            this.idleEvictMs = Math.max(0L, idleEvictMs);
+            this.allowedProfiles = Collections.unmodifiableSet(allowedProfiles);
+            this.pinnedProfiles = Collections.unmodifiableSet(pinnedProfiles);
+            this.debugLogs = debugLogs;
+        }
+
+        public static RuntimePolicy fromSystemProps() {
+            // VMOPTIONS:
+            // -Dkalitech.runtime.allowScriptProfiles=true|false
+            // -Dkalitech.runtime.allowScriptSandbox=true|false
+            // -Dkalitech.runtime.maxIsolated=3
+            // -Dkalitech.runtime.idleEvictMs=120000
+            // -Dkalitech.runtime.allowed=world,ui,tools,hotreload,sandbox
+            // -Dkalitech.runtime.pinned=ui,tools
+            // -Dkalitech.runtime.debug=true
+
+            boolean allowScriptProfiles = boolProp("kalitech.runtime.allowScriptProfiles", false);
+            boolean allowScriptSandbox  = boolProp("kalitech.runtime.allowScriptSandbox", false);
+
+            int maxIsolated = intProp("kalitech.runtime.maxIsolated", 3);
+            long idleEvictMs = longProp("kalitech.runtime.idleEvictMs", 120_000L);
+
+            Set<String> allowed = csvLowerProp(
+                    "kalitech.runtime.allowed",
+                    "world,ui,tools,hotreload,sandbox"
+            );
+
+            // pinned by default: ui/tools (world is implicit pinned)
+            Set<String> pinned = csvLowerProp(
+                    "kalitech.runtime.pinned",
+                    "ui,tools"
+            );
+
+            // sanitize
+            allowed.add("world");
+            pinned.remove("world"); // world is implicit
+
+            boolean debug = boolProp("kalitech.runtime.debug", false);
+
+            RuntimePolicy p = new RuntimePolicy(
+                    allowScriptProfiles,
+                    allowScriptSandbox,
+                    maxIsolated,
+                    idleEvictMs,
+                    allowed,
+                    pinned,
+                    debug
+            );
+
+            if (p.debugLogs) {
+                log.info("[runtimePolicy] allowScriptProfiles={} allowScriptSandbox={} maxIsolated={} idleEvictMs={} allowed={} pinned={}",
+                        p.allowScriptProfileRequests, p.allowScriptSandboxRequests, p.maxIsolatedRuntimes, p.idleEvictMs, p.allowedProfiles, p.pinnedProfiles);
+            }
+
+            return p;
+        }
+
+        /** Resolve requested profile under contract, returns normalized final profile. */
+        public String resolveProfile(String requested, RequestOrigin origin) {
+            String p = norm(requested);
+            if (p == null) return "world";
+            if (!allowedProfiles.contains(p)) return "world";
+
+            if (origin == RequestOrigin.SCRIPT_CONFIG) {
+                if (!allowScriptProfileRequests) return "world";
+                if ("sandbox".equals(p) && !allowScriptSandboxRequests) return "world";
+            }
+            return p;
+        }
+
+        public boolean isPinned(String profile) {
+            String p = norm(profile);
+            return p != null && pinnedProfiles.contains(p);
+        }
+
+        private static String norm(String s) {
+            if (s == null) return null;
+            String t = s.trim().toLowerCase(Locale.ROOT);
+            return t.isEmpty() ? null : t;
+        }
+
+        private static boolean boolProp(String key, boolean def) {
+            String v = System.getProperty(key);
+            if (v == null) return def;
+            v = v.trim().toLowerCase(Locale.ROOT);
+            if (v.isEmpty()) return def;
+            return "1".equals(v) || "true".equals(v) || "yes".equals(v) || "on".equals(v);
+        }
+
+        private static int intProp(String key, int def) {
+            String v = System.getProperty(key);
+            if (v == null) return def;
+            try { return Integer.parseInt(v.trim()); } catch (Exception ignored) { return def; }
+        }
+
+        private static long longProp(String key, long def) {
+            String v = System.getProperty(key);
+            if (v == null) return def;
+            try { return Long.parseLong(v.trim()); } catch (Exception ignored) { return def; }
+        }
+
+        private static Set<String> csvLowerProp(String key, String defCsv) {
+            String v = System.getProperty(key, defCsv);
+            Set<String> set = new LinkedHashSet<>();
+            for (String part : v.split(",")) {
+                String p = part.trim().toLowerCase(Locale.ROOT);
+                if (!p.isEmpty()) set.add(p);
+            }
+            return set;
         }
     }
 
-    // ----------------------------------------------------------------------
-    // RuntimePool (lazy, per-world, isolation-on-demand, reflection-friendly)
-    // ----------------------------------------------------------------------
+    // ======================================================================
+    // RuntimePool with LRU + idle eviction
+    // ======================================================================
+
     static final class RuntimePool {
-        private final GraalScriptRuntime base;
-        private final ConcurrentHashMap<String, GraalScriptRuntime> map = new ConcurrentHashMap<>();
 
-        RuntimePool(GraalScriptRuntime base) {
+        private final GraalScriptRuntime base; // "world"
+        private final RuntimePolicy policy;
+
+        private final Object lock = new Object();
+
+        // accessOrder=true => LRU iteration gives oldest-first
+        private final LinkedHashMap<String, Entry> map = new LinkedHashMap<>(16, 0.75f, true);
+
+        RuntimePool(GraalScriptRuntime base, RuntimePolicy policy) {
             this.base = Objects.requireNonNull(base, "base runtime");
-            map.put("world", base);
+            this.policy = Objects.requireNonNull(policy, "policy");
+            map.put("world", new Entry(base, true, System.nanoTime()));
         }
 
-        GraalScriptRuntime get(String profile) {
-            final String key = (profile == null || profile.isBlank()) ? "world" : profile.trim();
-            if ("world".equals(key)) return base;
-            return map.computeIfAbsent(key, this::forkOrFallback);
+        GraalScriptRuntime get(String requestedProfile) {
+            final String profile = policy.resolveProfile(requestedProfile, RequestOrigin.JAVA_PROVIDER);
+            if ("world".equals(profile)) return base;
+
+            final long now = System.nanoTime();
+            synchronized (lock) {
+                Entry e = map.get(profile);
+                if (e != null) {
+                    e.lastAccessNanos = now;
+                    return e.runtime;
+                }
+
+                // Need to create isolated runtime
+                GraalScriptRuntime rt = forkOrFallback(profile);
+                boolean pinned = policy.isPinned(profile);
+
+                map.put(profile, new Entry(rt, pinned, now));
+
+                // enforce size after insert
+                enforceLimitLRU(now);
+                return rt;
+            }
+        }
+
+        /**
+         * Same as get(), but resolves requested profile using script-origin rules.
+         * Used by providers to honor contract.
+         */
+        GraalScriptRuntime getFromScriptRequest(String requestedProfile) {
+            final String profile = policy.resolveProfile(requestedProfile, RequestOrigin.SCRIPT_CONFIG);
+            return get(profile); // now treated as normalized java-provider request
+        }
+
+        void evictIdle(long nowNanos) {
+            if (policy.idleEvictMs <= 0) return;
+            final long cutoff = nowNanos - TimeUnit.MILLISECONDS.toNanos(policy.idleEvictMs);
+
+            synchronized (lock) {
+                if (map.size() <= 1) return;
+
+                Iterator<Map.Entry<String, Entry>> it = map.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, Entry> me = it.next();
+                    String k = me.getKey();
+                    Entry e = me.getValue();
+
+                    if ("world".equals(k)) continue;
+                    if (e.pinned) continue;
+
+                    if (e.lastAccessNanos < cutoff) {
+                        if (policy.debugLogs) {
+                            log.info("[runtimePool] idle-evict profile={} idleMs>{}", k, policy.idleEvictMs);
+                        }
+                        closeQuiet(e.runtime);
+                        it.remove();
+                    }
+                }
+            }
+        }
+
+        void closeAll() {
+            synchronized (lock) {
+                for (Map.Entry<String, Entry> me : map.entrySet()) {
+                    String k = me.getKey();
+                    Entry e = me.getValue();
+                    if ("world".equals(k)) continue;
+                    closeQuiet(e.runtime);
+                }
+                map.clear();
+                map.put("world", new Entry(base, true, System.nanoTime()));
+            }
+        }
+
+        private void enforceLimitLRU(long nowNanos) {
+            final int maxIsolated = policy.maxIsolatedRuntimes;
+            if (maxIsolated <= 0) {
+                // evict everything except world (unless pinned, но pinned тоже не держим при max=0)
+                Iterator<Map.Entry<String, Entry>> it = map.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, Entry> me = it.next();
+                    String k = me.getKey();
+                    if ("world".equals(k)) continue;
+                    closeQuiet(me.getValue().runtime);
+                    it.remove();
+                }
+                return;
+            }
+
+            // isolated count = total-1
+            while ((map.size() - 1) > maxIsolated) {
+                // eldest = first entry in iteration (because accessOrder=true)
+                Map.Entry<String, Entry> eldest = null;
+                for (Map.Entry<String, Entry> me : map.entrySet()) {
+                    if ("world".equals(me.getKey())) continue;
+                    if (me.getValue().pinned) continue;
+                    eldest = me;
+                    break;
+                }
+
+                // if all isolated are pinned -> we cannot evict without breaking contract
+                if (eldest == null) {
+                    if (policy.debugLogs) {
+                        log.warn("[runtimePool] over limit but all isolated profiles are pinned; limit={} pinned={}",
+                                maxIsolated, policy.pinnedProfiles);
+                    }
+                    break;
+                }
+
+                String k = eldest.getKey();
+                Entry e = eldest.getValue();
+
+                if (policy.debugLogs) {
+                    log.info("[runtimePool] LRU-evict profile={} (limit={}, isolatedNow={})", k, maxIsolated, (map.size() - 1));
+                }
+
+                closeQuiet(e.runtime);
+                map.remove(k);
+            }
         }
 
         private GraalScriptRuntime forkOrFallback(String profile) {
             // Try: fork(), fork(String), createIsolated(String), child()
             GraalScriptRuntime rt = tryCall0(base, "fork");
             if (rt != null) {
-                log.info("[runtimePool] fork() -> profile={}", profile);
+                if (policy.debugLogs) log.info("[runtimePool] fork() -> profile={}", profile);
                 return rt;
             }
 
             rt = tryCall1(base, "fork", String.class, profile);
             if (rt != null) {
-                log.info("[runtimePool] fork(String) -> profile={}", profile);
+                if (policy.debugLogs) log.info("[runtimePool] fork(String) -> profile={}", profile);
                 return rt;
             }
 
             rt = tryCall1(base, "createIsolated", String.class, profile);
             if (rt != null) {
-                log.info("[runtimePool] createIsolated(String) -> profile={}", profile);
+                if (policy.debugLogs) log.info("[runtimePool] createIsolated(String) -> profile={}", profile);
                 return rt;
             }
 
             rt = tryCall0(base, "child");
             if (rt != null) {
-                log.info("[runtimePool] child() -> profile={}", profile);
+                if (policy.debugLogs) log.info("[runtimePool] child() -> profile={}", profile);
                 return rt;
             }
 
-            // Fallback: no isolation available yet
             log.warn("[runtimePool] no fork method found in GraalScriptRuntime; using base runtime for profile={}", profile);
             return base;
         }
 
-        void closeAll() {
-            for (var e : map.entrySet()) {
-                final String k = e.getKey();
-                final GraalScriptRuntime rt = e.getValue();
-                if (rt == null || rt == base) continue;
-
-                boolean closed = tryCallVoid(rt, "close")
-                        || tryCallVoid(rt, "shutdown")
-                        || tryCallVoid(rt, "dispose");
-
-                log.info("[runtimePool] close profile={} closed={}", k, closed);
+        private static void closeQuiet(GraalScriptRuntime rt) {
+            if (rt == null) return;
+            boolean closed = tryCallVoid(rt, "close") || tryCallVoid(rt, "shutdown") || tryCallVoid(rt, "dispose");
+            if (!closed) {
+                // ok: base runtime or older API without close
             }
-            map.clear();
-            map.put("world", base);
         }
 
         private static GraalScriptRuntime tryCall0(Object target, String name) {
@@ -389,6 +615,18 @@ public final class WorldAppState extends BaseAppState {
                 return true;
             } catch (Throwable ignored) {
                 return false;
+            }
+        }
+
+        static final class Entry {
+            final GraalScriptRuntime runtime;
+            final boolean pinned;
+            long lastAccessNanos;
+
+            Entry(GraalScriptRuntime runtime, boolean pinned, long lastAccessNanos) {
+                this.runtime = runtime;
+                this.pinned = pinned;
+                this.lastAccessNanos = lastAccessNanos;
             }
         }
     }

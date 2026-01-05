@@ -6,6 +6,7 @@ import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.foxesworld.kalitech.engine.util.ValueCfg;
+import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
@@ -14,14 +15,6 @@ import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * jsSystem provider (AAA):
- *  - reads module from config.module
- *  - optional runtime profile from config.runtime OR config.sandbox=true
- *  - prepares JS-friendly config object (ProxyObject/ProxyArray)
- *  - DOES NOT write ctx.put("config") here (ctx is shared / stable and would be overwritten by other systems)
- *  - passes prepared config into JsWorldSystem, which will scope-bind it for each callback (init/update/destroy).
- */
 public final class JsWorldSystemProvider implements SystemProvider {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
@@ -30,20 +23,28 @@ public final class JsWorldSystemProvider implements SystemProvider {
 
     @Override
     public KSystem create(SystemContext ctx, Value config) {
-        // 1) Resolve module from provided config
         final String module = ValueCfg.str(config, "module", null);
         if (module == null || module.isBlank()) {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
 
-        // 2) runtime profile (isolation-on-demand)
-        //    config.runtime: "world"(default), "ui", "tools", "hotreload", "sandbox"
-        //    OR config.sandbox=true => "sandbox"
-        final boolean sandbox = ValueCfg.bool(config, "sandbox", false);
-        final String rtCfg = ValueCfg.str(config, "runtime", null);
-        final String runtimeProfile = sandbox ? "sandbox" : ((rtCfg == null || rtCfg.isBlank()) ? "world" : rtCfg.trim());
+        // Requested by SCRIPT CONFIG:
+        // config.runtime: world|ui|tools|hotreload|sandbox
+        // OR config.sandbox=true (alias for runtime=sandbox)
+        final boolean sandboxReq = ValueCfg.bool(config, "sandbox", false);
+        final String rtReq = ValueCfg.str(config, "runtime", null);
+        final String requested = sandboxReq ? "sandbox" : ((rtReq == null || rtReq.isBlank()) ? "world" : rtReq.trim());
 
-        // 3) (Optional) unwrap inner config if you ever start passing descriptors with { config: {...} }
+        // Enforce CDPR contract
+        final WorldAppState.RuntimePolicy policy = ctx.runtimePolicy();
+        final String resolved = policy.resolveProfile(requested, WorldAppState.RequestOrigin.SCRIPT_CONFIG);
+
+        if (!resolved.equalsIgnoreCase(normalize(requested))) {
+            log.warn("[jsSystem] runtime request denied/rewritten: requested={} -> resolved={} (module={})",
+                    requested, resolved, module);
+        }
+
+        // Optional unwrap inner config
         Value inner = config;
         boolean unwrapped = false;
         try {
@@ -58,26 +59,27 @@ public final class JsWorldSystemProvider implements SystemProvider {
             log.warn("[jsSystem] unwrap inner config failed: {}", t.toString());
         }
 
-        // 4) Convert to JS-friendly objects (important: scripts can use cfg.shadows.mapSize directly)
         final Object cfgJs = toProxy(inner);
 
-        // 5) Build a small descriptor (scoped later by JsWorldSystem)
         final Map<String, Object> sysDesc = new LinkedHashMap<>();
         sysDesc.put("provider", id());
         sysDesc.put("module", module);
-        sysDesc.put("runtime", runtimeProfile);
+        sysDesc.put("runtime", resolved);
         sysDesc.put("config", cfgJs);
 
         if (log.isDebugEnabled()) {
-            log.debug("[jsSystem] prepared (module={}, unwrapped={}, runtime={})", module, unwrapped, runtimeProfile);
+            log.debug("[jsSystem] prepared (module={}, unwrapped={}, runtime={} -> {})", module, unwrapped, requested, resolved);
         }
-        log.info("[jsSystem] module={} runtime={}", module, runtimeProfile);
+        log.info("[jsSystem] module={} runtime={}", module, resolved);
 
-        // IMPORTANT: pass cfg into JsWorldSystem, do NOT write into ctx here
-        return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtimeProfile);
+        return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), resolved);
     }
 
-    // --------- Value -> Proxy converters ---------
+    private static String normalize(String s) {
+        if (s == null) return "world";
+        String t = s.trim().toLowerCase();
+        return t.isEmpty() ? "world" : t;
+    }
 
     private static Object toProxy(Value v) {
         if (v == null || v.isNull()) return null;
@@ -105,6 +107,6 @@ public final class JsWorldSystemProvider implements SystemProvider {
             return ProxyObject.fromMap(map);
         }
 
-        return v; // fallback
+        return v;
     }
 }

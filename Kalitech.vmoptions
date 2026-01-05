@@ -10,6 +10,15 @@
 -Dlog.level=DEBUG
 -Dlog.dir=.
 
+# ScriptEngine
+-Dkalitech.runtime.allowScriptProfiles=true
+-Dkalitech.runtime.allowScriptSandbox=true
+-Dkalitech.runtime.maxIsolated=2
+-Dkalitech.runtime.idleEvictMs=60000
+-Dkalitech.runtime.pinned=ui
+-Dkalitech.runtime.idleEvictMs=0
+
+
 # ===== Memory =====
 -Xms8g
 -Xmx8g
