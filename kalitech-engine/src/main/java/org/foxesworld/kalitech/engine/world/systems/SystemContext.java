@@ -1,3 +1,4 @@
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
 import com.jme3.app.SimpleApplication;
@@ -5,8 +6,8 @@ import com.jme3.asset.AssetManager;
 import com.jme3.bullet.PhysicsSpace;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.graalvm.polyglot.HostAccess;
@@ -14,6 +15,12 @@ import org.graalvm.polyglot.HostAccess;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * SystemContext
+ *
+ * Shared execution context passed to every {@link KSystem}.
+ * Wraps engine APIs, ECS, event bus, runtime access and production profiling domains.
+ */
 public final class SystemContext {
 
     private final SimpleApplication app;
@@ -26,6 +33,7 @@ public final class SystemContext {
 
     private final ConcurrentHashMap<String, Object> state = new ConcurrentHashMap<>();
 
+    // JS-visible (stable handles)
     @HostAccess.Export public final EngineApi api;
     @HostAccess.Export public final EngineDomain engine;
     @HostAccess.Export public final WorldDomain world;
@@ -50,29 +58,43 @@ public final class SystemContext {
         this.perfDomain = new PerfDomain(worldAppState);
     }
 
-    // Java-only
+    // ---------------------------------------------------------------------
+    // Java-only helpers
+    // ---------------------------------------------------------------------
+
     public SimpleApplication app() { return app; }
     AssetManager assets() { return assets; }
     ScriptEventBus events() { return events; }
     public EcsWorld ecs() { return ecs; }
     public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
 
-    // CDPR: runtime access
+    // Runtime access (thread-confined; use correct profile on the correct thread)
     ScriptRuntime runtime() { return worldAppState.getRuntime(); }
     ScriptRuntime runtime(String profile) { return worldAppState.getRuntime(profile); }
 
-    // CDPR: system scheduler (worker threads)
-    public SystemScheduler scheduler() {
-        return worldAppState.getScheduler();
-    }
+    // Worker scheduler
+    public SystemScheduler scheduler() { return worldAppState.getScheduler(); }
 
-    // CDPR: policy (providers enforce contract decisions)
+    // Policy (providers enforce contract decisions)
     public WorldAppState.RuntimePolicy runtimePolicy() { return worldAppState.getRuntimePolicy(); }
 
+    // Main apply queue (budgeted)
+    MainThreadBudgetQueue mainQueue() { return worldAppState.getMainQueue(); }
+
+    // ---------------------------------------------------------------------
+    // JS-facing helpers
+    // ---------------------------------------------------------------------
+
     @HostAccess.Export
-    public ScriptJobQueue jobs() {
-        return runtime().jobs();
-    }
+    public ScriptJobQueue jobs() { return runtime().jobs(); }
+
+    /** Monotonic time source for scripts/tools (nanos). */
+    @HostAccess.Export
+    public long nowNanos() { return System.nanoTime(); }
+
+    /** True if the current thread is the world/main thread. */
+    @HostAccess.Export
+    public boolean isWorldThread() { return worldAppState.isWorldThread(); }
 
     // -------------------- Perf / profiling (JS-visible) --------------------
 
@@ -119,10 +141,9 @@ public final class SystemContext {
         StateDomain(ConcurrentHashMap<String, Object> map) { this.map = Objects.requireNonNull(map, "map"); }
 
         @HostAccess.Export
-        public void set(String key, Object value) {
-            String k = normKey(key);
-            if (value == null) map.remove(k);
-            else map.put(k, value);
+        public Object set(String key, Object value) {
+            if (key == null) return null;
+            return map.put(normKey(key), value);
         }
 
         @HostAccess.Export public Object get(String key) { return map.get(normKey(key)); }
@@ -131,10 +152,8 @@ public final class SystemContext {
         @HostAccess.Export public void clear() { map.clear(); }
 
         private static String normKey(String key) {
-            if (key == null) throw new IllegalArgumentException("state key is null");
-            String k = key.trim();
-            if (k.isEmpty()) throw new IllegalArgumentException("state key is empty");
-            return k;
+            String k = (key == null) ? "" : key.trim();
+            return k.isEmpty() ? "" : k;
         }
     }
 

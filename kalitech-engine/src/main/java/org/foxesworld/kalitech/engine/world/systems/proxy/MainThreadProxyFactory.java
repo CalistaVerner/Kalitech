@@ -1,4 +1,3 @@
-// FILE: MainThreadProxyFactory.java
 package org.foxesworld.kalitech.engine.world.systems.proxy;
 
 import java.lang.reflect.InvocationHandler;

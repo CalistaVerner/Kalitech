@@ -1,4 +1,3 @@
-// FILE: FrameStats.java
 package org.foxesworld.kalitech.engine.world.systems;
 
 import org.graalvm.polyglot.HostAccess;

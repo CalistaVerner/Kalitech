@@ -1,28 +1,33 @@
-// FILE: ThreadMode.java
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
 /**
- * Where and how a {@link KSystem} executes.
+ * ThreadMode
  *
- * <p>Important constraints:
- * <ul>
- *   <li>In this project, {@code ScriptRuntime} is thread-confined: a runtime is owned by one thread.</li>
- *   <li>In jME, most scenegraph mutations are expected to happen on the main/render thread.</li>
- * </ul>
- *
- * <p>Therefore, worker systems should compute data off-thread and apply changes via
- * {@link SystemContext#jobs()} back on the world thread.
+ * Defines where and how a {@link KSystem} executes (world thread vs worker threads).
+ * Worker systems must compute off-thread and apply changes back on the world thread.
  */
 public enum ThreadMode {
+
     /**
      * Runs on the world/main thread.
+     *
+     * <p>Best for systems that:
+     * <ul>
+     *   <li>Touch the scenegraph/physics directly.</li>
+     *   <li>Need the shared "world" ScriptRuntime and hot caches.</li>
+     * </ul>
      */
     MAIN,
 
     /**
-     * Runs on a dedicated single thread, owned by the system.
+     * Runs on a dedicated worker thread (1 thread per system).
      *
-     * <p>Systems using this mode should request an isolated runtime profile via {@link KSystem#runtimeProfile()}.
+     * <p>Use for special/isolated systems:
+     * <ul>
+     *   <li>Tools / UI sandboxes / hotreload runtimes</li>
+     *   <li>Systems that must not share a lane with others</li>
+     * </ul>
      */
     WORKER_DEDICATED,
 
@@ -33,7 +38,7 @@ public enum ThreadMode {
      * <ul>
      *   <li>Fixed number of worker threads (≈ CPU cores) instead of 1 thread per system.</li>
      *   <li>Stable performance: avoids thread explosion and reduces context switches.</li>
-     *   <li>Still preserves {@code ScriptRuntime} thread confinement: lane == runtime owner thread.</li>
+     *   <li>Preserves ScriptRuntime thread confinement: lane == runtime owner thread.</li>
      * </ul>
      */
     WORKER_STRIPED

@@ -1,5 +1,18 @@
 package org.foxesworld.kalitech.engine.world;
 
+// Author: KΛYLΛ
+/**
+ * WorldBuilder
+ *
+ * Builds a {@link KWorld} from a JS/Polyglot world description object.
+ * Resolves system IDs via {@link SystemRegistry}, sorts by "order", and registers systems into the world
+ * using the world’s explicit ordering API (no implicit add).
+ *
+ * Notes:
+ * - Production-friendly: tolerates missing/invalid fields and continues building.
+ * - Keeps the original "worldDesc" contract: { name, systems:[{id, order, config}] }.
+ */
+
 import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +30,7 @@ public final class WorldBuilder {
 
     private static final Logger log = LogManager.getLogger(WorldBuilder.class);
 
-    private final SimpleApplication app; // (на будущее, сейчас не обязателен)
+    private final SimpleApplication app; // reserved for future use
     private final SystemRegistry registry;
 
     public WorldBuilder(SimpleApplication app, SystemRegistry registry) {
@@ -36,7 +49,8 @@ public final class WorldBuilder {
         Value v = member(obj, name);
         if (v == null) return def;
         try {
-            return v.asString();
+            String s = v.asString();
+            return (s == null || s.isBlank()) ? def : s;
         } catch (Exception ignored) {
             return def;
         }
@@ -84,7 +98,14 @@ public final class WorldBuilder {
 
         for (SystemDef d : defs) {
             KSystem sys = registry.create(d.id, ctx, d.config);
-            world.addSystem(sys); // <-- твой API
+            if (sys == null) {
+                log.warn("WorldBuilder: registry returned null system for id={} (skipping)", d.id);
+                continue;
+            }
+
+            // ✅ New world API: order is explicit
+            world.addSystem(sys, d.order);
+
             log.info("WorldBuilder: added system id={} order={}", d.id, d.order);
         }
 

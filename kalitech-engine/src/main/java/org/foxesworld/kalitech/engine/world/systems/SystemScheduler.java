@@ -1,4 +1,4 @@
-// FILE: SystemScheduler.java
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
@@ -14,44 +14,47 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * CDPR-style system scheduler:
- * - MAIN: inline on world thread, shared "world" runtime
- * - WORKER_DEDICATED: dedicated single thread + isolated runtime profile
- * - WORKER_STRIPED: shared fixed-count lanes (single-thread executors), stable AAA parallelism
+ * SystemScheduler
  *
- * Added:
- * - hard worker sandbox (API-level) via main-thread proxies
- * - profiling stats per worker (tick time, skip, queue lag)
+ * English:
+ * Schedules worker-mode {@link KSystem} ticks on dedicated threads or striped worker lanes.
+ * Provides production stability features:
+ *  - Deadline-based tick-rate control (Hz) to avoid over-updating non-critical systems.
+ *  - Backpressure from {@link MainThreadBudgetQueue} to prevent apply pipeline overload.
+ *  - Per-system timing statistics (EMA tick time, queue lag, skips, hard budget breaches).
+ *
+ * Design constraints:
+ *  - ScriptRuntime is thread-confined, therefore {@link ThreadMode#WORKER_STRIPED} uses per-lane runtime profiles.
  */
 public final class SystemScheduler implements AutoCloseable {
 
     private static final Logger log = LogManager.getLogger(SystemScheduler.class);
 
     private final WorldAppState world;
+
+    private final Lane[] lanes;
     private final Map<KSystem, Slot> slots = new IdentityHashMap<>();
 
-    /** Shared worker lanes for {@link ThreadMode#WORKER_STRIPED}. Each lane is single-threaded. */
-    private final Lane[] lanes;
+    // default wait budget for worker completion (ms)
+    private volatile int defaultAwaitBudgetMs = 1;
 
-    /** Default max time to wait for worker ticks per frame. 0 = don't wait. */
-    private volatile long defaultAwaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(2);
+    // Adaptive scaling parameters (kept simple and stable)
+    private static final double HZ_RECOVERY_STEP = 1.0;     // Hz per successful tick
+    private static final double HZ_SOFT_DECAY = 0.85;       // when soft budget exceeded
+    private static final double HZ_HARD_DECAY = 0.60;       // when hard budget exceeded
+    private static final int BACKPRESSURE_PRIORITY_THRESHOLD = 60; // below this, systems may be skipped
 
     public SystemScheduler(WorldAppState world) {
         this(world, defaultLaneCount());
     }
 
-    /**
-     * @param laneCount number of shared worker lanes for {@link ThreadMode#WORKER_STRIPED}.
-     */
     public SystemScheduler(WorldAppState world, int laneCount) {
         this.world = Objects.requireNonNull(world, "world");
-
         int n = Math.max(1, laneCount);
         this.lanes = new Lane[n];
         for (int i = 0; i < n; i++) {
-            this.lanes[i] = new Lane(i);
+            lanes[i] = new Lane(i);
         }
-        log.info("[scheduler] worker lanes={}", n);
     }
 
     public int getLaneCount() {
@@ -59,19 +62,16 @@ public final class SystemScheduler implements AutoCloseable {
     }
 
     public void setDefaultAwaitBudgetMs(int ms) {
-        this.defaultAwaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0, ms));
+        this.defaultAwaitBudgetMs = Math.max(0, ms);
     }
 
     public int getDefaultAwaitBudgetMs() {
-        return (int) TimeUnit.NANOSECONDS.toMillis(defaultAwaitBudgetNanos);
+        return defaultAwaitBudgetMs;
     }
 
-    /** Ensure worker slot is created and started (on-demand). */
+    /** Ensure a worker system is started and sandbox globals are installed. */
     public void ensureStarted(KSystem system, SystemContext ctx) {
         if (system == null) return;
-        ThreadMode mode = system.threadMode();
-        if (mode != ThreadMode.WORKER_DEDICATED && mode != ThreadMode.WORKER_STRIPED) return;
-
         Slot slot;
         synchronized (slots) {
             slot = slots.get(system);
@@ -80,31 +80,27 @@ public final class SystemScheduler implements AutoCloseable {
                 slots.put(system, slot);
             }
         }
-
         slot.startIfNeeded();
     }
 
-    /** Submit worker update tick (non-blocking). */
+    /** Submit a tick request (scheduler decides whether it is due and allowed). */
     public void submitUpdate(KSystem system, SystemContext ctx, float tpf) {
         if (system == null) return;
-        ThreadMode mode = system.threadMode();
-        if (mode != ThreadMode.WORKER_DEDICATED && mode != ThreadMode.WORKER_STRIPED) {
-            throw new IllegalArgumentException("submitUpdate() called for non-worker system: " + system.getClass().getName());
-        }
-
-        ensureStarted(system, ctx);
         Slot slot;
         synchronized (slots) {
             slot = slots.get(system);
+            if (slot == null) {
+                slot = new Slot(system, ctx);
+                slots.put(system, slot);
+            }
         }
-        if (slot == null) return;
-
-        slot.submitUpdate(tpf);
+        slot.startIfNeeded();
+        slot.requestTick(tpf, System.nanoTime());
     }
 
     /** Drain completion with default budget. */
     public void awaitDefaultBudget() {
-        awaitBudgetNanos(defaultAwaitBudgetNanos);
+        awaitBudgetNanos(TimeUnit.MILLISECONDS.toNanos(defaultAwaitBudgetMs));
     }
 
     /** Wait a limited amount for in-flight worker ticks to finish (best-effort). */
@@ -117,15 +113,15 @@ public final class SystemScheduler implements AutoCloseable {
             snapshot = slots.values().toArray(new Slot[0]);
         }
 
-        for (Slot slot : snapshot) {
-            if (slot == null) continue;
-            long left = deadline - System.nanoTime();
-            if (left <= 0) break;
-            slot.await(left);
+        for (Slot s : snapshot) {
+            long now = System.nanoTime();
+            long remaining = deadline - now;
+            if (remaining <= 0) break;
+            s.await(remaining);
         }
     }
 
-    /** Stop + release worker slot for a system. */
+    /** Stop a specific system slot. */
     public void stopSystem(KSystem system) {
         if (system == null) return;
         Slot slot;
@@ -148,7 +144,7 @@ public final class SystemScheduler implements AutoCloseable {
         return out;
     }
 
-    /** Stop all worker systems. */
+    /** Stop all worker systems and shutdown dedicated executors (lanes are shared and kept alive by the world). */
     @Override
     public void close() {
         Slot[] snapshot;
@@ -156,13 +152,12 @@ public final class SystemScheduler implements AutoCloseable {
             snapshot = slots.values().toArray(new Slot[0]);
             slots.clear();
         }
-        for (Slot slot : snapshot) {
-            try { if (slot != null) slot.shutdown(); } catch (Exception ignored) {}
+        for (Slot s : snapshot) {
+            try { s.shutdown(); } catch (Exception ignored) {}
         }
-
-        // Shutdown striped lanes (after systems stopped)
+        // Lanes are owned by this scheduler; shut them down.
         for (Lane lane : lanes) {
-            try { if (lane != null) lane.shutdown(); } catch (Exception ignored) {}
+            lane.shutdown();
         }
     }
 
@@ -184,16 +179,37 @@ public final class SystemScheduler implements AutoCloseable {
 
         private volatile boolean started = false;
         private volatile Future<?> inFlight;
-        private final AtomicInteger skippedTicks = new AtomicInteger();
 
-        // profiling
+        // Adaptive scheduling
+        private final int priority;
+        private final double desiredHz;
+        private final double minHz;
+        private final double maxHz;
+        private volatile double currentHz;
+        private volatile long nextRunAtNanos = 0L;
+
+        private final long softBudgetNanos;
+        private final long hardBudgetNanos;
+
+        // stats counters
+        private final AtomicInteger skippedRunning = new AtomicInteger();
+        private final AtomicInteger skippedRateLimited = new AtomicInteger();
+        private final AtomicInteger skippedBackpressure = new AtomicInteger();
+        private final AtomicInteger hardBudgetBreaches = new AtomicInteger();
+        private final AtomicInteger exceptions = new AtomicInteger();
+
+        // profiling timestamps
         private final AtomicLong lastSubmitNanos = new AtomicLong();
         private final AtomicLong lastStartNanos = new AtomicLong();
         private final AtomicLong lastEndNanos = new AtomicLong();
+
+        // profiling durations
         private final AtomicLong lastTickNanos = new AtomicLong();
         private final AtomicLong maxTickNanos = new AtomicLong();
         private final AtomicLong emaTickNanos = new AtomicLong();
+
         private final AtomicLong lastQueueLagNanos = new AtomicLong();
+        private final AtomicLong emaQueueLagNanos = new AtomicLong();
 
         private volatile String threadName = "unknown";
 
@@ -204,6 +220,16 @@ public final class SystemScheduler implements AutoCloseable {
             ThreadMode mode = system.threadMode();
             this.sharedLane = (mode == ThreadMode.WORKER_STRIPED);
             this.laneIndex = sharedLane ? laneFor(system) : -1;
+
+            // Scheduling hints
+            this.priority = safeInt(() -> system.priority(), 50);
+            this.desiredHz = safeHz(() -> system.desiredHz(), 60.0);
+            this.minHz = safeHz(() -> system.minHz(), this.desiredHz);
+            this.maxHz = safeHz(() -> system.maxHz(), this.desiredHz);
+            this.currentHz = clampHz(this.desiredHz, this.minHz, this.maxHz);
+
+            this.softBudgetNanos = Math.max(0L, safeLong(() -> system.softBudgetNanos(), 0L));
+            this.hardBudgetNanos = Math.max(0L, safeLong(() -> system.hardBudgetNanos(), 0L));
 
             String requested = safeProfile(system);
             // IMPORTANT: any worker must not use "world" runtime profile.
@@ -255,51 +281,121 @@ public final class SystemScheduler implements AutoCloseable {
                     try {
                         system.onStart(ctx);
                     } catch (Throwable t) {
+                        exceptions.incrementAndGet();
                         log.error("[scheduler] Worker system onStart failed: {}", system.getClass().getName(), t);
                     }
                 });
             }
         }
 
-        void submitUpdate(float tpf) {
+        void requestTick(float tpf, long nowNanos) {
+            // Deadline-based tick-rate: skip if not due.
+            long dueAt = nextRunAtNanos;
+            if (dueAt > 0 && nowNanos < dueAt) {
+                skippedRateLimited.incrementAndGet();
+                return;
+            }
+
+            double hz = currentHz;
+            if (!Double.isFinite(hz) || hz <= 0) hz = desiredHz > 0 ? desiredHz : 60.0;
+            long periodNanos = (long) (1_000_000_000.0 / hz);
+            if (periodNanos < 1_000_000L) periodNanos = 1_000_000L; // clamp ~1ms
+
+            // Move deadline forward immediately to avoid spam when skipping due to pressure.
+            nextRunAtNanos = nowNanos + periodNanos;
+
+            // Backpressure: when main apply queue is overloaded, throttle non-critical command generators.
+            MainThreadBudgetQueue q = ctx.mainQueue();
+            if (q != null && q.isOverloaded()) {
+                boolean generates = safeBool(() -> system.generatesMainThreadCommands(), false);
+                if (generates && priority < BACKPRESSURE_PRIORITY_THRESHOLD) {
+                    skippedBackpressure.incrementAndGet();
+                    PerfMarks pm = world.getPerfMarks();
+                    if (pm != null) pm.markBackpressure(system.getClass().getSimpleName(), q.pending(), q.getOverloadPendingThreshold());
+                    // scale down a bit while pressured
+                    currentHz = clampHz(currentHz * 0.90, minHz, maxHz);
+                    return;
+                }
+            }
+
             Future<?> f = inFlight;
             if (f != null && !f.isDone()) {
-                int s = skippedTicks.incrementAndGet();
-                // CDPR-style: don't spam logs, but escalate when a system is persistently over budget.
+                int s = skippedRunning.incrementAndGet();
                 if ((s & 127) == 1 || s == 60 || s == 300) {
                     log.warn("[scheduler] Skipping tick for {} (still running). skipped={} lane={} prof={}",
                             system.getClass().getSimpleName(), s, laneIndex, profile);
                 }
+                // Under persistent "still running", scale down a bit.
+                currentHz = clampHz(currentHz * 0.95, minHz, maxHz);
                 return;
             }
 
-            final long submitAt = System.nanoTime();
+            final long submitAt = nowNanos;
             lastSubmitNanos.set(submitAt);
 
             inFlight = exec.submit(() -> {
                 final long startAt = System.nanoTime();
                 lastStartNanos.set(startAt);
-                lastQueueLagNanos.set(Math.max(0L, startAt - submitAt));
 
+                long qLag = Math.max(0L, startAt - submitAt);
+                lastQueueLagNanos.set(qLag);
+                updateEma(emaQueueLagNanos, qLag);
+
+                boolean ok = true;
                 try {
                     system.onUpdate(ctx, tpf);
                 } catch (Throwable t) {
+                    ok = false;
+                    exceptions.incrementAndGet();
                     log.error("[scheduler] Worker system onUpdate failed: {}", system.getClass().getName(), t);
                 } finally {
                     final long endAt = System.nanoTime();
                     lastEndNanos.set(endAt);
 
-                    final long tick = Math.max(0L, endAt - startAt);
+                    long tick = Math.max(0L, endAt - startAt);
                     lastTickNanos.set(tick);
+                    updateMax(maxTickNanos, tick);
+                    updateEma(emaTickNanos, tick);
 
-                    maxTickNanos.accumulateAndGet(tick, Math::max);
+                    // Budget policy: adjust tick rate (no hard interrupts; keep engine stable).
+                    applyBudgetPolicy(ok, tick);
 
-                    // EMA (alpha ~ 0.10) in integer nanos
-                    long prev = emaTickNanos.get();
-                    long next = (prev == 0L) ? tick : (prev + ((tick - prev) / 10L));
-                    emaTickNanos.set(next);
+                    // Mark budget offenders (cheap hint)
+                    if (softBudgetNanos > 0 && tick > softBudgetNanos) {
+                        PerfMarks pm = world.getPerfMarks();
+                        if (pm != null) pm.markBudget(system.getClass().getSimpleName(), tick, softBudgetNanos, true);
+                    }
                 }
             });
+        }
+
+        private void applyBudgetPolicy(boolean ok, long tickNanos) {
+            if (!ok) {
+                // exceptions: reduce a bit to prevent cascading.
+                currentHz = clampHz(currentHz * 0.90, minHz, maxHz);
+                return;
+            }
+
+            // Hard budget breach
+            if (hardBudgetNanos > 0 && tickNanos > hardBudgetNanos) {
+                hardBudgetBreaches.incrementAndGet();
+                currentHz = clampHz(currentHz * HZ_HARD_DECAY, minHz, maxHz);
+                return;
+            }
+
+            // Soft budget breach
+            if (softBudgetNanos > 0 && tickNanos > softBudgetNanos) {
+                currentHz = clampHz(currentHz * HZ_SOFT_DECAY, minHz, maxHz);
+                return;
+            }
+
+            // Recover slowly towards desiredHz
+            if (currentHz < desiredHz) {
+                currentHz = clampHz(currentHz + HZ_RECOVERY_STEP, minHz, maxHz);
+            } else if (currentHz > desiredHz) {
+                // gentle return down to desired
+                currentHz = clampHz(Math.max(desiredHz, currentHz - HZ_RECOVERY_STEP), minHz, maxHz);
+            }
         }
 
         void await(long nanos) {
@@ -315,6 +411,33 @@ public final class SystemScheduler implements AutoCloseable {
             }
         }
 
+        WorkerSystemStats statsSnapshot() {
+            Future<?> f = inFlight;
+            boolean running = (f != null && !f.isDone());
+            return new WorkerSystemStats(
+                    system.getClass().getSimpleName(),
+                    profile,
+                    threadName,
+                    running,
+                    laneIndex,
+                    priority,
+                    currentHz,
+                    lastSubmitNanos.get(),
+                    lastStartNanos.get(),
+                    lastEndNanos.get(),
+                    lastTickNanos.get(),
+                    emaTickNanos.get(),
+                    maxTickNanos.get(),
+                    lastQueueLagNanos.get(),
+                    emaQueueLagNanos.get(),
+                    skippedRunning.get(),
+                    skippedRateLimited.get(),
+                    skippedBackpressure.get(),
+                    hardBudgetBreaches.get(),
+                    exceptions.get()
+            );
+        }
+
         void shutdown() {
             // Always attempt onStop on the owning lane/thread.
             try {
@@ -322,6 +445,7 @@ public final class SystemScheduler implements AutoCloseable {
                     try {
                         system.onStop(ctx);
                     } catch (Throwable t) {
+                        exceptions.incrementAndGet();
                         log.error("[scheduler] Worker system onStop failed: {}", system.getClass().getName(), t);
                     }
                 });
@@ -339,29 +463,10 @@ public final class SystemScheduler implements AutoCloseable {
                 }
             }
         }
-
-        WorkerSystemStats statsSnapshot() {
-            Future<?> f = inFlight;
-            boolean running = (f != null && !f.isDone());
-            return new WorkerSystemStats(
-                    system.getClass().getSimpleName(),
-                    profile,
-                    threadName,
-                    running,
-                    lastSubmitNanos.get(),
-                    lastStartNanos.get(),
-                    lastEndNanos.get(),
-                    lastTickNanos.get(),
-                    emaTickNanos.get(),
-                    maxTickNanos.get(),
-                    lastQueueLagNanos.get(),
-                    skippedTicks.get()
-            );
-        }
     }
 
     // ======================================================================
-    // Striped lanes
+    // Lanes
     // ======================================================================
 
     private static int defaultLaneCount() {
@@ -380,12 +485,13 @@ public final class SystemScheduler implements AutoCloseable {
     private final class Lane {
         final int index;
         final ExecutorService exec;
-        volatile String threadName = "lane-";
+        volatile String threadName;
 
         Lane(int index) {
             this.index = index;
-            String baseName = "lane" + index;
-            this.exec = Executors.newSingleThreadExecutor(new NamedThreadFactory(baseName, n -> this.threadName = n));
+            this.threadName = "lane-" + index;
+            String base = "lane-" + index;
+            this.exec = Executors.newSingleThreadExecutor(new NamedThreadFactory(base, n -> this.threadName = n));
         }
 
         void shutdown() {
@@ -403,6 +509,62 @@ public final class SystemScheduler implements AutoCloseable {
         try { return system.runtimeProfile(); } catch (Throwable t) { return "world"; }
     }
 
+    // ======================================================================
+    // Utils
+    // ======================================================================
+
+    private static double clampHz(double v, double min, double max) {
+        if (!Double.isFinite(v) || v <= 0) return Math.max(1e-3, min);
+        if (!Double.isFinite(min) || min <= 0) min = 1e-3;
+        if (!Double.isFinite(max) || max < min) max = min;
+        if (v < min) return min;
+        if (v > max) return max;
+        return v;
+    }
+
+    private static void updateMax(AtomicLong max, long v) {
+        long cur;
+        do {
+            cur = max.get();
+            if (v <= cur) return;
+        } while (!max.compareAndSet(cur, v));
+    }
+
+    private static void updateEma(AtomicLong ema, long sample) {
+        // EMA with alpha ~ 0.1 (cheap integer math)
+        long prev = ema.get();
+        if (prev == 0L) {
+            ema.set(sample);
+            return;
+        }
+        long next = prev + ((sample - prev) / 10);
+        ema.set(next);
+    }
+
+    private static int safeInt(IntSupplier s, int fb) {
+        try { return s.getAsInt(); } catch (Throwable t) { return fb; }
+    }
+
+    private static long safeLong(LongSupplier s, long fb) {
+        try { return s.getAsLong(); } catch (Throwable t) { return fb; }
+    }
+
+    private static boolean safeBool(BooleanSupplier s, boolean fb) {
+        try { return s.getAsBoolean(); } catch (Throwable t) { return fb; }
+    }
+
+    private static double safeHz(DoubleSupplier s, double fb) {
+        double v;
+        try { v = s.getAsDouble(); } catch (Throwable t) { return fb; }
+        if (!Double.isFinite(v) || v <= 0) return fb;
+        return v;
+    }
+
+    private interface IntSupplier { int getAsInt(); }
+    private interface LongSupplier { long getAsLong(); }
+    private interface BooleanSupplier { boolean getAsBoolean(); }
+    private interface DoubleSupplier { double getAsDouble(); }
+
     private static final class NamedThreadFactory implements ThreadFactory {
         private static final AtomicInteger POOL_ID = new AtomicInteger();
         private final AtomicInteger tid = new AtomicInteger();
@@ -410,7 +572,7 @@ public final class SystemScheduler implements AutoCloseable {
         private final java.util.function.Consumer<String> onName;
 
         NamedThreadFactory(String base, java.util.function.Consumer<String> onName) {
-            this.base = (base == null || base.isBlank()) ? "sys" : base.trim();
+            this.base = Objects.requireNonNull(base, "base");
             this.onName = onName;
         }
 

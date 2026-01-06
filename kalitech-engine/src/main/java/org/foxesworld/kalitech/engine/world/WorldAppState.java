@@ -1,4 +1,3 @@
-// FILE: WorldAppState.java
 package org.foxesworld.kalitech.engine.world;
 
 import com.jme3.app.Application;
@@ -106,6 +105,9 @@ public final class WorldAppState extends BaseAppState {
     public void setHotReloadWatcher(HotReloadWatcher watcher) {
         this.hotReload = watcher;
     }
+
+    /** True if the current thread is the world/main thread. */
+    public boolean isWorldThread() { return Thread.currentThread() == worldThread; }
 
     public void setJobDrainBudget(int budget) {
         this.jobDrainBudget = Math.max(0, budget);
@@ -362,7 +364,7 @@ public final class WorldAppState extends BaseAppState {
                     .append(" emaMs=").append(nsToMs(s.emaTickNanos))
                     .append(" maxMs=").append(nsToMs(s.maxTickNanos))
                     .append(" lagMs=").append(nsToMs(s.lastQueueLagNanos))
-                    .append(" skip=").append(s.skippedTicks);
+                    .append(" skip=").append(s.skippedRateLimited);
         }
 
         log.info(b.toString());
@@ -424,7 +426,7 @@ public final class WorldAppState extends BaseAppState {
                         .append(" tickMs=").append(nsToMs(s.lastTickNanos))
                         .append(" maxMs=").append(nsToMs(s.maxTickNanos))
                         .append(" lagMs=").append(nsToMs(s.lastQueueLagNanos))
-                        .append(" skip=").append(s.skippedTicks)
+                        .append(" skip=").append(s.skippedBackpressure)
                         .append(" scoreMs=").append(nsToMs(score));
             }
         }
@@ -615,7 +617,7 @@ public final class WorldAppState extends BaseAppState {
                         .append(" emaMs=").append(nsToMs(s.emaTickNanos))
                         .append(" maxMs=").append(nsToMs(s.maxTickNanos))
                         .append(" lagMs=").append(nsToMs(s.lastQueueLagNanos))
-                        .append(" skip=").append(s.skippedTicks);
+                        .append(" skip=").append(s.skippedBackpressure);
             }
         }
 
