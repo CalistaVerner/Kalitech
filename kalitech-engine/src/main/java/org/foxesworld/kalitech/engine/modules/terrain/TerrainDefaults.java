@@ -17,6 +17,7 @@ public final class TerrainDefaults {
     public static final boolean ATTACH_DEFAULT = true;
     public static final ColorRGBA TERRAIN_COLOR = new ColorRGBA(0.25f, 0.7f, 0.3f, 1f);
     public static final ColorRGBA GEOM_COLOR = ColorRGBA.White;
+
     private TerrainDefaults() {
     }
 }

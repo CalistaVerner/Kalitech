@@ -1,4 +1,4 @@
-// Author: Calista Verner
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.modules.physics;
 
 import com.jme3.math.Vector3f;
