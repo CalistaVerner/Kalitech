@@ -1,7 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/CameraApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;

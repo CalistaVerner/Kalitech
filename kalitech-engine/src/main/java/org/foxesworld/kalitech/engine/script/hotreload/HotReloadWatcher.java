@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.script.hotreload;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

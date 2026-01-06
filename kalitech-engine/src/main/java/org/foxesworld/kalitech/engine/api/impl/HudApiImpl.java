@@ -2,6 +2,7 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.Application;
+import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
@@ -9,6 +10,7 @@ import com.simsilica.lemur.Container;
 import com.simsilica.lemur.GuiGlobals;
 import com.simsilica.lemur.Label;
 import com.simsilica.lemur.Panel;
+import com.simsilica.lemur.component.QuadBackgroundComponent;
 import com.simsilica.lemur.style.BaseStyles;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.HudApi;
@@ -22,6 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
 
 /**
  * HudApiImpl (thin bridge).
@@ -159,6 +163,13 @@ public final class HudApiImpl implements HudApi {
 
     private static void attachTo(Spatial parent, Spatial child) {
         if (parent instanceof Node n) n.attachChild(child);
+    }
+
+    private static float clamp01(float v) {
+        if (!Float.isFinite(v)) return 0f;
+        if (v < 0f) return 0f;
+        if (v > 1f) return 1f;
+        return v;
     }
 
     // ------------------------------------------------------------
@@ -461,7 +472,6 @@ public final class HudApiImpl implements HudApi {
 
             float newY;
 
-            // rooted to viewport?
             boolean rooted = (parent == null) || parentIsLayerRoot(parent);
             if (rooted) {
                 if (HudSizing.isBoxLike(s)) {
@@ -498,18 +508,15 @@ public final class HudApiImpl implements HudApi {
 
             final Spatial s = sh.spatial;
 
-            // Only box-like elements must keep TOP pinned when height changes.
             final boolean box = HudSizing.isBoxLike(s);
 
             float oldH = 0f;
             if (box) {
-                // Prefer cached explicit size, fallback to Lemur preferred
                 oldH = sizeCache.getH(id);
                 if (!(oldH > 0f)) oldH = HudSizing.preferredH(s);
                 if (!(oldH > 0f)) oldH = 0f;
             }
 
-            // Apply new size (updates cache too)
             HudSizing.forceSize(id, s, w, h, sizeCache);
 
             if (box) {
@@ -519,13 +526,12 @@ public final class HudApiImpl implements HudApi {
 
                 float dh = newH - oldH;
                 if (dh != 0f) {
-                    // To keep TOP-LEFT pinned:
-                    // guiYBox = vpH - yTopLeft - h  => when h grows, guiY must go DOWN by -dh (move UP)
                     Vector3f lt = s.getLocalTranslation();
                     float x0 = (lt != null) ? lt.x : 0f;
                     float y0 = (lt != null) ? lt.y : 0f;
                     float z0 = (lt != null) ? lt.z : 0f;
 
+                    // keep TOP pinned
                     s.setLocalTranslation(x0, y0 - dh, z0);
                 }
             }
@@ -545,6 +551,58 @@ public final class HudApiImpl implements HudApi {
             if (sh == null || sh.spatial == null) return;
             if (sh.spatial instanceof Label l) {
                 try { l.setFontSize(size); } catch (Throwable ignore) {}
+            }
+        });
+    }
+
+    /**
+     * ✅ New: set solid background color (with alpha) for Panel/Container.
+     * Used by Hud.js v2.5.0 for style.bg + style.border colors.
+     *
+     * NOTE: add this method to HudApi interface too, or JS won't see it.
+     */
+    @Override
+    @HostAccess.Export
+    public void setBgColor(HudElementHandle element, double r, double g, double b, double a) {
+        final int id = (element == null) ? 0 : element.id;
+        if (id <= 0) return;
+
+        final float rr = clamp01f(r);
+        final float gg = clamp01f(g);
+        final float bb = clamp01f(b);
+        final float aa = clamp01f(a);
+
+        rt(() -> {
+            SpatialHolder sh = elements.get(id);
+            if (sh == null || sh.spatial == null) return;
+
+            Spatial s = sh.spatial;
+            try {
+                QuadBackgroundComponent bg = new QuadBackgroundComponent(new ColorRGBA(rr, gg, bb, aa));
+                if (s instanceof Panel p) {
+                    p.setBackground(bg);
+                }
+            } catch (Throwable ignore) {}
+        });
+    }
+
+    @Override
+    @HostAccess.Export
+    public void setTextColor(HudElementHandle element, double r, double g, double b, double a) {
+        final int id = (element == null) ? 0 : element.id;
+        if (id <= 0) return;
+
+        final float rr = clamp01f(r);
+        final float gg = clamp01f(g);
+        final float bb = clamp01f(b);
+        final float aa = clamp01f(a);
+
+        rt(() -> {
+            SpatialHolder sh = elements.get(id);
+            if (sh == null || sh.spatial == null) return;
+
+            if (sh.spatial instanceof Label l) {
+                try { l.setColor(new ColorRGBA(rr, gg, bb, aa)); } catch (Throwable ignore) {}
             }
         });
     }

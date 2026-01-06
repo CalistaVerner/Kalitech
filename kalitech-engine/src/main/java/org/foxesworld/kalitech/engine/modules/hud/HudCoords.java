@@ -3,15 +3,15 @@ package org.foxesworld.kalitech.engine.modules.hud;
 
 /**
  * Coordinate conversions for HUD.
- * <p>
+ *
  * Script contract:
  * - TOP-LEFT origin
  * - y grows DOWN
- * <p>
+ *
  * Lemur/JME GUI:
  * - BOTTOM-LEFT origin
  * - y grows UP
- * <p>
+ *
  * Important:
  * - "Box-like" elements (Panel/Container) in Lemur are positioned by BOTTOM-LEFT.
  * To place them by TOP-LEFT we must subtract their height.

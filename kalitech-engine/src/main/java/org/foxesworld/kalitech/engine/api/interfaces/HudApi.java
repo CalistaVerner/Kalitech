@@ -49,6 +49,13 @@ public interface HudApi {
     @HostAccess.Export void setVisible(HudElementHandle element, boolean visible);
     @HostAccess.Export void setPosition(HudElementHandle element, float x, float y);
     @HostAccess.Export void setSize(HudElementHandle element, float w, float h);
+
+    @HostAccess.Export
+    void setBgColor(HudElementHandle element, double r, double g, double b, double a);
+
+    @HostAccess.Export
+    void setTextColor(HudElementHandle element, double r, double g, double b, double a);
+
     @HostAccess.Export void remove(HudElementHandle element);
 
     // NEW: viewport + typography

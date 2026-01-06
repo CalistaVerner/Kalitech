@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.script.cache;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;

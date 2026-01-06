@@ -1,7 +1,7 @@
 // FILE: BuiltinResolver.java
 package org.foxesworld.kalitech.engine.script.resolve;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import java.util.Optional;
 

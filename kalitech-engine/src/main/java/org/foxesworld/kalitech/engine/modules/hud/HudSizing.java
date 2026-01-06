@@ -9,7 +9,7 @@ import com.simsilica.lemur.core.GuiControl;
 
 /**
  * Fork-proof sizing utilities for Lemur elements.
- * <p>
+ *
  * Goals:
  * - set preferred size AND try to set real size
  * - call invalidation/layout hooks where available

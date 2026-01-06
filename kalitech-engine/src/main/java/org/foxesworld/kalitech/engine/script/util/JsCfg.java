@@ -51,6 +51,13 @@ public final class JsCfg {
         }
     }
 
+    public static float clamp01f(double v) {
+        if (!Double.isFinite(v)) return 0f;
+        if (v < 0.0) return 0f;
+        if (v > 1.0) return 1f;
+        return (float) v;
+    }
+
     public static int intR(Value cfg, String key, int def) {
         return (int) Math.round(num(cfg, key, def));
     }

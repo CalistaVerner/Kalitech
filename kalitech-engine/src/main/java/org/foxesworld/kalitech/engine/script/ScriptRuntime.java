@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>Security: host class lookup is disabled; host access is restricted to
  * members annotated with {@link HostAccess.Export}.</p>
  * <p>
- * Author: Calista Verner
+ * Author: KΛYLΛ
  */
 public final class ScriptRuntime implements Closeable {
 

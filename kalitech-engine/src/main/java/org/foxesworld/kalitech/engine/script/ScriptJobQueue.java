@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 /**
  * ScriptJobQueue — официальный мост "любой поток -> owner thread (скриптовый/главный)".
  *
- * <p>Author: Calista Verner</p>
+ * <p>Author: KΛYLΛ</p>
  *
  * <p>Design:</p>
  * <ul>

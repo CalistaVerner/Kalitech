@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Stores last known explicit sizes (w/h) by element id.
- * <p>
+ *
  * Why:
  * - Some Lemur/community builds don't immediately reflect preferredSize into GuiControl preferred size.
  * - We still need stable height for correct TOP-LEFT positioning of box-like elements.

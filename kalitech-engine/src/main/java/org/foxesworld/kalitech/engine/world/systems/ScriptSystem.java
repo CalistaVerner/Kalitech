@@ -28,7 +28,7 @@ import java.util.Set;
  * pollChanged() -> runtime.invalidateMany(changed)
  * entity instances restart automatically via moduleVersion() change
  * <p>
- * Author: Calista Verner
+ * Author: KΛYLΛ
  */
 public final class ScriptSystem implements KSystem {
 

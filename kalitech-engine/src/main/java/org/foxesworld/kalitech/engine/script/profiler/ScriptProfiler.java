@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Lightweight per-frame / rolling profiler for the scripting subsystem.
  *
- * <p>Автор: Calista Verner</p>
+ * <p>Автор: KΛYLΛ</p>
  * <p>
  * Tracks:
  * - module init/update total time + calls + errors

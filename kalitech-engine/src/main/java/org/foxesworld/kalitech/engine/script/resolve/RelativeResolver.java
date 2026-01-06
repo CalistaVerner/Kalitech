@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.script.resolve;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import java.util.ArrayDeque;
 import java.util.Deque;

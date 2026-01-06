@@ -1,4 +1,4 @@
-// Author: Calista Verner
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import org.graalvm.polyglot.HostAccess;
