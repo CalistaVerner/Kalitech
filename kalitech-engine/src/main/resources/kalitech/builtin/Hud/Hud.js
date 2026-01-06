@@ -1,20 +1,31 @@
+// FILE: resources/kalitech/builtin/Hud.js
 // Author: Calista Verner
 "use strict";
 
 /**
- * Hud.js v2.4.0 (best-of: stable + declarative + registry + builder + relayout)
+ * Hud.js v2.4.3 (AAA: autoHeight anchor lock)
  *
  * ✅ Core goals
- *  - Absolute coords (no Lemur Container/layout surprises)
- *  - Declarative placement: place:{anchor,x,y} for panels + labels
+ *  - Absolute coords (stable)
+ *  - Declarative placement: place:{anchor,x,y}
  *  - Registry: layer.get(id), layer.setText(id,text), layer.drop(id, remove)
  *  - Tiny builder: layer.ui().panel("debug", cfg).stack("fps","FPS: --").done()
  *  - Relayout: layer.relayout() recomputes placed elements when viewport changes
  *  - Coordinate mode: "topLeft" (default) or "bottomLeft" (legacy)
  *
+ * ✅ FIX in 2.4.2:
+ *  - Lemur Label is "point-like" and often renders text ABOVE its localTranslation Y (baseline-ish).
+ *    When child labels are positioned at y=0 (top edge), first line can appear outside the panel.
+ *    We shift stacked labels DOWN by `fontSize` so text stays inside the panel background.
+ *    AutoHeight also accounts for this shift.
+ *
+ * ✅ FIX in 2.4.3:
+ *  - Lemur Panel/Container can visually "slide" when preferred size changes (autoHeight).
+ *    We re-apply panel placement (setPosition) right after resizing so anchors stay fixed.
+ *
  * Requires HudApi:
  *   createLayer, destroyLayer, clearLayer
- *   addPanel, addLabel
+ *   addPanel, addLabel, addContainer (optional)
  *   setText, setVisible, setPosition, setSize, remove
  *   viewport()
  *   setFontSize(element, px)   (optional)
@@ -67,7 +78,7 @@ function parsePlace(cfg) {
     const a = String(p.anchor || "tl");
     const x = num(p.x != null ? p.x : p.mx, 0);
     const y = num(p.y != null ? p.y : p.my, 0);
-    return {a, x, y};
+    return { a, x, y };
 }
 
 // anchors for rect (panel)
@@ -79,48 +90,21 @@ function placeRect(containerW, containerH, w, h, place) {
     let x = 0, y = 0;
 
     switch (a) {
-        case "tr":
-            x = containerW - w;
-            y = 0;
-            break;
-        case "bl":
-            x = 0;
-            y = containerH - h;
-            break;
-        case "br":
-            x = containerW - w;
-            y = containerH - h;
-            break;
+        case "tr": x = containerW - w; y = 0; break;
+        case "bl": x = 0; y = containerH - h; break;
+        case "br": x = containerW - w; y = containerH - h; break;
 
-        case "t":
-            x = (containerW - w) * 0.5;
-            y = 0;
-            break;
-        case "b":
-            x = (containerW - w) * 0.5;
-            y = containerH - h;
-            break;
-        case "l":
-            x = 0;
-            y = (containerH - h) * 0.5;
-            break;
-        case "r":
-            x = containerW - w;
-            y = (containerH - h) * 0.5;
-            break;
-        case "c":
-            x = (containerW - w) * 0.5;
-            y = (containerH - h) * 0.5;
-            break;
+        case "t":  x = (containerW - w) * 0.5; y = 0; break;
+        case "b":  x = (containerW - w) * 0.5; y = containerH - h; break;
+        case "l":  x = 0; y = (containerH - h) * 0.5; break;
+        case "r":  x = containerW - w; y = (containerH - h) * 0.5; break;
+        case "c":  x = (containerW - w) * 0.5; y = (containerH - h) * 0.5; break;
 
         case "tl":
-        default:
-            x = 0;
-            y = 0;
-            break;
+        default:   x = 0; y = 0; break;
     }
 
-    return {x: round(x + ox), y: round(y + oy)};
+    return { x: round(x + ox), y: round(y + oy) };
 }
 
 // anchors for point (label). We DO NOT know label size reliably.
@@ -132,48 +116,21 @@ function placePoint(containerW, containerH, place) {
     let x = 0, y = 0;
 
     switch (a) {
-        case "tr":
-            x = containerW;
-            y = 0;
-            break;
-        case "bl":
-            x = 0;
-            y = containerH;
-            break;
-        case "br":
-            x = containerW;
-            y = containerH;
-            break;
+        case "tr": x = containerW; y = 0; break;
+        case "bl": x = 0; y = containerH; break;
+        case "br": x = containerW; y = containerH; break;
 
-        case "t":
-            x = containerW * 0.5;
-            y = 0;
-            break;
-        case "b":
-            x = containerW * 0.5;
-            y = containerH;
-            break;
-        case "l":
-            x = 0;
-            y = containerH * 0.5;
-            break;
-        case "r":
-            x = containerW;
-            y = containerH * 0.5;
-            break;
-        case "c":
-            x = containerW * 0.5;
-            y = containerH * 0.5;
-            break;
+        case "t":  x = containerW * 0.5; y = 0; break;
+        case "b":  x = containerW * 0.5; y = containerH; break;
+        case "l":  x = 0; y = containerH * 0.5; break;
+        case "r":  x = containerW; y = containerH * 0.5; break;
+        case "c":  x = containerW * 0.5; y = containerH * 0.5; break;
 
         case "tl":
-        default:
-            x = 0;
-            y = 0;
-            break;
+        default:   x = 0; y = 0; break;
     }
 
-    return {x: round(x + ox), y: round(y + oy)};
+    return { x: round(x + ox), y: round(y + oy) };
 }
 
 // ------------------------------------------------------------
@@ -196,20 +153,9 @@ class Element {
         this._h = 0;
     }
 
-    text(v) {
-        this._api.setText(this.handle, String(v ?? ""));
-        return this;
-    }
-
-    visible(v) {
-        this._api.setVisible(this.handle, !!v);
-        return this;
-    }
-
-    pos(x, y) {
-        this._api.setPosition(this.handle, num(x), num(y));
-        return this;
-    }
+    text(v) { this._api.setText(this.handle, String(v ?? "")); return this; }
+    visible(v) { this._api.setVisible(this.handle, !!v); return this; }
+    pos(x, y) { this._api.setPosition(this.handle, num(x), num(y)); return this; }
 
     size(w, h) {
         w = num(w);
@@ -220,21 +166,14 @@ class Element {
         return this;
     }
 
-    remove() {
-        this._api.remove(this.handle);
-        return this;
-    }
+    remove() { this._api.remove(this.handle); return this; }
 
     fontSize(px) {
         if (typeof this._api.setFontSize === "function") this._api.setFontSize(this.handle, num(px, 16));
         return this;
     }
 
-    // store place for relayout (used by Layer)
-    _setPlace(place) {
-        this._place = place;
-        return this;
-    }
+    _setPlace(place) { this._place = place; return this; }
 }
 
 class Panel extends Element {
@@ -243,64 +182,48 @@ class Panel extends Element {
         this.kind = "panel";
         this.meta = meta;
 
-        // children go to content handle (grouping). MUST remain visible.
+        // children go to content handle (grouping)
         this.content = null;
 
-        // flow state
-        this.flow = {y: 0, gap: meta.gap, fontSize: meta.fontSize};
+        // flow cursor (panel-local)
+        this.flow = { y: 0, gap: meta.gap, fontSize: meta.fontSize };
 
         // panel-local registry (convenience)
         this._kids = Object.create(null);
     }
 
-    // panel registry
-    get(id) {
-        return this._kids[String(id)] || null;
-    }
-
-    has(id) {
-        return !!this._kids[String(id)];
-    }
+    get(id) { return this._kids[String(id)] || null; }
+    has(id) { return !!this._kids[String(id)]; }
 
     drop(id, remove = false) {
         const k = String(id);
         const el = this._kids[k];
         if (el) {
-            if (remove) {
-                try {
-                    this._api.remove(el.handle);
-                } catch (e) {
-                }
-            }
+            if (remove) { try { this._api.remove(el.handle); } catch (e) {} }
             delete this._kids[k];
         }
         return el || null;
     }
 
-    // helpers
     text(id, text, cfg) {
-        const el = this.layer.text(Object.assign({}, cfg || {}, {parent: this, id, text}));
+        const el = this.layer.text(Object.assign({}, cfg || {}, { parent: this, id, text }));
         if (id != null) this._kids[String(id)] = el;
         return el;
     }
 
     stack(id, text, cfg) {
-        const el = this.layer.stackText(this, Object.assign({}, cfg || {}, {id, text}));
+        const el = this.layer.stackText(this, Object.assign({}, cfg || {}, { id, text }));
         if (id != null) this._kids[String(id)] = el;
         return el;
     }
 
-    // fast updates
     setText(id, text) {
         const el = this.get(id);
         if (el) el.text(text);
         return el;
     }
 
-    resetFlow(y = 0) {
-        this.flow.y = num(y, 0);
-        return this;
-    }
+    resetFlow(y = 0) { this.flow.y = num(y, 0); return this; }
 }
 
 // ------------------------------------------------------------
@@ -314,7 +237,7 @@ class UIBuilder {
     }
 
     panel(id, cfg) {
-        const p = this.layer.panel(Object.assign({}, cfg || {}, {id}));
+        const p = this.layer.panel(Object.assign({}, cfg || {}, { id }));
         this.panel = p;
         return this;
     }
@@ -327,7 +250,7 @@ class UIBuilder {
 
     text(id, text, cfg) {
         if (this.panel && this.panel.kind === "panel") this.panel.text(id, text, cfg);
-        else this.layer.text(Object.assign({}, cfg || {}, {id, text}));
+        else this.layer.text(Object.assign({}, cfg || {}, { id, text }));
         return this;
     }
 
@@ -339,9 +262,7 @@ class UIBuilder {
         return this;
     }
 
-    done() {
-        return this.panel;
-    }
+    done() { return this.panel; }
 }
 
 // ------------------------------------------------------------
@@ -355,25 +276,15 @@ class Layer {
         this.handle = handle;
         this.id = idOf(handle);
 
-        this._reg = Object.create(null);       // id -> Element
-        this._placed = [];                     // list of elements that have place stored (for relayout)
-        this._lastVp = {w: 0, h: 0};          // cached viewport
+        this._reg = Object.create(null); // id -> Element
+        this._placed = [];               // placed elements list (for relayout)
+        this._lastVp = { w: 0, h: 0 };
     }
 
-    destroy() {
-        this._api.destroyLayer(this.handle);
-    }
+    destroy() { this._api.destroyLayer(this.handle); }
+    clear() { this._api.clearLayer(this.handle); }
+    ui() { return new UIBuilder(this); }
 
-    clear() {
-        this._api.clearLayer(this.handle);
-    }
-
-    // builder
-    ui() {
-        return new UIBuilder(this);
-    }
-
-    // registry
     _regPut(id, el) {
         if (id == null) return el;
         const k = String(id);
@@ -382,43 +293,22 @@ class Layer {
         return el;
     }
 
-    get(id) {
-        return this._reg[String(id)] || null;
-    }
-
-    has(id) {
-        return !!this._reg[String(id)];
-    }
+    get(id) { return this._reg[String(id)] || null; }
+    has(id) { return !!this._reg[String(id)]; }
 
     drop(id, remove = false) {
         const k = String(id);
         const el = this._reg[k];
         if (el) {
-            if (remove) {
-                try {
-                    this._api.remove(el.handle);
-                } catch (e) {
-                }
-            }
+            if (remove) { try { this._api.remove(el.handle); } catch (e) {} }
             delete this._reg[k];
         }
         return el || null;
     }
 
-    // super common QoL
-    setText(id, text) {
-        const el = this.get(id);
-        if (el) el.text(text);
-        return el;
-    }
+    setText(id, text) { const el = this.get(id); if (el) el.text(text); return el; }
+    setVisible(id, v) { const el = this.get(id); if (el) el.visible(v); return el; }
 
-    setVisible(id, v) {
-        const el = this.get(id);
-        if (el) el.visible(v);
-        return el;
-    }
-
-    // viewport cache
     _vp() {
         const vp = this._hud.viewport();
         this._lastVp.w = vp.w | 0;
@@ -426,24 +316,13 @@ class Layer {
         return this._lastVp;
     }
 
-    // coordinate mode (inherits hud)
-    _coord() {
-        return this._hud._coord;
-    }
+    _coord() { return this._hud._coord; }
 
-    // mark element as placed for relayout
     _trackPlaced(el) {
-        // avoid duplicates
         if (el && el._place) this._placed.push(el);
         return el;
     }
 
-    /**
-     * relayout():
-     *  - recompute positions for elements that were created with `place`
-     *  - panels are perfect (we know size)
-     *  - labels are point-based (no size)
-     */
     relayout() {
         const vp = this._vp();
         const coord = this._coord();
@@ -452,7 +331,6 @@ class Layer {
             const el = this._placed[i];
             if (!el || !el._place) continue;
 
-            // determine container (viewport or panel inner box)
             const parent0 = el.parent;
             if (parent0 && parent0.kind === "panel") {
                 const m = parent0.meta;
@@ -463,8 +341,8 @@ class Layer {
                 let x = p.x + m.padX;
                 let y = p.y + m.padY;
 
-                // coordinate mode conversion for legacy engines
-                y = applyCoordY(coord, 0, y); // local panel coords (no viewport flip here)
+                // local panel coords (no viewport flip)
+                y = applyCoordY(coord, 0, y);
                 this._api.setPosition(el.handle, x, y);
             } else {
                 if (el.kind === "panel") {
@@ -484,17 +362,6 @@ class Layer {
     // panel
     // --------------------------------------------------------
 
-    /**
-     * panel({
-     *   id?: string
-     *   w,h,
-     *   x,y OR place:{anchor,x,y},
-     *   pad: number OR padX/padY,
-     *   visible: true,
-     *   autoHeight: false,
-     *   flow:{ fontSize:16, gap:6 }
-     * })
-     */
     panel(cfg = {}) {
         const c = isObj(cfg) ? cfg : {};
         const vp = this._vp();
@@ -517,7 +384,6 @@ class Layer {
             y = xy.y;
         }
 
-        // coordinate mode conversion (legacy)
         y = applyCoordY(coord, vp.h, y);
 
         const hPanel = this._api.addPanel(this.handle, x, y, w, h);
@@ -537,7 +403,7 @@ class Layer {
 
         if (!bool(c.visible, true)) panel.visible(false);
 
-        // content group (MUST stay visible)
+        // content group inside panel (box-like)
         const hContent = this._api.addPanel(this.handle, panel.handle, 0, 0, w, h);
         const content = new Element(this._hud, hContent, this, panel);
         content.visible(true);
@@ -552,16 +418,14 @@ class Layer {
         return panel;
     }
 
-    rect(cfg = {}) {
-        return this.panel(cfg);
-    }
+    rect(cfg = {}) { return this.panel(cfg); }
 
     // --------------------------------------------------------
     // text / label
     // --------------------------------------------------------
 
     _parentInfo(parent0) {
-        if (!parent0) return {ph: null, insetX: 0, insetY: 0, cw: 0, ch: 0};
+        if (!parent0) return { ph: null, insetX: 0, insetY: 0, cw: 0, ch: 0 };
 
         if (parent0 && parent0.kind === "panel") {
             const m = parent0.meta;
@@ -574,19 +438,9 @@ class Layer {
             };
         }
 
-        return {ph: parent0.handle, insetX: 0, insetY: 0, cw: 0, ch: 0};
+        return { ph: parent0.handle, insetX: 0, insetY: 0, cw: 0, ch: 0 };
     }
 
-    /**
-     * text({
-     *   id?: string
-     *   text: string
-     *   x,y OR place:{anchor,x,y}
-     *   parent?: panel
-     *   visible?: boolean
-     *   fontSize?: number
-     * })
-     */
     text(cfg = {}) {
         const c = isObj(cfg) ? cfg : {};
         const vp = this._vp();
@@ -607,8 +461,7 @@ class Layer {
             y = xy.y + pi.insetY;
         }
 
-        // coordinate mode conversion only applies when rooted in viewport,
-        // NOT inside panel (panel-local coords already match y-down layout)
+        // only viewport-root needs coord flip
         if (!parent0) y = applyCoordY(coord, vp.h, y);
 
         const ph = pi.ph;
@@ -617,6 +470,7 @@ class Layer {
             : this._api.addLabel(this.handle, String(c.text ?? ""), x, y);
 
         const el = new Element(this._hud, hLabel, this, parent0);
+
         if (!bool(c.visible, true)) el.visible(false);
         if (c.fontSize != null) el.fontSize(c.fontSize);
 
@@ -629,16 +483,22 @@ class Layer {
         return el;
     }
 
-    label(cfg = {}) {
-        return this.text(cfg);
-    }
+    label(cfg = {}) { return this.text(cfg); }
 
     // --------------------------------------------------------
-    // flow stacking
+    // flow stacking (FIXED)
     // --------------------------------------------------------
 
     /**
      * stackText(panel, { id?, text, x?, fontSize?, gap?, visible? })
+     *
+     * FIX:
+     *  - For Lemur labels, y=0 at top edge can draw text above panel.
+     *  - We shift the baseline DOWN by `fontSize`.
+     *  - AutoHeight includes that shift.
+     *
+     * FIX (2.4.3):
+     *  - After autoHeight resize, re-apply panel placement to prevent "sliding".
      */
     stackText(panel, cfg = {}) {
         if (!panel || panel.kind !== "panel") throw new Error("[HUD] stackText expects Panel");
@@ -648,16 +508,22 @@ class Layer {
 
         const fs = num(c.fontSize, panel.flow.fontSize);
         const gap = num(c.gap, panel.flow.gap);
-        const lh = fs + 2;
+
+        // line height (heuristic)
+        const lh = Math.max(1, fs + Math.ceil(fs * 0.25));
 
         const x = num(c.x, 0);
-        const y = panel.flow.y;
 
+        // ✅ baseline shift so first line stays INSIDE panel
+        const y = panel.flow.y + fs;
+
+        // advance cursor for next line
         panel.flow.y += lh + gap;
 
         const el = this.text({
             parent: panel,
-            x, y,
+            x,
+            y,
             text: String(c.text ?? ""),
             visible: bool(c.visible, true),
             fontSize: fs
@@ -666,12 +532,27 @@ class Layer {
         if (c.id != null) this._regPut(c.id, el);
 
         if (m.autoHeight) {
-            const need = m.padY + panel.flow.y + m.padY;
+            // content bottom = flow cursor + baseline shift (fs)
+            const contentBottom = panel.flow.y + fs;
+            const need = m.padY + contentBottom + m.padY;
+
             if (need > m.h) {
                 m.h = need;
                 panel._h = m.h;
+
+                // resize
                 this._api.setSize(panel.handle, m.w, m.h);
                 if (panel.content) this._api.setSize(panel.content.handle, m.w, m.h);
+
+                // ✅ FIX (2.4.3): lock anchor after autoHeight resize
+                // Re-apply placement using updated height so the panel stays pinned.
+                if (panel._place) {
+                    const vp = this._vp();
+                    const coord = this._coord();
+                    const p = placeRect(vp.w, vp.h, panel._w, panel._h, panel._place);
+                    const yPinned = applyCoordY(coord, vp.h, p.y);
+                    this._api.setPosition(panel.handle, p.x, yPinned);
+                }
             }
         }
 
@@ -689,13 +570,13 @@ function HudModule(engine, opts) {
 
     const hud = {
         _api: api,
-        _coord: (opts && opts.coord) ? String(opts.coord) : "topLeft", // ✅ default for your current runtime
+        _coord: (opts && opts.coord) ? String(opts.coord) : "topLeft",
 
         META: {
             name: "hud",
             globalName: "HUD",
-            version: "2.4.0",
-            description: "Lemur HUD: declarative placement + registry + builder + relayout + coord mode",
+            version: "2.4.3",
+            description: "Lemur HUD: declarative placement + registry + builder + relayout (AAA stacking fix + anchor lock)",
             engineMin: "0.1.0"
         },
 
@@ -710,57 +591,15 @@ function HudModule(engine, opts) {
 
         viewport() {
             const vp = api.viewport();
-            return vp ? {w: num(vp.w), h: num(vp.h)} : {w: 0, h: 0};
+            return vp ? { w: num(vp.w), h: num(vp.h) } : { w: 0, h: 0 };
         },
 
-        clearLayer(l) {
-            api.clearLayer(l.handle || l);
-        },
-        destroyLayer(l) {
-            api.destroyLayer(l.handle || l);
-        }
+        clearLayer(l) { api.clearLayer(l.handle || l); },
+        destroyLayer(l) { api.destroyLayer(l.handle || l); }
     };
 
     return hud;
 }
 
 module.exports = HudModule;
-module.exports.META = {name: "hud", globalName: "HUD", version: "2.4.0"};
-
-/* ------------------------------------------------------------
-USAGE (recommended):
-
-const HUD = require("kalitech/builtin/Hud.js")(engine); // default coord="topLeft"
-const L = HUD.layer("debug");
-
-// declarative + registry:
-const p = L.panel({
-  id: "debug.panel",
-  w: 360, h: 80,
-  place: { anchor:"tl", x: 10, y: 10 },
-  pad: 10,
-  autoHeight: true,
-  flow: { fontSize: 16, gap: 6 }
-});
-
-L.stackText(p, { id:"debug.title", text:"DEBUG", fontSize:18 });
-L.stackText(p, { id:"debug.fps", text:"FPS: --" });
-L.stackText(p, { id:"debug.pos", text:"POS: --" });
-L.stackText(p, { id:"debug.cam", text:"CAM: --" });
-
-// later:
-L.setText("debug.fps", "FPS: 144.0");
-
-// builder:
-L.ui()
-  .panel("stats", { w: 320, h: 80, place:{anchor:"bl", x: 20, y: -20}, pad: 12, autoHeight:true })
-  .stack("hp",   "HP: 100")
-  .stack("ammo", "Ammo: 30/120")
-  .done();
-
-// relayout after resolution change:
-L.relayout();
-
-// legacy engines:
-const HUD2 = require("kalitech/builtin/Hud.js")(engine, { coord:"bottomLeft" });
------------------------------------------------------------- */
+module.exports.META = { name: "hud", globalName: "HUD", version: "2.4.3" };
