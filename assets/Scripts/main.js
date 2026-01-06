@@ -1,5 +1,5 @@
 // FILE: Scripts/main.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 const worldMod = require("./environment");

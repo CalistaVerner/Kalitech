@@ -1,5 +1,5 @@
 // FILE: Scripts/player/FrameContext.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 const U = require("./util.js");

@@ -1,5 +1,5 @@
 // FILE: Scripts/systems/index.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 class Index {

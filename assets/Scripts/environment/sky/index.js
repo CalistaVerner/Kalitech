@@ -1,4 +1,4 @@
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 const SkySystem = require("./SkySystem.js");

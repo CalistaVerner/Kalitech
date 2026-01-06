@@ -1,5 +1,5 @@
 // FILE: Scripts/world/main.world.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 //
 // Main world descriptor (data-first).
 // Editor systems are injected by engine/builtins.

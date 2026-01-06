@@ -1,5 +1,5 @@
 // FILE: Scripts/player/systems/ShootSystem.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 const U = require("../util.js");

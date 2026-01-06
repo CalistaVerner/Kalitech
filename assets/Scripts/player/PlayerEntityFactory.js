@@ -1,5 +1,5 @@
 // FILE: Scripts/player/PlayerEntityFactory.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 "use strict";
 
 function _num(v, fb) {

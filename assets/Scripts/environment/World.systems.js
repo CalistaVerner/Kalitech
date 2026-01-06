@@ -1,5 +1,5 @@
 // FILE: Scripts/world/World.systems.js
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 "use strict";
 
