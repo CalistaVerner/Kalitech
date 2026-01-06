@@ -15,6 +15,8 @@ import com.jme3.renderer.Camera;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
 import com.jme3.terrain.geomipmap.TerrainQuad;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
@@ -25,23 +27,37 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
 
 public final class SurfaceApiImpl implements SurfaceApi {
 
+    private static final Logger log = LogManager.getLogger(SurfaceApiImpl.class);
+
+    /**
+     * API contract: JS calls are synchronous.
+     * If the call happens from a worker, we must hop to the JME thread and wait.
+     */
+    private static final long DEFAULT_TIMEOUT_MS = 2_000;
+
     private final EngineApiImpl engine;
     private final SurfaceRegistry registry;
     private static final String UD_UV_SCALE = "__kt_uvScale";
     private final AssetManager assets;
+    @SuppressWarnings("unused")
     private final MeshApi meshApi;
+    @SuppressWarnings("unused")
     private final PhysicsApi physicsApi;
+    @SuppressWarnings("unused")
     private final MaterialApi materialApi;
     private final org.foxesworld.kalitech.engine.script.events.ScriptEventBus bus;
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
-        this.engine = engine;
-        this.registry = registry;
+        this.engine = Objects.requireNonNull(engine, "engine");
+        this.registry = Objects.requireNonNull(registry, "registry");
         this.assets = engine.getAssets();
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
@@ -50,10 +66,62 @@ public final class SurfaceApiImpl implements SurfaceApi {
         // ❌ LEGACY REMOVED: registry.bindSurfaceApi(this);
     }
 
+    // ------------------------------------------------------------
+    // Threading helpers
+    // ------------------------------------------------------------
+
+    private boolean isJmeThread() {
+        try {
+            return engine.isJmeThread();
+        } catch (Throwable ignored) {
+            // If EngineApiImpl doesn't provide isJmeThread for some reason,
+            // we still behave safely by always enqueueing.
+            return false;
+        }
+    }
+
+    private void onJmeSyncVoid(String where, Runnable r) {
+        if (isJmeThread()) {
+            r.run();
+            return;
+        }
+        try {
+            Future<?> f = engine.getApp().enqueue(() -> {
+                r.run();
+                return null;
+            });
+            f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            log.warn("[surface] {}: JME hop failed/timeout", where, t);
+        }
+    }
+
+    private <T> T onJmeSync(String where, Callable<T> c, T fallback) {
+        if (isJmeThread()) {
+            try {
+                return c.call();
+            } catch (Throwable t) {
+                log.warn("[surface] {}: failed", where, t);
+                return fallback;
+            }
+        }
+        try {
+            Future<T> f = engine.getApp().enqueue(c);
+            return f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            log.warn("[surface] {}: JME hop failed/timeout", where, t);
+            return fallback;
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Events
+    // ------------------------------------------------------------
+
     private void emit(String topic, Object... kv) {
         if (bus == null) return;
         try {
-            java.util.HashMap<String, Object> m = new java.util.HashMap<>();
+            HashMap<String, Object> m = new HashMap<>();
             for (int i = 0; i + 1 < kv.length; i += 2) {
                 Object k = kv[i];
                 if (k == null) continue;
@@ -64,6 +132,81 @@ public final class SurfaceApiImpl implements SurfaceApi {
         }
     }
 
+    // ------------------------------------------------------------
+    // Handle coercion (fixes legacy JS passing raw ids)
+    // ------------------------------------------------------------
+
+    private int idOf(Object handleOrId) {
+        if (handleOrId == null) return 0;
+
+        if (handleOrId instanceof SurfaceHandle h) return h.id();
+        if (handleOrId instanceof Number n) return n.intValue();
+
+        if (handleOrId instanceof Value v) {
+            try {
+                if (v.isNull()) return 0;
+                if (v.isNumber()) return (int) v.asDouble();
+
+                // host object wrapper
+                if (v.isHostObject()) {
+                    Object host = v.asHostObject();
+                    if (host instanceof SurfaceHandle h) return h.id();
+                    if (host instanceof Number n) return n.intValue();
+                }
+
+                // {id:...}
+                if (v.hasMembers() && v.hasMember("id")) {
+                    Value id = v.getMember("id");
+                    if (id != null && !id.isNull() && id.isNumber()) return (int) id.asDouble();
+                }
+
+                // valueOf() pattern
+                if (v.canInvokeMember("valueOf")) {
+                    Value vo = v.invokeMember("valueOf");
+                    if (vo != null && !vo.isNull() && vo.isNumber()) return (int) vo.asDouble();
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // plain JS object exposed as Map-like host object
+        try {
+            var f = handleOrId.getClass().getField("id");
+            Object id = f.get(handleOrId);
+            if (id instanceof Number n) return n.intValue();
+        } catch (Throwable ignored) {
+        }
+
+        return 0;
+    }
+
+    private SurfaceHandle handleOf(Object handleOrId) {
+        if (handleOrId instanceof SurfaceHandle h) return h;
+        int id = idOf(handleOrId);
+        if (id <= 0) return null;
+        if (!registry.exists(id)) return null;
+        return new SurfaceHandle(id, registry.kind(id));
+    }
+
+    private Spatial requireSpatial(Object handleOrId) {
+        SurfaceHandle h = handleOf(handleOrId);
+        if (h == null) throw new IllegalArgumentException("surface: invalid handle/id: " + String.valueOf(handleOrId));
+        Spatial s = registry.get(h.id());
+        if (s == null) throw new IllegalStateException("surface: missing spatial for id=" + h.id());
+        return s;
+    }
+
+    private SurfaceHandle requireHandle(Object handleOrId) {
+        SurfaceHandle h = handleOf(handleOrId);
+        if (h == null) throw new IllegalArgumentException("surface: invalid handle/id: " + String.valueOf(handleOrId));
+        if (!registry.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
+        return h;
+    }
+
+    // ------------------------------------------------------------
+    // SurfaceApi exports
+    // ------------------------------------------------------------
+
     @HostAccess.Export
     @Override
     public SurfaceHandle handle(int id) {
@@ -71,51 +214,192 @@ public final class SurfaceApiImpl implements SurfaceApi {
         return new SurfaceHandle(id, registry.kind(id));
     }
 
+    // --- Overloads to accept raw ids from JS (LEGACY compatibility) ---
+
+    @HostAccess.Export
+    public void setMaterial(Object target, Object materialHandleOrCfg) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setMaterial", () -> setMaterial(h, materialHandleOrCfg));
+    }
+
+    @HostAccess.Export
+    public void applyMaterialToChildren(Object target, Object materialHandle) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("applyMaterialToChildren", () -> applyMaterialToChildren(h, materialHandle));
+    }
+
+    @HostAccess.Export
+    public void setTransform(Object target, Value cfg) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setTransform", () -> setTransform(h, cfg));
+    }
+
+    @HostAccess.Export
+    public void setPos(Object target, Object pos) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setPos", () -> setPos(h, pos));
+    }
+
+    @HostAccess.Export
+    public void setRot(Object target, Object rotDeg) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setRot", () -> setRot(h, rotDeg));
+    }
+
+    @HostAccess.Export
+    public void setCull(Object target, String hint) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setCull", () -> setCull(h, hint));
+    }
+
+    @HostAccess.Export
+    public void setVisible(Object target, boolean visible) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setVisible", () -> setVisible(h, visible));
+    }
+
+    @HostAccess.Export
+    public void setScale(Object target, Object scale) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setScale", () -> setScale(h, scale));
+    }
+
+    @HostAccess.Export
+    public void setName(Object target, String name) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setName", () -> setName(h, name));
+    }
+
+    @HostAccess.Export
+    public void setShadowMode(Object target, String mode) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("setShadowMode", () -> setShadowMode(h, mode));
+    }
+
+    @HostAccess.Export
+    public void attachToRoot(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("attachToRoot", () -> attachToRoot(h));
+    }
+
+    @HostAccess.Export
+    public void detach(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("detach", () -> detach(h));
+    }
+
+    @HostAccess.Export
+    public void destroy(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("destroy", () -> destroy(h));
+    }
+
+    @HostAccess.Export
+    public boolean exists(Object target) {
+        SurfaceHandle h = handleOf(target);
+        return h != null && registry.exists(h.id());
+    }
+
+    @HostAccess.Export
+    public int attachedEntity(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return attachedEntity(h);
+    }
+
+    @HostAccess.Export
+    public void attach(Object target, int entityId) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("attach", () -> attach(h, entityId));
+    }
+
+    @HostAccess.Export
+    public void detachFromEntity(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("detachFromEntity", () -> detachFromEntity(h));
+    }
+
+    @HostAccess.Export
+    public WorldBounds getWorldBounds(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("getWorldBounds", () -> getWorldBounds(h), new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
+    }
+
+    @HostAccess.Export
+    public Hit[] raycast(Object target, Value cfg) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("raycast", () -> raycast(h, cfg), new Hit[0]);
+    }
+
+    @HostAccess.Export
+    public Hit[] pickUnderCursor(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("pickUnderCursor", () -> pickUnderCursor(h), new Hit[0]);
+    }
+
+    @HostAccess.Export
+    public Hit[] pickUnderCursorCfg(Object target, Value cfg) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("pickUnderCursorCfg", () -> pickUnderCursorCfg(h, cfg), new Hit[0]);
+    }
+
+    // ------------------------------------------------------------
+    // Interface methods (kept, but now always JME-thread safe)
+    // ------------------------------------------------------------
+
     @HostAccess.Export
     @Override
     public void setMaterial(SurfaceHandle target, Object materialHandleOrCfg) {
-        Spatial s = requireSpatial(target);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setMaterial", () -> {
+            Spatial s = requireSpatial(target);
 
-        Material mat = unwrapMaterial(materialHandleOrCfg);
-        Value cfg = null;
+            Material mat = unwrapMaterial(materialHandleOrCfg);
+            Value cfg = null;
 
-        if (mat == null && materialHandleOrCfg instanceof Value v && v.hasMembers() && v.hasMember("def")) {
-            cfg = v;
-            MaterialApiImpl.MaterialHandle mh = engine.material().create(v);
-            mat = mh.__material();
-        }
-
-        if (mat == null) throw new IllegalArgumentException("surface.setMaterial: materialHandle is invalid");
-
-        if (s instanceof TerrainQuad tq) {
-            tq.setMaterial(mat);
-            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "terrain");
-            return;
-        }
-
-        if (s instanceof Geometry g) {
-            g.setMaterial(mat);
-            if (cfg != null) {
-                try { applyTileWorldToGeometryIfAny(g, cfg); } catch (Throwable ignored) {}
+            if (mat == null && materialHandleOrCfg instanceof Value v && v.hasMembers() && v.hasMember("def")) {
+                cfg = v;
+                MaterialApiImpl.MaterialHandle mh = engine.material().create(v);
+                mat = mh.__material();
             }
-            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "geometry");
-            return;
-        }
 
-        if (s instanceof Node n) {
-            applyMaterialRecursiveWithTileWorld(n, mat, cfg);
-            emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "node");
-            return;
-        }
+            if (mat == null) throw new IllegalArgumentException("surface.setMaterial: materialHandle is invalid");
 
-        throw new IllegalStateException("surface.setMaterial: unsupported Spatial type=" + s.getClass().getName());
+            if (s instanceof TerrainQuad tq) {
+                tq.setMaterial(mat);
+                emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "terrain");
+                return;
+            }
+
+            if (s instanceof Geometry g) {
+                g.setMaterial(mat);
+                if (cfg != null) {
+                    try {
+                        applyTileWorldToGeometryIfAny(g, cfg);
+                    } catch (Throwable ignored) {
+                    }
+                }
+                emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "geometry");
+                return;
+            }
+
+            if (s instanceof Node n) {
+                applyMaterialRecursiveWithTileWorld(n, mat, cfg);
+                emit("engine.surface.material.set", "surfaceId", target.id(), "kind", registry.kind(target.id()), "type", "node");
+                return;
+            }
+
+            throw new IllegalStateException("surface.setMaterial: unsupported Spatial type=" + s.getClass().getName());
+        });
     }
 
     private static void applyMaterialRecursiveWithTileWorld(Spatial s, Material mat, Value cfgOrNull) {
         if (s instanceof Geometry g) {
             g.setMaterial(mat);
             if (cfgOrNull != null) {
-                try { applyTileWorldToGeometryIfAny(g, cfgOrNull); } catch (Throwable ignored) {}
+                try {
+                    applyTileWorldToGeometryIfAny(g, cfgOrNull);
+                } catch (Throwable ignored) {
+                }
             }
             return;
         }
@@ -212,103 +496,135 @@ public final class SurfaceApiImpl implements SurfaceApi {
     @HostAccess.Export
     @Override
     public void applyMaterialToChildren(SurfaceHandle target, Object materialHandle) {
-        Spatial s = requireSpatial(target);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("applyMaterialToChildren", () -> {
+            Spatial s = requireSpatial(target);
 
-        Material mat = unwrapMaterial(materialHandle);
-        if (mat == null) throw new IllegalArgumentException("surface.applyMaterialToChildren: materialHandle is invalid");
+            Material mat = unwrapMaterial(materialHandle);
+            if (mat == null) throw new IllegalArgumentException("surface.applyMaterialToChildren: materialHandle is invalid");
 
-        applyMaterialRecursive(s, mat);
+            applyMaterialRecursive(s, mat);
+        });
     }
 
     @HostAccess.Export
     @Override
     public void setTransform(SurfaceHandle target, Value cfg) {
-        Spatial s = requireSpatial(target);
-        applyTransform(s, cfg);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setTransform", () -> {
+            Spatial s = requireSpatial(target);
+            applyTransform(s, cfg);
+        });
     }
 
     @HostAccess.Export
     public void setPos(SurfaceHandle target, Object pos) {
-        Spatial s = requireSpatial(target);
-        Vector3f p = vec3Any(pos, 0f, 0f, 0f);
-        s.setLocalTranslation(p);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setPos", () -> {
+            Spatial s = requireSpatial(target);
+            Vector3f p = vec3Any(pos, 0f, 0f, 0f);
+            s.setLocalTranslation(p);
+        });
     }
 
     @HostAccess.Export
     public void setRot(SurfaceHandle target, Object rotDeg) {
-        Spatial s = requireSpatial(target);
-        Vector3f deg = vec3Any(rotDeg, 0f, 0f, 0f);
-        float rx = deg.x * (float) (Math.PI / 180.0);
-        float ry = deg.y * (float) (Math.PI / 180.0);
-        float rz = deg.z * (float) (Math.PI / 180.0);
-        s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setRot", () -> {
+            Spatial s = requireSpatial(target);
+            Vector3f deg = vec3Any(rotDeg, 0f, 0f, 0f);
+            float rx = deg.x * (float) (Math.PI / 180.0);
+            float ry = deg.y * (float) (Math.PI / 180.0);
+            float rz = deg.z * (float) (Math.PI / 180.0);
+            s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
+        });
     }
 
     @HostAccess.Export
     @Override
     public void setCull(SurfaceHandle target, String hint) {
-        Spatial s = requireSpatial(target);
-        s.setCullHint(parseCullHint(hint));
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setCull", () -> {
+            Spatial s = requireSpatial(target);
+            s.setCullHint(parseCullHint(hint));
+        });
     }
 
     @HostAccess.Export
     @Override
     public void setVisible(SurfaceHandle target, boolean visible) {
-        Spatial s = requireSpatial(target);
-        s.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setVisible", () -> {
+            Spatial s = requireSpatial(target);
+            s.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        });
     }
 
+    @Override
+    public Hit[] pickUnderCursorCfg(Value cfg) {
+        return new Hit[0];
+    }
 
     @HostAccess.Export
     public void setScale(SurfaceHandle target, Object scale) {
-        Spatial s = requireSpatial(target);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setScale", () -> {
+            Spatial s = requireSpatial(target);
 
-        if (scale instanceof Number n) {
-            s.setLocalScale(n.floatValue());
-            return;
-        }
-        if (scale instanceof Value v && !v.isNull() && v.isNumber()) {
-            s.setLocalScale((float) v.asDouble());
-            return;
-        }
+            if (scale instanceof Number n) {
+                s.setLocalScale(n.floatValue());
+                return;
+            }
+            if (scale instanceof Value v && !v.isNull() && v.isNumber()) {
+                s.setLocalScale((float) v.asDouble());
+                return;
+            }
 
-        Vector3f sc = vec3Any(scale, 1f, 1f, 1f);
-        s.setLocalScale(sc);
+            Vector3f sc = vec3Any(scale, 1f, 1f, 1f);
+            s.setLocalScale(sc);
+        });
     }
 
     @HostAccess.Export
     public void setName(SurfaceHandle target, String name) {
-        Spatial s = requireSpatial(target);
-        if (name == null) return;
-        s.setName(name);
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setName", () -> {
+            Spatial s = requireSpatial(target);
+            if (name == null) return;
+            s.setName(name);
+        });
     }
 
     @HostAccess.Export
     @Override
     public void setShadowMode(SurfaceHandle target, String mode) {
-        Spatial s = requireSpatial(target);
-        s.setShadowMode(parseShadowMode(mode));
+        Objects.requireNonNull(target, "target");
+        onJmeSyncVoid("setShadowMode", () -> {
+            Spatial s = requireSpatial(target);
+            s.setShadowMode(parseShadowMode(mode));
+        });
     }
 
     @HostAccess.Export
     @Override
     public void attachToRoot(SurfaceHandle target) {
         requireHandle(target);
-        registry.attachToRoot(target.id());
+        // registry already enqueues attach flush; still keep sync hop for "sync" JS semantics.
+        onJmeSyncVoid("attachToRoot", () -> registry.attachToRoot(target.id()));
     }
 
     @HostAccess.Export
     @Override
     public void detach(SurfaceHandle target) {
         requireHandle(target);
-        registry.detachFromParent(target.id());
+        onJmeSyncVoid("detach", () -> registry.detachFromParent(target.id()));
     }
 
     @HostAccess.Export
     @Override
     public void destroy(SurfaceHandle target) {
         requireHandle(target);
-        registry.destroy(target.id());
+        onJmeSyncVoid("destroy", () -> registry.destroy(target.id()));
     }
 
     @HostAccess.Export
@@ -329,59 +645,70 @@ public final class SurfaceApiImpl implements SurfaceApi {
     @Override
     public void attach(SurfaceHandle target, int entityId) {
         requireHandle(target);
-        registry.attach(target.id(), entityId);
-        engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
+        onJmeSyncVoid("attach", () -> {
+            registry.attach(target.id(), entityId);
+            engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
+        });
     }
 
     @HostAccess.Export
     @Override
     public void detachFromEntity(SurfaceHandle target) {
         requireHandle(target);
-        Integer entityId = registry.attachedEntity(target.id());
-        registry.detachSurface(target.id());
-        if (entityId != null && entityId > 0) engine.getEcs().components().removeByName(entityId, "Surface");
+        onJmeSyncVoid("detachFromEntity", () -> {
+            Integer entityId = registry.attachedEntity(target.id());
+            registry.detachSurface(target.id());
+            if (entityId != null && entityId > 0) engine.getEcs().components().removeByName(entityId, "Surface");
+        });
     }
 
     @HostAccess.Export
     @Override
     public WorldBounds getWorldBounds(SurfaceHandle target) {
-        Spatial s = requireSpatial(target);
-        BoundingVolume bv = s.getWorldBound();
-        if (bv == null) return new WorldBounds("none", 0,0,0, 0,0,0, 0);
+        Objects.requireNonNull(target, "target");
+        return onJmeSync("getWorldBounds", () -> {
+            Spatial s = requireSpatial(target);
+            BoundingVolume bv = s.getWorldBound();
+            if (bv == null) return new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0);
 
-        if (bv instanceof BoundingBox bb) {
-            Vector3f c = bb.getCenter();
-            return new WorldBounds("box", c.x, c.y, c.z, bb.getXExtent(), bb.getYExtent(), bb.getZExtent(), 0f);
-        }
-        if (bv instanceof BoundingSphere bs) {
-            Vector3f c = bs.getCenter();
-            return new WorldBounds("sphere", c.x, c.y, c.z, 0,0,0, bs.getRadius());
-        }
+            if (bv instanceof BoundingBox bb) {
+                Vector3f c = bb.getCenter();
+                return new WorldBounds("box", c.x, c.y, c.z, bb.getXExtent(), bb.getYExtent(), bb.getZExtent(), 0f);
+            }
+            if (bv instanceof BoundingSphere bs) {
+                Vector3f c = bs.getCenter();
+                return new WorldBounds("sphere", c.x, c.y, c.z, 0, 0, 0, bs.getRadius());
+            }
 
-        Vector3f c = bv.getCenter();
-        return new WorldBounds("other", c.x, c.y, c.z, 0,0,0, 0);
+            Vector3f c = bv.getCenter();
+            return new WorldBounds("other", c.x, c.y, c.z, 0, 0, 0, 0);
+        }, new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
     }
 
     @HostAccess.Export
     @Override
     public Hit[] raycast(SurfaceHandle target, Value cfg) {
-        Spatial s = requireSpatial(target);
+        Objects.requireNonNull(target, "target");
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("surface.raycast: cfg is null");
 
-        Vector3f origin = vec3(member(cfg, "origin"), 0f, 0f, 0f);
-        Vector3f dir = vec3(member(cfg, "dir"), 0f, -1f, 0f);
+        return onJmeSync("raycast", () -> {
+            Spatial s = requireSpatial(target);
 
-        float max = (float) num(cfg, "max", 10_000.0);
-        int limit = clampInt(num(cfg, "limit", 16.0), 1, 256);
-        boolean onlyClosest = bool(cfg, "onlyClosest", true);
+            Vector3f origin = vec3(member(cfg, "origin"), 0f, 0f, 0f);
+            Vector3f dir = vec3(member(cfg, "dir"), 0f, -1f, 0f);
 
-        if (dir.lengthSquared() < 1e-8f) dir.set(0, -1, 0);
-        dir.normalizeLocal();
+            float max = (float) num(cfg, "max", 10_000.0);
+            int limit = clampInt(num(cfg, "limit", 16.0), 1, 256);
+            boolean onlyClosest = bool(cfg, "onlyClosest", true);
 
-        Ray ray = new Ray(origin, dir);
-        ray.setLimit(max);
+            if (dir.lengthSquared() < 1e-8f) dir.set(0, -1, 0);
+            dir.normalizeLocal();
 
-        return collide(s, ray, onlyClosest, limit);
+            Ray ray = new Ray(origin, dir);
+            ray.setLimit(max);
+
+            return collide(s, ray, onlyClosest, limit);
+        }, new Hit[0]);
     }
 
     @HostAccess.Export
@@ -393,156 +720,97 @@ public final class SurfaceApiImpl implements SurfaceApi {
     @HostAccess.Export
     @Override
     public Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg) {
-        Spatial s = requireSpatial(target);
+        Objects.requireNonNull(target, "target");
 
-        Camera cam = engine.getApp().getCamera();
-        if (cam == null) return new Hit[0];
+        return onJmeSync("pickUnderCursorCfg", () -> {
+            Spatial s = requireSpatial(target);
 
-        float sx;
-        float sy;
+            Camera cam = engine.getApp().getCamera();
+            if (cam == null) return new Hit[0];
 
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenX") && cfg.getMember("screenX").isNumber()) {
-            sx = (float) cfg.getMember("screenX").asDouble();
-        } else {
-            sx = (float) engine.input().mouseX();
-        }
+            // cfg: {x,y} in pixels, default: center
+            float x = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "x", cam.getWidth() * 0.5) : cam.getWidth() * 0.5f;
+            float y = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "y", cam.getHeight() * 0.5) : cam.getHeight() * 0.5f;
 
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenY") && cfg.getMember("screenY").isNumber()) {
-            sy = (float) cfg.getMember("screenY").asDouble();
-        } else {
-            sy = (float) engine.input().mouseY();
-        }
+            Vector3f origin = cam.getWorldCoordinates(new Vector2f(x, y), 0f);
+            Vector3f far = cam.getWorldCoordinates(new Vector2f(x, y), 1f);
+            Vector3f dir = far.subtract(origin);
+            if (dir.lengthSquared() < 1e-8f) return new Hit[0];
+            dir.normalizeLocal();
 
-        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
-        if (flipY) sy = cam.getHeight() - sy;
+            float max = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "max", 10_000.0) : 10_000.0f;
+            int limit = (cfg != null && !cfg.isNull()) ? clampInt(num(cfg, "limit", 16.0), 1, 256) : 16;
+            boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
 
-        float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
-        int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
-        boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
+            Ray ray = new Ray(origin, dir);
+            ray.setLimit(max);
 
-        Vector2f screen = new Vector2f(sx, sy);
-        Vector3f origin = cam.getWorldCoordinates(screen, 0f);
-        Vector3f far = cam.getWorldCoordinates(screen, 1f);
-        Vector3f dir = far.subtract(origin).normalizeLocal();
-
-        Ray ray = new Ray(origin, dir);
-        ray.setLimit(max);
-
-        return collide(s, ray, onlyClosest, limit);
+            return collide(s, ray, onlyClosest, limit);
+        }, new Hit[0]);
     }
 
-    @HostAccess.Export
     @Override
     public Hit[] pickUnderCursor() {
-        return pickUnderCursorCfg((Value) null);
+        return new Hit[0];
     }
 
-    @HostAccess.Export
-    @Override
-    public Hit[] pickUnderCursorCfg(Value cfg) {
-        Spatial s = engine.getApp().getRootNode();
-        if (s == null) return new Hit[0];
+    // ------------------------------------------------------------
+    // Collisions / picking
+    // ------------------------------------------------------------
 
-        Camera cam = engine.getApp().getCamera();
-        if (cam == null) return new Hit[0];
+    private static Hit[] collide(Spatial root, Ray ray, boolean onlyClosest, int limit) {
+        if (root == null) return new Hit[0];
 
-        float sx;
-        float sy;
-
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenX") && cfg.getMember("screenX").isNumber()) {
-            sx = (float) cfg.getMember("screenX").asDouble();
-        } else {
-            sx = (float) engine.input().mouseX();
-        }
-
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("screenY") && cfg.getMember("screenY").isNumber()) {
-            sy = (float) cfg.getMember("screenY").asDouble();
-        } else {
-            sy = (float) engine.input().mouseY();
-        }
-
-        boolean flipY = (cfg != null && !cfg.isNull()) ? bool(cfg, "flipY", true) : true;
-        if (flipY) sy = cam.getHeight() - sy;
-
-        float max = (float) ((cfg != null && !cfg.isNull()) ? num(cfg, "max", 10_000.0) : 10_000.0);
-        int limit = clampInt((cfg != null && !cfg.isNull()) ? num(cfg, "limit", 16.0) : 16.0, 1, 256);
-        boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
-
-        Vector2f screen = new Vector2f(sx, sy);
-        Vector3f origin = cam.getWorldCoordinates(screen, 0f);
-        Vector3f far = cam.getWorldCoordinates(screen, 1f);
-        Vector3f dir = far.subtract(origin).normalizeLocal();
-
-        Ray ray = new Ray(origin, dir);
-        ray.setLimit(max);
-
-        return collide(s, ray, onlyClosest, limit);
-    }
-
-    private static Hit[] collide(Spatial s, Ray ray, boolean onlyClosest, int limit) {
         CollisionResults results = new CollisionResults();
-        s.collideWith(ray, results);
+        root.collideWith(ray, results);
 
-        if (results.size() == 0) return new Hit[0];
+        if (results.size() <= 0) return new Hit[0];
 
         if (onlyClosest) {
-            CollisionResult r = results.getClosestCollision();
-            return new Hit[]{ toHit(r) };
+            CollisionResult cr = results.getClosestCollision();
+            if (cr == null) return new Hit[0];
+
+            Vector3f p = cr.getContactPoint();
+            Vector3f n = cr.getContactNormal();
+
+            return new Hit[]{
+                    new Hit(
+                            spatialName(cr.getGeometry()),
+                            cr.getDistance(),
+                            p.x, p.y, p.z,
+                            n.x, n.y, n.z
+                    )
+            };
         }
 
-        List<CollisionResult> list = new ArrayList<>(results.size());
-        for (CollisionResult cr : results) list.add(cr);
-        list.sort(Comparator.comparingDouble(CollisionResult::getDistance));
+        int nHits = Math.min(limit, results.size());
+        Hit[] out = new Hit[nHits];
 
-        int n = Math.min(limit, list.size());
-        Hit[] out = new Hit[n];
-        for (int i = 0; i < n; i++) out[i] = toHit(list.get(i));
+        for (int i = 0; i < nHits; i++) {
+            CollisionResult cr = results.getCollision(i);
+            Vector3f p = cr.getContactPoint();
+            Vector3f n = cr.getContactNormal();
+
+            out[i] = new Hit(
+                    spatialName(cr.getGeometry()),
+                    cr.getDistance(),
+                    p.x, p.y, p.z,
+                    n.x, n.y, n.z
+            );
+        }
+
         return out;
     }
 
-    private static Hit toHit(CollisionResult r) {
-        String gname = (r.getGeometry() != null) ? r.getGeometry().getName() : "";
-        Vector3f p = r.getContactPoint();
-        Vector3f n = r.getContactNormal();
-        return new Hit(gname, r.getDistance(), p.x, p.y, p.z, n.x, n.y, n.z);
+    private static String spatialName(Spatial s) {
+        if (s == null) return "";
+        String n = s.getName();
+        return (n == null) ? "" : n;
     }
 
-    private static Vector3f vec3Any(Object o, float dx, float dy, float dz) {
-        if (o == null) return new Vector3f(dx, dy, dz);
-
-        if (o instanceof Vector3f v3) return v3;
-
-        if (o instanceof float[] a && a.length >= 3) return new Vector3f(a[0], a[1], a[2]);
-        if (o instanceof double[] a && a.length >= 3) return new Vector3f((float) a[0], (float) a[1], (float) a[2]);
-        if (o instanceof int[] a && a.length >= 3) return new Vector3f(a[0], a[1], a[2]);
-
-        if (o instanceof Value v) {
-            return vec3(v, dx, dy, dz);
-        }
-
-        return new Vector3f(dx, dy, dz);
-    }
-
-    public static final class SurfaceComponent {
-        @HostAccess.Export public final int surfaceId;
-        @HostAccess.Export public final String kind;
-        public SurfaceComponent(int surfaceId, String kind) { this.surfaceId = surfaceId; this.kind = kind; }
-    }
-
-    // --------------------------
-    // Helpers
-    // --------------------------
-    private Spatial requireSpatial(SurfaceHandle h) {
-        requireHandle(h);
-        Spatial s = registry.get(h.id());
-        if (s == null) throw new IllegalStateException("surface: missing spatial for id=" + h.id());
-        return s;
-    }
-
-    private void requireHandle(SurfaceHandle h) {
-        if (h == null) throw new IllegalArgumentException("surface: handle is null");
-        if (!registry.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
-    }
+    // ------------------------------------------------------------
+    // Helpers / parsing
+    // ------------------------------------------------------------
 
     private Material unwrapMaterial(Object materialHandle) {
         if (materialHandle == null) return null;
@@ -599,6 +867,19 @@ public final class SurfaceApiImpl implements SurfaceApi {
         };
     }
 
+    private static RenderQueue.ShadowMode parseShadowMode(String mode) {
+        if (mode == null) return RenderQueue.ShadowMode.Inherit;
+        String m = mode.trim().toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "inherit" -> RenderQueue.ShadowMode.Inherit;
+            case "off", "none", "disable" -> RenderQueue.ShadowMode.Off;
+            case "cast" -> RenderQueue.ShadowMode.Cast;
+            case "receive" -> RenderQueue.ShadowMode.Receive;
+            case "castandreceive", "both" -> RenderQueue.ShadowMode.CastAndReceive;
+            default -> RenderQueue.ShadowMode.Inherit;
+        };
+    }
+
     public static void applyTransform(Spatial s, Value cfg) {
         if (s == null || cfg == null || cfg.isNull()) return;
 
@@ -619,60 +900,146 @@ public final class SurfaceApiImpl implements SurfaceApi {
             float rz = deg.z * (float) (Math.PI / 180.0);
             s.setLocalRotation(new Quaternion().fromAngles(rx, ry, rz));
         }
-    }
 
-    private static RenderQueue.ShadowMode parseShadowMode(String mode) {
-        if (mode == null) return RenderQueue.ShadowMode.Inherit;
-        String m = mode.trim().toLowerCase(Locale.ROOT);
-        return switch (m) {
-            case "off", "none" -> RenderQueue.ShadowMode.Off;
-            case "receive" -> RenderQueue.ShadowMode.Receive;
-            case "cast" -> RenderQueue.ShadowMode.Cast;
-            case "castandreceive", "both" -> RenderQueue.ShadowMode.CastAndReceive;
-            default -> RenderQueue.ShadowMode.Inherit;
-        };
-    }
+        Value shadow = member(cfg, "shadow");
+        if (shadow != null && !shadow.isNull()) s.setShadowMode(parseShadowMode(shadow.asString()));
 
-    private static boolean bool(Value v, String k, boolean def) {
-        try {
-            Value m = (v != null && v.hasMember(k)) ? v.getMember(k) : null;
-            return (m == null || m.isNull()) ? def : m.asBoolean();
-        } catch (Throwable t) {
-            return def;
+        Value cull = member(cfg, "cull");
+        if (cull != null && !cull.isNull()) s.setCullHint(parseCullHint(cull.asString()));
+
+        Value bucket = member(cfg, "bucket");
+        if (bucket != null && !bucket.isNull()) {
+            String b = bucket.asString();
+            if (b != null) {
+                String m = b.trim().toLowerCase(Locale.ROOT);
+                switch (m) {
+                    case "sky" -> s.setQueueBucket(RenderQueue.Bucket.Sky);
+                    case "gui" -> s.setQueueBucket(RenderQueue.Bucket.Gui);
+                    case "opaque" -> s.setQueueBucket(RenderQueue.Bucket.Opaque);
+                    case "transparent" -> s.setQueueBucket(RenderQueue.Bucket.Transparent);
+                    case "translucent" -> s.setQueueBucket(RenderQueue.Bucket.Translucent);
+                    default -> {
+                    }
+                }
+            }
         }
+    }
+
+    private static Vector3f vec3(Value v, float dx, float dy, float dz) {
+        if (v == null || v.isNull()) return new Vector3f(dx, dy, dz);
+        try {
+            if (v.hasMembers()) {
+                float x = (float) num(v, "x", dx);
+                float y = (float) num(v, "y", dy);
+                float z = (float) num(v, "z", dz);
+                return new Vector3f(x, y, z);
+            }
+            if (v.hasArrayElements()) {
+                float x = (float) (v.getArraySize() > 0 ? v.getArrayElement(0).asDouble() : dx);
+                float y = (float) (v.getArraySize() > 1 ? v.getArrayElement(1).asDouble() : dy);
+                float z = (float) (v.getArraySize() > 2 ? v.getArrayElement(2).asDouble() : dz);
+                return new Vector3f(x, y, z);
+            }
+        } catch (Throwable ignored) {
+        }
+        return new Vector3f(dx, dy, dz);
+    }
+
+    private static Vector3f vec3Any(Object v, float dx, float dy, float dz) {
+        if (v == null) return new Vector3f(dx, dy, dz);
+
+        if (v instanceof Vector3f vv) return vv;
+
+        if (v instanceof Value gv) {
+            return vec3(gv, dx, dy, dz);
+        }
+
+        if (v instanceof Map<?, ?> m) {
+            try {
+                Object x = m.get("x"), y = m.get("y"), z = m.get("z");
+                float fx = (x instanceof Number n) ? n.floatValue() : dx;
+                float fy = (y instanceof Number n) ? n.floatValue() : dy;
+                float fz = (z instanceof Number n) ? n.floatValue() : dz;
+                return new Vector3f(fx, fy, fz);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Reflective {x,y,z}
+        try {
+            float x = (float) numReflect(v, "x", dx);
+            float y = (float) numReflect(v, "y", dy);
+            float z = (float) numReflect(v, "z", dz);
+            return new Vector3f(x, y, z);
+        } catch (Throwable ignored) {
+        }
+
+        return new Vector3f(dx, dy, dz);
     }
 
     private static double num(Value v, String k, double def) {
         try {
-            Value m = (v != null && v.hasMember(k)) ? v.getMember(k) : null;
-            return (m == null || m.isNull()) ? def : m.asDouble();
-        } catch (Throwable t) {
-            return def;
+            Value m = member(v, k);
+            if (m == null || m.isNull()) return def;
+            if (m.isNumber()) return m.asDouble();
+        } catch (Throwable ignored) {
         }
+        return def;
     }
 
-    private static int clampInt(double v, int a, int b) {
-        int x = (int) Math.round(v);
-        return Math.max(a, Math.min(b, x));
-    }
-
-    private static Vector3f vec3(Value v, float dx, float dy, float dz) {
+    private static double numReflect(Object o, String field, double def) {
         try {
-            if (v == null || v.isNull()) return new Vector3f(dx, dy, dz);
-
-            if (v.hasArrayElements()) {
-                float x = (float) v.getArrayElement(0).asDouble();
-                float y = (float) v.getArrayElement(1).asDouble();
-                float z = (float) v.getArrayElement(2).asDouble();
-                return new Vector3f(x, y, z);
-            }
-
-            float x = (float) num(v, "x", dx);
-            float y = (float) num(v, "y", dy);
-            float z = (float) num(v, "z", dz);
-            return new Vector3f(x, y, z);
-        } catch (Throwable t) {
-            return new Vector3f(dx, dy, dz);
+            var f = o.getClass().getField(field);
+            Object v = f.get(o);
+            if (v instanceof Number n) return n.doubleValue();
+        } catch (Throwable ignored) {
         }
+        return def;
+    }
+
+    private static boolean bool(Value v, String k, boolean def) {
+        try {
+            Value m = member(v, k);
+            if (m == null || m.isNull()) return def;
+            if (m.isBoolean()) return m.asBoolean();
+            if (m.isNumber()) return m.asDouble() != 0.0;
+            if (m.isString()) {
+                String s = m.asString().trim().toLowerCase(Locale.ROOT);
+                return ("true".equals(s) || "1".equals(s) || "yes".equals(s) || "on".equals(s));
+            }
+        } catch (Throwable ignored) {
+        }
+        return def;
+    }
+
+    private static int clampInt(double v, int lo, int hi) {
+        int x = (int) v;
+        if (x < lo) return lo;
+        if (x > hi) return hi;
+        return x;
+    }
+
+    public static final class SurfaceComponent {
+        @HostAccess.Export public final int surfaceId;
+        @HostAccess.Export public final String kind;
+        public SurfaceComponent(int surfaceId, String kind) {
+            this.surfaceId = surfaceId;
+            this.kind = kind;
+        }
+    }
+
+    // --------------------------
+    // Legacy helper kept for internal use
+    // --------------------------
+    private Spatial requireSpatial(SurfaceHandle h) {
+        requireHandle(h);
+        Spatial s = registry.get(h.id());
+        if (s == null) throw new IllegalStateException("surface: missing spatial for id=" + h.id());
+        return s;
+    }
+
+    private void requireHandle(SurfaceHandle h) {
+        if (h == null) throw new IllegalArgumentException("surface: handle is null");
+        if (!registry.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
     }
 }

@@ -137,27 +137,36 @@ public final class SurfaceRegistry {
     }
 
     public void detachFromParent(int id) {
-        Spatial s = byId.get(id);
-        if (s == null) return;
-        if (s.getParent() != null) s.removeFromParent();
-
-        emit("engine.surface.detachedFromParent", "surfaceId", id);
-    }
-
-    public void destroy(int id) {
-        Spatial s = byId.remove(id);
-        kindById.remove(id);
-
-        detachSurface(id);
-
-        emit("engine.surface.destroyed", "surfaceId", id);
-
-        if (s != null) {
+        // Thread-safety: scene graph ops must run on JME thread.
+        app.enqueue(() -> {
+            Spatial s = byId.get(id);
+            if (s == null) return null;
             try {
                 if (s.getParent() != null) s.removeFromParent();
             } catch (Throwable t) {
-                log.warn("destroy: failed to detach surface id={}", id, t);
+                log.warn("detachFromParent: failed id={}", id, t);
             }
+            emit("engine.surface.detachedFromParent", "surfaceId", id);
+            return null;
+        });
+    }
+
+    public void destroy(int id) {
+        // Two-phase: remove from registries immediately (so lookups stop), then detach on JME thread.
+        final Spatial s = byId.remove(id);
+        kindById.remove(id);
+        detachSurface(id);
+        emit("engine.surface.destroyed", "surfaceId", id);
+
+        if (s != null) {
+            app.enqueue(() -> {
+                try {
+                    if (s.getParent() != null) s.removeFromParent();
+                } catch (Throwable t) {
+                    log.warn("destroy: failed to detach surface id={}", id, t);
+                }
+                return null;
+            });
         }
     }
 
