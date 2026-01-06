@@ -9,16 +9,15 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.audio.KalitechAudioBridge;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
-import org.foxesworld.kalitech.engine.api.impl.HudApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
+import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
-import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 public final class EngineApiImpl implements EngineApi {
 
@@ -39,7 +38,6 @@ public final class EngineApiImpl implements EngineApi {
     private volatile PhysicsSpace physicsSpace;
     private final ScriptRuntime runtime;
 
-    private final CameraState cameraState;
     private final BulletAppState bullet;
     private final LogApi logApi;
     private final AssetsApi assetsApi;
@@ -133,7 +131,6 @@ public final class EngineApiImpl implements EngineApi {
         this.renderApi = new RenderApiImpl(this);
         this.hudApi = new HudApiImpl(this);
 
-        this.cameraState = new CameraState();
         this.cameraApi = new CameraApiImpl(this);
 
         this.timeApi = new TimeApiImpl(this);
@@ -315,7 +312,6 @@ public final class EngineApiImpl implements EngineApi {
     public BulletAppState getBullet() {
         return bullet;
     }
-    public CameraState getCameraState() { return cameraState; }
     public AssetManager getAssets() { return assets; }
     public SimpleApplication getApp() { return app; }
     public ScriptEventBus getBus() { return bus; }

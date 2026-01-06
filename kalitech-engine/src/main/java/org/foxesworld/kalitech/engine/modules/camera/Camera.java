@@ -5,7 +5,6 @@ import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.api.impl.CameraState;
 
 /**
  * Owns batched desired camera transform + applies it once per frame on JME thread.
@@ -28,7 +27,6 @@ public final class Camera {
     private final Vec3View fwdView = new Vec3View();
     private final Vec3View rightView = new Vec3View();
     private final Vec3View upView = new Vec3View();
-    private CameraState state;
     // desired (thread-safe)
     private volatile float desiredX;
     private volatile float desiredY;
