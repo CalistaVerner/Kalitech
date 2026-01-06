@@ -1,7 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/impl/CameraState.java
 package org.foxesworld.kalitech.engine.api.impl;
 
-// Author: Calista Verner
+// Author: KΛYLΛ
 
 import com.jme3.math.Vector3f;
 
