@@ -23,9 +23,7 @@ import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
 import org.graalvm.polyglot.Value;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.Objects;
 import java.util.Set;
 
@@ -51,7 +49,6 @@ public final class RuntimeAppState extends BaseAppState {
 
     private float cooldown = 0f;
     private boolean dirty = true;
-    private String lastHash = null;
 
     private EngineApiImpl engineApi;
     private PhysicsSpace space;
@@ -67,7 +64,7 @@ public final class RuntimeAppState extends BaseAppState {
 
     /**
      * New contract: entry module may expose an app instance or a factory.
-     * <p>
+     *
      * Supported:
      * - module.create() -> app
      * - module.app -> app
@@ -86,7 +83,6 @@ public final class RuntimeAppState extends BaseAppState {
                 }
             }
         } catch (Throwable ignored) {
-            // ignore and fall back
         }
 
         // module.app -> app
@@ -96,7 +92,6 @@ public final class RuntimeAppState extends BaseAppState {
                 if (app != null && !app.isNull()) return app;
             }
         } catch (Throwable ignored) {
-            // ignore and fall back
         }
 
         return mainModule;
@@ -104,7 +99,7 @@ public final class RuntimeAppState extends BaseAppState {
 
     /**
      * Resolves a world descriptor from app/module.
-     * <p>
+     *
      * Preferred:
      * - app.getWorld(ctx) -> worldDesc
      * - app.world -> worldDesc
@@ -122,7 +117,6 @@ public final class RuntimeAppState extends BaseAppState {
                 }
             }
         } catch (Throwable ignored) {
-            // ignore and fall back
         }
 
         // app.world
@@ -132,7 +126,6 @@ public final class RuntimeAppState extends BaseAppState {
                 if (wd != null && !wd.isNull()) return wd;
             }
         } catch (Throwable ignored) {
-            // ignore and fall back
         }
 
         // legacy module.exports.world
@@ -147,73 +140,20 @@ public final class RuntimeAppState extends BaseAppState {
         try {
             f.execute(args);
         } catch (Throwable t) {
-            // keep reload resilient: do not crash Java world loop due to JS lifecycle bug
             log.error("JS hook '{}' failed", fn, t);
             throw t;
-        }
-    }
-
-    private void applyMode(Value worldDesc) {
-        try {
-            if (!worldDesc.hasMember("mode")) return;
-            Value m = worldDesc.getMember("mode");
-            if (m == null || m.isNull() || !m.isString()) return;
-
-            String mode = m.asString();
-            boolean editor = "editor".equalsIgnoreCase(mode);
-
-            // EngineApiImpl supports __setEditorMode
-            engineApi.__setEditorMode(editor);
-        } catch (Throwable t) {
-            log.warn("applyMode skipped: {}", t.toString());
-        }
-    }
-
-    private void applyEntitiesFromWorldDesc(Value worldDesc) {
-        if (worldDesc == null || worldDesc.isNull()) return;
-        if (!worldDesc.hasMember("entities")) return;
-
-        Value arr = worldDesc.getMember("entities");
-        if (arr == null || arr.isNull() || !arr.hasArrayElements()) return;
-
-        long n = arr.getArraySize();
-        for (long i = 0; i < n; i++) {
-            Value e = arr.getArrayElement(i);
-            if (e == null || e.isNull()) continue;
-
-            try {
-                engineApi.world().spawn(e); // e already has {name,prefab}
-            } catch (Exception ex) {
-                log.error("Failed to spawn entity from descriptor index={}", i, ex);
-            }
-        }
-    }
-
-    /** Small payload class for events (JS will see fields). */
-    public static final class EntitySpawned {
-        public final int id;
-        public final String name;
-        public final String prefab;
-
-        public EntitySpawned(int id, String name, String prefab) {
-            this.id = id;
-            this.name = name;
-            this.prefab = prefab;
         }
     }
 
     private static Value extractWorldDescriptor(Value moduleOrExports) {
         if (moduleOrExports == null || moduleOrExports.isNull()) return null;
 
-        // CASE 1: exports object directly
         if (moduleOrExports.hasMember("world")) return moduleOrExports.getMember("world");
 
-        // CASE 2: legacy: object with exports field
         if (moduleOrExports.hasMember("exports")) {
             Value ex = moduleOrExports.getMember("exports");
             if (ex != null && !ex.isNull() && ex.hasMember("world")) return ex.getMember("world");
         }
-
         return null;
     }
 
@@ -245,7 +185,6 @@ public final class RuntimeAppState extends BaseAppState {
 
         // stable API for JS
         engineApi = new EngineApiImpl(this);
-        // give PhysicsSpace to EngineApiImpl (so engine.physics() uses this space)
         engineApi.__setPhysicsSpace(space);
 
         runtime.initBuiltIns(engineApi);
@@ -288,13 +227,11 @@ public final class RuntimeAppState extends BaseAppState {
                     runtime.invalidateMany(changed);
                 }
 
-                // 2) Notify scripts (optional): allow JS to react.
+                // 2) Notify scripts (optional)
                 bus.emit("hotreload:changed", changed);
 
-                // 3) Rebuild world ONLY if main descriptor changed.
-                if (changed.contains(mainAssetPath.replace('\\', '/'))) {
-                    dirty = true;
-                }
+                // 3) Script-driven rule: ANY module change can affect the app/world.
+                dirty = true;
             }
         }
 
@@ -307,37 +244,16 @@ public final class RuntimeAppState extends BaseAppState {
     }
 
     private void reloadMainAndRebuildWorld() {
-        // ВАЖНО: WorldAppState может быть ещё не initialized -> ctx == null
         SystemContext ctx = (worldState != null) ? worldState.getContextForJs() : null;
         if (ctx == null) {
             dirty = true;
             return;
         }
 
-        SimpleApplication app = (SimpleApplication) getApplication();
         try {
-            // main.js source (invalidate asset cache on dirty rebuild)
-            app.getAssetManager().deleteFromCache(new AssetKey<>(mainAssetPath));
-            String code = app.getAssetManager().loadAsset(new AssetKey<>(mainAssetPath));
-
-            String hash = sha1(code);
-            if (hash.equals(lastHash)) {
-                // main descriptor not changed; keep current world.
-                return;
-            }
-            lastHash = hash;
-
-            // Ensure main module is re-evaluated on rebuild (even if it was required before)
             runtime.invalidate(mainAssetPath);
             Value main = runtime.require(mainAssetPath);
 
-            // --- NEW CONTRACT (no magic keys): entry provides an "app" which yields a world descriptor ---
-            // Preferred:
-            //   module.create() -> app
-            //   app.getWorld(ctx) -> worldDesc
-            //   app.world -> worldDesc
-            // Backwards compatible:
-            //   module.world / module.exports.world
             Value appObj = instantiateApp(main);
             Value worldDesc = resolveWorldDescriptor(main, appObj, ctx);
             if (worldDesc == null || worldDesc.isNull()) {
@@ -348,27 +264,22 @@ public final class RuntimeAppState extends BaseAppState {
                 return;
             }
 
-            // 0) editor-mode by descriptor (optional, soft)
-            applyMode(worldDesc);
-
-            // Clear physics objects before hard ECS reset / world rebuild
             try { engineApi.__physicsClearWorld(); } catch (Throwable ignored) {}
 
-            // 1) HARD reset ECS so rebuild does not accumulate entities/components
             ecs.reset();
 
-            // 2) build world systems
             KWorld newWorld = worldBuilder.buildFromWorldDesc(ctx, worldDesc);
             worldState.setWorld(newWorld);
 
-            // 3) declarative entities spawn BEFORE lifecycle hooks
-            applyEntitiesFromWorldDesc(worldDesc);
-
-            // 4) optional lifecycle AFTER world created + entities spawned
-            // New lifecycle first
+            // Scripts decide what to spawn/configure
             callIfExists(appObj, "start", ctx);
-            // Legacy hook (kept for compatibility)
-            callIfExists(main, "bootstrap", ctx);
+            callIfExists(main, "bootstrap", ctx); // legacy
+
+            // signal
+            try {
+                bus.emit("world:ready", worldDesc);
+            } catch (Throwable ignored) {
+            }
 
             log.info("World rebuilt from {}", mainAssetPath);
 
@@ -377,21 +288,8 @@ public final class RuntimeAppState extends BaseAppState {
         }
     }
 
-    private static String sha1(String s) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-1");
-            byte[] d = md.digest(s.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(d.length * 2);
-            for (byte b : d) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception e) {
-            return Integer.toHexString(s.hashCode());
-        }
-    }
-
     @Override
     protected void cleanup(Application app) {
-        // 1) STOP WORLD FIRST (before closing runtime)
         if (worldState != null) {
             try {
                 worldState.setEnabled(false);
@@ -409,13 +307,11 @@ public final class RuntimeAppState extends BaseAppState {
             worldState = null;
         }
 
-        // 2) stop watcher
         if (watcher != null) {
             try { watcher.close(); } catch (Exception ignored) {}
             watcher = null;
         }
 
-        // 3) close runtime LAST
         if (runtime != null) {
             try { runtime.close(); } catch (Exception ignored) {}
             runtime = null;
@@ -423,7 +319,6 @@ public final class RuntimeAppState extends BaseAppState {
 
         registry = null;
         worldBuilder = null;
-        lastHash = null;
 
         log.info("RuntimeAppState stopped");
     }
@@ -453,7 +348,8 @@ public final class RuntimeAppState extends BaseAppState {
     }
 
     public BulletAppState getBullet() {
-        return bullet; }
+        return bullet;
+    }
 
     @Override protected void onEnable() {}
     @Override protected void onDisable() {}

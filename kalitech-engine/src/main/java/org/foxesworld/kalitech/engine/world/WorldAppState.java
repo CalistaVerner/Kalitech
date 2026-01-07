@@ -13,7 +13,6 @@ import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.*;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadDispatcher;
 import org.foxesworld.kalitech.engine.world.systems.proxy.MainThreadProxyFactory;
@@ -58,8 +57,6 @@ public final class WorldAppState extends BaseAppState {
     private final RuntimePolicy runtimePolicy;
     private final RuntimePool runtimePool;
 
-    private HotReloadWatcher hotReload;
-
     private int jobDrainBudget = 256;
 
     // AAA perf budget (default: 60 FPS)
@@ -94,7 +91,7 @@ public final class WorldAppState extends BaseAppState {
     private long statsLogEveryNanos = TimeUnit.SECONDS.toNanos(2);
 
     private boolean running = false;
-    private boolean restartRequested = false;
+    // Hot-reload is owned by RuntimeAppState. WorldAppState focuses on frame loop stability.
 
     private long lastPoolMaintenanceNanos = 0L;
 
@@ -114,8 +111,12 @@ public final class WorldAppState extends BaseAppState {
         return runtimePolicy;
     }
 
-    public void setHotReloadWatcher(HotReloadWatcher watcher) {
-        this.hotReload = watcher;
+    /**
+     * Kept for backwards compatibility, but intentionally no-op.
+     * Hot reload decisions are handled in RuntimeAppState.
+     */
+    public void setHotReloadWatcher(Object watcher) {
+        // no-op
     }
 
     /** True if the current thread is the world/main thread. */
@@ -213,7 +214,7 @@ public final class WorldAppState extends BaseAppState {
 
         long t0, t1;
         long drainJobsNanos = 0L;
-        long hotReloadNanos = 0L;
+        long hotReloadNanos = 0L; // kept in stats for compatibility (always 0; hot-reload handled elsewhere)
         long eventsNanos = 0L;
         long worldUpdateNanos = 0L;
         long awaitWorkersNanos = 0L;
@@ -233,47 +234,7 @@ public final class WorldAppState extends BaseAppState {
             drainJobsNanos = Math.max(0L, t1 - t0);
         }
 
-        // 2) Hot reload invalidation (optional)
-        t0 = System.nanoTime();
-        try {
-            HotReloadWatcher hr = this.hotReload;
-            if (hr != null) {
-                Set<String> changed = hr.pollChanged();
-                if (changed != null && !changed.isEmpty()) {
-                    int removed;
-                    try {
-                        removed = runtimePool.get("world").invalidateManyWithReason(changed, "hotReload");
-                    } catch (NoSuchMethodError e) {
-                        removed = runtimePool.get("world").invalidateMany(changed);
-                    }
-
-                    if (removed > 0) {
-                        log.info("HotReload invalidated modules: {}", removed);
-                        restartRequested = true;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("HotReload poll/invalidate failed", e);
-        } finally {
-            t1 = System.nanoTime();
-            hotReloadNanos = Math.max(0L, t1 - t0);
-        }
-
-        // 3) Restart after reload
-        if (restartRequested) {
-            restartRequested = false;
-            try {
-                tryStopWorld();
-                installWorldGlobals(this.ctx, this.api);
-                tryStartWorld();
-                log.info("World restarted after hot reload");
-            } catch (Exception e) {
-                log.error("World restart after hot reload failed", e);
-            }
-        }
-
-        // 4) Pump events
+        // 2) Pump events
         t0 = System.nanoTime();
         try { bus.pump(); } catch (Exception e) { log.error("Event bus pump failed", e); }
         finally {

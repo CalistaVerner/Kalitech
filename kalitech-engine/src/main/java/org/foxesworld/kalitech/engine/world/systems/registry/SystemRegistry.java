@@ -1,3 +1,4 @@
+// FILE: SystemRegistry.java
 package org.foxesworld.kalitech.engine.world.systems.registry;
 
 import org.apache.logging.log4j.LogManager;
@@ -8,7 +9,20 @@ import org.graalvm.polyglot.Value;
 
 import java.util.*;
 
+/**
+ * SystemRegistry
+ * <p>
+ * Script-driven world building requires a stable Java-side registry that maps string IDs
+ * (coming from JS world descriptors) to {@link SystemProvider} factories discovered via
+ * {@link java.util.ServiceLoader}.
+ * <p>
+ * Goals:
+ * - Zero magic: Java resolves only system IDs; no special-case keys like "mode"/"entities".
+ * - Stable failures: unknown/failed systems are logged and safely skipped.
+ * - Fast hot path: O(1) lookup by id.
+ */
 public final class SystemRegistry {
+
     private static final Logger log = LogManager.getLogger(SystemRegistry.class);
 
     private final Map<String, SystemProvider> providers;
@@ -18,48 +32,73 @@ public final class SystemRegistry {
         ServiceLoader<SystemProvider> loader = ServiceLoader.load(SystemProvider.class);
 
         for (SystemProvider p : loader) {
-            String id = Objects.requireNonNull(p.id(), "provider.id()");
+            String id = safeId(p);
+            if (id == null) continue;
+
             if (map.containsKey(id)) {
                 throw new IllegalStateException("Duplicate SystemProvider id: " + id);
             }
+
             map.put(id, p);
-            log.info("SystemProvider registered: {}", id);
+            log.info("SystemProvider registered: {} -> {}", id, p.getClass().getName());
         }
+
         this.providers = Collections.unmodifiableMap(map);
     }
 
+    private static String safeId(SystemProvider p) {
+        try {
+            String id = (p != null) ? p.id() : null;
+            if (id == null) return null;
+            id = id.trim();
+            if (id.isEmpty()) return null;
+            return id;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Returns provider or throws if missing. Prefer {@link #create(String, SystemContext, Value)} for resilient builds. */
     public SystemProvider require(String id) {
         SystemProvider p = providers.get(id);
         if (p == null) throw new IllegalArgumentException("Unknown system id: " + id);
         return p;
     }
 
-    public Set<String> ids() {
-        return providers.keySet();
+    /**
+     * Returns provider or null if missing.
+     */
+    public SystemProvider get(String id) {
+        return (id == null) ? null : providers.get(id);
     }
 
     /**
-     * Create a system by id via its provider.
-     *
-     * @param id     system id (provider.id())
-     * @param ctx    system context
-     * @param config optional config object (JS Value), may be null
+     * Resilient factory: creates a system instance from provider id.
+     * Returns null if id unknown or provider threw; caller may skip.
      */
     public KSystem create(String id, SystemContext ctx, Value config) {
-        Objects.requireNonNull(id, "id");
+        if (id == null || id.isBlank()) return null;
         Objects.requireNonNull(ctx, "ctx");
 
-        SystemProvider p = require(id);
+        SystemProvider p = providers.get(id);
+        if (p == null) {
+            log.warn("Unknown system id: {} (known: {})", id, providers.keySet());
+            return null;
+        }
+
         try {
             KSystem sys = p.create(ctx, config);
             if (sys == null) {
-                throw new IllegalStateException("SystemProvider '" + id + "' returned null system");
+                log.warn("SystemProvider {} returned null system (skipping)", id);
             }
-            log.debug("System created: id={} provider={}", id, p.getClass().getName());
             return sys;
-        } catch (RuntimeException e) {
-            log.error("Failed to create system id={} provider={}", id, p.getClass().getName(), e);
-            throw e;
+        } catch (Throwable t) {
+            log.error("SystemProvider {} failed to create system", id, t);
+            return null;
         }
+    }
+
+    public Set<String> ids() {
+        return providers.keySet();
     }
 }
