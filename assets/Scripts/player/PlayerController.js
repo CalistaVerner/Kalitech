@@ -8,11 +8,8 @@ const InputRouter = require("./systems/InputRouter.js");
 
 const MOVEMENT_CFG_JSON = "data/player/movement.config.json";
 
-function readJsonStrict(player, path) {
-    const E = player && player.engine;
-    if (!E) throw new Error("[player] engine not ready (call player.init() first)");
-
-    const assets = E.assets && E.assets();
+function readJsonStrict(domains, path) {
+    const assets = domains.assets;
     if (!assets || typeof assets.readText !== "function") throw new Error("[player] engine.assets().readText required");
 
     const txt = assets.readText(path);
@@ -30,11 +27,9 @@ function movementPath(rootCfg) {
 
 class PlayerController {
     constructor(player) {
-        if (!player) throw new Error("[player] PlayerController requires player");
         this.player = player;
 
         this.enabled = true;
-
         this._movementCfg = Object.create(null);
 
         this.input = null;
@@ -47,8 +42,7 @@ class PlayerController {
     }
 
     bind() {
-        if (!this.input) return this;
-        this.input.bind();
+        if (this.input) this.input.bind();
         return this;
     }
 
@@ -57,25 +51,26 @@ class PlayerController {
 
         const rootCfg = this.player.cfg || Object.create(null);
         const movOverrides = (rootCfg.movement && U.isPlainObj(rootCfg.movement)) ? rootCfg.movement : null;
-        const movCfg = movOverrides || readJsonStrict(this.player, movementPath(rootCfg));
+        const movCfg = movOverrides || readJsonStrict(this.player.d, movementPath(rootCfg));
 
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
         this._movementCfg = movCfg;
 
-        this.input = new InputRouter(movCfg);
+        this.input = new InputRouter(this.player.d.input, movCfg);
         this.movement = new MovementSystem(movCfg);
         this.shoot = new ShootSystem(rootCfg);
     }
 
     update(frame) {
-        if (!frame || !this.player || !this.player.body) return;
+        const p = this.player;
+        if (!frame || !p || !p.body) return;
 
         this._ensureSystems();
         if (!this.enabled) return;
 
         const st = this.input.read(frame);
 
-        const dom = this.player.dom;
+        const dom = p.dom;
         if (dom && dom.input) {
             dom.input.ax = st.ax | 0;
             dom.input.az = st.az | 0;
@@ -83,15 +78,16 @@ class PlayerController {
             dom.input.jump = !!st.jump;
             dom.input.lmbDown = !!st.lmbDown;
             dom.input.lmbJustPressed = !!st.lmbJustPressed;
+            dom.input.wheel = st.wheel;
         }
 
-        const yaw = (dom && dom.view) ? U.num(dom.view.yaw, 0) : (frame.view ? U.num(frame.view.yaw, 0) : 0);
+        const yaw = (dom && dom.view) ? U.num(dom.view.yaw, 0) : 0;
 
-        if (typeof this.player.body.yaw !== "function") throw new Error("[player] body.yaw(yaw) required");
-        this.player.body.yaw(yaw);
+        if (typeof p.body.yaw !== "function") throw new Error("[player] body.yaw(yaw) required");
+        p.body.yaw(yaw);
 
-        this.shoot.update(frame, this.player.bodyId | 0);
-        this.movement.update(frame, this.player.body);
+        this.shoot.update(frame, p.bodyId | 0);
+        this.movement.update(frame, p.body);
     }
 }
 

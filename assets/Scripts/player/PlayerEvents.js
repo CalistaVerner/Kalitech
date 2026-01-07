@@ -1,5 +1,6 @@
-// FILE: Scripts/player/PlayerEvents.js
 "use strict";
+
+const U = require("./util.js");
 
 class PlayerEvents {
     constructor(player) {
@@ -48,5 +49,4 @@ class PlayerEvents {
     }
 }
 
-const U = require("./util.js");
 module.exports = PlayerEvents;

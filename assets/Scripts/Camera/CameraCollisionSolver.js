@@ -1,212 +1,133 @@
-// FILE: Scripts/camera/CameraCollisionSolver.js
 "use strict";
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
-function vx(v, fb) { const m = v && v.x; const n = (typeof m === "function") ? +m.call(v) : +m; return Number.isFinite(n) ? n : (fb || 0); }
-function vy(v, fb) { const m = v && v.y; const n = (typeof m === "function") ? +m.call(v) : +m; return Number.isFinite(n) ? n : (fb || 0); }
-function vz(v, fb) { const m = v && v.z; const n = (typeof m === "function") ? +m.call(v) : +m; return Number.isFinite(n) ? n : (fb || 0); }
 
-function len3(x, y, z) { return Math.sqrt(x * x + y * y + z * z); }
-function norm3(x, y, z) {
-    const l = len3(x, y, z);
-    if (l <= 1e-8) return { x: 0, y: 0, z: 0, l: 0 };
-    const il = 1 / l;
-    return { x: x * il, y: y * il, z: z * il, l };
-}
-
-function hitPoint(hit) {
-    if (!hit || typeof hit !== "object") return null;
-    const p = hit.point || hit.pos || hit.position || hit.hitPoint || hit.contactPoint;
-    if (!p) return null;
-    const x = vx(p, NaN), y = vy(p, NaN), z = vz(p, NaN);
-    return (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) ? { x, y, z } : null;
-}
-
-function hitFraction(hit) {
-    if (!hit || typeof hit !== "object") return NaN;
-    const f = hit.fraction ?? hit.frac ?? hit.hitFraction;
-    const n = +f;
-    return Number.isFinite(n) ? n : NaN;
-}
-
-function hitAnyId(hit) {
-    if (!hit || typeof hit !== "object") return NaN;
-    const v =
-        hit.bodyId ?? hit.body ?? hit.rigidBodyId ?? hit.rbId ??
-        hit.colliderBodyId ?? hit.objectId ?? hit.objId ??
-        hit.entityId ?? hit.surfaceId ?? hit.id ?? hit.hitBodyId;
+function num(v, fb) {
     const n = +v;
-    return Number.isFinite(n) ? (n | 0) : NaN;
+    return Number.isFinite(n) ? n : fb;
 }
 
-function isSelfHit(hit, ignoreBodyId) {
-    const iid = ignoreBodyId | 0;
-    if (!hit || iid <= 0) return false;
-    const hid = hitAnyId(hit);
-    return Number.isFinite(hid) && ((hid | 0) === iid);
+function expSmooth(cur, target, smooth, dt) {
+    const s = smooth > 0 ? smooth : 0;
+    if (s === 0) return target;
+    const a = 1 - Math.exp(-s * dt);
+    return cur + (target - cur) * a;
 }
 
-// ✅ Resolve PhysicsApi without relying on global `engine`.
-// Priority:
-//  1) ctx.physics (passed by orchestrator)
-//  2) ctx.ph / ctx.PHYS (aliases)
-//  3) ctx.engine.physics() (if engine passed)
-//  4) legacy global `physics`
-//  5) legacy global `PHYS`
-function resolvePhysics(ctx) {
-    if (ctx) {
-        if (ctx.physics) return ctx.physics;
-        if (ctx.ph) return ctx.ph;
-        if (ctx.PHYS) return ctx.PHYS;
+class CameraZoomController {
+    constructor(cfg) {
+        cfg = cfg || Object.create(null);
 
-        const eng = ctx.engine;
-        if (eng && typeof eng.physics === "function") {
-            try {
-                return eng.physics();
-            } catch (_) {
+        const steps = Array.isArray(cfg.steps) && cfg.steps.length ? cfg.steps : [2, 4, 8, 16, 32];
+        this.steps = steps.slice();
+
+        this.minIndex = clamp((cfg.minIndex | 0) || 0, 0, this.steps.length - 1) | 0;
+        this.maxIndex = (cfg.maxIndex !== undefined) ? (cfg.maxIndex | 0) : (this.steps.length - 1);
+        this.maxIndex = clamp(this.maxIndex, this.minIndex, this.steps.length - 1) | 0;
+
+        const mid = (this.steps.length / 2) | 0;
+        this.index = (cfg.index !== undefined) ? (cfg.index | 0) : mid;
+        this.index = clamp(this.index, this.minIndex, this.maxIndex) | 0;
+
+        this.min = num(cfg.min, 1.2);
+        this.max = Math.max(this.min, num(cfg.max, 120.0));
+
+        this.target = clamp(num(cfg.target, num(this.steps[this.index], 8)), this.min, this.max);
+        this.current = clamp(num(cfg.current, this.target), this.min, this.max);
+
+        this.smooth = num(cfg.smooth, 18.0);
+        this.cooldown = Math.max(0, num(cfg.cooldown, 0.08));
+        this._cd = 0;
+
+        this.invertWheel = !!cfg.invertWheel;
+        this.stepStride = Math.max(1, (cfg.stepStride | 0) || 1);
+    }
+
+    configure(cfg) {
+        if (!cfg) return this;
+
+        if (Array.isArray(cfg.steps) && cfg.steps.length) {
+            this.steps = cfg.steps.slice();
+            this.minIndex = clamp(this.minIndex, 0, this.steps.length - 1) | 0;
+            this.maxIndex = clamp(this.maxIndex, this.minIndex, this.steps.length - 1) | 0;
+            this.index = clamp(this.index, this.minIndex, this.maxIndex) | 0;
+        }
+
+        if (cfg.minIndex !== undefined) this.minIndex = clamp(cfg.minIndex | 0, 0, this.steps.length - 1) | 0;
+        if (cfg.maxIndex !== undefined) this.maxIndex = clamp(cfg.maxIndex | 0, this.minIndex, this.steps.length - 1) | 0;
+        if (cfg.index !== undefined) this.index = clamp(cfg.index | 0, this.minIndex, this.maxIndex) | 0;
+
+        if (cfg.smooth !== undefined) this.smooth = num(cfg.smooth, this.smooth);
+        if (cfg.cooldown !== undefined) this.cooldown = Math.max(0, num(cfg.cooldown, this.cooldown));
+        if (cfg.invertWheel !== undefined) this.invertWheel = !!cfg.invertWheel;
+
+        if (cfg.min !== undefined) this.min = num(cfg.min, this.min);
+        if (cfg.max !== undefined) this.max = Math.max(this.min, num(cfg.max, this.max));
+
+        if (cfg.stepStride !== undefined) this.stepStride = Math.max(1, cfg.stepStride | 0);
+
+        this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
+        this.current = clamp(this.current, this.min, this.max);
+
+        return this;
+    }
+
+    reset(value) {
+        if (value !== undefined) {
+            const v = +value;
+            if (Number.isFinite(v)) {
+                this.current = clamp(v, this.min, this.max);
+                this.target = this.current;
             }
         }
-    }
-    try {
-        if (typeof physics !== "undefined") return physics;
-    } catch (_) {
-    }
-    try {
-        if (typeof PHYS !== "undefined") return PHYS;
-    } catch (_) {
-    }
-    return null;
-}
-
-class CameraCollisionSolver {
-    constructor() {
-        this.enabled = true;
-        this.rayStartOffset = 0.95;
-
-        this.pad = 0.22;
-        this.minTargetDist = 6.55;
-
-        this.radius = 0.22;
-
-        this.approachSmooth = 24;
-        this.returnSmooth = 10;
-
-        this._dist = 0;
-        this._hasDist = false;
-
-        this.maxDistSpeed = 50.0;
-        this.nearTargetIgnore = 1.25;
+        this._cd = 0;
+        return this;
     }
 
-    reset() {
-        this._hasDist = false;
-        this._dist = 0;
+    value() {
+        return this.current;
     }
 
-    configure(opts) {
-        if (!opts || typeof opts !== "object") return;
-        if (Number.isFinite(+opts.pad)) this.pad = +opts.pad;
-        if (Number.isFinite(+opts.minTargetDist)) this.minTargetDist = +opts.minTargetDist;
-        if (Number.isFinite(+opts.radius)) this.radius = +opts.radius;
+    targetValue() {
+        return this.target;
     }
 
-    solve(ctx) {
-        if (!this.enabled) return;
+    stepIndex() {
+        return this.index;
+    }
 
-        const cam = ctx && ctx.cam;
-        if (!cam) return;
+    setIndex(idx, snap) {
+        this.index = clamp(idx | 0, this.minIndex, this.maxIndex) | 0;
+        this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
+        if (snap) this.current = this.target;
+        return this;
+    }
 
-        const dt = Math.max(0, +((ctx && ctx.dt) || 0) || 0);
+    update(dt, ctx) {
+        dt = clamp(num(dt, 1 / 60), 0, 0.05);
+        this._cd = Math.max(0, this._cd - dt);
 
-        const PH = resolvePhysics(ctx);
-        if (!PH) return;
+        let want = 0;
 
-        const t = (ctx && ctx.target) || {x: 0, y: 0, z: 0};
-        const tx = +t.x || 0, ty = +t.y || 0, tz = +t.z || 0;
+        const inp = ctx && ctx.input;
+        if (inp) {
+            const w = num(inp.wheel, 0);
+            if (w !== 0) want += (this.invertWheel ? -w : w) > 0 ? 1 : -1;
 
-        const loc = cam.location();
-        const dx = vx(loc, 0) - tx;
-        const dy = vy(loc, 0) - ty;
-        const dz = vz(loc, 0) - tz;
-
-        const dir = norm3(dx, dy, dz);
-        if (dir.l <= 1e-6) return;
-
-        const desiredDist = dir.l;
-
-        if (!this._hasDist) {
-            this._hasDist = true;
-            this._dist = desiredDist;
+            if (inp.zoomIn) want += 1;
+            if (inp.zoomOut) want -= 1;
         }
 
-        const start = clamp(
-            Number.isFinite(this.rayStartOffset) ? this.rayStartOffset : 0.95,
-            0.0,
-            Math.max(0.01, desiredDist - 0.01)
-        );
-
-        const from = [tx + dir.x * start, ty + dir.y * start, tz + dir.z * start];
-        const to   = [tx + dir.x * desiredDist, ty + dir.y * desiredDist, tz + dir.z * desiredDist];
-        const segLen = desiredDist - start;
-
-        const ignoreBodyId = (ctx && ctx.bodyId) | 0;
-        const useEx = (typeof PH.raycastEx === "function");
-
-        let hit = null;
-        try {
-            if (useEx) hit = PH.raycastEx({ from, to, radius: this.radius, ignoreBodyId });
-            else hit = PH.raycast({ from, to, ignoreBodyId });
-        } catch (_) { hit = null; }
-
-        if (hit && isSelfHit(hit, ignoreBodyId)) hit = null;
-
-        if (hit) {
-            const hp = hitPoint(hit);
-            if (hp) {
-                const ht = len3(hp.x - tx, hp.y - ty, hp.z - tz);
-                if (ht < this.nearTargetIgnore) hit = null;
-            }
+        if (want !== 0 && this._cd === 0) {
+            const dir = (want > 0) ? -1 : 1;
+            this.index = clamp(this.index + dir * this.stepStride, this.minIndex, this.maxIndex) | 0;
+            this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
+            this._cd = this.cooldown;
         }
 
-        let allowed = desiredDist;
-
-        if (hit) {
-            let f = hitFraction(hit);
-
-            if (!Number.isFinite(f)) {
-                const hp = hitPoint(hit);
-                if (hp) {
-                    const hh = len3(hp.x - from[0], hp.y - from[1], hp.z - from[2]);
-                    f = segLen > 1e-6 ? clamp(hh / segLen, 0, 1) : 0;
-                } else {
-                    f = 0;
-                }
-            }
-
-            allowed = start + segLen * clamp(f, 0, 1) - this.pad;
-        }
-
-        allowed = clamp(allowed, this.minTargetDist, desiredDist);
-
-        const goingCloser = allowed < this._dist;
-        const k = goingCloser ? this.approachSmooth : this.returnSmooth;
-        const a = 1 - Math.exp(-Math.max(0, k) * dt);
-
-        let nextDist = this._dist + (allowed - this._dist) * a;
-
-        const maxStep = Math.max(0.01, this.maxDistSpeed * dt);
-        const delta = nextDist - this._dist;
-        if (delta > maxStep) nextDist = this._dist + maxStep;
-        else if (delta < -maxStep) nextDist = this._dist - maxStep;
-
-        this._dist = nextDist;
-
-        cam.setLocation(
-            tx + dir.x * nextDist,
-            ty + dir.y * nextDist,
-            tz + dir.z * nextDist
-        );
+        this.current = expSmooth(this.current, this.target, this.smooth, dt);
+        return this;
     }
 }
 
-module.exports = CameraCollisionSolver;
+module.exports = CameraZoomController;

@@ -1,10 +1,6 @@
-// FILE: Scripts/world/World.systems.js
-// Author: KΛYLΛ
-
 "use strict";
 
 const worldSystems = [
-
     {
         id: "jsSystem",
         order: 18,
@@ -27,17 +23,14 @@ const worldSystems = [
         id: "jsSystem",
         order: 20,
         stableId: "sys.scene",
-        config: {
-            module: "Scripts/environment/world/world.js"
-        }
+        config: {module: "Scripts/environment/world/world.js"}
     },
     {
         id: "jsSystem",
         order: 50,
         stableId: "player",
-        config: {
-            module: "Scripts/player/index.js"
-        }
+        config: {module: "Scripts/player/index.js"}
     }
 ];
+
 exports.worldSystems = worldSystems;

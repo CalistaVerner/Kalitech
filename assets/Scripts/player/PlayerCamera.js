@@ -1,4 +1,3 @@
-// FILE: Scripts/player/PlayerCamera.js
 "use strict";
 
 const CameraOrchestrator = require("../Camera/CameraOrchestrator.js");
@@ -6,12 +5,11 @@ const CameraOrchestrator = require("../Camera/CameraOrchestrator.js");
 class PlayerCamera {
     constructor(player) {
         this.player = player;
-        this.orch = null; // IMPORTANT: создаём оркестратор ТОЛЬКО после спавна модели
+        this.orch = null;
     }
 
     attach() {
-        if (this.orch) return;
-        this.orch = new CameraOrchestrator(this.player);
+        if (!this.orch) this.orch = new CameraOrchestrator(this.player);
     }
 
     getType() {
@@ -27,8 +25,7 @@ class PlayerCamera {
     }
 
     update(frame) {
-        if (!this.orch) return; // пока не attach — камера не работает
-        this.orch.update(frame.dt, frame.snap);
+        if (this.orch) this.orch.update(frame.dt, frame);
     }
 
     destroy() {

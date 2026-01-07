@@ -1,43 +1,32 @@
 "use strict";
 
-const { validatePlayer, validateEngine, validateMode } = require("./CameraContract.js");
 const CameraZoomController = require("./CameraZoomController.js");
 const CameraCollisionSolver = require("./CameraCollisionSolver.js");
 const U = require("./camUtil.js");
 
-function smoothstep01(t) { return t * t * (3 - 2 * t); }
 function arrHas(arr, code) {
     const n = arr.length | 0;
     for (let i = 0; i < n; i++) if ((arr[i] | 0) === code) return true;
     return false;
 }
 
+function smoothstep01(t) {
+    return t * t * (3 - 2 * t);
+}
+
 class CameraOrchestrator {
     constructor(player) {
-        validatePlayer(player);
-
-        const eng = player.engine;
-        validateEngine(eng);
-
         this.player = player;
-        this.engine = eng;
-
-        this.inp = (typeof eng.input === "function") ? eng.input() : null;
-        if (!this.inp || typeof this.inp.keyCode !== "function") {
-            throw new Error("[camera] engine.input().keyCode required");
-        }
+        this.d = player.d;
 
         this._modes = [];
         this._byId = Object.create(null);
         this._active = null;
 
-        this._keyV = this.inp.keyCode("V") | 0;
+        this._keyV = this.d.input.keyCode("V") | 0;
         this._vDownPrev = false;
         this._switchCd = 0;
         this._switchCdTime = 0.18;
-
-        this._collisionCd = 0;
-        this._collisionCdTime = 0.12;
 
         this.look = {
             yaw: 0,
@@ -58,7 +47,6 @@ class CameraOrchestrator {
         });
 
         this._zoomStateByMode = Object.create(null);
-
         this.collision = new CameraCollisionSolver();
 
         this.transition = {
@@ -76,13 +64,15 @@ class CameraOrchestrator {
         this._ctx = {
             orchestrator: this,
             mode: null,
-            cam: null,
+            cam: this.d.camera,
+            physics: this.d.physics,
             dt: 0,
             snap: null,
             bodyId: 0,
             bodyPos: null,
             look: this.look,
             zoom: this.zoom,
+            input: null,
             target: { x: 0, y: 0, z: 0 },
             outPos: { x: 0, y: 0, z: 0 }
         };
@@ -90,9 +80,7 @@ class CameraOrchestrator {
         this.register(require("./modes/first.js"));
         this.register(require("./modes/third.js"));
 
-        const initial = (player && player.cfg && player.cfg.camera && player.cfg.camera.type)
-            ? String(player.cfg.camera.type)
-            : "third";
+        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type) ? String(player.cfg.camera.type) : "third";
         this.setType(initial);
     }
 
@@ -101,10 +89,10 @@ class CameraOrchestrator {
 
     register(modeOrCtor) {
         const mode = (typeof modeOrCtor === "function") ? new modeOrCtor(this) : modeOrCtor;
-        validateMode(mode);
-
-        const id = mode.id.toLowerCase();
+        const id = String(mode.id || "").trim().toLowerCase();
+        if (!id) throw new Error("[camera] mode.id required");
         if (this._byId[id]) throw new Error("[camera] duplicate mode id: " + id);
+        if (typeof mode.update !== "function") throw new Error("[camera] mode.update(ctx) required");
 
         this._byId[id] = mode;
         this._modes.push(mode);
@@ -112,29 +100,31 @@ class CameraOrchestrator {
         return id;
     }
 
-    getType() { return this._active ? this._active.id : "unknown"; }
+    getType() {
+        return this._active ? this._active.id : "third";
+    }
 
     setType(type) {
-        const id = String(type).trim().toLowerCase();
+        const id = String(type || "").trim().toLowerCase();
         const next = this._byId[id];
         if (!next) throw new Error("[camera] unknown mode: " + type);
 
         const prev = this._active;
         if (prev === next) return;
 
-        if (prev && prev.meta.supportsZoom) {
+        if (prev && prev.meta && prev.meta.supportsZoom) {
             this._zoomStateByMode[prev.id] = { index: this.zoom.stepIndex(), current: this.zoom.value() };
         }
 
         this._active = next;
 
-        if (this.player && this.player.cfg) {
+        if (this.player.cfg) {
             if (!this.player.cfg.camera) this.player.cfg.camera = {};
             this.player.cfg.camera.type = next.id;
         }
-        if (this.player && this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
+        if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
-        if (next.meta.supportsZoom) {
+        if (next.meta && next.meta.supportsZoom) {
             const st = this._zoomStateByMode[next.id];
             if (st) {
                 this.zoom.setIndex(st.index, true);
@@ -143,11 +133,12 @@ class CameraOrchestrator {
         }
 
         this.transition.active = false;
+        this.collision.enabled = !(next.meta && next.meta.hasCollision === false);
 
-        this._collisionCd = this._collisionCdTime;
-        if (this.collision && typeof this.collision.reset === "function") this.collision.reset();
-
-        this._applyMeta(next);
+        const model = this.player.getModel();
+        if (model && typeof model.setVisible === "function" && next.meta) {
+            model.setVisible(!!next.meta.playerModelVisible);
+        }
     }
 
     next() {
@@ -161,25 +152,6 @@ class CameraOrchestrator {
         this.setType(this._modes[(idx + 1) % n].id);
     }
 
-    _applyMeta(mode) {
-        const meta = mode.meta;
-
-        this.collision.enabled = meta.hasCollision;
-        const nr = meta.numRays | 0;
-
-        if (this.collision && typeof this.collision.configure === "function") {
-            this.collision.configure({ quality: (nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra" });
-        } else if (this.collision && typeof this.collision.setQuality === "function") {
-            this.collision.setQuality((nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra");
-        }
-
-        const model = this.player.getModel();
-        if (!model || typeof model.setVisible !== "function") {
-            throw new Error("[camera] player.getModel() must return handle with setVisible(boolean)");
-        }
-        model.setVisible(!!meta.playerModelVisible);
-    }
-
     _startTransition(from, to) {
         const tr = this.transition;
         tr.active = true;
@@ -188,7 +160,8 @@ class CameraOrchestrator {
         tr.to.x = to.x; tr.to.y = to.y; tr.to.z = to.z;
     }
 
-    _tickTransition(cam, dt) {
+    _tickTransition(dt) {
+        const cam = this.d.camera;
         const tr = this.transition;
         const dur = Math.max(1e-4, U.num(tr.duration, 0.22));
 
@@ -208,17 +181,16 @@ class CameraOrchestrator {
         }
     }
 
-    update(dt, snap) {
-        if (!snap) return;
-
-        const engineApi = this.engine;
-        const cam = engineApi.camera();
-        const ph = engineApi.physics();
+    update(dt, frame) {
+        if (!frame || !frame.snap) return;
 
         dt = U.clamp(U.num(dt, 1 / 60), 0, 0.05);
 
-        let dx = U.num(snap.dx, 0);
-        let dy = U.num(snap.dy, 0);
+        const cam = this.d.camera;
+        const phys = this.d.physics;
+
+        let dx = U.num(frame.snap.dx, 0);
+        let dy = U.num(frame.snap.dy, 0);
 
         if (this.look.invertX) dx = -dx;
         if (this.look.invertY) dy = -dy;
@@ -230,12 +202,12 @@ class CameraOrchestrator {
         cam.setYawPitch(this.look.yaw, this.look.pitch);
 
         const bodyId = this.player.getBodyId() | 0;
-        const bodyPos = ph.position(bodyId);
+        const bodyPos = phys.position(bodyId);
         if (!bodyPos) throw new Error("[camera] physics.position(bodyId) returned null bodyId=" + bodyId);
 
         this._switchCd = Math.max(0, this._switchCd - dt);
 
-        const kd = snap.keysDown;
+        const kd = frame.snap.keysDown;
         if (!kd) throw new Error("[camera] snap.keysDown required");
 
         const vDown = (this._keyV > 0) && arrHas(kd, this._keyV);
@@ -244,23 +216,25 @@ class CameraOrchestrator {
 
         if (pressedV) {
             this._switchCd = this._switchCdTime;
-            this._collisionCd = this._collisionCdTime;
 
             const loc = cam.location();
-            this._tmpFrom.x = U.vx(loc); this._tmpFrom.y = U.vy(loc); this._tmpFrom.z = U.vz(loc);
+            this._tmpFrom.x = U.vx(loc, 0);
+            this._tmpFrom.y = U.vy(loc, 0);
+            this._tmpFrom.z = U.vz(loc, 0);
 
             this.next();
 
             const mode = this._active;
             const ctx = this._ctx;
+
             ctx.mode = mode;
-            ctx.cam = cam;
             ctx.dt = dt;
-            ctx.snap = snap;
+            ctx.snap = frame.snap;
             ctx.bodyId = bodyId;
             ctx.bodyPos = bodyPos;
+            ctx.input = frame.input;
 
-            if (mode.meta.supportsZoom) this.zoom.update(dt, ctx);
+            if (mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
             mode.update(ctx);
 
             this._tmpTo.x = ctx.outPos.x; this._tmpTo.y = ctx.outPos.y; this._tmpTo.z = ctx.outPos.z;
@@ -273,7 +247,7 @@ class CameraOrchestrator {
         }
 
         if (this.transition.active) {
-            this._tickTransition(cam, dt);
+            this._tickTransition(dt);
             return;
         }
 
@@ -281,16 +255,18 @@ class CameraOrchestrator {
         const ctx = this._ctx;
 
         ctx.mode = mode;
-        ctx.cam = cam;
         ctx.dt = dt;
-        ctx.snap = snap;
+        ctx.snap = frame.snap;
         ctx.bodyId = bodyId;
         ctx.bodyPos = bodyPos;
+        ctx.input = frame.input;
 
-        if (mode.meta.supportsZoom) this.zoom.update(dt, ctx);
+        if (mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
         mode.update(ctx);
 
         cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
+
+        //if (this.collision.enabled && mode.meta && mode.meta.hasCollision) this.collision.solve(ctx);
     }
 }
 

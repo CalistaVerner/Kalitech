@@ -1,15 +1,6 @@
-// FILE: Scripts/main.js
-// Author: KΛYLΛ
-//
-// Pure boot:
-// - create world descriptor
-// - ask engine to create+start world
-//
-// No routing. No conditions. No “maybe”.
-
 "use strict";
 
-const WorldDesc = require("@env"); // points to Scripts/world/main.world.js :contentReference[oaicite:1]{index=1}
+const WorldDesc = require("@env");
 
 exports.meta = {
     id: "kalitech.app",
@@ -19,12 +10,9 @@ exports.meta = {
 };
 
 exports.start = function start(ctx) {
-    const engine = ctx.engine.api(); // SystemContext.EngineDomain
-
-    // build descriptor (data-first)
+    const engine = ctx.engine.api();
     const worldDesc = WorldDesc.create({mode: "game"});
 
-    // just run
     engine.world().create({
         name: worldDesc.name || "main",
         start: true,
@@ -32,9 +20,6 @@ exports.start = function start(ctx) {
         entities: worldDesc.entities || []
     });
 
-    // optional signal (nice for UI/tools, can remove if not needed)
-    try {
-        engine.bus().emit("world:started", {name: worldDesc.name, mode: worldDesc.mode});
-    } catch (_) {
-    }
+    const bus = engine.bus && engine.bus();
+    if (bus && typeof bus.emit === "function") bus.emit("world:started", {name: worldDesc.name, mode: worldDesc.mode});
 };

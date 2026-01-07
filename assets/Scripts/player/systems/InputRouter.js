@@ -1,4 +1,3 @@
-// FILE: Scripts/player/systems/InputRouter.js
 "use strict";
 
 const U = require("../util.js");
@@ -19,12 +18,13 @@ const DEFAULT_KEYS = Object.freeze({
 });
 
 class InputRouter {
-    constructor(cfg) {
-        cfg = cfg || {};
-        const keys = (cfg.keys && typeof cfg.keys === "object") ? cfg.keys : DEFAULT_KEYS;
+    constructor(inputApi, cfg) {
+        this.inp = inputApi;
+        if (!this.inp || typeof this.inp.keyCode !== "function") throw new Error("[input] input.keyCode required");
+        if (typeof this.inp.mouseDown !== "function") throw new Error("[input] input.mouseDown required");
 
-        if (!INP || typeof INP.keyCode !== "function") throw new Error("[input] INP.keyCode required");
-        if (typeof INP.mouseDown !== "function") throw new Error("[input] INP.mouseDown required");
+        cfg = cfg || Object.create(null);
+        const keys = (cfg.keys && typeof cfg.keys === "object") ? cfg.keys : DEFAULT_KEYS;
 
         this._codes = {
             forward: this._pack(keys.forward || DEFAULT_KEYS.forward),
@@ -52,7 +52,7 @@ class InputRouter {
         const out = [];
         const n = names.length | 0;
         for (let i = 0; i < n; i++) {
-            const c = INP.keyCode(String(names[i]).trim().toUpperCase()) | 0;
+            const c = this.inp.keyCode(String(names[i]).trim().toUpperCase()) | 0;
             if (c > 0) out.push(c);
         }
         return out;
@@ -93,12 +93,11 @@ class InputRouter {
         s.dy = U.num(snap.dy, 0);
         s.wheel = U.num(snap.wheel, 0);
 
-        const lmb = !!INP.mouseDown(0);
+        const lmb = !!this.inp.mouseDown(0);
         s.lmbDown = lmb;
         s.lmbJustPressed = lmb && !this._prevLmb;
         this._prevLmb = lmb;
 
-        // копируем в frame.input (единый формат)
         const fi = frame.input;
         fi.ax = s.ax | 0;
         fi.az = s.az | 0;

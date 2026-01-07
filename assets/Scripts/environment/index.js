@@ -1,14 +1,7 @@
-// FILE: Scripts/world/main.world.js
-// Author: KΛYLΛ
-//
-// Pure data descriptor.
-// No validation, no clone/freeze, no presets.
-// If script says so — engine builds.
-
 "use strict";
 
 const WORLD_SCHEMA_VERSION = 1;
-const baseSystems = require("./World.systems.js").worldSystems; // :contentReference[oaicite:2]{index=2}
+const baseSystems = require("./World.systems.js").worldSystems;
 
 exports.meta = {
     id: "kalitech.world.main",
@@ -19,7 +12,6 @@ exports.meta = {
 
 exports.create = function create(opts) {
     const mode = (opts && opts.mode) ? String(opts.mode) : "game";
-
     return {
         name: "main",
         mode,
@@ -29,5 +21,4 @@ exports.create = function create(opts) {
     };
 };
 
-// Legacy fallback (если где-то старый код читает exports.world)
 exports.world = exports.create({mode: "game"});

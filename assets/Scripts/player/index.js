@@ -60,8 +60,10 @@ class Player {
         this.engine = null;
         this.PHYS = null;
         this.INP = null;
+
         this.HUD_NATIVE = null;
         this.HUD = null;
+        this.d = null;
 
         this.entity = null;
         this.entityId = 0;
@@ -113,14 +115,31 @@ class Player {
         this.INP = must(r.IN, "[player] INP domain");
         this.HUD_NATIVE = r.HUD_NATIVE;
 
+        this.HUD = (typeof HUD !== "undefined" && HUD) ? HUD : null;
+
+        // ✅ Domains container for all subsystems (camera expects this)
+        this.d = Object.freeze({
+            ctx: this.ctx,
+            engine: this.engine,
+            physics: this.PHYS,
+            input: this.INP,
+            camera: (this.engine && typeof this.engine.camera === "function") ? this.engine.camera() : null,
+            assets: (this.engine && typeof this.engine.assets === "function") ? this.engine.assets() : null,
+            hud: this.HUD,
+            hudNative: this.HUD_NATIVE,
+            bus: (this.engine && typeof this.engine.bus === "function") ? this.engine.bus() : null,
+            surface: (this.engine && typeof this.engine.surface === "function") ? this.engine.surface() : null,
+            log: (typeof LOG !== "undefined" && LOG) ? LOG : null
+        });
+
+        if (!this.d.camera) throw new Error("[player] engine.camera() required");
+
+
         if (typeof this.PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
         if (typeof this.INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
 
         if (this.HUD_NATIVE && typeof this.HUD_NATIVE.setCursorEnabled === "function") {
-            try {
-                this.HUD_NATIVE.setCursorEnabled(false, true);
-            } catch (_) {
-            }
+            this.HUD_NATIVE.setCursorEnabled(false, true);
         }
 
         this.cfg = U.deepMerge({
@@ -244,7 +263,7 @@ class Player {
             fallSpeed: this.frame.pose.fallSpeed
         });
 
-        this.ui.refresh(true);
+        this.ui.refresh();
 
         if (this.INP && typeof this.INP.endFrame === "function") this.INP.endFrame();
     }
@@ -270,6 +289,7 @@ class Player {
         this.INP = null;
         this.HUD_NATIVE = null;
         this.HUD = null;
+        this.d = null;
 
         this.alive = false;
         if (LOG && LOG.info) LOG.info("[player] destroy");

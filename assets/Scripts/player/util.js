@@ -1,8 +1,4 @@
-// FILE: Scripts/player/util.js
 "use strict";
-
-// Минимальные утилиты без "тихих" ошибок.
-// Если что-то не так в interop — пусть падает сразу.
 
 function num(v, fb = 0) {
     v = +v;
@@ -19,7 +15,6 @@ function isPlainObj(x) {
     return p === Object.prototype || p === null;
 }
 
-// Без глубоких магий — только plain objects.
 function deepMerge(dst, src) {
     if (!isPlainObj(src)) return isPlainObj(dst) ? dst : Object.create(null);
     const out = isPlainObj(dst) ? dst : Object.create(null);
@@ -36,11 +31,8 @@ function deepMerge(dst, src) {
     return out;
 }
 
-// Жёсткий контракт: vec3 — либо поля x/y/z, либо методы x()/y()/z().
-// Никаких try/catch — ошибка должна быть видна сразу.
 function vget(v, key, fb = 0) {
-    if (!v) return fb;
-    const m = v[key];
+    const m = v && v[key];
     if (typeof m === "function") return num(m.call(v), fb);
     return num(m, fb);
 }

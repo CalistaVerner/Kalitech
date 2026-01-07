@@ -3,9 +3,9 @@
 function num(v, fb) { v = +v; return Number.isFinite(v) ? v : fb; }
 
 function vget(v, k, fb) {
-    if (!v) return fb;
-    const m = v[k];
-    return (typeof m === "function") ? num(m.call(v), fb) : num(m, fb);
+    const m = v && v[k];
+    const n = (typeof m === "function") ? num(m.call(v), fb) : num(m, fb);
+    return Number.isFinite(n) ? n : fb;
 }
 
 function vx(v, fb = 0) { return vget(v, "x", fb); }

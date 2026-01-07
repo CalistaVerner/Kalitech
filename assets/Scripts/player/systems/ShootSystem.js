@@ -1,5 +1,3 @@
-// FILE: Scripts/player/systems/ShootSystem.js
-// Author: KΛYLΛ
 "use strict";
 
 const U = require("../util.js");
@@ -16,37 +14,31 @@ function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
 const DEFAULT_CFG = Object.freeze({
     enabled: true,
-
     model: "Models/sharp-boulder-layered.obj",
     scale: 0.5,
     mass: 600.0,
     lockRotation: false,
     materialId: "unshaded.grass",
-
     spawnOffset: 0.0,
     speed: 20.0,
-
     invertPitch: false,
-
     debug: { logShots: false }
 });
 
 function mergeCfg(src) {
-    src = (src && typeof src === "object") ? src : {};
+    src = (src && typeof src === "object") ? src : Object.create(null);
     const b = DEFAULT_CFG;
-    const d = (src.debug && typeof src.debug === "object") ? src.debug : {};
+    const d = (src.debug && typeof src.debug === "object") ? src.debug : Object.create(null);
+
     return {
         enabled: (src.enabled !== undefined) ? !!src.enabled : b.enabled,
-
         model: (src.model !== undefined) ? String(src.model) : b.model,
         scale: (src.scale !== undefined) ? U.num(src.scale, b.scale) : b.scale,
         mass: (src.mass !== undefined) ? U.num(src.mass, b.mass) : b.mass,
         lockRotation: (src.lockRotation !== undefined) ? !!src.lockRotation : b.lockRotation,
         materialId: (src.materialId !== undefined) ? String(src.materialId) : b.materialId,
-
         spawnOffset: (src.spawnOffset !== undefined) ? U.num(src.spawnOffset, b.spawnOffset) : b.spawnOffset,
         speed: (src.speed !== undefined) ? U.num(src.speed, b.speed) : b.speed,
-
         invertPitch: (src.invertPitch !== undefined) ? !!src.invertPitch : b.invertPitch,
         debug: { logShots: (d.logShots !== undefined) ? !!d.logShots : !!(b.debug && b.debug.logShots) }
     };
@@ -54,7 +46,7 @@ function mergeCfg(src) {
 
 class ShootSystem {
     constructor(rootCfg) {
-        rootCfg = rootCfg || {};
+        rootCfg = rootCfg || Object.create(null);
         this.cfg = mergeCfg(rootCfg.shoot);
         this._shotId = 0;
 
@@ -65,7 +57,7 @@ class ShootSystem {
     }
 
     configure(rootCfg) {
-        rootCfg = rootCfg || {};
+        rootCfg = rootCfg || Object.create(null);
         if (rootCfg.shoot) this.cfg = mergeCfg(Object.assign({}, this.cfg, rootCfg.shoot));
         return this;
     }
@@ -84,18 +76,10 @@ class ShootSystem {
         return normalize3_into(sy * cp, sp, cy * cp, outDir);
     }
 
-    _readOrigin_into(frame, bodyId, outOrigin) {
-        if (frame && frame.pose) {
-            outOrigin.x = U.num(frame.pose.x, 0);
-            outOrigin.y = U.num(frame.pose.y, 0) + (frame.character ? U.num(frame.character.eyeHeight, 1.55) : 1.55);
-            outOrigin.z = U.num(frame.pose.z, 0);
-            return outOrigin;
-        }
-
-        const p = PHYS.position(bodyId);
-        outOrigin.x = U.vx(p, 0);
-        outOrigin.y = U.vy(p, 0) + 1.55;
-        outOrigin.z = U.vz(p, 0);
+    _readOrigin_into(frame, outOrigin) {
+        outOrigin.x = U.num(frame.pose.x, 0);
+        outOrigin.y = U.num(frame.pose.y, 0) + (frame.character ? U.num(frame.character.eyeHeight, 1.55) : 1.55);
+        outOrigin.z = U.num(frame.pose.z, 0);
         return outOrigin;
     }
 
@@ -103,11 +87,10 @@ class ShootSystem {
         const c = this.cfg;
         if (!c.enabled || !bodyId) return;
 
-        const view = frame && frame.view ? frame.view : null;
-        const yaw = view ? view.yaw : 0;
-        const pitch = view ? view.pitch : 0;
+        const yaw = frame.view ? frame.view.yaw : 0;
+        const pitch = frame.view ? frame.view.pitch : 0;
 
-        this._readOrigin_into(frame, bodyId, this._origin);
+        this._readOrigin_into(frame, this._origin);
         this._dirFromYawPitch_into(yaw, pitch, this._dir);
 
         const off = c.spawnOffset;
@@ -119,7 +102,7 @@ class ShootSystem {
 
         const g = MSH.loadModel(c.model, {
             scale: c.scale,
-            name: name,
+            name,
             pos: [this._spawn.x, this._spawn.y, this._spawn.z],
             physics: {
                 mass: c.mass,
@@ -128,29 +111,19 @@ class ShootSystem {
             }
         });
 
-        if (g && g.setMaterial) {
-            try { g.setMaterial(MAT.getMaterial(c.materialId)); }
-            catch (e) { if (LOG && LOG.warn) LOG.warn("[shoot] setMaterial failed: " + U.errStr(e)); }
-        }
+        if (g && typeof g.setMaterial === "function") g.setMaterial(MAT.getMaterial(c.materialId));
 
         const speed = c.speed;
         this._vel.x = this._dir.x * speed;
         this._vel.y = this._dir.y * speed;
         this._vel.z = this._dir.z * speed;
 
-        if (g && g.velocity) {
-            try { g.velocity(this._vel); }
-            catch (e) { if (LOG && LOG.warn) LOG.warn("[shoot] set velocity failed: " + U.errStr(e)); }
-        }
+        if (g && typeof g.velocity === "function") g.velocity(this._vel);
 
-        try {
-            SND.create({ soundFile: "Sounds/hit.ogg", volume: 1.0, pitch: 1.0, looping: false }).play();
-        } catch (e) {
-            if (LOG && LOG.warn) LOG.warn("[shoot] sound play failed: " + U.errStr(e));
-        }
+        SND.create({soundFile: "Sounds/hit.ogg", volume: 1.0, pitch: 1.0, looping: false}).play();
 
-        if (c.debug && c.debug.logShots) {
-            if (LOG && LOG.info) LOG.info("[shoot] " + name + " yaw=" + yaw + " pitch=" + pitch);
+        if (c.debug && c.debug.logShots && LOG && LOG.info) {
+            LOG.info("[shoot] " + name + " yaw=" + yaw + " pitch=" + pitch);
         }
     }
 
