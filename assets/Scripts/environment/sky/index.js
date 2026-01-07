@@ -37,11 +37,22 @@ function safeKeys(obj, limit) {
 }
 
 function resolveEngine(ctx) {
-    if (ctx && ctx.api && typeof ctx.api.render === "function") return ctx.api;
-    if (typeof engine !== "undefined" && engine && typeof engine.render === "function") return engine;
-    if (ctx && typeof ctx.render === "function") return ctx; // fallback
-    throw new Error("[sky] cannot resolve engine with render()");
+    // 1) прямой api
+    let e = ctx && (ctx.api || ctx.engine || ctx.engineApi || ctx.engine?.api?.());
+    // 2) если engine — домен с api()
+    if (e && typeof e.api === "function") e = e.api();
+    // 3) если render-домен
+    if (!e && ctx && ctx.render && typeof ctx.render.api === "function") e = ctx.render.api();
+    // 4) глобальный fallback
+    if (!e && typeof engine !== "undefined") e = engine;
+
+    // проверка render()
+    if (!e || typeof e.render !== "function") {
+        throw Error("[sky] cannot resolve engine with render()");
+    }
+    return e;
 }
+
 
 
 function ensureSys(ctx) {

@@ -10,11 +10,26 @@ const InputRouter = require("./systems/InputRouter.js");
 
 const MOVEMENT_CFG_JSON = "data/player/movement.config.json";
 
-function readJsonAssetStrict(path) {
-    const assets = engine.assets && engine.assets();
+function resolveEngine(ctx) {
+    // Prefer SystemContext domains (your SystemContext exports them)
+    if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
+    if (ctx && typeof ctx.api === "function") return ctx.api();          // after my SystemContext fix
+    if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi(); // optional alias
+    // last resort (legacy)
+    if (typeof engine !== "undefined") return engine;
+    return null;
+}
+
+function readJsonAssetStrict(path, ctx) {
+    const E = resolveEngine(ctx);
+    if (!E) throw new Error("[player] cannot resolve engine from ctx (need ctx.engine.api())");
+
+    const assets = E.assets && E.assets();
     if (!assets || typeof assets.readText !== "function") throw new Error("[player] engine.assets().readText required");
+
     const txt = assets.readText(path);
     if (!txt) throw new Error("[player] movement config not found: " + path);
+
     const obj = JSON.parse(String(txt));
     if (!U.isPlainObj(obj)) throw new Error("[player] movement config must be a JSON object: " + path);
     return obj;
@@ -26,9 +41,10 @@ function resolveMovementPath(rootCfg) {
 }
 
 class PlayerController {
-    constructor(player) {
+    constructor(player, ctx) { // ✅ add ctx
         if (!player) throw new Error("[player] PlayerController requires player");
         this.player = player;
+        this.ctx = ctx || null;
 
         const rootCfg = player.cfg || Object.create(null);
         const movOverrides = (rootCfg.movement && U.isPlainObj(rootCfg.movement)) ? rootCfg.movement : null;
@@ -36,7 +52,7 @@ class PlayerController {
         // Strict pipeline:
         // - If movement is an object -> use it directly
         // - Else load JSON by path (movementConfigPath)
-        const movCfg = movOverrides || readJsonAssetStrict(resolveMovementPath(rootCfg));
+        const movCfg = movOverrides || readJsonAssetStrict(resolveMovementPath(rootCfg), this.ctx);
 
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
 

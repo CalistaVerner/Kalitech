@@ -29,7 +29,6 @@ function hitFraction(hit) {
     return Number.isFinite(n) ? n : NaN;
 }
 
-// Максимально “грязный”, но практичный extractor id (в разных движках/бриджах поля разные)
 function hitAnyId(hit) {
     if (!hit || typeof hit !== "object") return NaN;
     const v =
@@ -47,33 +46,56 @@ function isSelfHit(hit, ignoreBodyId) {
     return Number.isFinite(hid) && ((hid | 0) === iid);
 }
 
+// ✅ Resolve PhysicsApi without relying on global `engine`.
+// Priority:
+//  1) ctx.physics (passed by orchestrator)
+//  2) ctx.ph / ctx.PHYS (aliases)
+//  3) ctx.engine.physics() (if engine passed)
+//  4) legacy global `physics`
+//  5) legacy global `PHYS`
+function resolvePhysics(ctx) {
+    if (ctx) {
+        if (ctx.physics) return ctx.physics;
+        if (ctx.ph) return ctx.ph;
+        if (ctx.PHYS) return ctx.PHYS;
+
+        const eng = ctx.engine;
+        if (eng && typeof eng.physics === "function") {
+            try {
+                return eng.physics();
+            } catch (_) {
+            }
+        }
+    }
+    try {
+        if (typeof physics !== "undefined") return physics;
+    } catch (_) {
+    }
+    try {
+        if (typeof PHYS !== "undefined") return PHYS;
+    } catch (_) {
+    }
+    return null;
+}
+
 class CameraCollisionSolver {
     constructor() {
         this.enabled = true;
         this.rayStartOffset = 0.95;
 
-        // Stand-off from obstacle
         this.pad = 0.22;
-
-        // Minimum distance from target (avoid entering head)
         this.minTargetDist = 6.55;
 
-        // Optional sphere radius for raycastEx (if supported)
         this.radius = 0.22;
 
-        // Smoothing (critically important to kill jitter)
-        this.approachSmooth = 24; // when we need to come closer
-        this.returnSmooth = 10;   // when we can go back
+        this.approachSmooth = 24;
+        this.returnSmooth = 10;
 
-        // Distance filter state
-        this._dist = 0;       // current filtered distance
+        this._dist = 0;
         this._hasDist = false;
 
-        // Anti-jitter: how fast distance can change per second
         this.maxDistSpeed = 50.0;
-
-        // Ignore near-target hits (self/inside capsule issues)
-        this.nearTargetIgnore = 1.25; // meters (if hit point is within this radius of target => ignore)
+        this.nearTargetIgnore = 1.25;
     }
 
     reset() {
@@ -83,7 +105,6 @@ class CameraCollisionSolver {
 
     configure(opts) {
         if (!opts || typeof opts !== "object") return;
-        // keep compatibility: quality ignored in this stable solver, but accept it.
         if (Number.isFinite(+opts.pad)) this.pad = +opts.pad;
         if (Number.isFinite(+opts.minTargetDist)) this.minTargetDist = +opts.minTargetDist;
         if (Number.isFinite(+opts.radius)) this.radius = +opts.radius;
@@ -92,16 +113,17 @@ class CameraCollisionSolver {
     solve(ctx) {
         if (!this.enabled) return;
 
-        const cam = ctx.cam;
-        const dt = Math.max(0, +ctx.dt || 0);
+        const cam = ctx && ctx.cam;
+        if (!cam) return;
 
-        const PH = (typeof physics !== "undefined") ? physics : (engine && engine.physics && engine.physics());
+        const dt = Math.max(0, +((ctx && ctx.dt) || 0) || 0);
+
+        const PH = resolvePhysics(ctx);
         if (!PH) return;
 
-        const t = ctx.target || { x: 0, y: 0, z: 0 };
+        const t = (ctx && ctx.target) || {x: 0, y: 0, z: 0};
         const tx = +t.x || 0, ty = +t.y || 0, tz = +t.z || 0;
 
-        // desired camera position already set by mode before calling solve()
         const loc = cam.location();
         const dx = vx(loc, 0) - tx;
         const dy = vy(loc, 0) - ty;
@@ -112,14 +134,11 @@ class CameraCollisionSolver {
 
         const desiredDist = dir.l;
 
-        // Init filtered distance
         if (!this._hasDist) {
             this._hasDist = true;
             this._dist = desiredDist;
         }
 
-        // ✅ Raycast along target -> desired, but start OUTSIDE the player's body
-        // This prevents "inside capsule/mesh" self-hits that clamp camera to minTargetDist (head).
         const start = clamp(
             Number.isFinite(this.rayStartOffset) ? this.rayStartOffset : 0.95,
             0.0,
@@ -130,7 +149,7 @@ class CameraCollisionSolver {
         const to   = [tx + dir.x * desiredDist, ty + dir.y * desiredDist, tz + dir.z * desiredDist];
         const segLen = desiredDist - start;
 
-        const ignoreBodyId = ctx.bodyId | 0;
+        const ignoreBodyId = (ctx && ctx.bodyId) | 0;
         const useEx = (typeof PH.raycastEx === "function");
 
         let hit = null;
@@ -139,10 +158,8 @@ class CameraCollisionSolver {
             else hit = PH.raycast({ from, to, ignoreBodyId });
         } catch (_) { hit = null; }
 
-        // Self-hit filter by id (если движок не уважает ignoreBodyId)
         if (hit && isSelfHit(hit, ignoreBodyId)) hit = null;
 
-        // Extra: ignore hits too close to target (часто это капсула игрока/поверхностный меш)
         if (hit) {
             const hp = hitPoint(hit);
             if (hp) {
@@ -151,7 +168,6 @@ class CameraCollisionSolver {
             }
         }
 
-        // Compute allowed distance
         let allowed = desiredDist;
 
         if (hit) {
@@ -160,7 +176,6 @@ class CameraCollisionSolver {
             if (!Number.isFinite(f)) {
                 const hp = hitPoint(hit);
                 if (hp) {
-                    // fraction along segment (from->to), not from target->to
                     const hh = len3(hp.x - from[0], hp.y - from[1], hp.z - from[2]);
                     f = segLen > 1e-6 ? clamp(hh / segLen, 0, 1) : 0;
                 } else {
@@ -168,21 +183,17 @@ class CameraCollisionSolver {
                 }
             }
 
-            // allowed = start + hitAlongSegment - pad
             allowed = start + segLen * clamp(f, 0, 1) - this.pad;
         }
 
-        // Enforce bounds
         allowed = clamp(allowed, this.minTargetDist, desiredDist);
 
-        // Smooth distance with different rates
         const goingCloser = allowed < this._dist;
         const k = goingCloser ? this.approachSmooth : this.returnSmooth;
         const a = 1 - Math.exp(-Math.max(0, k) * dt);
 
         let nextDist = this._dist + (allowed - this._dist) * a;
 
-        // Hard rate limit to kill remaining oscillations
         const maxStep = Math.max(0.01, this.maxDistSpeed * dt);
         const delta = nextDist - this._dist;
         if (delta > maxStep) nextDist = this._dist + maxStep;
@@ -190,14 +201,12 @@ class CameraCollisionSolver {
 
         this._dist = nextDist;
 
-        // Apply final camera pos
-        const nx = tx + dir.x * nextDist;
-        const ny = ty + dir.y * nextDist;
-        const nz = tz + dir.z * nextDist;
-
-        cam.setLocation(nx, ny, nz);
+        cam.setLocation(
+            tx + dir.x * nextDist,
+            ty + dir.y * nextDist,
+            tz + dir.z * nextDist
+        );
     }
-
 }
 
 module.exports = CameraCollisionSolver;

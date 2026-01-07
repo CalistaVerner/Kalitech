@@ -4,12 +4,13 @@ package org.foxesworld.kalitech.engine.world.systems;
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import com.jme3.bullet.PhysicsSpace;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.graalvm.polyglot.HostAccess;
 
 import java.util.Objects;
@@ -18,103 +19,208 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * SystemContext
  *
- * Shared execution context passed to every {@link KSystem}.
- * Wraps engine APIs, ECS, event bus, runtime access and production profiling domains.
+ * Universal execution context for systems and app scripts.
+ * World subsystem is OPTIONAL.
  */
 public final class SystemContext {
 
+    private static final Logger FALLBACK_LOG = LogManager.getLogger(SystemContext.class);
+
+    // ---------------- Optional extension points ----------------
+    // JS-visible stable domains
+    @HostAccess.Export public final EngineDomain engine;
+    private final EngineApi api;
+    private final Logger log;
+
+    // ---------------- Core environment ----------------
+
     private final SimpleApplication app;
     private final AssetManager assets;
-    private final ScriptEventBus events;
-    private final EcsWorld ecs;
+    private final ScriptEventBus events;      // nullable
+    private final EcsWorld ecs;               // nullable
+    private final PhysicsSpace physicsSpace;  // nullable
+    private final ScriptRuntime runtime;      // nullable (app-only may still have it)
+    private final RuntimeProvider runtimeProvider; // nullable
+    private final RuntimePolicy runtimePolicy;     // nullable
+    private final SystemScheduler scheduler;  // nullable (world-only)
+    private final MainThreadBudgetQueue mainQueue; // nullable (world-only)
+    private final PerfProvider perfProvider;  // nullable (world-only)
+    public SystemContext(
+            SimpleApplication app,
+            EngineApi api,
+            EcsWorld ecs,
+            ScriptEventBus events,
+            PhysicsSpace physicsSpace,
+            ScriptRuntime runtime,
+            RuntimeProvider runtimeProvider,
+            RuntimePolicy runtimePolicy,
+            SystemScheduler scheduler,
+            MainThreadBudgetQueue mainQueue,
+            PerfProvider perfProvider,
+            Logger log
+    ) {
+        this.app = Objects.requireNonNull(app, "app");
+        this.assets = app.getAssetManager();
+        this.api = Objects.requireNonNull(api, "api");
+        this.log = (log != null) ? log : FALLBACK_LOG;
 
-    private final WorldAppState worldAppState;
-    private final PhysicsSpace physicsSpace;
+        this.ecs = ecs;
+        this.events = events;
+        this.physicsSpace = physicsSpace;
+
+        this.runtime = runtime;
+        this.runtimeProvider = runtimeProvider;
+        this.runtimePolicy = runtimePolicy;
+
+        this.scheduler = scheduler;
+        this.mainQueue = mainQueue;
+        this.perfProvider = perfProvider;
+
+        this.engine = new EngineDomain(this.api);
+        this.world = new WorldDomain(this.ecs, this.events);
+        this.render = new RenderDomain(this.api);
+        this.stateDomain = new StateDomain(this.state);
+        this.perfDomain = new PerfDomain(this.perfProvider);
+    }
+
+    public SimpleApplication app() {
+        return app;
+    }
 
     private final ConcurrentHashMap<String, Object> state = new ConcurrentHashMap<>();
 
-    // JS-visible (stable handles)
-    @HostAccess.Export public final EngineApi api;
-    @HostAccess.Export public final EngineDomain engine;
+    public AssetManager assets() {
+        return assets;
+    }
     @HostAccess.Export public final WorldDomain world;
     @HostAccess.Export public final RenderDomain render;
     @HostAccess.Export public final StateDomain stateDomain;
     @HostAccess.Export public final PerfDomain perfDomain;
 
-    public SystemContext(SimpleApplication app, WorldAppState worldAppState) {
-        this.app = Objects.requireNonNull(app, "app");
-        this.worldAppState = Objects.requireNonNull(worldAppState, "worldAppState");
-
-        this.assets = app.getAssetManager();
-        this.events = worldAppState.getBus();
-        this.ecs = worldAppState.getEcs();
-        this.api = worldAppState.getApi();
-        this.physicsSpace = worldAppState.getPhysicsSpace();
-
-        this.engine = new EngineDomain(api);
-        this.world = new WorldDomain(ecs, events);
-        this.render = new RenderDomain(api);
-        this.stateDomain = new StateDomain(state);
-        this.perfDomain = new PerfDomain(worldAppState);
+    public EngineApi api() {
+        return api;
     }
 
-    // ---------------------------------------------------------------------
-    // Java-only helpers
-    // ---------------------------------------------------------------------
+    // ---------------- Java helpers ----------------
 
-    public SimpleApplication app() { return app; }
-    AssetManager assets() { return assets; }
-    ScriptEventBus events() { return events; }
-    public EcsWorld ecs() { return ecs; }
-    public PhysicsSpace getPhysicsSpace() { return physicsSpace; }
+    public Logger log() {
+        return log;
+    }
 
-    // Runtime access (thread-confined; use correct profile on the correct thread)
-    ScriptRuntime runtime() { return worldAppState.getRuntime(); }
-    ScriptRuntime runtime(String profile) { return worldAppState.getRuntime(profile); }
+    public ScriptEventBus events() { return events; }
 
-    // Worker scheduler
-    public SystemScheduler scheduler() { return worldAppState.getScheduler(); }
-
-    // Policy (providers enforce contract decisions)
-    public WorldAppState.RuntimePolicy runtimePolicy() { return worldAppState.getRuntimePolicy(); }
-
-    // Main apply queue (budgeted)
-    MainThreadBudgetQueue mainQueue() { return worldAppState.getMainQueue(); }
-
-    // ---------------------------------------------------------------------
-    // JS-facing helpers
-    // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    public ScriptJobQueue jobs() { return runtime().jobs(); }
-
-    /** Monotonic time source for scripts/tools (nanos). */
-    @HostAccess.Export
-    public long nowNanos() { return System.nanoTime(); }
-
-    /** True if the current thread is the world/main thread. */
-    @HostAccess.Export
-    public boolean isWorldThread() { return worldAppState.isWorldThread(); }
-
-    // -------------------- Perf / profiling (JS-visible) --------------------
+    public PhysicsSpace getPhysicsSpace() {
+        return physicsSpace;
+    }
 
     /**
-     * Usage from JS:
-     *  - const fs = ctx.perf().frame();
-     *  - const w  = ctx.perf().workers();
-     *  - ctx.perf().dump();
+     * Base runtime (may be null).
      */
+    public ScriptRuntime runtime() {
+        return runtime;
+    }
+
+    /**
+     * Runtime by profile (optional).
+     * If no provider is installed -> returns base runtime().
+     */
+    public ScriptRuntime runtime(String profile) {
+        if (runtimeProvider == null) return runtime;
+        String p = (profile == null) ? "" : profile.trim();
+        if (p.isEmpty()) return runtime;
+        return runtimeProvider.runtime(p);
+    }
+    public EcsWorld ecs() { return ecs; }
+
+    /**
+     * Optional policy (may be null).
+     */
+    public RuntimePolicy runtimePolicy() {
+        return runtimePolicy;
+    }
+
+    /**
+     * Optional scheduler (may be null).
+     */
+    public SystemScheduler scheduler() {
+        return scheduler;
+    }
+
+    /** Optional main-thread queue (may be null). */
+    MainThreadBudgetQueue mainQueue() {
+        return mainQueue;
+    }
+
+    /**
+     * Optional perf provider (may be null).
+     */
+    public PerfProvider perfProvider() {
+        return perfProvider;
+    }
+
+    @HostAccess.Export
+    public ScriptJobQueue jobs() {
+        ScriptRuntime rt = runtime();
+        return (rt != null) ? rt.jobs() : null;
+    }
+
+    @HostAccess.Export
+    public long nowNanos() {
+        return System.nanoTime();
+    }
+
+    @HostAccess.Export
+    public boolean isWorldThread() {
+        return perfProvider != null && perfProvider.isWorldThread();
+    }
+
+    // ---------------- JS helpers ----------------
+
+    @HostAccess.Export
+    public boolean has(String key) { return stateDomain.has(key); }
+
+    /**
+     * Optional runtime pool/provider (for worker lanes / profiles).
+     */
+    public interface RuntimeProvider {
+        ScriptRuntime runtime(String profile);
+    }
+
+    /**
+     * Optional policy to resolve/deny runtime profile requests (CDPR-style).
+     */
+    public interface RuntimePolicy {
+        String resolveProfile(String requested, Origin origin);
+
+        enum Origin {SCRIPT_CONFIG, JAVA_PROVIDER}
+    }
+
     @HostAccess.Export public PerfDomain perf() { return perfDomain; }
-
-    // -------------------- JS state --------------------
-
     @HostAccess.Export public StateDomain state() { return stateDomain; }
     @HostAccess.Export public void put(String key, Object value) { stateDomain.set(key, value); }
     @HostAccess.Export public Object get(String key) { return stateDomain.get(key); }
     @HostAccess.Export public Object remove(String key) { return stateDomain.remove(key); }
-    @HostAccess.Export public boolean has(String key) { return stateDomain.has(key); }
 
-    // -------------------- Domains --------------------
+    /**
+     * Optional perf provider (world-only).
+     */
+    public interface PerfProvider {
+        FrameStats getLastFrameStats();
+
+        WorkerSystemStats[] getWorkerStatsSnapshot();
+
+        void dumpPerfSnapshotToLog();
+
+        void setTargetFps(int fps);
+
+        void setStatsLogEverySeconds(int sec);
+
+        void setFrameOverBudgetLogEverySeconds(int sec);
+
+        boolean isWorldThread();
+    }
+
+    // ---------------- Domains ----------------
 
     public static final class EngineDomain {
         private final EngineApi api;
@@ -125,9 +231,22 @@ public final class SystemContext {
     public static final class WorldDomain {
         private final EcsWorld ecs;
         private final ScriptEventBus events;
-        WorldDomain(EcsWorld ecs, ScriptEventBus events) { this.ecs = ecs; this.events = events; }
-        @HostAccess.Export public void emit(String name, Object payload) { events.emit(name, payload); }
-        @HostAccess.Export public EcsWorld ecs() { return ecs; }
+        WorldDomain(EcsWorld ecs, ScriptEventBus events) {
+            this.ecs = ecs;
+            this.events = events;
+        }
+
+        @HostAccess.Export
+        public void emit(String name, Object payload) {
+            if (events == null) return;
+            try {
+                events.emit(name, payload);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        @HostAccess.Export
+        public EcsWorld ecs() { return ecs; }
     }
 
     public static final class RenderDomain {
@@ -158,16 +277,49 @@ public final class SystemContext {
     }
 
     public static final class PerfDomain {
-        private final WorldAppState world;
-        PerfDomain(WorldAppState world) { this.world = Objects.requireNonNull(world, "world"); }
+        private static final WorkerSystemStats[] EMPTY_WORKERS = new WorkerSystemStats[0];
+        private final PerfProvider perf;
 
-        @HostAccess.Export public FrameStats frame() { return world.getLastFrameStats(); }
-        @HostAccess.Export public WorkerSystemStats[] workers() { return world.getWorkerStatsSnapshot(); }
+        PerfDomain(PerfProvider perf) {
+            this.perf = perf;
+        }
 
-        @HostAccess.Export public void dump() { world.dumpPerfSnapshotToLog(); }
-        @HostAccess.Export public void targetFps(int fps) { world.setTargetFps(fps); }
+        @HostAccess.Export
+        public FrameStats frame() {
+            return (perf != null) ? perf.getLastFrameStats() : null;
+        }
 
-        @HostAccess.Export public void workerLogEverySeconds(int sec) { world.setStatsLogEverySeconds(sec); }
-        @HostAccess.Export public void frameLogEverySeconds(int sec) { world.setFrameOverBudgetLogEverySeconds(sec); }
+        @HostAccess.Export
+        public WorkerSystemStats[] workers() {
+            return (perf != null) ? perf.getWorkerStatsSnapshot() : EMPTY_WORKERS;
+        }
+
+        @HostAccess.Export
+        public void dump() {
+            if (perf != null) try {
+                perf.dumpPerfSnapshotToLog();
+            } catch (Throwable ignored) {
+            }
+        }
+
+        @HostAccess.Export
+        public void targetFps(int fps) {
+            if (perf != null) try {
+                perf.setTargetFps(fps);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        @HostAccess.Export
+        public void workerLogEverySeconds(int sec) {
+            if (perf != null) try {
+                perf.setStatsLogEverySeconds(sec);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        @HostAccess.Export
+        public void frameLogEverySeconds(int sec) {
+            if (perf != null) try { perf.setFrameOverBudgetLogEverySeconds(sec); } catch (Throwable ignored) {} }
     }
 }

@@ -2,7 +2,6 @@ package org.foxesworld.kalitech.engine.world.systems.providers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
@@ -38,9 +37,7 @@ public final class JsWorldSystemProvider implements SystemProvider {
             long n = v.getArraySize();
             int len = (int) Math.min(n, Integer.MAX_VALUE);
             Object[] arr = new Object[len];
-            for (int i = 0; i < len; i++) {
-                arr[i] = toProxy(v.getArrayElement(i));
-            }
+            for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
             return ProxyArray.fromArray(arr);
         }
 
@@ -70,21 +67,15 @@ public final class JsWorldSystemProvider implements SystemProvider {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
 
-        // Requested by SCRIPT CONFIG:
-        // config.runtime: world|ui|tools|hotreload|sandbox
-        // OR config.sandbox=true (alias for runtime=sandbox)
         final boolean sandboxReq = bool(config, "sandbox", false);
         final String rtReq = str(config, "runtime", null);
         final String requested = sandboxReq ? "sandbox" : ((rtReq == null || rtReq.isBlank()) ? "world" : rtReq.trim());
 
-        // Enforce CDPR contract
-        final WorldAppState.RuntimePolicy policy = ctx.runtimePolicy();
-        final String resolved = policy.resolveProfile(requested, WorldAppState.RequestOrigin.SCRIPT_CONFIG);
-
-        if (!resolved.equalsIgnoreCase(normalize(requested))) {
-            log.warn("[jsSystem] runtime request denied/rewritten: requested={} -> resolved={} (module={})",
-                    requested, resolved, module);
-        }
+        // policy optional
+        final SystemContext.RuntimePolicy pol = ctx.runtimePolicy();
+        final String resolved = (pol != null)
+                ? pol.resolveProfile(requested, SystemContext.RuntimePolicy.Origin.SCRIPT_CONFIG)
+                : normalize(requested);
 
         // Optional unwrap inner config
         Value inner = config;

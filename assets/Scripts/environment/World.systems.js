@@ -10,7 +10,7 @@ const worldSystems = [
         order: 18,
         stableId: "sys.sky",
         config: {
-            module: "@env/sky",
+            module: "Scripts/environment/sky/index.js",
             dayLengthSec: 10,
             skybox: "Textures/Sky/skyBox.dds",
             azimuthDeg: 35,
@@ -28,7 +28,7 @@ const worldSystems = [
         order: 20,
         stableId: "sys.scene",
         config: {
-            module: "@env/world"
+            module: "Scripts/environment/world/world.js"
         }
     },
     {
@@ -36,7 +36,7 @@ const worldSystems = [
         order: 50,
         stableId: "player",
         config: {
-            module: "Scripts/player"
+            module: "Scripts/player/index.js"
         }
     }
 ];

@@ -14,7 +14,7 @@ function _num(v, fb) {
  *    2) player.model
  *    3) player._model (legacy)
  * - Модель ДОЛЖНА иметь: model.setVisible(boolean)
- *   (если нет — мы НОРМАЛИЗУЕМ через engine.surface().setVisible(surfaceId,bool)
+ *   (если нет — мы НОРМАЛИЗУЕМ через engine.surface().setVisible(surfaceHandle,bool)
  *   и получаем объект с setVisible().
  */
 function _pickPlayerModel(cfg, player) {
@@ -34,8 +34,26 @@ function _idOf(h) {
     return 0;
 }
 
+// Resolve engine api in NO-MAGIC way: ctx-first, then cached, then legacy global.
+function resolveEngineFromPlayer(player) {
+    if (player) {
+        const ctx = player.ctx;
+        if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
+        if (ctx && typeof ctx.api === "function") return ctx.api();
+        if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
+
+        // if Player cached it (we did in Player.init())
+        if (player.engine) return player.engine;
+    }
+
+    // legacy global fallback
+    if (typeof engine !== "undefined") return engine;
+
+    return null;
+}
+
 // Make sure model ALWAYS satisfies: setVisible(boolean)
-function _ensureModelVisibleApi(handle, fallbackSurfaceId) {
+function _ensureModelVisibleApi(handle, fallbackSurfaceId, engineApi) {
     if (!handle) return null;
 
     // already satisfies contract
@@ -50,7 +68,10 @@ function _ensureModelVisibleApi(handle, fallbackSurfaceId) {
         throw new Error("[player] model has no surfaceId/id; cannot build setVisible API");
     }
 
-    const surfApi = engine.surface && engine.surface();
+    const E = engineApi || (typeof engine !== "undefined" ? engine : null);
+    if (!E) throw new Error("[player] cannot resolve engine api for model visibility");
+
+    const surfApi = E.surface && E.surface();
     if (!surfApi) {
         throw new Error("[player] engine.surface() missing (required for model visibility)");
     }
@@ -72,7 +93,6 @@ function _ensureModelVisibleApi(handle, fallbackSurfaceId) {
         surfaceId: sid
     };
 }
-
 
 class PlayerEntity {
     constructor() {
@@ -180,6 +200,10 @@ class PlayerEntityFactory {
         if (cfg == null && this.player) cfg = (this.player.cfg && this.player.cfg.spawn) || {};
         cfg = cfg || {};
 
+        // resolve engine api once (NO global requirement)
+        const engineApi = resolveEngineFromPlayer(this.player);
+        if (!engineApi) throw new Error("[player] cannot resolve engine api (ctx.engine.api())");
+
         const radius = _num(cfg.radius, 0.35);
         const height = _num(cfg.height, 1.80);
         const mass   = _num(cfg.mass, 80.0);
@@ -247,7 +271,7 @@ class PlayerEntityFactory {
         // - else the player's own surface
         // AND normalize to have setVisible(boolean) via SurfaceApi if needed.
         const chosenModel = pickedModel || h.surface;
-        e.setModel(_ensureModelVisibleApi(chosenModel, e.surfaceId));
+        e.setModel(_ensureModelVisibleApi(chosenModel, e.surfaceId, engineApi));
 
         // Ground snap after creation
         if (snapToGround && posMode === "feet" && e.bodyRef && typeof e.bodyRef.raycast === "function") {

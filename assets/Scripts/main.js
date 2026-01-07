@@ -1,64 +1,40 @@
 // FILE: Scripts/main.js
 // Author: KΛYLΛ
 //
-// Zero-magic entrypoint:
-// RuntimeAppState loads this module and asks it for an "app".
-// App decides what world to load and how.
+// Pure boot:
+// - create world descriptor
+// - ask engine to create+start world
+//
+// No routing. No conditions. No “maybe”.
 
 "use strict";
 
-// Data-first world descriptor (recommended)
-const MainWorldDesc = require("@env");
+const WorldDesc = require("@env"); // points to Scripts/world/main.world.js :contentReference[oaicite:1]{index=1}
 
 exports.meta = {
     id: "kalitech.app",
     version: "2.0.0",
     apiMin: "0.1.0",
-    name: "Kalitech App Entrypoint"
+    name: "Kalitech App Entrypoint (pure world boot)"
 };
 
-/**
- * Contract (new):
- *   const main = require('Scripts/main.js')
- *   const app  = main.create?.(opts) ?? main
- *   const worldDesc = app.getWorld?.(ctx) ?? app.world ?? legacy(main.world)
- *   build world from worldDesc
- *   app.start?.(ctx)
- */
-exports.create = function create(opts) {
-    opts = (opts && typeof opts === "object") ? opts : {};
+exports.start = function start(ctx) {
+    const engine = ctx.engine.api(); // SystemContext.EngineDomain
 
-    return {
-        meta: exports.meta,
+    // build descriptor (data-first)
+    const worldDesc = WorldDesc.create({mode: "game"});
 
-        /**
-         * Decide which world descriptor to load.
-         * You can route by mode: game/editor/menu/benchmark/etc.
-         */
-        getWorld(ctx) {
-            const mode =
-                (opts && opts.mode) ||
-                (ctx && ctx.opts && ctx.opts.mode) ||
-                "game";
+    // just run
+    engine.world().create({
+        name: worldDesc.name || "main",
+        start: true,
+        systems: worldDesc.systems || [],
+        entities: worldDesc.entities || []
+    });
 
-            // WorldDesc module already validates & freezes the descriptor
-            return MainWorldDesc.create({mode});
-        },
-
-        /** Optional lifecycle: called after world has been built and entities applied. */
-        start(ctx) {
-            // Put app-level init here (UI bootstrap, subscriptions, etc.)
-            // Keep world-specific logic inside systems.
-        },
-
-        /** Optional per-frame app update (only if Java calls it in future). */
-        update(ctx) {
-            // noop
-        },
-
-        /** Optional shutdown. */
-        stop(reason) {
-            // noop
-        }
-    };
+    // optional signal (nice for UI/tools, can remove if not needed)
+    try {
+        engine.bus().emit("world:started", {name: worldDesc.name, mode: worldDesc.mode});
+    } catch (_) {
+    }
 };

@@ -3,55 +3,83 @@ package org.foxesworld.kalitech.engine.world;
 
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
 import org.foxesworld.kalitech.engine.world.systems.ThreadMode;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
-/**
- * KWorld
- *
- * Holds a set of {@link KSystem} instances and drives them each frame.
- * MAIN systems execute immediately on the world thread.
- * WORKER systems are submitted to {@link org.foxesworld.kalitech.engine.world.systems.SystemScheduler}
- * which may throttle by tick rate and backpressure.
- */
 public final class KWorld {
 
     private final String name;
 
     private final List<Entry> systems = new ArrayList<>();
 
+    private KSystem[] mainSystems = new KSystem[0];
+    private KSystem[] workerSystems = new KSystem[0];
+
     private boolean started = false;
 
     public KWorld(String name) {
-        this.name = name;
+        this.name = (name == null || name.isBlank()) ? "world" : name;
     }
 
     public String getName() {
         return name;
     }
 
+    public boolean isStarted() {
+        return started;
+    }
+
     public void addSystem(KSystem system, int order) {
+        if (started) throw new IllegalStateException("Cannot add system after world started");
+        Objects.requireNonNull(system, "system");
         systems.add(new Entry(system, order));
-        if (started) {
-            throw new IllegalStateException("Cannot add system after world started");
-        }
     }
 
     public void start(SystemContext ctx) {
         if (started) return;
+        Objects.requireNonNull(ctx, "ctx");
+
         systems.sort(Comparator.comparingInt(e -> e.order));
 
+        final ArrayList<KSystem> mains = new ArrayList<>(systems.size());
+        final ArrayList<KSystem> workers = new ArrayList<>(systems.size());
+
         for (Entry e : systems) {
-            ThreadMode m = e.system.threadMode();
-            if (m == ThreadMode.WORKER_DEDICATED ||
-                    m == ThreadMode.WORKER_STRIPED) {
-                // Warm lane/runtime and run onStart on the owning worker thread.
-                ctx.scheduler().ensureStarted(e.system, ctx);
-            } else {
-                e.system.onStart(ctx);
+            KSystem sys = e.system;
+            ThreadMode m;
+            try {
+                m = sys.threadMode();
+            } catch (Throwable t) {
+                continue;
+            }
+
+            if (m == ThreadMode.WORKER_DEDICATED || m == ThreadMode.WORKER_STRIPED) workers.add(sys);
+            else mains.add(sys);
+        }
+
+        mainSystems = mains.toArray(new KSystem[0]);
+        workerSystems = workers.toArray(new KSystem[0]);
+
+        for (KSystem sys : mainSystems) {
+            try {
+                sys.onStart(ctx);
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] system onStart failed: {}", name, sys, t);
+            }
+        }
+
+        final SystemScheduler sch = ctx.scheduler();
+        for (KSystem sys : workerSystems) {
+            try {
+                if (sch != null) sch.ensureStarted(sys, ctx);
+                else sys.onStart(ctx); // fallback if scheduler absent
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] worker start failed: {}", name, sys, t);
             }
         }
 
@@ -60,34 +88,46 @@ public final class KWorld {
 
     public void update(SystemContext ctx, float tpf) {
         if (!started) return;
+        Objects.requireNonNull(ctx, "ctx");
 
-        // MAIN systems: execute now on world thread
-        for (Entry e : systems) {
-            if (e.system.threadMode() == ThreadMode.MAIN) {
-                e.system.onUpdate(ctx, tpf);
+        for (KSystem sys : mainSystems) {
+            try {
+                sys.onUpdate(ctx, tpf);
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] system onUpdate failed: {}", name, sys, t);
             }
         }
 
-        // WORKER systems: scheduler decides due/backpressure
-        for (Entry e : systems) {
-            ThreadMode m = e.system.threadMode();
-            if (m == ThreadMode.WORKER_DEDICATED ||
-                    m == ThreadMode.WORKER_STRIPED) {
-                ctx.scheduler().submitUpdate(e.system, ctx, tpf);
+        final SystemScheduler sch = ctx.scheduler();
+        for (KSystem sys : workerSystems) {
+            try {
+                if (sch != null) sch.submitUpdate(sys, ctx, tpf);
+                else sys.onUpdate(ctx, tpf);
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] worker update failed: {}", name, sys, t);
             }
         }
     }
 
     public void stop(SystemContext ctx) {
         if (!started) return;
+        Objects.requireNonNull(ctx, "ctx");
 
-        for (Entry e : systems) {
-            ThreadMode m = e.system.threadMode();
-            if (m == ThreadMode.WORKER_DEDICATED ||
-                    m == ThreadMode.WORKER_STRIPED) {
-                ctx.scheduler().stopSystem(e.system);
-            } else {
-                e.system.onStop(ctx);
+        final SystemScheduler sch = ctx.scheduler();
+        for (KSystem sys : workerSystems) {
+            try {
+                if (sch != null) sch.stopSystem(sys);
+                else sys.onStop(ctx);
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] worker stop failed: {}", name, sys, t);
+            }
+        }
+
+        for (KSystem sys : mainSystems) {
+            try {
+                sys.onStop(ctx);
+            } catch (Throwable t) {
+                ctx.log().error("[world:{}] system onStop failed: {}", name, sys, t);
             }
         }
 

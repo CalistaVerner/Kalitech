@@ -19,7 +19,6 @@ public final class JsWorldSystem implements KSystem {
     private final String runtimeProfile;
 
     private volatile Value exports;
-    private volatile boolean started = false;
 
     public JsWorldSystem(String module, Object cfg, Object sysDesc, String runtimeProfile) {
         this.module = Objects.requireNonNull(module, "module");
@@ -28,7 +27,6 @@ public final class JsWorldSystem implements KSystem {
         this.runtimeProfile = (runtimeProfile == null || runtimeProfile.isBlank()) ? "world" : runtimeProfile.trim();
     }
 
-    // back-compat
     public JsWorldSystem(String module, Object cfg, Object sysDesc) {
         this(module, cfg, sysDesc, "world");
     }
@@ -85,39 +83,14 @@ public final class JsWorldSystem implements KSystem {
         v = tryInvokeValue(c, rt, "evaluateModule", new Class<?>[]{String.class}, new Object[]{module});
         if (v != null) return v;
 
-        v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class, String.class}, new Object[]{module, null});
-        if (v != null) return v;
-
-        v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class, Object.class}, new Object[]{module, null});
-        if (v != null) return v;
-
-        StringBuilder sb = new StringBuilder();
-        for (Method m : c.getMethods()) {
-            String n = m.getName().toLowerCase();
-            if (n.contains("require") || n.contains("module") || n.contains("eval")) {
-                sb.append(m.getName()).append("(");
-                Class<?>[] pt = m.getParameterTypes();
-                for (int i = 0; i < pt.length; i++) {
-                    if (i > 0) sb.append(",");
-                    sb.append(pt[i].getSimpleName());
-                }
-                sb.append(") -> ").append(m.getReturnType().getSimpleName()).append("; ");
-            }
-        }
-
-        throw new IllegalStateException(
-                "Cannot load module via ScriptRuntime reflection. " +
-                        "Tried: require/requireModule/loadModule/evalModule/evaluateModule. " +
-                        "Candidates: " + sb
-        );
+        throw new IllegalStateException("Cannot load module via ScriptRuntime reflection: " + module);
     }
 
     private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
         try {
             Method m = c.getMethod(name, sig);
             Object r = m.invoke(target, args);
-            if (r instanceof Value vv) return vv;
-            return null;
+            return (r instanceof Value vv) ? vv : null;
         } catch (NoSuchMethodException ignored) {
             return null;
         } catch (Throwable t) {
@@ -130,7 +103,6 @@ public final class JsWorldSystem implements KSystem {
         withScopedConfig(ctx, () -> {
             ensureLoaded(ctx);
             invokeIfPresent("init", ctx);
-            started = true;
             return null;
         });
     }
@@ -151,7 +123,6 @@ public final class JsWorldSystem implements KSystem {
                 invokeIfPresent("destroy");
             } catch (Throwable ignored) {
             }
-            started = false;
             return null;
         });
     }
@@ -169,9 +140,7 @@ public final class JsWorldSystem implements KSystem {
             safePut(ctx, "config", cfg);
             safePut(ctx, "cfg", cfg);
         }
-        if (sysDesc != null) {
-            safePut(ctx, "system", sysDesc);
-        }
+        if (sysDesc != null) safePut(ctx, "system", sysDesc);
 
         try {
             return call.call();
@@ -192,21 +161,19 @@ public final class JsWorldSystem implements KSystem {
     private void ensureLoaded(SystemContext ctx) throws Exception {
         if (exports != null) return;
 
-        final ScriptRuntime rt = ctx.runtime(runtimeProfile);
+        ScriptRuntime rt = ctx.runtime(runtimeProfile);
+        if (rt == null) rt = ctx.runtime();
+        if (rt == null) throw new IllegalStateException("JsWorldSystem requires ScriptRuntime in SystemContext");
 
         exports = requireViaReflection(rt, module);
-        if (exports == null) {
+        if (exports == null)
             throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
-        }
     }
 
     private void invokeIfPresent(String fnName, Object... args) {
-        if (exports == null) return;
-        if (!exports.hasMember(fnName)) return;
-
+        if (exports == null || !exports.hasMember(fnName)) return;
         Value fn = exports.getMember(fnName);
         if (fn == null || !fn.canExecute()) return;
-
         fn.execute(args);
     }
 }

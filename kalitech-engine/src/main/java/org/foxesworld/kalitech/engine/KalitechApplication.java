@@ -4,8 +4,6 @@ import com.jme3.app.DebugKeysAppState;
 import com.jme3.app.FlyCamAppState;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.StatsAppState;
-import com.jme3.material.plugins.J3MLoader;
-import com.jme3.shader.plugins.GLSLLoader;
 import com.simsilica.lemur.Container;
 import com.simsilica.lemur.GuiGlobals;
 import com.simsilica.lemur.Label;
@@ -55,7 +53,6 @@ public class KalitechApplication extends SimpleApplication {
         stateManager.attach(new org.foxesworld.kalitech.engine.app.RuntimeAppState(
                 "Scripts/main.js",
                 Path.of(assetsDir),
-                0.25f,
                 ecs,
                 bus
         ));

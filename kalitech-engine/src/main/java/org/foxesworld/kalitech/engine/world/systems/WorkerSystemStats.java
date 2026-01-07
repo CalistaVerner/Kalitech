@@ -7,7 +7,7 @@ import org.graalvm.polyglot.HostAccess;
  * WorkerSystemStats
  *
  * Immutable snapshot of a worker system slot (thread/lane, runtime profile and timing statistics).
- * Designed for diagnostics and adaptive scheduling (tick-rate scaling, backpressure and budget enforcement).
+ * Designed for diagnostics and adaptive scheduling.
  */
 public final class WorkerSystemStats {
 
@@ -23,6 +23,12 @@ public final class WorkerSystemStats {
 
     /** Scheduling priority 0..100. */
     @HostAccess.Export public final int priority;
+
+    /**
+     * System desired tick rate (Hz).
+     */
+    @HostAccess.Export
+    public final double desiredHz;
 
     /** Current adaptive tick rate (Hz) used by the scheduler. */
     @HostAccess.Export public final double currentHz;
@@ -65,6 +71,7 @@ public final class WorkerSystemStats {
             boolean running,
             int laneIndex,
             int priority,
+            double desiredHz,
             double currentHz,
             long lastSubmitNanos,
             long lastStartNanos,
@@ -86,6 +93,7 @@ public final class WorkerSystemStats {
         this.running = running;
         this.laneIndex = laneIndex;
         this.priority = priority;
+        this.desiredHz = desiredHz;
         this.currentHz = currentHz;
         this.lastSubmitNanos = lastSubmitNanos;
         this.lastStartNanos = lastStartNanos;

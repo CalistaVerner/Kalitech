@@ -13,18 +13,47 @@ function arrHas(arr, code) {
     return false;
 }
 
+function resolveEngineFromPlayer(player) {
+    if (player) {
+        const ctx = player.ctx;
+        if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
+        if (ctx && typeof ctx.api === "function") return ctx.api();
+        if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
+        if (player.engine) return player.engine; // optional cached
+    }
+    // legacy global fallback
+    if (typeof engine !== "undefined") return engine;
+    return null;
+}
+
+function resolveInputApi(engineApi) {
+    // preferred: engine.input()
+    if (engineApi && typeof engineApi.input === "function") return engineApi.input();
+    // legacy global fallback
+    if (typeof INP !== "undefined") return INP;
+    return null;
+}
+
 class CameraOrchestrator {
     constructor(player) {
         validatePlayer(player);
-        validateEngine(engine);
+
+        const eng = resolveEngineFromPlayer(player);
+        validateEngine(eng);
 
         this.player = player;
+        this.engine = eng;           // ✅ no global engine required
+        this.inp = resolveInputApi(eng);
+
+        if (!this.inp || typeof this.inp.keyCode !== "function") {
+            throw new Error("[camera] cannot resolve input api: engine.input().keyCode required (or legacy INP)");
+        }
 
         this._modes = [];
         this._byId = Object.create(null);
         this._active = null;
 
-        this._keyV = INP.keyCode("V") | 0;
+        this._keyV = this.inp.keyCode("V") | 0;
         this._vDownPrev = false;
         this._switchCd = 0;
         this._switchCdTime = 0.18;
@@ -93,7 +122,7 @@ class CameraOrchestrator {
     }
 
     destroy() {
-        // INP.grabMouse(false);
+        // this.inp.grabMouse(false); // if you ever expose it
     }
 
     register(modeOrCtor) {
@@ -213,8 +242,9 @@ class CameraOrchestrator {
     update(dt, snap) {
         if (!snap) return;
 
-        const cam = engine.camera();
-        const ph = engine.physics();
+        const engineApi = this.engine;
+        const cam = engineApi.camera();
+        const ph = engineApi.physics();
 
         dt = U.clamp(U.num(dt, 1 / 60), 0, 0.05);
 
@@ -297,13 +327,20 @@ class CameraOrchestrator {
         mode.update(ctx);
 
         cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
-
-        // ✅ collision cooldown ticking
+        /*
         this._collisionCd = Math.max(0, this._collisionCd - dt);
-
+        let engine = this.engine;
         if (this.collision.enabled && this._collisionCd <= 0) {
-            this.collision.solve({ cam, dt, target: ctx.target, bodyId });
-        }
+            // ✅ передаём physics/engine внутрь solver, без глобалов
+            this.collision.solve({
+                cam,
+                dt,
+                target: ctx.target,
+                bodyId,
+                physics: ph,   // <-- ВОТ ЭТО ГЛАВНОЕ
+                engine         // <-- и engine тоже, если solver где-то захочет engine.physics()
+            });
+        } */
     }
 }
 

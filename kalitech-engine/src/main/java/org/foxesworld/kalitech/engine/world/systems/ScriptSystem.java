@@ -16,20 +16,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * ScriptSystem (entities scripts)
- * <p>
- * Contract (required by your provider):
- * new ScriptSystem(ctx.ecs(), hotReload, cooldownSec, watchRoot)
- * <p>
- * Features:
- * - Per-entity lifecycle: init/update/destroy on ScriptComponent.instance
- * - HotReloadWatcher (optional):
- * pollChanged() -> runtime.invalidateMany(changed)
- * entity instances restart automatically via moduleVersion() change
- * <p>
- * Author: KΛYLΛ
- */
 public final class ScriptSystem implements KSystem {
 
     private static final Logger log = LogManager.getLogger(ScriptSystem.class);
@@ -40,7 +26,7 @@ public final class ScriptSystem implements KSystem {
     private final Path watchRoot;
 
     private SimpleApplication app;
-    private ScriptEventBus bus;
+    private ScriptEventBus bus;   // optional
     private ScriptRuntime runtime;
 
     private HotReloadWatcher watcher;
@@ -53,20 +39,10 @@ public final class ScriptSystem implements KSystem {
         this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
     }
 
-    /**
-     * Supported module shapes:
-     * 1) module.exports = { init, update, destroy }
-     * 2) module.exports = function() { return { init, update, destroy } }
-     * 3) module.exports = { create: () => ({...}) }
-     */
     private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) {
-            throw new IllegalStateException("Script module exports is null");
-        }
+        if (exports == null || exports.isNull()) throw new IllegalStateException("Script module exports is null");
 
-        if (exports.canExecute()) {
-            return exports.execute();
-        }
+        if (exports.canExecute()) return exports.execute();
 
         if (exports.hasMember("create")) {
             Value c = exports.getMember("create");
@@ -76,15 +52,6 @@ public final class ScriptSystem implements KSystem {
         return exports;
     }
 
-    private static void destroyInstance(int entityId, ScriptComponent sc) {
-        if (sc == null || sc.instance == null) return;
-        try {
-            callIfExists(sc.instance, "destroy");
-        } catch (Throwable ex) {
-            log.warn("Script destroy failed for entity {}", entityId, ex);
-        }
-    }
-
     private static void callIfExists(Value obj, String member, Object... args) {
         if (obj == null || obj.isNull()) return;
         if (!obj.hasMember(member)) return;
@@ -92,8 +59,6 @@ public final class ScriptSystem implements KSystem {
         if (fn == null || fn.isNull() || !fn.canExecute()) return;
         fn.execute(args);
     }
-
-    // -------------------- lifecycle internals --------------------
 
     private static String normalize(String id) {
         if (id == null) return "";
@@ -106,21 +71,19 @@ public final class ScriptSystem implements KSystem {
     @Override
     public void onStart(SystemContext ctx) {
         this.app = Objects.requireNonNull(ctx.app(), "ctx.app");
-        this.bus = Objects.requireNonNull(ctx.events(), "ctx.events");
+        this.bus = ctx.events(); // optional
+        this.runtime = ctx.runtime();
 
-        // Isolation-on-demand:
-        // - normal entity scripts => world runtime
-        // - hotReload entity scripts => hotreload runtime (separate cache/sandbox)
-        this.runtime = Objects.requireNonNull(ctx.runtime(hotReload ? "hotreload" : "world"), "ctx.runtime(profile)");
+        if (this.runtime == null) {
+            throw new IllegalStateException("ScriptSystem requires ScriptRuntime in SystemContext (ctx.runtime() is null)");
+        }
 
         if (hotReload) {
             try {
                 this.watcher = new HotReloadWatcher(watchRoot);
-                log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)",
-                        watchRoot.toAbsolutePath(), cooldownSec);
+                log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)", watchRoot.toAbsolutePath(), cooldownSec);
             } catch (Throwable t) {
-                log.warn("ScriptSystem hotReload failed to start watcher at {}",
-                        watchRoot.toAbsolutePath(), t);
+                log.warn("ScriptSystem hotReload failed to start watcher at {}", watchRoot.toAbsolutePath(), t);
                 this.watcher = null;
             }
         } else {
@@ -135,7 +98,6 @@ public final class ScriptSystem implements KSystem {
     public void onUpdate(SystemContext context, float tpf) {
         if (runtime == null) return;
 
-        // 1) Hot reload -> invalidate changed modules in runtime cache
         if (hotReload && watcher != null) {
             cooldown -= tpf;
             if (cooldown <= 0f) {
@@ -147,16 +109,16 @@ public final class ScriptSystem implements KSystem {
                     try {
                         removed = runtime.invalidateManyWithReason(changed, "hotReload");
                     } catch (NoSuchMethodError e) {
-                        // backward-compat if runtime not yet updated
                         removed = runtime.invalidateMany(changed);
                     }
 
                     log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
 
-                    // Optional: allow JS to react (safe/no hard dependency)
-                    try {
-                        bus.emit("hotreload:changed", changed);
-                    } catch (Throwable ignored) {
+                    if (bus != null) {
+                        try {
+                            bus.emit("hotreload:changed", changed);
+                        } catch (Throwable ignored) {
+                        }
                     }
                 } else {
                     cooldown = 0f;
@@ -164,7 +126,6 @@ public final class ScriptSystem implements KSystem {
             }
         }
 
-        // 2) lifecycle for ScriptComponent
         Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
         if (scripts.isEmpty()) return;
 
@@ -226,7 +187,10 @@ public final class ScriptSystem implements KSystem {
         if (!needsStart) return;
 
         if (sc.instance != null) {
-            destroyInstance(entityId, sc);
+            try {
+                callIfExists(sc.instance, "destroy");
+            } catch (Throwable ignored) {
+            }
             sc.instance = null;
         }
 

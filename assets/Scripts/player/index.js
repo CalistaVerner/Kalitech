@@ -11,6 +11,37 @@ const PlayerUI = require("./PlayerUI.js");
 const PlayerEvents = require("./PlayerEvents.js");
 const { PlayerEntityFactory } = require("./PlayerEntityFactory.js");
 
+// ------------------------------------------------------------
+// Engine resolution (NO global magic; ctx-first, legacy fallback)
+// ------------------------------------------------------------
+
+function resolveEngine(ctx) {
+    // New-style: SystemContext domains
+    if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
+
+    // Compatibility (if you exported these on SystemContext)
+    if (ctx && typeof ctx.api === "function") return ctx.api();
+    if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
+
+    // Legacy global
+    if (typeof engine !== "undefined") return engine;
+
+    return null;
+}
+
+function resolveSubsystems(ctx, E) {
+    const eng = E || resolveEngine(ctx);
+
+    // Prefer legacy globals if they exist, otherwise take from engine api
+    const PH = (typeof PHYS !== "undefined" && PHYS) ? PHYS : (eng && typeof eng.physics === "function" ? eng.physics() : null);
+    const IN = (typeof INP !== "undefined" && INP) ? INP : (eng && typeof eng.input === "function" ? eng.input() : null);
+    const HUD = eng && typeof eng.hud === "function" ? eng.hud() : null;
+
+    return {eng, PH, IN, HUD};
+}
+
+// ------------------------------------------------------------
+
 class PlayerDomain {
     constructor(player) {
         this.player = player;
@@ -41,6 +72,12 @@ class Player {
 
         this.body = null;
 
+        // engine/subsystems (resolved from ctx)
+        this.engine = null;
+        this.PHYS = null;
+        this.INP = null;
+        this.HUD = null;
+
         // IMPORTANT: single source for "model handle" provided by scene/builder
         // PlayerEntityFactory will pick this.model (or cfg.model) and store into entity.model.
         this.model = null;
@@ -51,12 +88,14 @@ class Player {
         this.characterCfg = new CharacterConfig();
 
         this.factory = new PlayerEntityFactory(this);
-        this.controller = new PlayerController(this);
+
+        // ✅ controller must be stored (was a bug: const ctrl = ...)
+        this.controller = new PlayerController(this, ctx);
+
         this.camera = new PlayerCamera(this);
         this.ui = new PlayerUI(this);
         this.events = new PlayerEvents(this);
     }
-
 
     getBodyId() { return this.bodyId | 0; }
 
@@ -83,10 +122,29 @@ class Player {
 
     init() {
         if (this.alive) return;
-        if (!PHYS || typeof PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
-        if (!INP || typeof INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
 
-        engine.hud().setCursorEnabled(false, true);
+        // Resolve engine + subsystems from ctx (no global engine required)
+        const {eng: E, PH, IN, HUD} = resolveSubsystems(this.ctx, null);
+        if (!E) throw new Error("[player] cannot resolve engine from ctx");
+        this.engine = E;
+        this.PHYS = PH;
+        this.INP = IN;
+        this.HUD = HUD;
+
+        if (!this.PHYS || typeof this.PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
+        if (!this.INP || typeof this.INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
+
+        // Cursor (optional)
+        try {
+            if (this.HUD && typeof this.HUD.setCursorEnabled === "function") {
+                this.HUD.setCursorEnabled(false, true);
+            } else if (this.engine && typeof this.engine.hud === "function") {
+                const hud2 = this.engine.hud();
+                if (hud2 && typeof hud2.setCursorEnabled === "function") hud2.setCursorEnabled(false, true);
+            }
+        } catch (_) {
+        }
+
         this.cfg = U.deepMerge({
             character: { radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65 },
             spawn: { pos: { x: 129, y: 3, z: -300 }, radius: 0.35, height: 1.80, mass: 80.0 },
@@ -106,7 +164,7 @@ class Player {
 
         if (this.bodyId <= 0) throw new Error("[player] invalid bodyId=" + this.bodyId);
 
-        this.body = PHYS.ref(this.bodyId);
+        this.body = this.PHYS.ref(this.bodyId);
         if (!this.body) throw new Error("[player] PHYS.ref(bodyId) returned null bodyId=" + this.bodyId);
 
         this.dom.syncIds(this);
@@ -198,7 +256,16 @@ class Player {
     update(tpf) {
         if (!this.alive) return;
 
-        const snap = INP.consumeSnapshot();
+        // If something rebuilt ctx/engine, re-resolve safely (cheap)
+        if (!this.INP || typeof this.INP.consumeSnapshot !== "function") {
+            const r = resolveSubsystems(this.ctx, this.engine);
+            this.engine = r.eng || this.engine;
+            this.PHYS = r.PH || this.PHYS;
+            this.INP = r.IN || this.INP;
+            this.HUD = r.HUD || this.HUD;
+        }
+
+        const snap = this.INP.consumeSnapshot();
 
         this.frame.begin(this, tpf, snap);
         this.dom.syncIds(this);
@@ -216,10 +283,12 @@ class Player {
             jump: this.dom.input.jump,
             fallSpeed: this.frame.pose.fallSpeed
         });
+
         this.ui.refresh(true);
+
         this.frame.pose.grounded = this.frame.probeGroundCapsule(this.body, this.characterCfg);
 
-        if (typeof INP.endFrame === "function") INP.endFrame();
+        if (this.INP && typeof this.INP.endFrame === "function") this.INP.endFrame();
     }
 
     destroy() {
@@ -237,6 +306,11 @@ class Player {
         this.bodyId = 0;
 
         if (this.ctx && typeof this.ctx.state === "function") this.ctx.state().remove("player");
+
+        this.engine = null;
+        this.PHYS = null;
+        this.INP = null;
+        this.HUD = null;
 
         this.alive = false;
         if (LOG && LOG.info) LOG.info("[player] destroy");
