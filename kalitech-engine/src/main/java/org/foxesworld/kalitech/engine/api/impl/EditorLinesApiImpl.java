@@ -8,13 +8,18 @@ import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.*;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
+import com.jme3.scene.Node;
+import com.jme3.scene.VertexBuffer;
 import com.jme3.scene.control.AbstractControl;
 import com.jme3.util.BufferUtils;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EditorLinesApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -22,47 +27,37 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.Future;
 
-/**
- * Editor lines / grids.
- *
- * Goals:
- *  - thick lines as quad strips (stable across drivers)
- *  - NOT visible through objects (depth test + depth write ON, Opaque bucket)
- *  - "infinite" feel: grid patch recenters in XZ rarely (snapped), Y always below camera by yOffset
- *  - no per-frame jitter: only recenter when far enough from current patch center
- */
-public final class EditorLinesApiImpl implements EditorLinesApi {
+public final class EditorLinesApiImpl extends AbstractApiModule implements EditorLinesApi {
 
-    private final EngineApiImpl engine;
-    private final Logger log;
-    private final SurfaceRegistry surfaces;
+    private EngineApiImpl engine;
+    private Logger log;
+    private SurfaceRegistry surfaces;
 
-    public EditorLinesApiImpl(EngineApiImpl engine, SurfaceRegistry surfaces) {
-        this.engine = engine;
+    public EditorLinesApiImpl() {
+        super("editorLines", "EditorLines", "1.0.0");
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        this.engine = ctx.engine;
         this.log = engine.getLog();
-        this.surfaces = surfaces;
+        this.surfaces = engine.getSurfaceRegistry();
     }
 
     @HostAccess.Export
     @Override
     public SurfaceApi.SurfaceHandle createGridPlane(Value cfg) {
-        // ----- cfg -----
-        // patch size: halfExtent in world units (NOT "world size"). This is the size of the repeating patch.
         final double halfExtentD = num(cfg, "halfExtent", num(cfg, "size", 600.0));
         final double stepD = num(cfg, "step", 1.0);
 
-        // Instead of fixed world y: keep grid always below camera by yOffset.
-        // If user still provides "y" explicitly, treat it as additional offset (fine-tune).
         final double yOffsetD = num(cfg, "yOffset", 60.0);
         final double yAddD = num(cfg, "y", 0.0);
 
-        // Opacity with depth-write tends to look wrong; keep alpha at 1 and let user darken colors.
-        // We'll still accept opacity but clamp it and apply to alpha (can be useful if you want subtle grid).
         final double opacityD = num(cfg, "opacity", 1.0);
 
         final int majorStep = clamp((int) Math.round(num(cfg, "majorStep", 10.0)), 1, 1_000_000);
 
-        // Colors (dark by default)
         final float minorR = (float) clamp(numPath(cfg, "minorColor", "r", 0.03), 0.0, 1.0);
         final float minorG = (float) clamp(numPath(cfg, "minorColor", "g", 0.035), 0.0, 1.0);
         final float minorB = (float) clamp(numPath(cfg, "minorColor", "b", 0.045), 0.0, 1.0);
@@ -71,29 +66,24 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         final float majorG = (float) clamp(numPath(cfg, "majorColor", "g", 0.085), 0.0, 1.0);
         final float majorB = (float) clamp(numPath(cfg, "majorColor", "b", 0.12), 0.0, 1.0);
 
-        // Thickness in WORLD units
         final float minorTh = (float) clamp(num(cfg, "minorThickness", 0.035), 0.0005, 10.0);
         final float majorTh = (float) clamp(num(cfg, "majorThickness", 0.09), 0.0005, 10.0);
 
-        // Infinite behavior
-        final boolean followCamera = bool(cfg, "followCamera", true);   // re-center patch in XZ when far
-        final boolean snapToStep = bool(cfg, "snapToStep", true);       // snap XZ recenter to step
-        final boolean snapY = bool(cfg, "snapY", false);                // usually false (avoid "breathing")
-        final double recenterFracD = num(cfg, "recenterFrac", 0.40);    // 0.2..0.9
+        final boolean followCamera = bool(cfg, "followCamera", true);
+        final boolean snapToStep = bool(cfg, "snapToStep", true);
+        final boolean snapY = bool(cfg, "snapY", false);
+        final double recenterFracD = num(cfg, "recenterFrac", 0.40);
 
         final float halfExtent = (float) clamp(halfExtentD, 1.0, 500_000.0);
         final float step = (float) clamp(stepD, 0.01, 100_000.0);
 
-        // yOffset: always below camera by this amount
         final float yOffset = (float) clamp(yOffsetD, 0.1, 500_000.0);
         final float yAdd = (float) clamp(yAddD, -500_000.0, 500_000.0);
 
         final float opacity = (float) clamp(opacityD, 0.0, 1.0);
         final float recenterFrac = (float) clamp(recenterFracD, 0.20, 0.90);
 
-        // Convert halfExtent to line count
         int halfLines = Math.max(1, Math.round(halfExtent / step));
-        // Keep sane; triangles scale fast. You can raise if you need.
         halfLines = clamp(halfLines, 1, 50_000);
 
         final int HL = halfLines;
@@ -143,12 +133,9 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
     ) {
         Node root = new Node("editor.grid.node");
 
-        // Build meshes around local origin; control will reposition node.
         Mesh minor = buildGridQuadsMesh(halfLines, worldHalf, step, 0f, minorTh, majorStep, false);
         Mesh major = buildGridQuadsMesh(halfLines, worldHalf, step, 0f, majorTh, majorStep, true);
 
-        // OPAQUE + depth write ON => grid does NOT show through objects.
-        // If you need transparency, keep alpha but then sorting may appear; recommended: dark colors.
         Material mMinor = new Material(engine.getAssets(), "Common/MatDefs/Misc/Unshaded.j3md");
         mMinor.setColor("Color", new ColorRGBA(minorR, minorG, minorB, opacity));
         RenderState rs0 = mMinor.getAdditionalRenderState();
@@ -176,16 +163,13 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         root.attachChild(gMinor);
         root.attachChild(gMajor);
 
-        // Behavior: keep under camera, and optionally "infinite" by recentering patch in XZ rarely
         if (followCamera) {
             root.addControl(new UnderCameraGridControl(engine, step, snapToStep, snapY, worldHalf, yOffset, yAdd, recenterFrac));
         } else {
-            // static: just put it at some default "below camera" at creation time
             Vector3f cam = engine.getApp().getCamera().getLocation();
             root.setLocalTranslation(cam.x, cam.y - yOffset + yAdd, cam.z);
         }
 
-        // Register in SurfaceRegistry (NEW signature: pass api explicitly, no legacy bind)
         SurfaceApi.SurfaceHandle h = surfaces.register(root, "editor.grid", engine.surface());
         surfaces.attachToRoot(h.id());
 
@@ -195,11 +179,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         return h;
     }
 
-    /**
-     * Keeps the grid always under camera:
-     *  - Y each update: camY - yOffset (+ yAdd)
-     *  - XZ: recenters only when camera drifts far from current patch center (reduces "following" feel)
-     */
     private static final class UnderCameraGridControl extends AbstractControl {
         private final EngineApiImpl engine;
         private final float step;
@@ -240,13 +219,11 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
 
             Vector3f cam = engine.getApp().getCamera().getLocation();
 
-            // --- Y always under camera ---
             float y = cam.y - yOffset + yAdd;
             if (snapY && step > 1e-6f) {
                 y = (float) (Math.round(y / step) * step);
             }
 
-            // init center at first tick
             if (Float.isNaN(cx) || Float.isNaN(cz)) {
                 cx = cam.x;
                 cz = cam.z;
@@ -258,7 +235,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
                 return;
             }
 
-            // --- XZ: recenter rarely to avoid "it follows me" feeling ---
             boolean need = (Math.abs(cam.x - cx) > recenterDist) || (Math.abs(cam.z - cz) > recenterDist);
             if (need) {
                 float nx = cam.x;
@@ -271,7 +247,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
                 cz = nz;
                 spatial.setLocalTranslation(cx, y, cz);
             } else {
-                // keep same XZ, only update Y
                 Vector3f p = spatial.getLocalTranslation();
                 if (p.y != y) spatial.setLocalTranslation(p.x, y, p.z);
             }
@@ -303,10 +278,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         throw new IllegalArgumentException("EditorLines.destroy: invalid handle type: " + handle.getClass().getName());
     }
 
-    /**
-     * Thick lines as quads (2 triangles).
-     * y parameter is local-space y; we keep it 0 and position by control to avoid float jitter in vertices.
-     */
     private static Mesh buildGridQuadsMesh(int halfLines, float worldHalf, float step, float y,
                                            float thickness, int majorStep, boolean majorOnly) {
 
@@ -326,7 +297,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         float halfT = thickness * 0.5f;
         int v = 0;
 
-        // Lines parallel to Z (vary X), thickness along X
         for (int i = -halfLines; i <= halfLines; i++) {
             boolean isMajor = (i % majorStep) == 0;
             if (majorOnly ? !isMajor : isMajor) continue;
@@ -347,7 +317,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
             idx.put(v0).put(v2).put(v3);
         }
 
-        // Lines parallel to X (vary Z), thickness along Z
         for (int i = -halfLines; i <= halfLines; i++) {
             boolean isMajor = (i % majorStep) == 0;
             if (majorOnly ? !isMajor : isMajor) continue;
@@ -375,8 +344,6 @@ public final class EditorLinesApiImpl implements EditorLinesApi {
         mesh.updateBound();
         return mesh;
     }
-
-    // ---- cfg helpers ----
 
     private static Value member(Value v, String k) { return (v != null && v.hasMember(k)) ? v.getMember(k) : null; }
 

@@ -14,6 +14,8 @@ import com.simsilica.lemur.component.QuadBackgroundComponent;
 import com.simsilica.lemur.style.BaseStyles;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.HudApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.modules.hud.HudCoords;
 import org.foxesworld.kalitech.engine.modules.hud.HudSizeCache;
 import org.foxesworld.kalitech.engine.modules.hud.HudSizing;
@@ -38,9 +40,10 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
  * Script coordinate contract:
  *  - TOP-LEFT origin, y grows DOWN
  */
-public final class HudApiImpl implements HudApi {
+public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
-    private final EngineApiImpl engine;
+    private EngineApiImpl engine;
+    private volatile boolean inited;
 
     private static final AtomicInteger IDS = new AtomicInteger(1000);
 
@@ -50,8 +53,32 @@ public final class HudApiImpl implements HudApi {
     // AAA: keep explicit sizes to stabilize math even on forked Lemur
     private final HudSizeCache sizeCache = new HudSizeCache();
 
+    // --- Module ctor (for ApiRegistry.register(new HudApiImpl())) ---
+    public HudApiImpl() {
+        super("hud", "Hud", "1.0.0");
+    }
+
+    // --- Legacy ctor (kept for compatibility; no logic changes) ---
     public HudApiImpl(EngineApiImpl engine) {
+        this();
+        bind(engine);
+    }
+
+    // --- Module lifecycle ---
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
+        initOnce();
+    }
+
+    private void initOnce() {
+        if (inited) return;
+        inited = true;
         ensureLemur();
     }
 

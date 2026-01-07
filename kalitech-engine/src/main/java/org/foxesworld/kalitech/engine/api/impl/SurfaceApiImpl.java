@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetManager;
@@ -23,6 +22,8 @@ import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
@@ -36,30 +37,58 @@ import java.util.concurrent.TimeUnit;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
 
-public final class SurfaceApiImpl implements SurfaceApi {
+public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceApi {
 
     private static final Logger log = LogManager.getLogger(SurfaceApiImpl.class);
 
     private static final long DEFAULT_TIMEOUT_MS = 2_000;
 
-    private final EngineApiImpl engine;
-    private final SurfaceRegistry registry;
+    private SurfaceRegistry registry;
     private static final String UD_UV_SCALE = "__kt_uvScale";
-    private final AssetManager assets;
+    private AssetManager assets;
     @SuppressWarnings("unused")
-    private final MeshApi meshApi;
+    private MeshApi meshApi;
     @SuppressWarnings("unused")
-    private final PhysicsApi physicsApi;
+    private PhysicsApi physicsApi;
     @SuppressWarnings("unused")
-    private final MaterialApi materialApi;
+    private MaterialApi materialApi;
+
+    public SurfaceApiImpl() {
+        super("surface", "Surface", "1.0.0");
+    }
+
+
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.registry = Objects.requireNonNull(registry, "registry");
+        this();
+        if (engine == null) throw new NullPointerException("engine");
+        if (registry == null) throw new NullPointerException("registry");
+        super.attach(new ApiContext(engine));
+        this.registry = registry;
         this.assets = engine.getAssets();
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
         this.materialApi = engine.material();
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        this.registry = ctx.engine.getSurfaceRegistry();
+        this.assets = ctx.assets;
+        this.physicsApi = ctx.engine.physics();
+        this.meshApi = ctx.engine.mesh();
+        this.materialApi = ctx.engine.material();
+    }
+
+    @Override
+    public void detach() {
+        this.registry = null;
+        this.assets = null;
+        this.meshApi = null;
+        this.physicsApi = null;
+        this.materialApi = null;
+        super.detach();
     }
 
     private ScriptEventBus bus() {

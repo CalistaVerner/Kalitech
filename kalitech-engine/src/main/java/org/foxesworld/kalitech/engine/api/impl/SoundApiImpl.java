@@ -1,22 +1,39 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+import com.jme3.asset.AssetManager;
 import com.jme3.audio.AudioData;
 import com.jme3.audio.AudioNode;
-import com.jme3.asset.AssetManager;
 import org.foxesworld.kalitech.audio.SpatialStereoAudioNode;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.SoundApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 
-public final class SoundApiImpl implements SoundApi {
+public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
-    private final EngineApiImpl engine;
-    private final AssetManager assetManager;
+    private EngineApiImpl engine;
+    private AssetManager assetManager;
+
+    public SoundApiImpl() {
+        super("sound", "Sound", "1.0.0");
+    }
 
     public SoundApiImpl(EngineApiImpl engineApi) {
+        this();
+        bind(engineApi);
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engine");
         this.assetManager = engineApi.getApp().getAssetManager();
     }

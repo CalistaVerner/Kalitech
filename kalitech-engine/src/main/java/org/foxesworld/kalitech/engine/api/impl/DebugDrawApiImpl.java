@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/DebugDrawApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -6,11 +7,15 @@ import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.*;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
+import com.jme3.scene.Node;
 import com.jme3.scene.VertexBuffer;
 import com.jme3.util.BufferUtils;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.DebugDrawApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -22,14 +27,15 @@ import java.util.Objects;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
-public final class DebugDrawApiImpl implements DebugDrawApi {
+public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi {
 
-    private final SimpleApplication app;
+    private SimpleApplication app;
+    private Material mat;
+    private volatile boolean inited;
 
     private final Node node = new Node("__kt_debugDraw");
     private final Geometry geom = new Geometry("__kt_debugLines");
     private final Mesh mesh = new Mesh();
-    private final Material mat;
 
     private final ArrayList<LineCmd> lines = new ArrayList<>(1024);
 
@@ -42,9 +48,34 @@ public final class DebugDrawApiImpl implements DebugDrawApi {
     private float timeSec = 0f;
     private int dirty = 1;
 
-    public DebugDrawApiImpl(EngineApiImpl engine) {
-        this.app = Objects.requireNonNull(engine, "engine").getApp();
+    // --- Module ctor (for ApiRegistry.register(new DebugDrawApiImpl())) ---
+    public DebugDrawApiImpl() {
+        super("debug", "DebugDraw", "1.0.0");
+    }
 
+    // --- Legacy ctor (kept for compatibility; no logic changes) ---
+    public DebugDrawApiImpl(EngineApiImpl engine) {
+        this();
+        bind(engine);
+    }
+
+    // --- Module lifecycle ---
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engine) {
+        this.app = Objects.requireNonNull(engine, "engine").getApp();
+        initOnce();
+    }
+
+    private void initOnce() {
+        if (inited) return;
+        inited = true;
+
+        // --- 1:1 from original ctor ---
         mesh.setMode(Mesh.Mode.Lines);
         mesh.setDynamic();
         geom.setMesh(mesh);

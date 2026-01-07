@@ -7,85 +7,88 @@ import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.foxesworld.kalitech.engine.modules.material.MaterialUtils.applyParamAsync;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
 
-public final class MaterialApiImpl implements MaterialApi {
+public final class MaterialApiImpl extends AbstractApiModule implements MaterialApi {
 
     private static final Logger log = LogManager.getLogger(MaterialApiImpl.class);
 
-    private final EngineApiImpl engine;
-    private final AssetManager assets;
+    private AssetManager assets;
     private final AtomicInteger ids = new AtomicInteger(1);
 
-    /**
-     * Template cache: def+alias+paramsHash -> template Material (no heavy IO in template build).
-     * Each create() returns clone() of template.
-     */
     private final Cache<MaterialKey, Material> templateCache = Caffeine.newBuilder()
             .maximumSize(4096)
             .softValues()
             .recordStats()
             .build();
 
-    public MaterialApiImpl(EngineApiImpl engine) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.assets = engine.getAssets();
+    public MaterialApiImpl() {
+        super("material", "Material", "1.0.0");
+    }
+
+    @Override
+    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+        super.attach(ctx);
+        this.assets = ctx.assets;
         // allow MaterialUtils to schedule render-thread updates
-        MaterialUtils.init(engine, assets);
+        MaterialUtils.init(ctx.engine, ctx.assets);
     }
 
     @HostAccess.Export
     @Override
     public MaterialHandle create(Value cfg) {
-        if (cfg == null || cfg.isNull()) {
-            throw new IllegalArgumentException("material.create(cfg): cfg is required");
-        }
-
-        String def = str(cfg, "def", null);
-        if (def == null || def.isBlank()) {
-            throw new IllegalArgumentException("material.create: cfg.def is required");
-        }
-        def = def.trim();
-
-        final Value params = member(cfg, "params");
-
-        String alias = null;
-        try {
-            alias = str(cfg, "id", null);
-            if (alias == null || alias.isBlank()) alias = str(cfg, "name", null);
-            if (alias != null) {
-                alias = alias.trim();
-                if (alias.isBlank()) alias = null;
+        return profiled(() -> {
+            if (cfg == null || cfg.isNull()) {
+                throw new IllegalArgumentException("material.create(cfg): cfg is required");
             }
-        } catch (Throwable ignored) {}
 
-        final MaterialKey key = MaterialKey.from(def, alias, params);
+            String def = str(cfg, "def", null);
+            if (def == null || def.isBlank()) {
+                throw new IllegalArgumentException("material.create: cfg.def is required");
+            }
+            def = def.trim();
 
-        String finalDef = def;
-        Material template = templateCache.get(key, k -> buildTemplate(finalDef, params));
+            final Value params = member(cfg, "params");
 
-        Material m;
-        try {
-            m = template.clone();
-        } catch (Throwable e) {
-            log.warn("material.create: template.clone() failed for def='{}' (fallback rebuild). {}", def, e.toString());
-            m = buildTemplate(def, params);
-        }
+            String alias = null;
+            try {
+                alias = str(cfg, "id", null);
+                if (alias == null || alias.isBlank()) alias = str(cfg, "name", null);
+                if (alias != null) {
+                    alias = alias.trim();
+                    if (alias.isBlank()) alias = null;
+                }
+            } catch (Throwable ignored) {
+            }
 
-        // Even if template is cached, some textures might still be pending.
-        // That's ok: MaterialUtils will swap placeholders -> real textures later.
-        return new MaterialHandle(ids.getAndIncrement(), m);
+            final MaterialKey key = MaterialKey.from(def, alias, params);
+
+            String finalDef = def;
+            Material template = templateCache.get(key, k -> buildTemplate(finalDef, params));
+
+            Material m;
+            try {
+                m = template.clone();
+            } catch (Throwable e) {
+                log.warn("material.create: template.clone() failed for def='{}' (fallback rebuild). {}", def, e.toString());
+                m = buildTemplate(def, params);
+            }
+
+            return new MaterialHandle(ids.getAndIncrement(), m);
+        });
     }
 
     private Material buildTemplate(String def, Value params) {
@@ -109,20 +112,22 @@ public final class MaterialApiImpl implements MaterialApi {
     @HostAccess.Export
     @Override
     public void set(MaterialHandle handle, Value params) {
-        if (handle == null || handle.__material() == null) {
-            throw new IllegalArgumentException("material.set: handle is required");
-        }
-        if (params == null || params.isNull() || !params.hasMembers()) return;
-
-        List<String> keys = new ArrayList<>(params.getMemberKeys());
-        keys.sort(String::compareTo);
-
-        for (String key : keys) {
-            boolean ok = applyParamAsync(handle.__material(), key, params.getMember(key));
-            if (!ok && MaterialUtils.isProbablyUnknownParam(handle.__material(), key)) {
-                log.warn("material.set: unknown param '{}' for materialId={}", key, handle.id);
+        profiledVoid(() -> {
+            if (handle == null || handle.__material() == null) {
+                throw new IllegalArgumentException("material.set: handle is required");
             }
-        }
+            if (params == null || params.isNull() || !params.hasMembers()) return;
+
+            List<String> keys = new ArrayList<>(params.getMemberKeys());
+            keys.sort(String::compareTo);
+
+            for (String key : keys) {
+                boolean ok = applyParamAsync(handle.__material(), key, params.getMember(key));
+                if (!ok && MaterialUtils.isProbablyUnknownParam(handle.__material(), key)) {
+                    log.warn("material.set: unknown param '{}' for materialId={}", key, handle.id);
+                }
+            }
+        });
     }
 
     @Override
@@ -144,10 +149,6 @@ public final class MaterialApiImpl implements MaterialApi {
 
         public Material __material() { return material; }
     }
-
-    // ------------------------------------------------------------
-    // Cache key
-    // ------------------------------------------------------------
 
     private record MaterialKey(String def, String alias, int paramsHash, int hash) {
         static MaterialKey from(String def, String alias, Value params) {

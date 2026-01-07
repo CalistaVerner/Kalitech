@@ -1,24 +1,23 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
-
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.TimeApi;
-import org.graalvm.polyglot.Engine;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 
-public final class TimeApiImpl implements TimeApi {
-
-    private final EngineApiImpl api;
-    public TimeApiImpl(EngineApiImpl engineApi) {
-        this.api = engineApi;
-    }
+public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
 
     private volatile double tpf;
     private final long startNs = System.nanoTime();
     private volatile long frame;
 
+    public TimeApiImpl() {
+        super("time", "Time", "1.0.0");
+    }
+
     /** Called from main update thread once per frame. */
     public void update(double tpfSeconds) {
-        this.tpf = Math.max(0.0, tpfSeconds);
+        // keep hot path minimal
+        if (!(tpfSeconds > 0.0) || !Double.isFinite(tpfSeconds)) tpfSeconds = 0.0;
+        this.tpf = tpfSeconds;
         this.frame++;
     }
 

@@ -6,30 +6,38 @@ import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.modules.terrain.*;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.Map;
-import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
-public final class TerrainApiImpl implements TerrainApi {
+public final class TerrainApiImpl extends AbstractApiModule implements TerrainApi {
 
-    private final EngineApiImpl engine;
-    private final SurfaceRegistry registry;
+    private EngineApiImpl engine;
+    private SurfaceRegistry registry;
 
-    private final TerrainEmitter emitter;
-    private final TerrainFactory factory;
-    private final TerrainUV uv;
-    private final TerrainOps ops;
-    private final TerrainEditOps editOps;
-    private final TerrainPhysics physics;
-    private final TerrainNoise noise;
+    private TerrainEmitter emitter;
+    private TerrainFactory factory;
+    private TerrainUV uv;
+    private TerrainOps ops;
+    private TerrainEditOps editOps;
+    private TerrainPhysics physics;
+    private TerrainNoise noise;
 
-    public TerrainApiImpl(EngineApiImpl engine) {
-        this.engine = Objects.requireNonNull(engine, "engine");
+    public TerrainApiImpl() {
+        super("terrain", "Terrain", "2.0.0");
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+
+        this.engine = ctx.engine;
         this.registry = engine.getSurfaceRegistry();
 
         this.emitter = new TerrainEmitter(engine.getBus());
@@ -55,18 +63,14 @@ public final class TerrainApiImpl implements TerrainApi {
 
         SurfaceApi.SurfaceHandle h = registry.register(tq, "terrain", engine.surface());
 
-        // material if provided
         Value mh = member(cfg, "material");
         if (mh != null && !mh.isNull()) engine.surface().setMaterial(h, mh);
 
-        // uv if provided
         Value u = member(cfg, "uv");
         if (u != null && !u.isNull()) uv(h, u);
 
-        // attach default true
         if (bool(cfg, "attach", TerrainDefaults.ATTACH_DEFAULT)) registry.attachToRoot(h.id());
 
-        // lod if provided
         Value lod = member(cfg, "lod");
         if (lod != null && !lod.isNull() && bool(lod, "enabled", true)) lod(h, lod);
 
@@ -143,7 +147,7 @@ public final class TerrainApiImpl implements TerrainApi {
     }
 
     // ---------------------------------------------------------------------
-    // OPS (universal where possible)
+    // OPS
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
@@ -175,13 +179,6 @@ public final class TerrainApiImpl implements TerrainApi {
     // TERRAINQUAD (editing/query)
     // ---------------------------------------------------------------------
 
-    /**
-     * Replace terrain heightmap at runtime.
-     * cfg:
-     *  - heights: ArrayLike<number> (Float32Array recommended)
-     *  - size?: int (optional validation)
-     *  - rebuild?: boolean (default true)
-     */
     @HostAccess.Export
     public void setHeightmap(SurfaceApi.SurfaceHandle handle, Value cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("terrain.setHeightmap(handle,cfg): cfg is null");
@@ -202,21 +199,18 @@ public final class TerrainApiImpl implements TerrainApi {
         editOps.setHeightmap(tq, heights, bool(cfg, "rebuild", true));
     }
 
-    /** Get a copy of the current heightmap (float[]). */
     @HostAccess.Export
     public float[] heightmap(SurfaceApi.SurfaceHandle handle) {
         TerrainQuad tq = requireTerrain(handle);
         return editOps.heightmapCopy(tq);
     }
 
-    /** Set height at (x,z). world=true uses world x/z, otherwise local. */
     @HostAccess.Export
     public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height, boolean world) {
         TerrainQuad tq = requireTerrain(handle);
         editOps.setHeight(tq, x, z, height, world);
     }
 
-    /** Add delta to height at (x,z). world=true uses world x/z, otherwise local. */
     @HostAccess.Export
     public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta, boolean world) {
         TerrainQuad tq = requireTerrain(handle);
@@ -228,35 +222,19 @@ public final class TerrainApiImpl implements TerrainApi {
         setHeight(handle, x, z, height, true);
     }
 
-
-
     @HostAccess.Export
     public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta) {
         adjustHeight(handle, x, z, delta, true);
     }
 
-    /** Force bounds/state refresh for tools after bulk edits. */
     @HostAccess.Export
     public void rebuild(SurfaceApi.SurfaceHandle handle) {
         TerrainQuad tq = requireTerrain(handle);
         editOps.rebuild(tq);
     }
 
-    /*
-    @HostAccess.Export
-    public int size(SurfaceApi.SurfaceHandle handle) {
-        TerrainQuad tq = requireTerrain(handle);
-        return ops.size(tq);
-    }
-
-    @HostAccess.Export
-    public int patchSize(SurfaceApi.SurfaceHandle handle) {
-        TerrainQuad tq = requireTerrain(handle);
-        return ops.patchSize(tq);
-    } */
-
     // ---------------------------------------------------------------------
-    // PROCEDURAL (noise generation for editor/runtime parity)
+    // PROCEDURAL
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
@@ -294,7 +272,7 @@ public final class TerrainApiImpl implements TerrainApi {
     }
 
     // ---------------------------------------------------------------------
-    // PHYSICS (UNIVERSAL)
+    // PHYSICS
     // ---------------------------------------------------------------------
 
     @HostAccess.Export

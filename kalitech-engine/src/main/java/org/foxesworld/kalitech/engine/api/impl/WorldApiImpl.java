@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/WorldApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.state.AppStateManager;
@@ -6,6 +5,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.WorldApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -20,14 +21,32 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class WorldApiImpl implements WorldApi {
+public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
     private static final Logger log = LogManager.getLogger(WorldApiImpl.class);
 
-    private final EngineApiImpl engine;
-    private final EcsWorld ecs;
+    private EngineApiImpl engine;
+    private EcsWorld ecs;
 
+    // --- Module ctor (for ApiRegistry.register(new WorldApiImpl())) ---
+    public WorldApiImpl() {
+        super("world", "World", "1.0.0");
+    }
+
+    // --- Legacy ctor (kept for compatibility; no logic changes) ---
     public WorldApiImpl(EngineApiImpl engineApi) {
+        this();
+        bind(engineApi);
+    }
+
+    // --- Module lifecycle ---
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = engineApi.getEcs();
     }

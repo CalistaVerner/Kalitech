@@ -6,6 +6,8 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.LightApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -20,16 +22,31 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
-public final class LightApiImpl implements LightApi {
+public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
-    private final EngineApiImpl engine;
-    private final SimpleApplication app;
+    private EngineApiImpl engine;
+    private SimpleApplication app;
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Light> lights = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, LightState> states = new ConcurrentHashMap<>();
 
+    public LightApiImpl() {
+        super("light", "Light", "1.0.0");
+    }
+
     public LightApiImpl(EngineApiImpl engine) {
+        this();
+        bind(engine);
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = engine.getApp();
     }
@@ -132,7 +149,6 @@ public final class LightApiImpl implements LightApi {
         Context ctx = engine.getRuntime().getCtx();
         if (ctx == null) return null;
 
-        // array of {id,type}
         var idsSorted = states.keySet().stream().sorted().toList();
         Object[] arr = new Object[idsSorted.size()];
 
@@ -172,8 +188,6 @@ public final class LightApiImpl implements LightApi {
         return ProxyObject.fromMap(o);
     }
 
-    // ---------------- handles ----------------
-
     public static final class LightHandle {
         private final int id;
         private final String type;
@@ -186,8 +200,6 @@ public final class LightApiImpl implements LightApi {
         @HostAccess.Export public int id() { return id; }
         @HostAccess.Export public String type() { return type; }
     }
-
-    // ---------------- internal ----------------
 
     private Light require(LightHandle h) {
         if (h == null) throw new IllegalArgumentException("light: handle is null");

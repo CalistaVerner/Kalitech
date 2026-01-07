@@ -6,7 +6,9 @@ import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.*;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Cylinder;
 import com.jme3.scene.shape.Sphere;
@@ -15,41 +17,47 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class MeshApiImpl implements MeshApi {
+public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     private static final Logger log = LogManager.getLogger(MeshApiImpl.class);
 
     private static final AtomicBoolean LOADERS_REGISTERED = new AtomicBoolean(false);
 
-    private final EngineApiImpl engine;
-    private final AssetManager assets;
-    private final SurfaceRegistry registry;
+    private EngineApiImpl engine;
+    private AssetManager assets;
+    private SurfaceRegistry registry;
 
     private volatile Material cachedDefaultMat;
 
-    public MeshApiImpl(EngineApiImpl engine, AssetManager assets, SurfaceRegistry registry) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.assets = Objects.requireNonNull(assets, "assets");
-        this.registry = Objects.requireNonNull(registry, "registry");
-        ensureModelLoadersRegistered();
+    public MeshApiImpl() {
+        super("mesh", "Mesh", "1.0.0");
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+
+        this.engine = ctx.engine;
+        this.assets = ctx.assets;
+        this.registry = engine.getSurfaceRegistry();
+
+        ensureModelLoadersRegistered(); // то же поведение, что было в конструкторе
     }
 
     private void ensureModelLoadersRegistered() {
         if (!LOADERS_REGISTERED.compareAndSet(false, true)) return;
 
-        // OBJ
         tryRegisterLoader("com.jme3.scene.plugins.OBJLoader", "obj", "mtl");
-
-        // FBX (jme3-plugins)
         tryRegisterLoader("com.jme3.scene.plugins.fbx.FbxLoader", "fbx");
     }
 
@@ -125,7 +133,6 @@ public final class MeshApiImpl implements MeshApi {
     private void applyTransform(Spatial s, Value cfg) {
         if (cfg == null || cfg.isNull()) return;
 
-        // pos: [x,y,z] or {x,y,z}
         Value pos = member(cfg, "pos");
         if (pos != null && !pos.isNull()) {
             float x = 0, y = 0, z = 0;
@@ -144,7 +151,6 @@ public final class MeshApiImpl implements MeshApi {
             s.setLocalTranslation(x, y, z);
         }
 
-        // rot: [x,y,z] in degrees (yaw/pitch/roll style is handled in your existing code logic)
         Value rot = member(cfg, "rot");
         if (rot != null && !rot.isNull()) {
             float rx = 0, ry = 0, rz = 0;
@@ -167,7 +173,6 @@ public final class MeshApiImpl implements MeshApi {
             ));
         }
 
-        // scale: number | [x,y,z] | {x,y,z}
         Value sc = member(cfg, "scale");
         if (sc != null && !sc.isNull()) {
             if (sc.isNumber()) {
@@ -261,8 +266,6 @@ public final class MeshApiImpl implements MeshApi {
         return root;
     }
 
-    // ---------- NEW: model builder ----------
-
     private Spatial buildModel(Value cfg, String name) {
         String path = str(cfg, "path", null);
         if (path == null || path.isBlank()) {
@@ -282,7 +285,6 @@ public final class MeshApiImpl implements MeshApi {
             throw new IllegalStateException("mesh.create: model is null for path='" + path + "'");
         }
 
-        // Optional clone: protects against shared state when AssetManager caches.
         boolean clone = bool(cfg, "clone", true);
         Spatial model = clone ? loaded.clone(true) : loaded;
 
@@ -294,7 +296,7 @@ public final class MeshApiImpl implements MeshApi {
         String t = normType(type);
         String name = str(cfg, "name", t);
 
-        Spatial spatial = switch (t) {
+        return switch (t) {
             case "box" -> buildBox(cfg, name);
             case "sphere" -> buildSphere(cfg, name);
             case "cylinder" -> buildCylinder(cfg, name);
@@ -302,8 +304,6 @@ public final class MeshApiImpl implements MeshApi {
             case "model" -> buildModel(cfg, name);
             default -> throw new IllegalArgumentException("mesh.create: unknown type=" + type);
         };
-
-        return spatial;
     }
 
     private void applyMaterial(SurfaceApi.SurfaceHandle h, Spatial s, Value cfg) {
@@ -370,8 +370,6 @@ public final class MeshApiImpl implements MeshApi {
                 col.put("height", cylH);
             }
             case "model" -> {
-                // Default for models is decided in maybeCreatePhysics() by mass:
-                // mesh (static) / dynamicMesh (moving)
                 col.put("type", "mesh");
             }
             default -> { }
@@ -418,9 +416,6 @@ public final class MeshApiImpl implements MeshApi {
         if (collider != null && !collider.isNull()) {
             p.put("collider", collider);
         } else {
-            // Auto collider:
-            // - primitives -> by dimensions
-            // - models -> mesh for static (mass<=0), dynamicMesh for moving bodies
             String t = normType(meshType);
             if ("model".equals(t)) {
                 Map<String, Object> auto = new HashMap<>();
@@ -438,7 +433,6 @@ public final class MeshApiImpl implements MeshApi {
     private SurfaceApi.SurfaceHandle register(Spatial s, String kind, Value cfg) {
         s.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
 
-        // ✅ registry: provide api explicitly
         SurfaceApi.SurfaceHandle h = registry.register(s, kind, engine.surface());
 
         boolean attach = bool(cfg, "attach", true);

@@ -31,6 +31,8 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
 import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -46,14 +48,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public final class PhysicsApiImpl implements PhysicsApi {
+public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi {
 
     private static final Logger log = LogManager.getLogger(PhysicsApiImpl.class);
-
-    private final EngineApiImpl engine;
-    private final SimpleApplication app;
-    private final SurfaceRegistry surfaces;
-
+    private SimpleApplication app;
+    private SurfaceRegistry surfaces;
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> bodyIdBySurface = new ConcurrentHashMap<>();
@@ -524,10 +523,38 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
     private record ShapeKey(Mesh mesh, boolean dynamic) { }
 
+    public PhysicsApiImpl() {
+        super("physics", "Physics", "1.0.0");
+    }
+
+
+
     public PhysicsApiImpl(EngineApiImpl engine, SurfaceRegistry surfaces) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.app = Objects.requireNonNull(engine.getApp(), "app");
-        this.surfaces = Objects.requireNonNull(surfaces, "surfaces");
+        this();
+        if (engine == null) throw new NullPointerException("engine");
+        if (surfaces == null) throw new NullPointerException("surfaces");
+        super.attach(new ApiContext(engine));
+        this.app = engine.getApp();
+        this.surfaces = surfaces;
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        this.app = ctx.app;
+        this.surfaces = ctx.engine.getSurfaceRegistry();
+    }
+
+    @Override
+    public void detach() {
+        // best-effort cleanup; do not hard-fail on shutdown
+        try {
+            __clearAll();
+        } catch (Throwable ignored) {
+        }
+        this.app = null;
+        this.surfaces = null;
+        super.detach();
     }
 
     private void emit(String topic, java.util.Map<String, Object> payload) {

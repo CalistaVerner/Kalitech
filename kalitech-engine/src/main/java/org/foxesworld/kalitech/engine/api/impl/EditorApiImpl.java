@@ -2,22 +2,36 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
-import com.jme3.system.AppSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EditorApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 
-import java.util.Objects;
-
-public final class EditorApiImpl implements EditorApi {
+public final class EditorApiImpl extends AbstractApiModule implements EditorApi {
 
     private static final Logger log = LogManager.getLogger(EditorApiImpl.class);
 
-    private final SimpleApplication app;
+    private SimpleApplication app;
     private volatile boolean enabled;
 
+    public EditorApiImpl() {
+        super("editor", "Editor", "1.0.0");
+    }
+
     public EditorApiImpl(EngineApiImpl engineApi) {
+        this();
+        bind(engineApi);
+    }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engineApi) {
         this.app = engineApi.getApp();
     }
 
@@ -31,7 +45,6 @@ public final class EditorApiImpl implements EditorApi {
         if (this.enabled == enabled) return;
         this.enabled = enabled;
 
-        // Безопасно: все это вызывается в JME update-thread (через ваш runOnMainThread / или напрямую)
         setFlyCam(enabled);
         setStatsView(enabled);
 

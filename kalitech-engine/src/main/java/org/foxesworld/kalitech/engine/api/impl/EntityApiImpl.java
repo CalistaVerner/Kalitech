@@ -1,24 +1,27 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/EntityApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
+import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-public final class EntityApiImpl implements EntityApi {
+public final class EntityApiImpl extends AbstractApiModule implements EntityApi {
 
-    private final EngineApiImpl engine;
-    private final EcsWorld ecs;
+    private EcsWorld ecs;
 
-    public EntityApiImpl(EngineApiImpl engineApi) {
-        this.engine = Objects.requireNonNull(engineApi, "engineApi");
-        this.ecs = Objects.requireNonNull(engineApi.getEcs(), "engineApi.getEcs()");
+    public EntityApiImpl() {
+        super("entity", "Entity", "1.0.0");
+    }
+
+    private static Map<String, Object> m(Object... kv) {
+        Map<String, Object> out = new HashMap<>();
+        if (kv == null) return out;
+        for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
+        return out;
     }
 
     private ScriptEventBus bus() {
@@ -34,82 +37,90 @@ public final class EntityApiImpl implements EntityApi {
         }
     }
 
-    private static Map<String, Object> m(Object... kv) {
-        Map<String, Object> out = new HashMap<>();
-        if (kv == null) return out;
-        for (int i = 0; i + 1 < kv.length; i += 2) {
-            out.put(String.valueOf(kv[i]), kv[i + 1]);
-        }
-        return out;
+    @Override
+    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+        super.attach(ctx);
+        this.ecs = ctx.ecs;
     }
 
     @HostAccess.Export
     @Override
     public int create(String name) {
-        int id = ecs.createEntity();
+        return profiled(() -> {
+            int id = ecs.createEntity();
 
-        String safeName = (name == null) ? "" : name.trim();
-        if (!safeName.isEmpty()) {
-            ecs.components().putByName(id, "Name", safeName);
-        }
+            String safeName = (name == null) ? "" : name.trim();
+            if (!safeName.isEmpty()) ecs.components().putByName(id, "Name", safeName);
 
-        emit("engine.entity.create", m("entityId", id, "name", safeName));
-        return id;
+            emit("engine.entity.create", m("entityId", id, "name", safeName));
+            return id;
+        });
     }
 
     @HostAccess.Export
     @Override
     public void destroy(int id) {
-        if (id <= 0) return;
+        profiledVoid(() -> {
+            if (id <= 0) return;
 
-        emit("engine.entity.destroy.before", m("entityId", id));
+            emit("engine.entity.destroy.before", m("entityId", id));
 
-        try {
-            engine.__surfaceCleanupOnEntityDestroy(id);
-        } catch (Throwable ignored) {
-        }
-        ecs.destroyEntity(id);
+            try {
+                engine.__surfaceCleanupOnEntityDestroy(id);
+            } catch (Throwable ignored) {
+            }
 
-        emit("engine.entity.destroy.after", m("entityId", id));
+            ecs.destroyEntity(id);
+
+            emit("engine.entity.destroy.after", m("entityId", id));
+        });
     }
 
     @HostAccess.Export
     @Override
     public void setComponent(int id, String type, Object data) {
-        if (id <= 0) return;
-        if (type == null || type.isBlank()) return;
+        profiledVoid(() -> {
+            if (id <= 0) return;
+            if (type == null || type.isBlank()) return;
 
-        String t = type.trim();
-        ecs.components().putByName(id, t, data);
+            String t = type.trim();
+            ecs.components().putByName(id, t, data);
 
-        emit("engine.entity.component.set", m("entityId", id, "type", t, "data", data));
+            emit("engine.entity.component.set", m("entityId", id, "type", t, "data", data));
+        });
     }
 
     @HostAccess.Export
     @Override
     public Object getComponent(int id, String type) {
-        if (id <= 0) return null;
-        if (type == null || type.isBlank()) return null;
-        return ecs.components().getByName(id, type.trim());
+        return profiled(() -> {
+            if (id <= 0) return null;
+            if (type == null || type.isBlank()) return null;
+            return ecs.components().getByName(id, type.trim());
+        });
     }
 
     @HostAccess.Export
     @Override
     public boolean hasComponent(int id, String type) {
-        if (id <= 0) return false;
-        if (type == null || type.isBlank()) return false;
-        return ecs.components().hasByName(id, type.trim());
+        return profiled(() -> {
+            if (id <= 0) return false;
+            if (type == null || type.isBlank()) return false;
+            return ecs.components().hasByName(id, type.trim());
+        });
     }
 
     @HostAccess.Export
     @Override
     public void removeComponent(int id, String type) {
-        if (id <= 0) return;
-        if (type == null || type.isBlank()) return;
+        profiledVoid(() -> {
+            if (id <= 0) return;
+            if (type == null || type.isBlank()) return;
 
-        String t = type.trim();
-        ecs.components().removeByName(id, t);
+            String t = type.trim();
+            ecs.components().removeByName(id, t);
 
-        emit("engine.entity.component.remove", m("entityId", id, "type", t));
+            emit("engine.entity.component.remove", m("entityId", id, "type", t));
+        });
     }
 }
