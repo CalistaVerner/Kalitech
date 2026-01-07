@@ -9,37 +9,37 @@ import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.PhysicsCollisionEvent;
 import com.jme3.bullet.collision.PhysicsCollisionListener;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
-import com.jme3.bullet.objects.PhysicsRigidBody;
+import com.jme3.bullet.collision.shapes.BoxCollisionShape;
+import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.collision.shapes.CylinderCollisionShape;
+import com.jme3.bullet.collision.shapes.SphereCollisionShape;
 import com.jme3.bullet.control.RigidBodyControl;
-import com.jme3.bullet.collision.shapes.*;
+import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
-import com.jme3.scene.*;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
+import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Cylinder;
 import com.jme3.scene.shape.Sphere;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
-import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
+import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
+import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.util.LongHashSet;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,7 +53,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
     private final EngineApiImpl engine;
     private final SimpleApplication app;
     private final SurfaceRegistry surfaces;
-    private final ScriptEventBus bus; // optional
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>();
@@ -364,7 +363,6 @@ public final class PhysicsApiImpl implements PhysicsApi {
     }
 
     private void emitCollision(String topic, long step, float dt, long k, ContactAgg agg) {
-        if (bus == null) return;
         int aId = keyA(k);
         int bId = keyB(k);
 
@@ -372,7 +370,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
         PhysicsBodyHandle b = byId.get(bId);
         if (a == null || b == null) return;
 
-        bus.emit(topic, evt(
+        bus().emit(topic, evt(
                 "step", step,
                 "dt", dt,
                 "a", evt("bodyId", a.id, "surfaceId", a.surfaceId),
@@ -481,7 +479,11 @@ public final class PhysicsApiImpl implements PhysicsApi {
         currPairs.clear();
         currContacts.clear();
 
-        if (bus != null) bus.emit("engine.physics.postStep", evt("step", step, "dt", timeStep));
+        bus().emit("engine.physics.postStep", evt("step", step, "dt", timeStep));
+    }
+
+    private ScriptEventBus bus() {
+        return engine.getBus();
     }
 
     private void ensureTickListenerBound(PhysicsSpace sp) {
@@ -526,12 +528,13 @@ public final class PhysicsApiImpl implements PhysicsApi {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = Objects.requireNonNull(engine.getApp(), "app");
         this.surfaces = Objects.requireNonNull(surfaces, "surfaces");
-        this.bus = engine.getBus();
     }
 
     private void emit(String topic, java.util.Map<String, Object> payload) {
-        if (bus == null) return;
-        try { bus.emit(topic, payload); } catch (Throwable ignored) {}
+        try {
+            bus().emit(topic, payload);
+        } catch (Throwable ignored) {
+        }
     }
 
     private PhysicsSpace space() {
@@ -593,7 +596,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
                 if (id != null) {
                     PhysicsBodyHandle h = byId.get(id);
                     if (h != null) {
-                        if (bus != null) bus.emit("engine.physics.body.added", evt(
+                        bus().emit("engine.physics.body.added", evt(
                                 "bodyId", h.id,
                                 "surfaceId", h.surfaceId
                         ));
@@ -858,7 +861,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
 
         indexCollisionObject(handle);
 
-        if (bus != null) bus.emit("engine.physics.body.create", evt(
+        bus().emit("engine.physics.body.create", evt(
                 "bodyId", id,
                 "surfaceId", surfaceId,
                 "mass", mass,
@@ -882,8 +885,7 @@ public final class PhysicsApiImpl implements PhysicsApi {
         if (h == null) return;
 
         unindexCollisionObject(h);
-
-        if (bus != null) bus.emit("engine.physics.body.remove", evt(
+        bus().emit("engine.physics.body.remove", evt(
                 "bodyId", id,
                 "surfaceId", h.surfaceId
         ));

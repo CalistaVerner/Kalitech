@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetManager;
@@ -23,6 +24,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
+import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -31,16 +33,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+
 
 public final class SurfaceApiImpl implements SurfaceApi {
 
     private static final Logger log = LogManager.getLogger(SurfaceApiImpl.class);
 
-    /**
-     * API contract: JS calls are synchronous.
-     * If the call happens from a worker, we must hop to the JME thread and wait.
-     */
     private static final long DEFAULT_TIMEOUT_MS = 2_000;
 
     private final EngineApiImpl engine;
@@ -53,7 +52,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
     private final PhysicsApi physicsApi;
     @SuppressWarnings("unused")
     private final MaterialApi materialApi;
-    private final org.foxesworld.kalitech.engine.script.events.ScriptEventBus bus;
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
         this.engine = Objects.requireNonNull(engine, "engine");
@@ -62,8 +60,10 @@ public final class SurfaceApiImpl implements SurfaceApi {
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
         this.materialApi = engine.material();
-        this.bus = engine.getBus();
-        // ❌ LEGACY REMOVED: registry.bindSurfaceApi(this);
+    }
+
+    private ScriptEventBus bus() {
+        return engine.getBus(); // ✅ dynamic resolve (never cached)
     }
 
     // ------------------------------------------------------------
@@ -74,8 +74,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
         try {
             return engine.isJmeThread();
         } catch (Throwable ignored) {
-            // If EngineApiImpl doesn't provide isJmeThread for some reason,
-            // we still behave safely by always enqueueing.
             return false;
         }
     }
@@ -119,7 +117,8 @@ public final class SurfaceApiImpl implements SurfaceApi {
     // ------------------------------------------------------------
 
     private void emit(String topic, Object... kv) {
-        if (bus == null) return;
+        ScriptEventBus b = bus();
+        if (b == null) return;
         try {
             HashMap<String, Object> m = new HashMap<>();
             for (int i = 0; i + 1 < kv.length; i += 2) {
@@ -127,13 +126,13 @@ public final class SurfaceApiImpl implements SurfaceApi {
                 if (k == null) continue;
                 m.put(String.valueOf(k), kv[i + 1]);
             }
-            bus.emit(topic, m);
+            b.emit(topic, m);
         } catch (Throwable ignored) {
         }
     }
 
     // ------------------------------------------------------------
-    // Handle coercion (fixes legacy JS passing raw ids)
+    // Handle coercion (legacy JS passing raw ids)
     // ------------------------------------------------------------
 
     private int idOf(Object handleOrId) {
@@ -147,20 +146,17 @@ public final class SurfaceApiImpl implements SurfaceApi {
                 if (v.isNull()) return 0;
                 if (v.isNumber()) return (int) v.asDouble();
 
-                // host object wrapper
                 if (v.isHostObject()) {
                     Object host = v.asHostObject();
                     if (host instanceof SurfaceHandle h) return h.id();
                     if (host instanceof Number n) return n.intValue();
                 }
 
-                // {id:...}
                 if (v.hasMembers() && v.hasMember("id")) {
                     Value id = v.getMember("id");
                     if (id != null && !id.isNull() && id.isNumber()) return (int) id.asDouble();
                 }
 
-                // valueOf() pattern
                 if (v.canInvokeMember("valueOf")) {
                     Value vo = v.invokeMember("valueOf");
                     if (vo != null && !vo.isNull() && vo.isNumber()) return (int) vo.asDouble();
@@ -169,7 +165,6 @@ public final class SurfaceApiImpl implements SurfaceApi {
             }
         }
 
-        // plain JS object exposed as Map-like host object
         try {
             var f = handleOrId.getClass().getField("id");
             Object id = f.get(handleOrId);
@@ -213,8 +208,7 @@ public final class SurfaceApiImpl implements SurfaceApi {
         if (!registry.exists(id)) throw new IllegalArgumentException("surface.handle: unknown id=" + id);
         return new SurfaceHandle(id, registry.kind(id));
     }
-
-    // --- Overloads to accept raw ids from JS (LEGACY compatibility) ---
+// --- Overloads to accept raw ids from JS (LEGACY compatibility) ---
 
     @HostAccess.Export
     public void setMaterial(Object target, Object materialHandleOrCfg) {

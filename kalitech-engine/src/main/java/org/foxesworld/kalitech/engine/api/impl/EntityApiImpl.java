@@ -1,4 +1,4 @@
-// FILE: EntityApiImpl.java
+// FILE: org/foxesworld/kalitech/engine/api/impl/EntityApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -11,31 +11,27 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Entity API + engine events.
- *
- * Events emitted:
- *  - engine.entity.create
- *  - engine.entity.destroy.before
- *  - engine.entity.destroy.after
- *  - engine.entity.component.set
- *  - engine.entity.component.remove
- */
 public final class EntityApiImpl implements EntityApi {
 
     private final EngineApiImpl engine;
     private final EcsWorld ecs;
-    private final ScriptEventBus bus; // optional
 
     public EntityApiImpl(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = Objects.requireNonNull(engineApi.getEcs(), "engineApi.getEcs()");
-        this.bus = engineApi.getBus();
+    }
+
+    private ScriptEventBus bus() {
+        return engine.getBus();
     }
 
     private void emit(String topic, Map<String, Object> payload) {
-        if (bus == null) return;
-        try { bus.emit(topic, payload); } catch (Throwable ignored) {}
+        ScriptEventBus b = bus();
+        if (b == null) return;
+        try {
+            b.emit(topic, payload);
+        } catch (Throwable ignored) {
+        }
     }
 
     private static Map<String, Object> m(Object... kv) {
@@ -57,10 +53,7 @@ public final class EntityApiImpl implements EntityApi {
             ecs.components().putByName(id, "Name", safeName);
         }
 
-        emit("engine.entity.create", m(
-                "entityId", id,
-                "name", safeName
-        ));
+        emit("engine.entity.create", m("entityId", id, "name", safeName));
         return id;
     }
 
@@ -71,11 +64,10 @@ public final class EntityApiImpl implements EntityApi {
 
         emit("engine.entity.destroy.before", m("entityId", id));
 
-        // ✅ surface cleanup BEFORE ecs entity is gone
         try {
             engine.__surfaceCleanupOnEntityDestroy(id);
-        } catch (Throwable ignored) {}
-
+        } catch (Throwable ignored) {
+        }
         ecs.destroyEntity(id);
 
         emit("engine.entity.destroy.after", m("entityId", id));
@@ -90,11 +82,7 @@ public final class EntityApiImpl implements EntityApi {
         String t = type.trim();
         ecs.components().putByName(id, t, data);
 
-        emit("engine.entity.component.set", m(
-                "entityId", id,
-                "type", t,
-                "data", data
-        ));
+        emit("engine.entity.component.set", m("entityId", id, "type", t, "data", data));
     }
 
     @HostAccess.Export
@@ -122,9 +110,6 @@ public final class EntityApiImpl implements EntityApi {
         String t = type.trim();
         ecs.components().removeByName(id, t);
 
-        emit("engine.entity.component.remove", m(
-                "entityId", id,
-                "type", t
-        ));
+        emit("engine.entity.component.remove", m("entityId", id, "type", t));
     }
 }

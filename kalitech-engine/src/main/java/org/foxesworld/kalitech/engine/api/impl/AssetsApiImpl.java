@@ -9,7 +9,6 @@ import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.asset.AssetIO;
-import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -17,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.foxesworld.kalitech.engine.api.util.JsValueUtils.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
 public final class AssetsApiImpl implements AssetsApi {
 
@@ -25,21 +24,18 @@ public final class AssetsApiImpl implements AssetsApi {
     private final EngineApiImpl engine;
     private final AssetManager assets;
     private final SurfaceRegistry surfaceRegistry;
-    private final ScriptEventBus bus; // optional
 
     public AssetsApiImpl(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.assets = Objects.requireNonNull(engineApi.getAssets(), "assets");
         this.surfaceRegistry = engineApi.getSurfaceRegistry();
-        this.bus = engineApi.getBus();
     }
 
     // -------------------- events --------------------
 
     private void emit(String topic, Map<String, Object> payload) {
-        if (bus == null) return;
         try {
-            bus.emit(topic, payload);
+            engine.getBus().emit(topic, payload);
         } catch (Throwable t) {
             // Тут лучше НЕ молчать совсем, но и не падать.
             log.debug("[assets] emit failed topic={}", topic, t);

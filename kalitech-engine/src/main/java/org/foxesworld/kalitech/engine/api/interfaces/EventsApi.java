@@ -3,7 +3,6 @@ package org.foxesworld.kalitech.engine.api.interfaces;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-@Deprecated
 public interface EventsApi {
     @HostAccess.Export void emit(String topic, Object payload);
 

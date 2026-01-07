@@ -10,21 +10,59 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Why:
  * - Some Lemur/community builds don't immediately reflect preferredSize into GuiControl preferred size.
- * - We still need stable height for correct TOP-LEFT positioning of box-like elements.
+ * - We still need stable width/height for correct TOP-LEFT positioning and hit-test bounds.
+ *
+ * Notes:
+ * - Cache is best-effort: only explicit sizes set via API should be stored here.
+ * - Never stores negative or NaN sizes.
  */
 public final class HudSizeCache {
 
     private final ConcurrentHashMap<Integer, Vector3f> sizes = new ConcurrentHashMap<>();
 
+    private static float sane(float v) {
+        if (!Float.isFinite(v)) return 0f;
+        return (v < 0f) ? 0f : v;
+    }
+
     public void put(int id, float w, float h) {
         if (id <= 0) return;
-        float ww = (Float.isFinite(w) && w >= 0f) ? w : 0f;
-        float hh = (Float.isFinite(h) && h >= 0f) ? h : 0f;
+        float ww = sane(w);
+        float hh = sane(h);
         sizes.put(id, new Vector3f(ww, hh, 0f));
+    }
+
+    /**
+     * Convenience: update width only (keeps cached height).
+     */
+    public void putW(int id, float w) {
+        if (id <= 0) return;
+        float ww = sane(w);
+        sizes.compute(id, (k, old) -> {
+            float hh = (old != null && Float.isFinite(old.y)) ? old.y : 0f;
+            return new Vector3f(ww, sane(hh), 0f);
+        });
+    }
+
+    /**
+     * Convenience: update height only (keeps cached width).
+     */
+    public void putH(int id, float h) {
+        if (id <= 0) return;
+        float hh = sane(h);
+        sizes.compute(id, (k, old) -> {
+            float ww = (old != null && Float.isFinite(old.x)) ? old.x : 0f;
+            return new Vector3f(sane(ww), hh, 0f);
+        });
     }
 
     public Vector3f get(int id) {
         return id > 0 ? sizes.get(id) : null;
+    }
+
+    public float getW(int id) {
+        Vector3f v = get(id);
+        return (v != null && Float.isFinite(v.x) && v.x > 0f) ? v.x : 0f;
     }
 
     public float getH(int id) {

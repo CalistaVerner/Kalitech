@@ -13,34 +13,22 @@ import java.util.Objects;
 /**
  * JS-facing Events API (REDengine-style).
  *
- * - Backward compatible with old JS:
- *      EVENTS.on("topic", (payload)=>{})
- *      EVENTS.emit("topic", payload)
- *
- * - AAA additions:
- *      EVENTS.emitEvent(topic, payload, meta)
- *      EVENTS.onEvent(topic, (evt)=>{}, phase, priority)
- *      EVENTS.onAny((evt)=>{}, phase, priority)
- *      EVENTS.onPattern("engine.**", (evt)=>{}, phase, priority)
- *      EVENTS.off(token)  // token-based unsubscribe
- *      EVENTS.getHistory(n), EVENTS.setHistoryMax(n)
- *
  * IMPORTANT:
+ *  - ScriptEventBus can be null early-boot, then appear later.
+ *    So this API MUST NOT cache bus.
  *  - ScriptEventBus.pump() must be called once per frame from the engine main loop (WorldAppState).
  */
-@Deprecated
+
 public final class EventsApiImpl implements EventsApi {
 
     private final EngineApiImpl engine;
-    private final ScriptEventBus bus;
 
     public EventsApiImpl(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
-        this.bus = engine.getBus(); // may be null early-boot
     }
 
     private ScriptEventBus b() {
-        return bus;
+        return engine.getBus(); // ✅ dynamic resolve (never cached)
     }
 
     // -------------------------------------------------------------------------
@@ -104,24 +92,13 @@ public final class EventsApiImpl implements EventsApi {
         return b.off(token);
     }
 
-    /**
-     * Emit envelope event (AAA). Legacy listeners on the same topic will ALSO be called.
-     * meta can be:
-     *  - null
-     *  - ScriptEventBus.Meta (preferred from Java)
-     *  - JS object (will arrive as Host object if you pass it directly; best is to use helper in JS)
-     */
     @HostAccess.Export
     public void emitEvent(String topic, Object payload, Object meta) {
         ScriptEventBus b = b();
         if (b == null) return;
 
         ScriptEventBus.Meta m = null;
-        if (meta instanceof ScriptEventBus.Meta mm) {
-            m = mm;
-        }
-        // If meta is a JS object, we intentionally do NOT attempt to reflect members here:
-        // keep bus allocation-light; recommend JS to pass null or a Java Meta via helper.
+        if (meta instanceof ScriptEventBus.Meta mm) m = mm;
 
         b.emitEvent(topic, payload, m);
     }
@@ -173,7 +150,7 @@ public final class EventsApiImpl implements EventsApi {
         return b.oncePattern(pattern, handler, parsePhase(phase), priority);
     }
 
-    // Back-compat overloads (your earlier JS usage)
+    // Back-compat overloads
     @HostAccess.Export
     public int onPattern(String pattern, Value handler) {
         return onPattern(pattern, handler, "MAIN", 0);
@@ -215,8 +192,6 @@ public final class EventsApiImpl implements EventsApi {
         if (b == null) return;
         b.clearAll();
     }
-
-    // -------------------------------------------------------------------------
 
     private static ScriptEventBus.Phase parsePhase(String s) {
         if (s == null) return ScriptEventBus.Phase.MAIN;

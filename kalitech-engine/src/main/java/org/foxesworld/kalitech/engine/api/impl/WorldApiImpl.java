@@ -1,35 +1,34 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/WorldApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.interfaces.WorldApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * JS-first World facade.
- * Java is skeleton: validates, spawns, stores minimal components.
- * JS is matter: prefab script decides behavior (via ScriptSystem).
- */
 public final class WorldApiImpl implements WorldApi {
 
     private static final Logger log = LogManager.getLogger(WorldApiImpl.class);
 
+    private final EngineApiImpl engine;
     private final EcsWorld ecs;
-    private final ScriptEventBus bus;
 
     public WorldApiImpl(EngineApiImpl engineApi) {
-        Objects.requireNonNull(engineApi, "engineApi");
+        this.engine = Objects.requireNonNull(engineApi, "engineApi");
         this.ecs = engineApi.getEcs();
-        this.bus = engineApi.getBus();
+    }
+
+    private ScriptEventBus bus() {
+        return engine.getBus();
     }
 
     @HostAccess.Export
@@ -47,11 +46,15 @@ public final class WorldApiImpl implements WorldApi {
             ecs.components().putByName(id, "Name", a.name);
         }
 
-        // ScriptSystem will pick this up and create instance
         ecs.components().put(id, ScriptComponent.class, new ScriptComponent(a.prefab));
 
-        // emit event (optional)
-        try { bus.emit("entity.spawned", new EntitySpawned(id, a.name, a.prefab)); } catch (Exception ignored) {}
+        ScriptEventBus b = bus();
+        if (b != null) {
+            try {
+                b.emit("entity.spawned", new EntitySpawned(id, a.name, a.prefab));
+            } catch (Exception ignored) {
+            }
+        }
 
         log.debug("world.spawn -> id={} name='{}' prefab={}", id, a.name, a.prefab);
         return id;
@@ -63,8 +66,6 @@ public final class WorldApiImpl implements WorldApi {
         if (name == null || name.isBlank()) return 0;
 
         AtomicInteger found = new AtomicInteger(0);
-
-        // Fast iteration: no Map snapshot, no boxing, no allocations
         ecs.components().forEachByName("Name", (id, v) -> {
             if (found.get() != 0) return;
             if (name.equals(String.valueOf(v))) found.set(id);
@@ -77,10 +78,15 @@ public final class WorldApiImpl implements WorldApi {
     @Override
     public void destroy(int id) {
         ecs.destroyEntity(id);
-        try { bus.emit("entity.destroyed", id); } catch (Exception ignored) {}
+        ScriptEventBus b = bus();
+        if (b != null) {
+            try {
+                b.emit("entity.destroyed", id);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
-    /** Payload class visible to JS (fields). */
     public static final class EntitySpawned {
         public final int id;
         public final String name;
@@ -92,8 +98,6 @@ public final class WorldApiImpl implements WorldApi {
             this.prefab = prefab;
         }
     }
-
-    // ---------------- parsing ----------------
 
     private static final class SpawnArgs {
         final String name;
@@ -107,35 +111,29 @@ public final class WorldApiImpl implements WorldApi {
         static SpawnArgs parse(Object args) {
             if (args == null) return new SpawnArgs(null, null);
 
-            // Graal Value
             if (args instanceof Value v) {
                 String name = readStr(v, "name");
                 String prefab = readStr(v, "prefab");
                 return new SpawnArgs(name, prefab);
             }
 
-            // Map (if someone calls from Java)
             if (args instanceof Map<?, ?> m) {
                 Object n = m.get("name");
                 Object p = m.get("prefab");
-                return new SpawnArgs(n == null ? null : String.valueOf(n), p == null ? null : String.valueOf(p));
+                return new SpawnArgs(n != null ? String.valueOf(n) : null, p != null ? String.valueOf(p) : null);
             }
 
-            // Allow passing prefab as string directly: world.spawn("Scripts/entities/player.js")
-            if (args instanceof String s) {
-                return new SpawnArgs(null, s);
-            }
-
-            throw new IllegalArgumentException("world.spawn(args) expects object {name,prefab} or string prefab");
+            return new SpawnArgs(null, null);
         }
 
         private static String readStr(Value v, String key) {
             try {
                 if (v.hasMember(key)) {
-                    Value m = v.getMember(key);
-                    if (m != null && !m.isNull()) return m.asString();
+                    Value x = v.getMember(key);
+                    if (x != null && !x.isNull()) return x.asString();
                 }
-            } catch (Exception ignored) {}
+            } catch (Throwable ignored) {
+            }
             return null;
         }
     }
