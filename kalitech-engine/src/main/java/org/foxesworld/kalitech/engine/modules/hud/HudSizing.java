@@ -7,21 +7,18 @@ import com.simsilica.lemur.Container;
 import com.simsilica.lemur.Panel;
 import com.simsilica.lemur.core.GuiControl;
 
-/**
- * Fork-proof sizing utilities for Lemur elements.
- *
- * Goals:
- * - set preferred size AND try to set real size
- * - call invalidation/layout hooks where available
- * - keep size cache updated for reliable width/height math
- *
- * NOTE:
- * - In Lemur forks, GuiControl may expose different sizing APIs.
- *   We call them best-effort via reflection.
- */
+import java.lang.reflect.Method;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class HudSizing {
+
     private HudSizing() {
     }
+
+    private static final ThreadLocal<Vector3f> TMP_SIZE = ThreadLocal.withInitial(Vector3f::new);
+    private static final ThreadLocal<Vector3f> TMP_ORIG = ThreadLocal.withInitial(Vector3f::new);
+
+    private static final ConcurrentHashMap<Class<?>, Hooks> HOOKS = new ConcurrentHashMap<>();
 
     public static boolean isBoxLike(Spatial s) {
         return (s instanceof Panel) || (s instanceof Container);
@@ -29,136 +26,170 @@ public final class HudSizing {
 
     public static float preferredW(Spatial s) {
         if (s == null) return 0f;
-        try {
-            GuiControl gc = s.getControl(GuiControl.class);
-            if (gc != null) {
-                Vector3f ps = gc.getPreferredSize();
-                if (ps != null && Float.isFinite(ps.x) && ps.x > 0f) return ps.x;
-            }
-        } catch (Throwable ignore) {
-        }
-        return 0f;
+        final GuiControl gc = s.getControl(GuiControl.class);
+        if (gc == null) return 0f;
+        final Vector3f ps = gc.getPreferredSize();
+        if (ps == null) return 0f;
+        final float w = ps.x;
+        return (Float.isFinite(w) && w > 0f) ? w : 0f;
     }
 
     public static float preferredH(Spatial s) {
         if (s == null) return 0f;
-        try {
-            GuiControl gc = s.getControl(GuiControl.class);
-            if (gc != null) {
-                Vector3f ps = gc.getPreferredSize();
-                if (ps != null && Float.isFinite(ps.y) && ps.y > 0f) return ps.y;
-            }
-        } catch (Throwable ignore) {
-        }
-        return 0f;
+        final GuiControl gc = s.getControl(GuiControl.class);
+        if (gc == null) return 0f;
+        final Vector3f ps = gc.getPreferredSize();
+        if (ps == null) return 0f;
+        final float h = ps.y;
+        return (Float.isFinite(h) && h > 0f) ? h : 0f;
     }
 
-    /**
-     * Best-effort element width:
-     * 1) cached explicit size
-     * 2) guiControl preferred size
-     */
     public static float widthOf(int id, Spatial s, HudSizeCache cache) {
         if (cache != null) {
-            float cw = cache.getW(id);
+            final float cw = cache.getW(id);
             if (cw > 0f) return cw;
         }
         return preferredW(s);
     }
 
-    /**
-     * Best-effort element height:
-     * 1) cached explicit size
-     * 2) guiControl preferred size
-     */
     public static float heightOf(int id, Spatial s, HudSizeCache cache) {
         if (cache != null) {
-            float ch = cache.getH(id);
+            final float ch = cache.getH(id);
             if (ch > 0f) return ch;
         }
         return preferredH(s);
     }
 
-    private static float sane(float v) {
-        if (!Float.isFinite(v)) return 0f;
-        return (v < 0f) ? 0f : v;
-    }
-
-    private static void reflectCall(Object target, String method, Class<?>[] sig, Object[] args) {
-        if (target == null) return;
-        try {
-            var m = target.getClass().getMethod(method, sig);
-            m.setAccessible(true);
-            m.invoke(target, args);
-        } catch (Throwable ignore) {
-        }
-    }
-
-    private static void tryInvalidateAndLayout(GuiControl gc) {
-        if (gc == null) return;
-
-        // Most common fork variants
-        reflectCall(gc, "invalidate", new Class<?>[]{}, new Object[]{});
-        reflectCall(gc, "layout", new Class<?>[]{}, new Object[]{});
-        reflectCall(gc, "refresh", new Class<?>[]{}, new Object[]{});
-        reflectCall(gc, "updateLogicalState", new Class<?>[]{float.class}, new Object[]{0f});
-        reflectCall(gc, "updateGeometricState", new Class<?>[]{}, new Object[]{});
-
-        // Some forks add "updateLayout"/"rebuild"
-        reflectCall(gc, "updateLayout", new Class<?>[]{}, new Object[]{});
-        reflectCall(gc, "rebuild", new Class<?>[]{}, new Object[]{});
-    }
-
-    /**
-     * Force size for Lemur spatials:
-     * - setPreferredSize on Panel/Container
-     * - setPreferredSize on GuiControl
-     * - try setSize()/reshape() via reflection for forks
-     * - call invalidation/layout hooks where available
-     * - update size cache
-     */
     public static void forceSize(int id, Spatial s, float w, float h, HudSizeCache cache) {
         if (s == null) return;
 
         final float ww = sane(w);
         final float hh = sane(h);
-        final Vector3f sz = new Vector3f(ww, hh, 0f);
 
         if (cache != null) cache.put(id, ww, hh);
 
-        // preferred size on known types (works on vanilla Lemur and many forks)
-        try {
-            if (s instanceof Panel p) p.setPreferredSize(sz);
-            else if (s instanceof Container c) c.setPreferredSize(sz);
-        } catch (Throwable ignore) {
+        final Vector3f sz = TMP_SIZE.get();
+        sz.set(ww, hh, 0f);
+
+        if (s instanceof Panel p) {
+            p.setPreferredSize(sz);
+        } else if (s instanceof Container c) {
+            c.setPreferredSize(sz);
         }
 
-        // GuiControl path
-        GuiControl gc = null;
-        try {
-            gc = s.getControl(GuiControl.class);
-        } catch (Throwable ignore) {
-        }
-
+        final GuiControl gc = s.getControl(GuiControl.class);
         if (gc == null) return;
 
-        // preferred size on GuiControl
-        try {
-            gc.setPreferredSize(sz);
-        } catch (Throwable ignore) {
+        gc.setPreferredSize(sz);
+
+        final Hooks hooks = hooksFor(gc.getClass());
+        hooks.apply(gc, sz);
+    }
+
+    private static float sane(float v) {
+        if (!Float.isFinite(v) || v <= 0f) return 0f;
+        return v;
+    }
+
+    private static Hooks hooksFor(Class<?> gcClass) {
+        return HOOKS.computeIfAbsent(gcClass, Hooks::resolve);
+    }
+
+    private static final class Hooks {
+        private final Method setSizeVec3;
+        private final Method setSizeWH;
+        private final Method reshapeVV;
+        private final Method reshapeFFFF;
+        private final Method setBoundsFFFF;
+
+        private final Method invalidate;
+        private final Method layout;
+        private final Method refresh;
+        private final Method updateLayout;
+        private final Method rebuild;
+
+        private Hooks(
+                Method setSizeVec3,
+                Method setSizeWH,
+                Method reshapeVV,
+                Method reshapeFFFF,
+                Method setBoundsFFFF,
+                Method invalidate,
+                Method layout,
+                Method refresh,
+                Method updateLayout,
+                Method rebuild
+        ) {
+            this.setSizeVec3 = setSizeVec3;
+            this.setSizeWH = setSizeWH;
+            this.reshapeVV = reshapeVV;
+            this.reshapeFFFF = reshapeFFFF;
+            this.setBoundsFFFF = setBoundsFFFF;
+            this.invalidate = invalidate;
+            this.layout = layout;
+            this.refresh = refresh;
+            this.updateLayout = updateLayout;
+            this.rebuild = rebuild;
         }
 
-        // Real size: forks expose different signatures
-        reflectCall(gc, "setSize", new Class<?>[]{Vector3f.class}, new Object[]{sz});
-        reflectCall(gc, "setSize", new Class<?>[]{float.class, float.class}, new Object[]{ww, hh});
+        static Hooks resolve(Class<?> cls) {
+            final Method setSizeVec3 = methodOrNull(cls, "setSize", Vector3f.class);
+            final Method setSizeWH = methodOrNull(cls, "setSize", float.class, float.class);
 
-        // reshape variants (origin + size)
-        reflectCall(gc, "reshape", new Class<?>[]{Vector3f.class, Vector3f.class}, new Object[]{new Vector3f(0, 0, 0), sz});
-        reflectCall(gc, "reshape", new Class<?>[]{float.class, float.class, float.class, float.class}, new Object[]{0f, 0f, ww, hh});
+            final Method reshapeVV = methodOrNull(cls, "reshape", Vector3f.class, Vector3f.class);
+            final Method reshapeFFFF = methodOrNull(cls, "reshape", float.class, float.class, float.class, float.class);
+            final Method setBoundsFFFF = methodOrNull(cls, "setBounds", float.class, float.class, float.class, float.class);
 
-        // Some forks expose getSize()/setSize via different names
-        reflectCall(gc, "setBounds", new Class<?>[]{float.class, float.class, float.class, float.class}, new Object[]{0f, 0f, ww, hh});
+            final Method invalidate = methodOrNull(cls, "invalidate");
+            final Method layout = methodOrNull(cls, "layout");
+            final Method refresh = methodOrNull(cls, "refresh");
+            final Method updateLayout = methodOrNull(cls, "updateLayout");
+            final Method rebuild = methodOrNull(cls, "rebuild");
 
-        tryInvalidateAndLayout(gc);
+            return new Hooks(
+                    setSizeVec3, setSizeWH,
+                    reshapeVV, reshapeFFFF, setBoundsFFFF,
+                    invalidate, layout, refresh, updateLayout, rebuild
+            );
+        }
+
+        private static Method methodOrNull(Class<?> cls, String name, Class<?>... sig) {
+            try {
+                final Method m = cls.getMethod(name, sig);
+                m.setAccessible(true);
+                return m;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static void invoke(Object target, Method m, Object... args) {
+            try {
+                m.invoke(target, args);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        void apply(Object gc, Vector3f size) {
+            final float w = size.x;
+            final float h = size.y;
+
+            if (setSizeVec3 != null) invoke(gc, setSizeVec3, size);
+            if (setSizeWH != null) invoke(gc, setSizeWH, w, h);
+
+            if (reshapeVV != null) {
+                final Vector3f orig = TMP_ORIG.get();
+                orig.set(0f, 0f, 0f);
+                invoke(gc, reshapeVV, orig, size);
+            }
+            if (reshapeFFFF != null) invoke(gc, reshapeFFFF, 0f, 0f, w, h);
+            if (setBoundsFFFF != null) invoke(gc, setBoundsFFFF, 0f, 0f, w, h);
+
+            if (invalidate != null) invoke(gc, invalidate);
+            if (layout != null) invoke(gc, layout);
+            if (refresh != null) invoke(gc, refresh);
+            if (updateLayout != null) invoke(gc, updateLayout);
+            if (rebuild != null) invoke(gc, rebuild);
+        }
     }
 }

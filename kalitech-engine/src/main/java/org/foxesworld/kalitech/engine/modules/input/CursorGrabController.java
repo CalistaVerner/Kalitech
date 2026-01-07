@@ -3,6 +3,8 @@ package org.foxesworld.kalitech.engine.modules.input;
 import com.jme3.input.InputManager;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 
+import java.util.Objects;
+
 public final class CursorGrabController {
 
     private final EngineApiImpl engine;
@@ -13,9 +15,9 @@ public final class CursorGrabController {
     private boolean grabbed = false;
 
     public CursorGrabController(EngineApiImpl engine, InputManager input, MouseState mouse) {
-        this.engine = engine;
-        this.input = input;
-        this.mouse = mouse;
+        this.engine = Objects.requireNonNull(engine, "engine");
+        this.input = Objects.requireNonNull(input, "input");
+        this.mouse = Objects.requireNonNull(mouse, "mouse");
     }
 
     public boolean isCursorVisible() {
@@ -23,12 +25,11 @@ public final class CursorGrabController {
     }
 
     public void setCursorVisible(boolean visible) {
+        if (this.cursorVisible == visible) return;
         this.cursorVisible = visible;
+
         engine.getApp().enqueue(() -> {
-            try {
-                input.setCursorVisible(visible);
-            } catch (Exception ignored) {
-            }
+            input.setCursorVisible(visible);
             return null;
         });
     }
@@ -38,6 +39,7 @@ public final class CursorGrabController {
     }
 
     public void setGrabbed(boolean grab) {
+        if (this.grabbed == grab) return;
         this.grabbed = grab;
         mouse.resetBaselines();
     }

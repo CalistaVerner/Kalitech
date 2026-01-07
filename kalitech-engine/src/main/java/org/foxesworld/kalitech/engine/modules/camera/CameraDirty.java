@@ -9,12 +9,15 @@ public final class CameraDirty {
     private final AtomicInteger mask = new AtomicInteger(0);
 
     public void mark(int bits) {
-        mask.getAndUpdate(m -> m | bits);
+        int prev;
+        int next;
+        do {
+            prev = mask.get();
+            next = prev | bits;
+            if (prev == next) return;
+        } while (!mask.compareAndSet(prev, next));
     }
 
-    /**
-     * Returns current mask and clears it to zero.
-     */
     public int take() {
         return mask.getAndSet(0);
     }

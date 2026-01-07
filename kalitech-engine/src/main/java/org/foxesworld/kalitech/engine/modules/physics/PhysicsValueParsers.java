@@ -1,4 +1,3 @@
-// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.modules.physics;
 
 import com.jme3.math.Vector3f;
@@ -6,9 +5,6 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Map;
 
-/**
- * Minimal coercion helpers for JS Value / Map / primitives.
- */
 public final class PhysicsValueParsers {
 
     private PhysicsValueParsers() {
@@ -22,62 +18,76 @@ public final class PhysicsValueParsers {
     }
 
     public static boolean asBool(Object v, boolean def) {
-        if (v == null) return def;
         if (v instanceof Boolean b) return b;
         if (v instanceof Value val) return val.isBoolean() ? val.asBoolean() : def;
         return def;
     }
 
     public static double asNum(Object v, double def) {
-        if (v == null) return def;
         if (v instanceof Number n) return n.doubleValue();
         if (v instanceof Value val) return val.isNumber() ? val.asDouble() : def;
         return def;
     }
 
     public static int asInt(Object v, int def) {
-        if (v == null) return def;
         if (v instanceof Number n) return n.intValue();
         if (v instanceof Value val) return val.isNumber() ? val.asInt() : def;
         return def;
     }
 
-    public static Vector3f vec3(Object v, float dx, float dy, float dz) {
-        if (v == null) return new Vector3f(dx, dy, dz);
+    public static void vec3Into(Object v, Vector3f out, float dx, float dy, float dz) {
+        if (out == null) return;
 
-        if (v instanceof Vector3f vv) return vv;
+        if (v == null) {
+            out.set(dx, dy, dz);
+            return;
+        }
+
+        if (v instanceof Vector3f vv) {
+            out.set(vv);
+            return;
+        }
 
         if (v instanceof Value val) {
-            if (val.isNull()) return new Vector3f(dx, dy, dz);
+            if (val.isNull()) {
+                out.set(dx, dy, dz);
+                return;
+            }
 
             if (val.hasArrayElements() && val.getArraySize() >= 3) {
-                return new Vector3f(
+                out.set(
                         (float) asNum(val.getArrayElement(0), dx),
                         (float) asNum(val.getArrayElement(1), dy),
                         (float) asNum(val.getArrayElement(2), dz)
                 );
+                return;
             }
 
             if (val.hasMembers()) {
-                return new Vector3f(
+                out.set(
                         (float) asNum(member(val, "x"), dx),
                         (float) asNum(member(val, "y"), dy),
                         (float) asNum(member(val, "z"), dz)
                 );
+                return;
             }
         }
 
         if (v instanceof Map<?, ?> m) {
-            Object arr = m.get("0");
-            if (arr != null) return vec3(arr, dx, dy, dz);
-
-            return new Vector3f(
+            out.set(
                     (float) asNum(m.get("x"), dx),
                     (float) asNum(m.get("y"), dy),
                     (float) asNum(m.get("z"), dz)
             );
+            return;
         }
 
-        return new Vector3f(dx, dy, dz);
+        out.set(dx, dy, dz);
+    }
+
+    public static Vector3f vec3(Object v, float dx, float dy, float dz) {
+        final Vector3f out = new Vector3f();
+        vec3Into(v, out, dx, dy, dz);
+        return out;
     }
 }

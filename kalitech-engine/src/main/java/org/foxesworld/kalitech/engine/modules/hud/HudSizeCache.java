@@ -1,73 +1,35 @@
-// FILE: org/foxesworld/kalitech/engine/modules/hud/HudSizeCache.java
 package org.foxesworld.kalitech.engine.modules.hud;
-
-import com.jme3.math.Vector3f;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Stores last known explicit sizes (w/h) by element id.
- *
- * Why:
- * - Some Lemur/community builds don't immediately reflect preferredSize into GuiControl preferred size.
- * - We still need stable width/height for correct TOP-LEFT positioning and hit-test bounds.
- *
- * Notes:
- * - Cache is best-effort: only explicit sizes set via API should be stored here.
- * - Never stores negative or NaN sizes.
- */
 public final class HudSizeCache {
 
-    private final ConcurrentHashMap<Integer, Vector3f> sizes = new ConcurrentHashMap<>();
+    private static final long ZERO = pack(0f, 0f);
+
+    private final ConcurrentHashMap<Integer, Long> sizes = new ConcurrentHashMap<>();
+
+    private static long pack(float w, float h) {
+        final int wi = Float.floatToIntBits(sane(w));
+        final int hi = Float.floatToIntBits(sane(h));
+        return ((long) wi << 32) | (hi & 0xFFFFFFFFL);
+    }
+
+    private static float unpackW(long packed) {
+        return Float.intBitsToFloat((int) (packed >>> 32));
+    }
+
+    private static float unpackH(long packed) {
+        return Float.intBitsToFloat((int) packed);
+    }
 
     private static float sane(float v) {
-        if (!Float.isFinite(v)) return 0f;
-        return (v < 0f) ? 0f : v;
+        if (!Float.isFinite(v) || v < 0f) return 0f;
+        return v;
     }
 
     public void put(int id, float w, float h) {
         if (id <= 0) return;
-        float ww = sane(w);
-        float hh = sane(h);
-        sizes.put(id, new Vector3f(ww, hh, 0f));
-    }
-
-    /**
-     * Convenience: update width only (keeps cached height).
-     */
-    public void putW(int id, float w) {
-        if (id <= 0) return;
-        float ww = sane(w);
-        sizes.compute(id, (k, old) -> {
-            float hh = (old != null && Float.isFinite(old.y)) ? old.y : 0f;
-            return new Vector3f(ww, sane(hh), 0f);
-        });
-    }
-
-    /**
-     * Convenience: update height only (keeps cached width).
-     */
-    public void putH(int id, float h) {
-        if (id <= 0) return;
-        float hh = sane(h);
-        sizes.compute(id, (k, old) -> {
-            float ww = (old != null && Float.isFinite(old.x)) ? old.x : 0f;
-            return new Vector3f(sane(ww), hh, 0f);
-        });
-    }
-
-    public Vector3f get(int id) {
-        return id > 0 ? sizes.get(id) : null;
-    }
-
-    public float getW(int id) {
-        Vector3f v = get(id);
-        return (v != null && Float.isFinite(v.x) && v.x > 0f) ? v.x : 0f;
-    }
-
-    public float getH(int id) {
-        Vector3f v = get(id);
-        return (v != null && Float.isFinite(v.y) && v.y > 0f) ? v.y : 0f;
+        sizes.put(id, pack(w, h));
     }
 
     public void remove(int id) {
@@ -76,5 +38,33 @@ public final class HudSizeCache {
 
     public void clear() {
         sizes.clear();
+    }
+
+    public void putW(int id, float w) {
+        if (id <= 0) return;
+        sizes.compute(id, (k, old) -> {
+            final long v = (old != null) ? old : ZERO;
+            return pack(w, unpackH(v));
+        });
+    }
+
+    public void putH(int id, float h) {
+        if (id <= 0) return;
+        sizes.compute(id, (k, old) -> {
+            final long v = (old != null) ? old : ZERO;
+            return pack(unpackW(v), h);
+        });
+    }
+
+    public float getW(int id) {
+        if (id <= 0) return 0f;
+        final Long v = sizes.get(id);
+        return (v == null) ? 0f : unpackW(v);
+    }
+
+    public float getH(int id) {
+        if (id <= 0) return 0f;
+        final Long v = sizes.get(id);
+        return (v == null) ? 0f : unpackH(v);
     }
 }

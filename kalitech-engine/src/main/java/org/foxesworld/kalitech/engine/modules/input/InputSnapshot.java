@@ -1,13 +1,12 @@
 package org.foxesworld.kalitech.engine.modules.input;
 
+import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
-import java.util.Set;
-
 public final class InputSnapshot implements ProxyObject {
 
-    private static final Set<String> KEYS = Set.of(
+    private static final ProxyArray MEMBER_KEYS = ProxyArray.fromArray(
             "frame", "timeNanos",
             "mx", "my",
             "dx", "dy",
@@ -16,6 +15,7 @@ public final class InputSnapshot implements ProxyObject {
             "grabbed", "cursorVisible",
             "keysDown", "justPressed", "justReleased"
     );
+
     public final long frameId;
     public final long timeNanos;
     public final double mx;
@@ -60,6 +60,7 @@ public final class InputSnapshot implements ProxyObject {
 
     @Override
     public Object getMember(String key) {
+        if (key == null) return null;
         return switch (key) {
             case "frame" -> frameId;
             case "timeNanos" -> timeNanos;
@@ -80,15 +81,22 @@ public final class InputSnapshot implements ProxyObject {
 
     @Override
     public Object getMemberKeys() {
-        return ProxyArray.fromArray(KEYS.toArray(new Object[0]));
+        return MEMBER_KEYS;
     }
 
     @Override
     public boolean hasMember(String key) {
-        return KEYS.contains(key);
+        if (key == null) return false;
+        return switch (key) {
+            case "frame", "timeNanos", "mx", "my", "dx", "dy", "wheel",
+                 "mouseMask", "grabbed", "cursorVisible",
+                 "keysDown", "justPressed", "justReleased" -> true;
+            default -> false;
+        };
     }
 
     @Override
-    public void putMember(String key, org.graalvm.polyglot.Value value) {
+    public void putMember(String key, Value value) {
+        // immutable snapshot
     }
 }

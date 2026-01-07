@@ -6,6 +6,13 @@ import org.graalvm.polyglot.proxy.ProxyObject;
 
 public final class JsMarshalling {
 
+    private static final ProxyArray EMPTY_ARRAY = ProxyArray.fromArray();
+    private static final ProxyArray VEC2_KEYS = ProxyArray.fromArray("x", "y");
+    private static final ProxyArray DELTA2_KEYS = ProxyArray.fromArray("dx", "dy");
+
+    private JsMarshalling() {
+    }
+
     public static Object vec2(double x, double y) {
         return new Vec2Proxy(x, y);
     }
@@ -15,7 +22,7 @@ public final class JsMarshalling {
     }
 
     static Object intArray(int[] a) {
-        return (a == null || a.length == 0) ? ProxyArray.fromArray() : new IntArrayProxy(a);
+        return (a == null || a.length == 0) ? EMPTY_ARRAY : new IntArrayProxy(a);
     }
 
     private static final class IntArrayProxy implements ProxyArray {
@@ -32,8 +39,9 @@ public final class JsMarshalling {
 
         @Override
         public Object get(long index) {
-            int i = (int) index;
-            return (i < 0 || i >= a.length) ? 0 : a[i];
+            final int i = (int) index;
+            if (i < 0 || i >= a.length) return 0;
+            return a[i];
         }
 
         @Override
@@ -58,7 +66,7 @@ public final class JsMarshalling {
 
         @Override
         public Object getMemberKeys() {
-            return ProxyArray.fromArray("x", "y");
+            return VEC2_KEYS;
         }
 
         @Override
@@ -83,7 +91,7 @@ public final class JsMarshalling {
 
         @Override
         public Object getMemberKeys() {
-            return ProxyArray.fromArray("dx", "dy");
+            return DELTA2_KEYS;
         }
 
         @Override
