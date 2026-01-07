@@ -1,5 +1,3 @@
-// FILE: Scripts/player/PlayerController.js
-// Author: KΛYLΛ
 "use strict";
 
 const U = require("./util.js");
@@ -10,19 +8,9 @@ const InputRouter = require("./systems/InputRouter.js");
 
 const MOVEMENT_CFG_JSON = "data/player/movement.config.json";
 
-function resolveEngine(ctx) {
-    // Prefer SystemContext domains (your SystemContext exports them)
-    if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
-    if (ctx && typeof ctx.api === "function") return ctx.api();          // after my SystemContext fix
-    if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi(); // optional alias
-    // last resort (legacy)
-    if (typeof engine !== "undefined") return engine;
-    return null;
-}
-
-function readJsonAssetStrict(path, ctx) {
-    const E = resolveEngine(ctx);
-    if (!E) throw new Error("[player] cannot resolve engine from ctx (need ctx.engine.api())");
+function readJsonStrict(player, path) {
+    const E = player && player.engine;
+    if (!E) throw new Error("[player] engine not ready (call player.init() first)");
 
     const assets = E.assets && E.assets();
     if (!assets || typeof assets.readText !== "function") throw new Error("[player] engine.assets().readText required");
@@ -35,64 +23,69 @@ function readJsonAssetStrict(path, ctx) {
     return obj;
 }
 
-function resolveMovementPath(rootCfg) {
+function movementPath(rootCfg) {
     if (rootCfg && typeof rootCfg.movementConfigPath === "string" && rootCfg.movementConfigPath.length > 0) return rootCfg.movementConfigPath;
     return MOVEMENT_CFG_JSON;
 }
 
 class PlayerController {
-    constructor(player, ctx) { // ✅ add ctx
+    constructor(player) {
         if (!player) throw new Error("[player] PlayerController requires player");
         this.player = player;
-        this.ctx = ctx || null;
 
-        const rootCfg = player.cfg || Object.create(null);
+        this.enabled = true;
+
+        this._movementCfg = Object.create(null);
+
+        this.input = null;
+        this.movement = null;
+        this.shoot = null;
+    }
+
+    getMovementCfg() {
+        return this._movementCfg;
+    }
+
+    bind() {
+        if (!this.input) return this;
+        this.input.bind();
+        return this;
+    }
+
+    _ensureSystems() {
+        if (this.input && this.movement && this.shoot) return;
+
+        const rootCfg = this.player.cfg || Object.create(null);
         const movOverrides = (rootCfg.movement && U.isPlainObj(rootCfg.movement)) ? rootCfg.movement : null;
-
-        // Strict pipeline:
-        // - If movement is an object -> use it directly
-        // - Else load JSON by path (movementConfigPath)
-        const movCfg = movOverrides || readJsonAssetStrict(resolveMovementPath(rootCfg), this.ctx);
+        const movCfg = movOverrides || readJsonStrict(this.player, movementPath(rootCfg));
 
         this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
-
         this._movementCfg = movCfg;
 
         this.input = new InputRouter(movCfg);
         this.movement = new MovementSystem(movCfg);
         this.shoot = new ShootSystem(rootCfg);
-
-        const ms = this.movement;
-        if (LOG && LOG.info) LOG.info("[player] movement walk=" + ms.walkSpeed + " run=" + ms.runSpeed + " accel=" + ms.accel + " decel=" + ms.decel);
-    }
-
-    getMovementCfg() { return this._movementCfg; }
-
-    bind() {
-        this.input.bind();
-        return this;
     }
 
     update(frame) {
-        if (!this.enabled || !frame || !this.player.body) return;
+        if (!frame || !this.player || !this.player.body) return;
 
-        // Read input -> state
+        this._ensureSystems();
+        if (!this.enabled) return;
+
         const st = this.input.read(frame);
 
-        // Mirror into domain (single source of truth)
-        if (this.player.dom && this.player.dom.input) {
-            this.player.dom.input.ax = st.ax | 0;
-            this.player.dom.input.az = st.az | 0;
-            this.player.dom.input.run = !!st.run;
-            this.player.dom.input.jump = !!st.jump;
-            this.player.dom.input.lmbDown = !!st.lmbDown;
-            this.player.dom.input.lmbJustPressed = !!st.lmbJustPressed;
+        const dom = this.player.dom;
+        if (dom && dom.input) {
+            dom.input.ax = st.ax | 0;
+            dom.input.az = st.az | 0;
+            dom.input.run = !!st.run;
+            dom.input.jump = !!st.jump;
+            dom.input.lmbDown = !!st.lmbDown;
+            dom.input.lmbJustPressed = !!st.lmbJustPressed;
         }
 
-        // Rotate body to view yaw
-        const yaw = (this.player.dom && this.player.dom.view)
-            ? U.num(this.player.dom.view.yaw, 0)
-            : (frame.view ? U.num(frame.view.yaw, 0) : 0);
+        const yaw = (dom && dom.view) ? U.num(dom.view.yaw, 0) : (frame.view ? U.num(frame.view.yaw, 0) : 0);
 
         if (typeof this.player.body.yaw !== "function") throw new Error("[player] body.yaw(yaw) required");
         this.player.body.yaw(yaw);

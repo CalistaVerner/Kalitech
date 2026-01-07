@@ -1,4 +1,3 @@
-// FILE: Scripts/Camera/CameraOrchestrator.js
 "use strict";
 
 const { validatePlayer, validateEngine, validateMode } = require("./CameraContract.js");
@@ -13,40 +12,19 @@ function arrHas(arr, code) {
     return false;
 }
 
-function resolveEngineFromPlayer(player) {
-    if (player) {
-        const ctx = player.ctx;
-        if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
-        if (ctx && typeof ctx.api === "function") return ctx.api();
-        if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
-        if (player.engine) return player.engine; // optional cached
-    }
-    // legacy global fallback
-    if (typeof engine !== "undefined") return engine;
-    return null;
-}
-
-function resolveInputApi(engineApi) {
-    // preferred: engine.input()
-    if (engineApi && typeof engineApi.input === "function") return engineApi.input();
-    // legacy global fallback
-    if (typeof INP !== "undefined") return INP;
-    return null;
-}
-
 class CameraOrchestrator {
     constructor(player) {
         validatePlayer(player);
 
-        const eng = resolveEngineFromPlayer(player);
+        const eng = player.engine;
         validateEngine(eng);
 
         this.player = player;
-        this.engine = eng;           // ✅ no global engine required
-        this.inp = resolveInputApi(eng);
+        this.engine = eng;
 
+        this.inp = (typeof eng.input === "function") ? eng.input() : null;
         if (!this.inp || typeof this.inp.keyCode !== "function") {
-            throw new Error("[camera] cannot resolve input api: engine.input().keyCode required (or legacy INP)");
+            throw new Error("[camera] engine.input().keyCode required");
         }
 
         this._modes = [];
@@ -58,7 +36,6 @@ class CameraOrchestrator {
         this._switchCd = 0;
         this._switchCdTime = 0.18;
 
-        // ✅ Collision cooldown after mode switch to prevent "snap to head" right after transition
         this._collisionCd = 0;
         this._collisionCdTime = 0.12;
 
@@ -113,8 +90,6 @@ class CameraOrchestrator {
         this.register(require("./modes/first.js"));
         this.register(require("./modes/third.js"));
 
-        // ✅ Initial mode is authoritative: cfg.camera.type if provided, else "third".
-        // Fixes “switch then revert” when orchestrator is recreated.
         const initial = (player && player.cfg && player.cfg.camera && player.cfg.camera.type)
             ? String(player.cfg.camera.type)
             : "third";
@@ -122,7 +97,6 @@ class CameraOrchestrator {
     }
 
     destroy() {
-        // this.inp.grabMouse(false); // if you ever expose it
     }
 
     register(modeOrCtor) {
@@ -154,7 +128,6 @@ class CameraOrchestrator {
 
         this._active = next;
 
-        // Persist selection for UI/debug, but NEVER drive mode selection from cfg on update.
         if (this.player && this.player.cfg) {
             if (!this.player.cfg.camera) this.player.cfg.camera = {};
             this.player.cfg.camera.type = next.id;
@@ -171,10 +144,7 @@ class CameraOrchestrator {
 
         this.transition.active = false;
 
-        // ✅ give collision solver time to settle after switching
         this._collisionCd = this._collisionCdTime;
-
-        // safe even if reset/configure are optional
         if (this.collision && typeof this.collision.reset === "function") this.collision.reset();
 
         this._applyMeta(next);
@@ -203,7 +173,6 @@ class CameraOrchestrator {
             this.collision.setQuality((nr <= 4) ? "low" : (nr <= 6) ? "high" : "ultra");
         }
 
-        // ✅ Единственное место, где решается видимость модели игрока.
         const model = this.player.getModel();
         if (!model || typeof model.setVisible !== "function") {
             throw new Error("[camera] player.getModel() must return handle with setVisible(boolean)");
@@ -248,7 +217,6 @@ class CameraOrchestrator {
 
         dt = U.clamp(U.num(dt, 1 / 60), 0, 0.05);
 
-        // look
         let dx = U.num(snap.dx, 0);
         let dy = U.num(snap.dy, 0);
 
@@ -261,12 +229,10 @@ class CameraOrchestrator {
 
         cam.setYawPitch(this.look.yaw, this.look.pitch);
 
-        // body pos
         const bodyId = this.player.getBodyId() | 0;
         const bodyPos = ph.position(bodyId);
         if (!bodyPos) throw new Error("[camera] physics.position(bodyId) returned null bodyId=" + bodyId);
 
-        // mode switch edge
         this._switchCd = Math.max(0, this._switchCd - dt);
 
         const kd = snap.keysDown;
@@ -278,8 +244,6 @@ class CameraOrchestrator {
 
         if (pressedV) {
             this._switchCd = this._switchCdTime;
-
-            // ✅ also reset collision cooldown on manual toggle
             this._collisionCd = this._collisionCdTime;
 
             const loc = cam.location();
@@ -327,20 +291,6 @@ class CameraOrchestrator {
         mode.update(ctx);
 
         cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
-        /*
-        this._collisionCd = Math.max(0, this._collisionCd - dt);
-        let engine = this.engine;
-        if (this.collision.enabled && this._collisionCd <= 0) {
-            // ✅ передаём physics/engine внутрь solver, без глобалов
-            this.collision.solve({
-                cam,
-                dt,
-                target: ctx.target,
-                bodyId,
-                physics: ph,   // <-- ВОТ ЭТО ГЛАВНОЕ
-                engine         // <-- и engine тоже, если solver где-то захочет engine.physics()
-            });
-        } */
     }
 }
 

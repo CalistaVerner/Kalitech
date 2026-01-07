@@ -1,4 +1,3 @@
-// FILE: Scripts/player/index.js
 "use strict";
 
 const U = require("./util.js");
@@ -11,36 +10,29 @@ const PlayerUI = require("./PlayerUI.js");
 const PlayerEvents = require("./PlayerEvents.js");
 const { PlayerEntityFactory } = require("./PlayerEntityFactory.js");
 
-// ------------------------------------------------------------
-// Engine resolution (NO global magic; ctx-first, legacy fallback)
-// ------------------------------------------------------------
+function must(obj, name) {
+    if (!obj) throw new Error(name + " is required");
+    return obj;
+}
 
-function resolveEngine(ctx) {
-    // New-style: SystemContext domains
+function resolveEngineApi(ctx) {
     if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
-
-    // Compatibility (if you exported these on SystemContext)
     if (ctx && typeof ctx.api === "function") return ctx.api();
     if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
-
-    // Legacy global
     if (typeof engine !== "undefined") return engine;
-
     return null;
 }
 
-function resolveSubsystems(ctx, E) {
-    const eng = E || resolveEngine(ctx);
+function resolveDomains(ctx, engineApi) {
+    const E = engineApi || resolveEngineApi(ctx);
+    if (!E) throw new Error("[player] cannot resolve engine api from ctx");
 
-    // Prefer legacy globals if they exist, otherwise take from engine api
-    const PH = (typeof PHYS !== "undefined" && PHYS) ? PHYS : (eng && typeof eng.physics === "function" ? eng.physics() : null);
-    const IN = (typeof INP !== "undefined" && INP) ? INP : (eng && typeof eng.input === "function" ? eng.input() : null);
-    const HUD = eng && typeof eng.hud === "function" ? eng.hud() : null;
+    const PH = (typeof PHYS !== "undefined" && PHYS) ? PHYS : (typeof E.physics === "function" ? E.physics() : null);
+    const IN = (typeof INP !== "undefined" && INP) ? INP : (typeof E.input === "function" ? E.input() : null);
+    const HUD_NATIVE = (typeof E.hud === "function") ? E.hud() : null;
 
-    return {eng, PH, IN, HUD};
+    return {E, PH, IN, HUD_NATIVE};
 }
-
-// ------------------------------------------------------------
 
 class PlayerDomain {
     constructor(player) {
@@ -65,6 +57,12 @@ class Player {
 
         this.alive = false;
 
+        this.engine = null;
+        this.PHYS = null;
+        this.INP = null;
+        this.HUD_NATIVE = null;
+        this.HUD = null;
+
         this.entity = null;
         this.entityId = 0;
         this.surfaceId = 0;
@@ -72,16 +70,8 @@ class Player {
 
         this.body = null;
 
-        // engine/subsystems (resolved from ctx)
-        this.engine = null;
-        this.PHYS = null;
-        this.INP = null;
-        this.HUD = null;
-
-        // IMPORTANT: single source for "model handle" provided by scene/builder
-        // PlayerEntityFactory will pick this.model (or cfg.model) and store into entity.model.
         this.model = null;
-        this._model = null; // legacy alias (keep to avoid breaking old scripts)
+        this._model = null;
 
         this.dom = new PlayerDomain(this);
         this.frame = new FrameContext();
@@ -89,9 +79,7 @@ class Player {
 
         this.factory = new PlayerEntityFactory(this);
 
-        // ✅ controller must be stored (was a bug: const ctrl = ...)
-        this.controller = new PlayerController(this, ctx);
-
+        this.controller = new PlayerController(this);
         this.camera = new PlayerCamera(this);
         this.ui = new PlayerUI(this);
         this.events = new PlayerEvents(this);
@@ -99,9 +87,6 @@ class Player {
 
     getBodyId() { return this.bodyId | 0; }
 
-    // Strict contract:
-    // - Prefer entity.model (what the factory stored, authoritative for visibility toggles)
-    // - Else fallback to player.model (pre-spawn / debug)
     getModel() {
         const e = this.entity;
         if (e && e.model) return e.model;
@@ -114,35 +99,28 @@ class Player {
     }
 
     withModel(modelHandle) {
-        // single write point
         this.model = modelHandle || null;
-        this._model = this.model; // legacy compatibility
+        this._model = this.model;
         return this;
     }
 
     init() {
         if (this.alive) return;
 
-        // Resolve engine + subsystems from ctx (no global engine required)
-        const {eng: E, PH, IN, HUD} = resolveSubsystems(this.ctx, null);
-        if (!E) throw new Error("[player] cannot resolve engine from ctx");
-        this.engine = E;
-        this.PHYS = PH;
-        this.INP = IN;
-        this.HUD = HUD;
+        const r = resolveDomains(this.ctx, null);
+        this.engine = r.E;
+        this.PHYS = must(r.PH, "[player] PHYS domain");
+        this.INP = must(r.IN, "[player] INP domain");
+        this.HUD_NATIVE = r.HUD_NATIVE;
 
-        if (!this.PHYS || typeof this.PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
-        if (!this.INP || typeof this.INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
+        if (typeof this.PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
+        if (typeof this.INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
 
-        // Cursor (optional)
-        try {
-            if (this.HUD && typeof this.HUD.setCursorEnabled === "function") {
-                this.HUD.setCursorEnabled(false, true);
-            } else if (this.engine && typeof this.engine.hud === "function") {
-                const hud2 = this.engine.hud();
-                if (hud2 && typeof hud2.setCursorEnabled === "function") hud2.setCursorEnabled(false, true);
+        if (this.HUD_NATIVE && typeof this.HUD_NATIVE.setCursorEnabled === "function") {
+            try {
+                this.HUD_NATIVE.setCursorEnabled(false, true);
+            } catch (_) {
             }
-        } catch (_) {
         }
 
         this.cfg = U.deepMerge({
@@ -155,7 +133,6 @@ class Player {
 
         this.ui.create();
 
-        // create entity (factory will pick model from cfg.model or player.model)
         this.entity = this.factory.create(this.cfg.spawn);
 
         this.entityId = this.entity.entityId | 0;
@@ -174,8 +151,6 @@ class Player {
         const movCfg = this.controller.getMovementCfg();
         this.characterCfg.loadFrom(this.cfg, movCfg);
 
-        // IMPORTANT: camera must attach AFTER entity/model exists
-        // (PlayerCamera is lazy; this avoids CameraOrchestrator seeing null model on startup)
         this.camera.attach();
 
         this.events.reset();
@@ -240,30 +215,15 @@ class Player {
         frame.view.type = type;
     }
 
-    // Strict: used by camera/orchestrator if it wants to toggle visibility through the player.
-    // No fallbacks besides entity.model and player.model; no setHidden, no guessing.
     setModelVisible(visible) {
         const m = this.getModel();
         if (!m) return;
-
-        if (typeof m.setVisible !== "function") {
-            throw new Error("[player] model must implement setVisible(boolean)");
-        }
-
+        if (typeof m.setVisible !== "function") throw new Error("[player] model must implement setVisible(boolean)");
         m.setVisible(!!visible);
     }
 
     update(tpf) {
         if (!this.alive) return;
-
-        // If something rebuilt ctx/engine, re-resolve safely (cheap)
-        if (!this.INP || typeof this.INP.consumeSnapshot !== "function") {
-            const r = resolveSubsystems(this.ctx, this.engine);
-            this.engine = r.eng || this.engine;
-            this.PHYS = r.PH || this.PHYS;
-            this.INP = r.IN || this.INP;
-            this.HUD = r.HUD || this.HUD;
-        }
 
         const snap = this.INP.consumeSnapshot();
 
@@ -285,8 +245,6 @@ class Player {
         });
 
         this.ui.refresh(true);
-
-        this.frame.pose.grounded = this.frame.probeGroundCapsule(this.body, this.characterCfg);
 
         if (this.INP && typeof this.INP.endFrame === "function") this.INP.endFrame();
     }
@@ -310,6 +268,7 @@ class Player {
         this.engine = null;
         this.PHYS = null;
         this.INP = null;
+        this.HUD_NATIVE = null;
         this.HUD = null;
 
         this.alive = false;

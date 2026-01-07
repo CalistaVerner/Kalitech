@@ -21,20 +21,21 @@ function validatePlayer(player) {
     if (!player) fail("[camera] player is required");
     if (!isFn(player.getBodyId)) fail("[camera] player.getBodyId() required");
     if (!isFn(player.getModel)) fail("[camera] player.getModel() required");
+    if (!player.engine) fail("[camera] player.engine is required (engine api)");
     return true;
 }
 
-function validateEngine(engine) {
-    if (!engine) fail("[camera] global engine is missing");
+function validateEngine(engineApi) {
+    if (!engineApi) fail("[camera] engine api is missing");
 
-    const cam = engine.camera && engine.camera();
+    const cam = engineApi.camera && engineApi.camera();
     if (!cam) fail("[camera] engine.camera() is null");
 
     if (!isFn(cam.setYawPitch)) fail("[camera] camera.setYawPitch(yaw,pitch) required");
     if (!isFn(cam.setLocation)) fail("[camera] camera.setLocation(x,y,z) required");
     if (!isFn(cam.location)) fail("[camera] camera.location() required");
 
-    const ph = engine.physics && engine.physics();
+    const ph = engineApi.physics && engineApi.physics();
     if (!ph) fail("[camera] engine.physics() is null");
     if (!isFn(ph.position)) fail("[camera] physics.position(bodyId) required");
 
@@ -44,7 +45,6 @@ function validateEngine(engine) {
 function validateMeta(meta) {
     if (!isObj(meta)) fail("[camera] mode.meta required (object)");
 
-    // STRICT allowed keys
     const allowed = { supportsZoom: 1, hasCollision: 1, numRays: 1, playerModelVisible: 1 };
     for (const k in meta) if (!allowed[k]) fail("[camera] mode.meta has unknown key: " + k);
 

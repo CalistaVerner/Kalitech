@@ -1,5 +1,3 @@
-// FILE: Scripts/player/PlayerEntityFactory.js
-// Author: KΛYLΛ
 "use strict";
 
 function _num(v, fb) {
@@ -7,16 +5,6 @@ function _num(v, fb) {
     return Number.isFinite(v) ? v : fb;
 }
 
-/**
- * SIMPLE CONTRACT (AAA):
- * - Модель игрока берём ТОЛЬКО из:
- *    1) cfg.model
- *    2) player.model
- *    3) player._model (legacy)
- * - Модель ДОЛЖНА иметь: model.setVisible(boolean)
- *   (если нет — мы НОРМАЛИЗУЕМ через engine.surface().setVisible(surfaceHandle,bool)
- *   и получаем объект с setVisible().
- */
 function _pickPlayerModel(cfg, player) {
     if (cfg && cfg.model != null) return cfg.model;
     if (player) {
@@ -34,29 +22,8 @@ function _idOf(h) {
     return 0;
 }
 
-// Resolve engine api in NO-MAGIC way: ctx-first, then cached, then legacy global.
-function resolveEngineFromPlayer(player) {
-    if (player) {
-        const ctx = player.ctx;
-        if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
-        if (ctx && typeof ctx.api === "function") return ctx.api();
-        if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
-
-        // if Player cached it (we did in Player.init())
-        if (player.engine) return player.engine;
-    }
-
-    // legacy global fallback
-    if (typeof engine !== "undefined") return engine;
-
-    return null;
-}
-
-// Make sure model ALWAYS satisfies: setVisible(boolean)
 function _ensureModelVisibleApi(handle, fallbackSurfaceId, engineApi) {
     if (!handle) return null;
-
-    // already satisfies contract
     if (typeof handle.setVisible === "function") return handle;
 
     const sid =
@@ -64,28 +31,18 @@ function _ensureModelVisibleApi(handle, fallbackSurfaceId, engineApi) {
             (typeof handle.id === "number" && handle.id > 0) ? (handle.id | 0) :
                 (fallbackSurfaceId | 0);
 
-    if (!sid) {
-        throw new Error("[player] model has no surfaceId/id; cannot build setVisible API");
-    }
+    if (!sid) throw new Error("[player] model has no surfaceId/id; cannot build setVisible API");
 
-    const E = engineApi || (typeof engine !== "undefined" ? engine : null);
-    if (!E) throw new Error("[player] cannot resolve engine api for model visibility");
+    const E = engineApi;
+    if (!E) throw new Error("[player] engine api is required for model visibility");
 
     const surfApi = E.surface && E.surface();
-    if (!surfApi) {
-        throw new Error("[player] engine.surface() missing (required for model visibility)");
-    }
-    if (typeof surfApi.handle !== "function") {
-        throw new Error("[player] engine.surface().handle(id) missing (required for model visibility)");
-    }
-    if (typeof surfApi.setVisible !== "function") {
-        throw new Error("[player] engine.surface().setVisible(handle,bool) missing (required for model visibility)");
-    }
+    if (!surfApi) throw new Error("[player] engine.surface() missing");
+    if (typeof surfApi.handle !== "function") throw new Error("[player] engine.surface().handle(id) missing");
+    if (typeof surfApi.setVisible !== "function") throw new Error("[player] engine.surface().setVisible(handle,bool) missing");
 
-    // resolve Java SurfaceHandle once (no per-frame conversions)
     const h = surfApi.handle(sid);
 
-    // Minimal wrapper: only what CameraOrchestrator needs.
     return {
         setVisible(v) { surfApi.setVisible(h, !!v); },
         _raw: handle,
@@ -123,11 +80,7 @@ class PlayerEntity {
     setModelVisible(visible) {
         const m = this.model;
         if (!m) return false;
-
-        if (typeof m.setVisible !== "function") {
-            throw new Error("[player] model must implement setVisible(boolean)");
-        }
-
+        if (typeof m.setVisible !== "function") throw new Error("[player] model must implement setVisible(boolean)");
         m.setVisible(!!visible);
         return true;
     }
@@ -156,7 +109,6 @@ class PlayerEntity {
             h.teleport(pos);
             return;
         }
-
         const b = this._ensureBodyRef();
         if (b && typeof b.warp === "function") {
             b.warp(pos);
@@ -165,15 +117,13 @@ class PlayerEntity {
 
         const id = this.bodyId | 0;
         if (!id) return;
-
         PHYS.warp(id, pos);
     }
 
     destroy() {
         const b = this._ensureBodyRef();
-        if (b && typeof b.remove === "function") {
-            b.remove();
-        } else {
+        if (b && typeof b.remove === "function") b.remove();
+        else {
             const id = this.bodyId | 0;
             if (id) PHYS.remove(id);
         }
@@ -200,17 +150,16 @@ class PlayerEntityFactory {
         if (cfg == null && this.player) cfg = (this.player.cfg && this.player.cfg.spawn) || {};
         cfg = cfg || {};
 
-        // resolve engine api once (NO global requirement)
-        const engineApi = resolveEngineFromPlayer(this.player);
-        if (!engineApi) throw new Error("[player] cannot resolve engine api (ctx.engine.api())");
+        const E = this.player && this.player.engine;
+        if (!E) throw new Error("[player] engine not ready (call player.init() first)");
 
         const radius = _num(cfg.radius, 0.35);
         const height = _num(cfg.height, 1.80);
-        const mass   = _num(cfg.mass, 80.0);
+        const mass = _num(cfg.mass, 80.0);
 
-        const friction    = (cfg.friction != null) ? cfg.friction : 0.9;
+        const friction = (cfg.friction != null) ? cfg.friction : 0.9;
         const restitution = (cfg.restitution != null) ? cfg.restitution : 0.0;
-        const damping     = (cfg.damping != null) ? cfg.damping : { linear: 0.15, angular: 0.95 };
+        const damping = (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95};
 
         const posMode = (cfg.posMode != null) ? String(cfg.posMode) : "feet";
         const pos = (cfg.pos != null) ? cfg.pos : { x: 0, y: 3, z: 0 };
@@ -220,7 +169,7 @@ class PlayerEntityFactory {
 
         const snapToGround = (cfg.snapToGround !== undefined) ? !!cfg.snapToGround : true;
         const snapRay = _num(cfg.snapRay, 64.0);
-        const snapUp  = _num(cfg.snapUp, 2.0);
+        const snapUp = _num(cfg.snapUp, 2.0);
         const snapPad = _num(cfg.snapPad, 0.02);
 
         const h = ENT.create({
@@ -260,26 +209,21 @@ class PlayerEntityFactory {
         e.body = h.body;
 
         e.surfaceId = (h.surfaceId | 0) || _idOf(h.surface);
-        e.bodyId    = (h.bodyId | 0)    || _idOf(h.body);
+        e.bodyId = (h.bodyId | 0) || _idOf(h.body);
 
         if (e.bodyId) e.bodyRef = PHYS.ref(e.bodyId);
 
         e.hideModelInFirstPerson = hideInFirstPerson;
 
-        // ALWAYS assign a model handle for visibility control:
-        // - pickedModel if provided
-        // - else the player's own surface
-        // AND normalize to have setVisible(boolean) via SurfaceApi if needed.
         const chosenModel = pickedModel || h.surface;
-        e.setModel(_ensureModelVisibleApi(chosenModel, e.surfaceId, engineApi));
+        e.setModel(_ensureModelVisibleApi(chosenModel, e.surfaceId, E));
 
-        // Ground snap after creation
         if (snapToGround && posMode === "feet" && e.bodyRef && typeof e.bodyRef.raycast === "function") {
             const px = _num(pos.x, 0), pz = _num(pos.z, 0);
             const feetY = _num(pos.y, 3);
 
             const from = { x: px, y: feetY + snapUp, z: pz };
-            const to   = { x: px, y: feetY - snapRay, z: pz };
+            const to = {x: px, y: feetY - snapRay, z: pz};
 
             const hit = e.bodyRef.raycast({ from, to });
             if (hit && hit.hit) {
@@ -288,20 +232,8 @@ class PlayerEntityFactory {
                     const hitY = (feetY + snapUp) - dist;
                     const snappedFeetY = hitY + snapPad;
                     const snappedCenterY = snappedFeetY + (height * 0.5 - radius);
-
                     e.warp({ x: px, y: snappedCenterY, z: pz });
-
-                    if (LOG && LOG.info) {
-                        LOG.info(
-                            "[player] spawn snap feetY=" + feetY +
-                            " -> hitY=" + hitY.toFixed(3) +
-                            " centerY=" + snappedCenterY.toFixed(3) +
-                            " bodyId=" + e.bodyId
-                        );
-                    }
                 }
-            } else if (LOG && LOG.warn) {
-                LOG.warn("[player] spawn snap missed ground (fromY=" + (feetY + snapUp) + " toY=" + (feetY - snapRay) + ")");
             }
         }
 
