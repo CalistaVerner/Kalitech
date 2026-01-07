@@ -1,5 +1,7 @@
 package org.foxesworld.kalitech.engine.world.systems.proxy;
 
+// Author: KΛYLΛ
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -9,17 +11,22 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
+ * MainThreadProxyFactory
+ *
  * Creates dynamic proxies for engine/api objects so worker-runtime can call them safely:
- * - On world thread: direct call
- * - On worker thread: dispatch to main via MainThreadDispatcher (sync)
- * <p>
- * Also wraps returned interface values recursively so chained calls remain safe.
+ *  - On world thread: direct call
+ *  - On worker thread: dispatch to main via {@link MainThreadDispatcher} (sync)
+ *
+ * The important detail: returned interface values are also wrapped based on the
+ * declared return type of the invoked method, so chained calls remain safe:
+ *
+ *  engine.physics().addBody(...)  // physics() must not leak a raw (non-proxied) sub-api
  */
 public final class MainThreadProxyFactory {
 
     private final MainThreadDispatcher dispatcher;
 
-    // Avoid wrapping the same instance repeatedly.
+    // Avoid wrapping the same instance repeatedly (identity cache).
     private final Map<Object, Object> cache = new IdentityHashMap<>();
 
     // Optional denylist: block some calls from worker even via dispatch (hard sandbox at API level).
@@ -39,11 +46,18 @@ public final class MainThreadProxyFactory {
         if (target == null) return null;
         Objects.requireNonNull(iface, "iface");
         if (!iface.isInterface()) throw new IllegalArgumentException("Not an interface: " + iface.getName());
-        if (!iface.isInstance(target))
+        if (!iface.isInstance(target)) {
             throw new IllegalArgumentException("Target does not implement: " + iface.getName());
+        }
 
         // Don't wrap on world thread unnecessarily.
         if (dispatcher.isWorldThread()) return target;
+
+        // If it's already our proxy, return as-is.
+        if (Proxy.isProxyClass(target.getClass())) {
+            InvocationHandler ih = Proxy.getInvocationHandler(target);
+            if (ih instanceof Handler) return target;
+        }
 
         synchronized (cache) {
             Object existing = cache.get(target);
@@ -107,7 +121,7 @@ public final class MainThreadProxyFactory {
             // On world thread -> direct call
             if (dispatcher.isWorldThread()) {
                 Object r = method.invoke(target, args);
-                return wrapReturn(r);
+                return wrapReturn(method, r);
             }
 
             // From worker -> marshal to main synchronously
@@ -115,33 +129,40 @@ public final class MainThreadProxyFactory {
                 try {
                     return method.invoke(target, args);
                 } catch (InvocationTargetException ite) {
+                    // Re-throw the original cause so JS sees the real error.
                     Throwable c = ite.getCause();
-                    if (c != null) try {
-                        throw c;
-                    } catch (Throwable e) {
-                        throw new RuntimeException(e);
+                    if (c != null) {
+                        if (c instanceof RuntimeException re) throw re;
+                        if (c instanceof Error er) throw er;
+                        throw new RuntimeException(c);
                     }
                     throw ite;
                 }
             });
 
-            return wrapReturn(r);
+            return wrapReturn(method, r);
         }
 
-        private Object wrapReturn(Object r) {
+        private Object wrapReturn(Method method, Object r) {
             if (r == null) return null;
 
-            // If return is an interface, proxy it too (chained calls safe)
-            Class<?> rc = r.getClass();
-            // Prefer declared return type when it's an interface
-            // (Graal host objects often implement interfaces)
-            // If not interface -> return as is.
-            if (rc.isInterface()) {
-                return r;
+            // Already our proxy -> safe.
+            if (Proxy.isProxyClass(r.getClass())) {
+                try {
+                    InvocationHandler ih = Proxy.getInvocationHandler(r);
+                    if (ih instanceof Handler) return r;
+                } catch (IllegalArgumentException ignored) {
+                }
             }
 
-            // If the returned object implements any interfaces, and the method return type is interface, wrap that.
-            // Most of your API types are interfaces, so this catches sub-apis like engine.physics(), engine.hud(), etc.
+            // Wrap based on DECLARED return type (this closes the leak).
+            Class<?> rt = method.getReturnType();
+            if (rt != null && rt.isInterface() && rt.isInstance(r)) {
+                @SuppressWarnings("unchecked")
+                Class<Object> ifaceRt = (Class<Object>) rt;
+                return MainThreadProxyFactory.this.wrap(r, ifaceRt);
+            }
+
             return r;
         }
     }

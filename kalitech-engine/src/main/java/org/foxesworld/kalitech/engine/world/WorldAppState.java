@@ -1,5 +1,7 @@
 package org.foxesworld.kalitech.engine.world;
 
+// Author: KΛYLΛ
+
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
@@ -22,7 +24,17 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
- * CDPR-style:
+ * WorldAppState
+ *
+ * Orchestrates the world's main loop and script systems with CDPR-style priorities:
+ *  - One shared runtime per world by default (fast hot path, shared caches)
+ *  - Isolated runtimes on demand via RuntimePool + Policy (tools/ui/hotreload sandboxes)
+ *  - Worker runtimes are sandboxed by forcing all engine/api calls through main-thread proxies
+ *  - Per-worker stats (tick time, lag, skips) via SystemScheduler
+ *  - Frame budget guard (target FPS) + PerfMarks for offender hints
+ */
+/*
+ * Legacy notes (kept):
  * - 1 runtime per world by default (fast, shared cache)
  * - isolated runtimes on demand via RuntimePool + Policy
  * - worker runtimes get hard sandbox (API-level): engine/api/render are main-thread proxies
@@ -535,6 +547,23 @@ public final class WorldAppState extends BaseAppState {
 
             try {
                 Object renderApi = this.api.render();
+
+                // IMPORTANT: do not leak raw sub-apis into worker runtime.
+                // Wrap render sub-api based on EngineApi.render() declared return type.
+                if (proxyFactory != null && renderApi != null) {
+                    try {
+                        Method m = EngineApi.class.getMethod("render");
+                        Class<?> rt = m.getReturnType();
+                        if (rt != null && rt.isInterface() && rt.isInstance(renderApi)) {
+                            @SuppressWarnings("unchecked")
+                            Class<Object> iface = (Class<Object>) rt;
+                            renderApi = proxyFactory.wrap(renderApi, iface);
+                        }
+                    } catch (Throwable ignored) {
+                        // If reflection fails, keep the safe fallback below.
+                    }
+                }
+
                 bindings.putMember("render", renderApi);
             } catch (Throwable t) {
                 bindings.putMember("render", engineProxy);

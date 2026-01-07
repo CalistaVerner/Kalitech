@@ -1,142 +1,143 @@
 // FILE: resources/kalitech/builtin/Events.js
-// Author: Calista Verner
+// Author: KΛYLΛ (patched by Kalitech)
+// "native-first" wrapper for Java EventsApiImpl (token-based)
+
 "use strict";
 
 /**
  * Events builtin (OOP wrapper).
+ *
  * Contract:
  *   module.exports(engine, K) => api
  *   module.exports.META = { name, globalName, version, description, engineMin }
  *
  * API:
- *   EVENTS.on(topic, fn) -> offFn
+ *   EVENTS.on(topic, fn) -> offFn                 // token-based under the hood
  *   EVENTS.once(topic, fn) -> offFn
- *   EVENTS.off(topic, fn) -> boolean
+ *   EVENTS.off(topic, fn) -> boolean             // classic (only if native supports)
+ *   EVENTS.offToken(token, topic?) -> boolean     // preferred
  *   EVENTS.emit(topic, payload) -> boolean
  *   EVENTS.scope("player").on("move", fn) => listens "player.move"
  *   EVENTS.enabled() -> boolean
  */
 
-function _isFn(x) {
-    return typeof x === "function";
+function _isFn(x) { return typeof x === "function"; }
+
+function _safeCall(fn, fb) {
+    try { return fn(); } catch (_) { return fb; }
 }
 
+/**
+ * ✅ Kalitech priority:
+ *  1) engine.api().bus()  -> Java EventsApiImpl (what you used successfully)
+ *  2) engine.bus()        -> sometimes directly exposes EventsApiImpl
+ *  3) engine.getBus()     -> raw ScriptEventBus (may not match)
+ *  4) K.bus/K.BUS/global BUS
+ */
 function _getBus(engine, K) {
-    // 1) direct inject: K.bus
-    if (K && K.bus) return K.bus;
+    if (!engine) return null;
 
-    // 2) engine.getBus()
-    if (engine && _isFn(engine.getBus)) return engine.getBus();
-
-    // 3) engine.bus()
-    if (engine && _isFn(engine.bus)) return engine.bus();
-
-    // 4) engine.api().getBus() / engine.api().bus()
-    try {
-        if (engine && _isFn(engine.api)) {
-            const api = engine.api();
-            if (api && _isFn(api.getBus)) return api.getBus();
-            if (api && _isFn(api.bus)) return api.bus();
-        }
-    } catch (_) {
+    // 1) engine.api().bus()
+    const api = _safeCall(() => (_isFn(engine.api) ? engine.api() : null), null);
+    if (api) {
+        const b = _safeCall(() => (_isFn(api.bus) ? api.bus() : null), null);
+        if (b) return b;
+        const b2 = _safeCall(() => (_isFn(api.getBus) ? api.getBus() : null), null);
+        if (b2) return b2;
     }
+
+    // 2) engine.bus()
+    const eb = _safeCall(() => (_isFn(engine.bus) ? engine.bus() : null), null);
+    if (eb) return eb;
+
+    // 3) engine.getBus()
+    const gb = _safeCall(() => (_isFn(engine.getBus) ? engine.getBus() : null), null);
+    if (gb) return gb;
+
+    // 4) injects / globals
+    if (K && (K.bus || K.BUS)) return (K.bus || K.BUS);
+    if (typeof BUS !== "undefined" && BUS) return BUS;
 
     return null;
 }
 
 function _busOn(bus, topic, fn) {
-    if (!bus) return null;
+    if (!bus) return 0;
 
-    if (_isFn(bus.on)) return bus.on(topic, fn);
-    if (_isFn(bus.addListener)) return bus.addListener(topic, fn);
-    if (_isFn(bus.addEventListener)) return bus.addEventListener(topic, fn);
+    if (_isFn(bus.on)) return (bus.on(topic, fn) | 0);
+    if (_isFn(bus.addListener)) return (bus.addListener(topic, fn) | 0);
+    if (_isFn(bus.addEventListener)) return (bus.addEventListener(topic, fn) | 0);
+    if (_isFn(bus.subscribe)) return (bus.subscribe(topic, fn) | 0);
 
-    if (_isFn(bus.subscribe)) return bus.subscribe(topic, fn);
-
-    return null;
+    return 0;
 }
 
-function _busOff(bus, topic, fn, token) {
+/**
+ * Token-based off that works with Java overloads:
+ *  - off(int token)
+ *  - off(String topic, int token)
+ */
+function _busOffToken(bus, token, topicMaybe) {
     if (!bus) return false;
+    const tok = token | 0;
+    if (!tok) return false;
 
-    // token-based unsubscribe
-    if (token != null) {
-        if (_isFn(bus.unsubscribe)) {
-            try {
-                bus.unsubscribe(token);
-                return true;
-            } catch (_) {
-            }
-        }
-        if (_isFn(bus.offToken)) {
-            try {
-                bus.offToken(token);
-                return true;
-            } catch (_) {
-            }
-        }
-    }
-
-    // classic off/removeListener
+    // Prefer off(token)
     if (_isFn(bus.off)) {
         try {
-            bus.off(topic, fn);
-            return true;
+            // If Java has off(int), Graal will select it.
+            const r = bus.off(tok);
+            return (r === undefined) ? true : !!r;
         } catch (_) {
+            // Try off(topic, token)
+            if (topicMaybe != null) {
+                try {
+                    const r2 = bus.off(String(topicMaybe || ""), tok);
+                    return (r2 === undefined) ? true : !!r2;
+                } catch (_) {}
+            }
         }
+    }
+
+    // Other buses
+    if (_isFn(bus.offToken)) { try { return !!bus.offToken(tok); } catch (_) {} }
+    if (_isFn(bus.unsubscribe)) { try { bus.unsubscribe(tok); return true; } catch (_) {} }
+
+    return false;
+}
+
+function _busOffClassic(bus, topic, fn) {
+    if (!bus) return false;
+    if (!_isFn(fn)) return false;
+
+    if (_isFn(bus.off)) {
+        try { bus.off(topic, fn); return true; } catch (_) {}
     }
     if (_isFn(bus.removeListener)) {
-        try {
-            bus.removeListener(topic, fn);
-            return true;
-        } catch (_) {
-        }
+        try { bus.removeListener(topic, fn); return true; } catch (_) {}
     }
     if (_isFn(bus.removeEventListener)) {
-        try {
-            bus.removeEventListener(topic, fn);
-            return true;
-        } catch (_) {
-        }
+        try { bus.removeEventListener(topic, fn); return true; } catch (_) {}
     }
-
-    // last resort: unsubscribe(topic, fn)
     if (_isFn(bus.unsubscribe)) {
-        try {
-            bus.unsubscribe(topic, fn);
-            return true;
-        } catch (_) {
-        }
+        try { bus.unsubscribe(topic, fn); return true; } catch (_) {}
     }
-
     return false;
 }
 
 function _busEmit(bus, topic, payload) {
     if (!bus) return false;
 
+    // Java EventsApiImpl likely has emit(topic, payload)
     if (_isFn(bus.emit)) {
-        try {
-            bus.emit(topic, payload);
-            return true;
-        } catch (_) {
-        }
+        try { bus.emit(topic, payload); return true; } catch (_) {}
     }
     if (_isFn(bus.publish)) {
-        try {
-            bus.publish(topic, payload);
-            return true;
-        } catch (_) {
-        }
+        try { bus.publish(topic, payload); return true; } catch (_) {}
     }
     if (_isFn(bus.dispatch)) {
-        try {
-            bus.dispatch(topic, payload);
-            return true;
-        } catch (_) {
-        }
+        try { bus.dispatch(topic, payload); return true; } catch (_) {}
     }
-
     return false;
 }
 
@@ -146,40 +147,42 @@ class EventsApi {
         this.K = K || (globalThis.__kalitech || Object.create(null));
 
         this._bus = null;
-        this._resolved = false;
-
-        // tuning
         this._defaultSeparator = ".";
         this._throwIfNoBus = true;
+
+        // Re-resolve bus if missing (early boot)
+        this._lastResolveAt = 0;
+        this._resolveCooldownMs = 50;
     }
 
-    engine() {
-        const e = this.engineRef;
-        if (!e) throw new Error("[EVENTS] engine not attached");
-        return e;
-    }
+    _resolveBus(force) {
+        const now = (Date.now ? Date.now() : 0);
+        if (!force && this._bus) return this._bus;
 
-    bus() {
-        if (this._resolved) return this._bus;
-        this._resolved = true;
-        this._bus = _getBus(this.engineRef, this.K);
+        if (!force && now && (now - this._lastResolveAt) < this._resolveCooldownMs) {
+            return this._bus;
+        }
+        this._lastResolveAt = now;
+
+        const b = _getBus(this.engineRef, this.K);
+        if (b) this._bus = b;
         return this._bus;
     }
 
-    enabled() {
-        return !!this.bus();
-    }
+    bus() { return this._resolveBus(false); }
+    enabled() { return !!this.bus(); }
 
     configure(cfg) {
         cfg = (cfg && typeof cfg === "object") ? cfg : {};
         if (cfg.separator != null) this._defaultSeparator = String(cfg.separator);
         if (cfg.throwIfNoBus != null) this._throwIfNoBus = !!cfg.throwIfNoBus;
+        if (cfg.resolveCooldownMs != null) this._resolveCooldownMs = Math.max(0, cfg.resolveCooldownMs | 0);
         return this;
     }
 
     _needBus() {
-        const b = this.bus();
-        if (!b && this._throwIfNoBus) throw new Error("[EVENTS] bus is not available");
+        const b = this._resolveBus(false);
+        if (!b && this._throwIfNoBus) throw new Error("[EVENTS] bus is not available (yet)");
         return b;
     }
 
@@ -189,14 +192,12 @@ class EventsApi {
         if (!_isFn(handler)) throw new Error("[EVENTS] handler must be a function");
 
         const bus = this._needBus();
-        if (!bus) return function offNoop() {
-            return false;
-        };
+        if (!bus) return function offNoop(){ return false; };
 
         const token = _busOn(bus, t, handler);
 
-        // universal unsubscribe fn
-        return () => _busOff(bus, t, handler, token);
+        // ✅ return offFn (JS-friendly), but actually removes token in Java
+        return () => _busOffToken(bus, token, t);
     }
 
     once(topic, handler) {
@@ -204,21 +205,17 @@ class EventsApi {
         if (!t) throw new Error("[EVENTS] topic is required");
         if (!_isFn(handler)) throw new Error("[EVENTS] handler must be a function");
 
-        const self = this;
         let offFn = null;
-
-        function wrapped(data) {
-            try {
-                if (offFn) offFn();
-            } catch (_) {
-            }
+        const wrapped = (data) => {
+            try { if (offFn) offFn(); } catch (_) {}
             return handler(data);
-        }
+        };
 
-        offFn = self.on(t, wrapped);
+        offFn = this.on(t, wrapped);
         return offFn;
     }
 
+    // classic off(topic, fn) — only works if native supports it
     off(topic, handler) {
         const t = String(topic || "");
         if (!t) return false;
@@ -227,7 +224,14 @@ class EventsApi {
         const bus = this.bus();
         if (!bus) return false;
 
-        return _busOff(bus, t, handler, null);
+        return _busOffClassic(bus, t, handler);
+    }
+
+    // ✅ preferred: token-based off
+    offToken(token, topicMaybe) {
+        const bus = this.bus();
+        if (!bus) return false;
+        return _busOffToken(bus, token, topicMaybe);
     }
 
     emit(topic, payload) {
@@ -248,24 +252,15 @@ class EventsApi {
         const self = this;
         return Object.freeze({
             scope,
-            on: function (topic, handler) {
-                return self.on(prefix + String(topic || ""), handler);
-            },
-            once: function (topic, handler) {
-                return self.once(prefix + String(topic || ""), handler);
-            },
-            off: function (topic, handler) {
-                return self.off(prefix + String(topic || ""), handler);
-            },
-            emit: function (topic, payload) {
-                return self.emit(prefix + String(topic || ""), payload);
-            }
+            on: (topic, handler) => self.on(prefix + String(topic || ""), handler),
+            once: (topic, handler) => self.once(prefix + String(topic || ""), handler),
+            off: (topic, handler) => self.off(prefix + String(topic || ""), handler),
+            emit: (topic, payload) => self.emit(prefix + String(topic || ""), payload),
+            offToken: (token, topicMaybe) => self.offToken(token, topicMaybe != null ? (prefix + String(topicMaybe)) : null)
         });
     }
 
-    child(scopeName, separator) {
-        return this.scope(scopeName, separator);
-    }
+    child(scopeName, separator) { return this.scope(scopeName, separator); }
 }
 
 // factory(engine, K) => api
@@ -274,12 +269,11 @@ function create(engine, K) {
     return new EventsApi(engine, K);
 }
 
-// META (adult contract)
 create.META = {
     name: "events",
     globalName: "EVENTS",
-    version: "1.0.0",
-    description: "ScriptEventBus wrapper: on/off/once/emit + scoped topics (OOP)",
+    version: "1.2.0",
+    description: "Native-first Events wrapper for Kalitech (token-based offFn, stable with Java EventsApiImpl)",
     engineMin: "0.1.0"
 };
 

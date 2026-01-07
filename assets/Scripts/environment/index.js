@@ -2,19 +2,22 @@
 // Author: KΛYLΛ
 //
 // Main world descriptor (data-first).
-// Editor systems are injected by engine/builtins.
+// No more hardcoded "exports.world = editor" magic.
+// Runtime should call: require(...).create({mode})  ✅
+// Legacy fallback: require(...).world              (default preset)
 
 "use strict";
 
 const WORLD_SCHEMA_VERSION = 1;
 
-// FIX: World.systems.js now exports `worldSystems`
+// Base systems list
+// (World.systems.js exports `worldSystems`)
 const baseSystems = require("./World.systems.js").worldSystems;
 
-// --- Official module contract meta ---
+// --- Module meta ---
 exports.meta = {
     id: "kalitech.world.main",
-    version: "1.2.0",
+    version: "1.3.0",
     apiMin: "0.1.0",
     name: "Main World Descriptor"
 };
@@ -28,13 +31,18 @@ function deepFreeze(obj) {
 }
 
 function clone(obj) {
+    // JSON clone is enough for descriptors (pure data)
     return obj ? JSON.parse(JSON.stringify(obj)) : obj;
+}
+
+function isObj(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
 function validateWorld(world) {
     const errors = [];
 
-    if (!world || typeof world !== "object") {
+    if (!isObj(world)) {
         errors.push("world must be an object");
         return errors;
     }
@@ -42,8 +50,12 @@ function validateWorld(world) {
     if (!world.name || typeof world.name !== "string")
         errors.push("world.name must be string");
 
-    if (!world.mode || (world.mode !== "game" && world.mode !== "editor"))
-        errors.push('world.mode must be "game" or "editor"');
+    // ✅ mode is now data-driven: allow any string (game/editor/menu/benchmark/…)
+    if (!world.mode || typeof world.mode !== "string")
+        errors.push("world.mode must be string");
+
+    if (!Number.isFinite(+world.schemaVersion))
+        errors.push("world.schemaVersion must be number");
 
     if (!Array.isArray(world.systems))
         errors.push("world.systems must be array");
@@ -51,9 +63,10 @@ function validateWorld(world) {
     if (!Array.isArray(world.entities))
         errors.push("world.entities must be array");
 
+    // systems validation (stableId uniqueness etc.)
     const ids = new Set();
     for (const s of world.systems || []) {
-        if (!s || typeof s !== "object") {
+        if (!isObj(s)) {
             errors.push("system entry must be object");
             continue;
         }
@@ -74,14 +87,14 @@ function validateWorld(world) {
         if (!s.id || typeof s.id !== "string")
             errors.push(`system.id must be string (${stableId || "?"})`);
 
-        if (s.config != null && typeof s.config !== "object")
+        if (s.config != null && !isObj(s.config))
             errors.push(`system.config must be object (${stableId || "?"})`);
 
+        // jsSystem contract: must have config.module
         if (s.id === "jsSystem") {
-            // Keep compatibility with older JS engines that don't support optional chaining
             const cfg = s.config;
             const mod = cfg && cfg.module;
-            if (typeof mod !== "string")
+            if (typeof mod !== "string" || !mod.trim())
                 errors.push(`jsSystem requires config.module (${stableId || "?"})`);
         }
     }
@@ -90,16 +103,15 @@ function validateWorld(world) {
 }
 
 // --- Presets ---
+// Preset returns PURE DATA descriptor.
+// buildWorld() will clone+freeze+validate (safe boundary).
 const presets = {
     game() {
         return {
             name: "main",
             mode: "game",
             schemaVersion: WORLD_SCHEMA_VERSION,
-
-            // IMPORTANT: clone() below will deep-copy, so it’s safe to reference shared baseSystems here
             systems: baseSystems,
-
             entities: []
         };
     },
@@ -109,15 +121,49 @@ const presets = {
         w.mode = "editor";
         w.name = "main_editor";
         return w;
+    },
+
+    // Minimal worlds (optional, but useful for routing)
+    menu() {
+        // keep it safe: minimal systems, no player/terrain by default
+        // You can later add a dedicated UI jsSystem here.
+        return {
+            name: "main_menu",
+            mode: "menu",
+            schemaVersion: WORLD_SCHEMA_VERSION,
+            systems: [
+                // Example:
+                // { id:"jsSystem", order:10, stableId:"ui.mainMenu", config:{ module:"Scripts/ui/MainMenu" } }
+            ],
+            entities: []
+        };
+    },
+
+    benchmark() {
+        // Keep base systems but remove player if you want;
+        // For now: same as game (simple + predictable).
+        const w = presets.game();
+        w.mode = "benchmark";
+        w.name = "main_benchmark";
+        return w;
     }
 };
 
 // --- Build ---
-function buildWorld(mode) {
-    const m = (mode === "editor") ? "editor" : "game";
-    const w = presets[m]();
+function normalizeMode(mode) {
+    const m = String(mode || "").trim();
+    return m || "game";
+}
 
-    const frozen = deepFreeze(clone(w));
+function buildWorld(mode) {
+    const m = normalizeMode(mode);
+    const factory = presets[m] || presets.game;
+
+    const raw = factory();
+    // ensure preset respected requested mode even if preset fallback happened
+    raw.mode = m;
+
+    const frozen = deepFreeze(clone(raw));
     const errs = validateWorld(frozen);
     if (errs.length) {
         throw new Error("[world] Invalid world descriptor:\n- " + errs.join("\n- "));
@@ -125,12 +171,22 @@ function buildWorld(mode) {
     return frozen;
 }
 
-exports.world = buildWorld("editor");
-
-exports.create = function (opts) {
+/**
+ * ✅ Main entry:
+ *   require("./world/main.world.js").create({mode:"game"})
+ */
+exports.create = function create(opts) {
     const mode = (opts && opts.mode) ? opts.mode : "game";
     return buildWorld(mode);
 };
 
-// Optional: expose validator for tooling
+/**
+ * ✅ Legacy fallback:
+ * Old engine paths may still read `exports.world`.
+ * Keep it stable & predictable: default is "game".
+ */
+exports.world = buildWorld("game");
+
+// Optional: tooling hooks
 exports.validate = validateWorld;
+exports.presets = Object.freeze(Object.keys(presets));

@@ -1,99 +1,64 @@
 // FILE: Scripts/main.js
 // Author: KΛYLΛ
+//
+// Zero-magic entrypoint:
+// RuntimeAppState loads this module and asks it for an "app".
+// App decides what world to load and how.
+
 "use strict";
 
-const worldMod = require("./environment");
+// Data-first world descriptor (recommended)
+const MainWorldDesc = require("@env");
+
 exports.meta = {
-    id: "kalitech.world.main",
-    version: "1.1.0",
+    id: "kalitech.app",
+    version: "2.0.0",
     apiMin: "0.1.0",
-    name: "Main World Entrypoint"
+    name: "Kalitech App Entrypoint"
 };
 
-exports.world = worldMod.world;
-//exports.bootstrap = bootMod.bootstrap;
+/**
+ * Contract (new):
+ *   const main = require('Scripts/main.js')
+ *   const app  = main.create?.(opts) ?? main
+ *   const worldDesc = app.getWorld?.(ctx) ?? app.world ?? legacy(main.world)
+ *   build world from worldDesc
+ *   app.start?.(ctx)
+ */
+exports.create = function create(opts) {
+    opts = (opts && typeof opts === "object") ? opts : {};
 
-class MainWorldEntrypoint {
-    constructor(worldModule) {
-        this.world = this._instantiate(worldModule, "world");
-        this.state = { started: false };
-    }
+    return {
+        meta: exports.meta,
 
-    _instantiate(mod, legacyKey) {
-        try {
-            if (mod && mod.create) return mod.create();
-        } catch (_) {}
+        /**
+         * Decide which world descriptor to load.
+         * You can route by mode: game/editor/menu/benchmark/etc.
+         */
+        getWorld(ctx) {
+            const mode =
+                (opts && opts.mode) ||
+                (ctx && ctx.opts && ctx.opts.mode) ||
+                "game";
 
-        try {
-            if (mod && mod[legacyKey]) return mod[legacyKey];
-        } catch (_) {}
+            // WorldDesc module already validates & freezes the descriptor
+            return MainWorldDesc.create({mode});
+        },
 
-        return {};
-    }
+        /** Optional lifecycle: called after world has been built and entities applied. */
+        start(ctx) {
+            // Put app-level init here (UI bootstrap, subscriptions, etc.)
+            // Keep world-specific logic inside systems.
+        },
 
-    _call(obj, method, arg, where) {
-        try {
-            const fn = obj && obj[method];
-            if (fn) return fn.call(obj, arg);
-            return undefined;
-        } catch (e) {
-            LOG.error("[main] " + where + " failed: " + e);
-            throw e;
+        /** Optional per-frame app update (only if Java calls it in future). */
+        update(ctx) {
+            // noop
+        },
+
+        /** Optional shutdown. */
+        stop(reason) {
+            // noop
         }
-    }
-
-    init(apiOrCtx) {
-        this.state.started = true;
-    }
-
-    update(tpfOrCtx) {
-
-        const p = ctx.state().get("player");
-        if (p) p.update(tpf);
-
-        const PH = EVENTS.scope("engine.physics");
-
-        PH.once("postStep", () => {
-            LOG.info('Player Snap to ground!');
-            player.snapToGround(); // твоя функция/логика
-        });
-
-        // слушаем всё по физике
-        const t = EVENTS.onPattern("engine.physics.**", (topic, payload) => {
-            LOG.info("[EVT]", topic, payload);
-        });
-
-// или точечно
-        EVENTS.on("engine.surface.registered", (p) => LOG.info("surface+", p));
-
-// снять подписку
-// EVENTS.off("engine.physics.**", t);
-
-
-    }
-
-    destroy(reason) {
-
-    }
-
-    serialize() {
-        let worldState = null;
-
-
-        return { started: this.state.started, world: worldState };
-    }
-
-    deserialize(restored) {
-        if (restored && typeof restored === "object") {
-            this.state = deepMerge(this.state, restored);
-
-            try {
-                if (this.world && this.world.deserialize) this.world.deserialize(restored.world);
-            } catch (_) {}
-        }
-    }
-}
-
-exports.create = function () {
-    return new MainWorldEntrypoint(worldMod);
+    };
 };

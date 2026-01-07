@@ -1,3 +1,4 @@
+// FILE: RuntimeAppState.java
 package org.foxesworld.kalitech.engine.app;
 
 import com.jme3.app.Application;
@@ -10,10 +11,9 @@ import com.jme3.bullet.PhysicsSpace;
 import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.script.ScriptRuntime;
-import org.graalvm.polyglot.Value;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.KWorld;
@@ -21,12 +21,13 @@ import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.WorldBuilder;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
+import org.graalvm.polyglot.Value;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.Set;
 import java.util.Objects;
+import java.util.Set;
 
 public final class RuntimeAppState extends BaseAppState {
 
@@ -64,152 +65,91 @@ public final class RuntimeAppState extends BaseAppState {
         this.bus = Objects.requireNonNull(bus, "bus");
     }
 
-    @Override
-    protected void initialize(Application app) {
-        this.sa = (SimpleApplication) app;
+    /**
+     * New contract: entry module may expose an app instance or a factory.
+     * <p>
+     * Supported:
+     * - module.create() -> app
+     * - module.app -> app
+     * - fallback: module itself is the app
+     */
+    private static Value instantiateApp(Value mainModule) {
+        if (mainModule == null || mainModule.isNull()) return mainModule;
 
-
-        // --- PHYSICS: one per RuntimeAppState (stable across world rebuilds) ---
-        bullet = new BulletAppState();
-        bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("log.level", "false")));
-        app.getStateManager().attach(bullet);
-
-        space = bullet.getPhysicsSpace();
-        space.setGravity(new Vector3f(0, -9.81f, 0));
-
-        // 1) shared runtime
-        runtime = new ScriptRuntime();
-        runtime.setModuleStreamProvider(moduleId -> {
-            String id = moduleId;
-            if (!id.endsWith(".js")) id += ".js";
-
-            AssetManager am = app.getAssetManager();
-            try {
-                return am.locateAsset(new AssetKey<>(id)).openStream();
-            } catch (Exception e) {
-                return null;
-            }
-        });
-
-        // 4) stable API for JS
-        engineApi = new EngineApiImpl(this);
-        // give PhysicsSpace to EngineApiImpl (so engine.physics() uses this space)
-        engineApi.__setPhysicsSpace(space);
-        runtime.initBuiltIns(engineApi);
-        // 2) ЯВНО инициализируем built-ins
-
-
-        runtime.setModuleSourceProvider(path -> sa.getAssetManager().loadAsset(new AssetKey<>(path)));
-
-        // 2) dev hot reload watcher
-        watcher = new HotReloadWatcher(watchRoot);
-
-        // 3) providers registry (ServiceLoader)
-        registry = new SystemRegistry();
-
-
-
-        // 5) world runner (keeps SystemContext)
-        worldState = new WorldAppState(this);
-        getStateManager().attach(worldState);
-
-        // 6) builder uses registry
-        worldBuilder = new WorldBuilder(sa, registry);
-
-        log.info("RuntimeAppState started: main='{}', watchRoot={}", mainAssetPath, watchRoot.toAbsolutePath());
-        dirty = true;
-    }
-
-    @Override
-    public void update(float tpf) {
-        if (!isEnabled()) return;
-
-        engineApi.__updateTime(tpf);
-        //engineApi.ui().tick();
-        // пока WorldAppState не готов — просто ждём
-        if (worldState == null || worldState.getContextForJs() == null) return;
-
-        cooldown -= tpf;
-        if (cooldown <= 0f && watcher != null) {
-            Set<String> changed = watcher.pollChanged();
-            if (!changed.isEmpty()) {
-                cooldown = reloadCooldownSec;
-
-                // 1) Invalidate changed modules so require() reloads them.
-                //    Systems (ScriptSystem / JsWorldSystem) will pick changes by moduleVersion().
-                if (runtime != null) {
-                    runtime.invalidateMany(changed);
-                }
-
-                // 2) Notify scripts (optional): allow JS to react.
-                bus.emit("hotreload:changed", changed);
-
-                // 3) Rebuild world ONLY if main descriptor changed.
-                if (changed.contains(mainAssetPath.replace('\\', '/'))) {
-                    dirty = true;
-                }
-            }
-        }
-        if (dirty) {
-            dirty = false;
-            reloadMainAndRebuildWorld();
-        }
-
-        engineApi.__endFrameInput();
-    }
-
-    private void reloadMainAndRebuildWorld() {
-        // ВАЖНО: WorldAppState может быть ещё не initialized -> ctx == null
-        SystemContext ctx = (worldState != null) ? worldState.getContextForJs() : null;
-        if (ctx == null) {
-            dirty = true;
-            return;
-        }
-
-        SimpleApplication app = (SimpleApplication) getApplication();
+        // module.create() -> app
         try {
-            // main.js source (invalidate asset cache on dirty rebuild)
-            app.getAssetManager().deleteFromCache(new AssetKey<>(mainAssetPath));
-            String code = app.getAssetManager().loadAsset(new AssetKey<>(mainAssetPath));
-
-            String hash = sha1(code);
-            if (hash.equals(lastHash)) {
-                // main descriptor not changed; keep current world.
-                return;
+            if (mainModule.hasMember("create")) {
+                Value c = mainModule.getMember("create");
+                if (c != null && c.canExecute()) {
+                    Value app = c.execute();
+                    if (app != null && !app.isNull()) return app;
+                }
             }
-            lastHash = hash;
+        } catch (Throwable ignored) {
+            // ignore and fall back
+        }
 
-            // Ensure main module is re-evaluated on rebuild (even if it was required before)
-            runtime.invalidate(mainAssetPath);
-            Value main = runtime.require(mainAssetPath);
-
-            Value worldDesc = extractWorldDescriptor(main);
-            if (worldDesc == null || worldDesc.isNull()) {
-                log.error("main.js has no world descriptor. Expect module.exports.world = {...}");
-                return;
+        // module.app -> app
+        try {
+            if (mainModule.hasMember("app")) {
+                Value app = mainModule.getMember("app");
+                if (app != null && !app.isNull()) return app;
             }
+        } catch (Throwable ignored) {
+            // ignore and fall back
+        }
 
-            // 0) editor-mode by descriptor (optional, soft)
-            applyMode(worldDesc);
-            // Clear physics objects before hard ECS reset / world rebuild
-            try { engineApi.__physicsClearWorld(); } catch (Throwable ignored) {}
-            // 1) HARD reset ECS so rebuild does not accumulate entities/components
-            ecs.reset();
+        return mainModule;
+    }
 
-            // 2) build world systems
-            KWorld newWorld = worldBuilder.buildFromWorldDesc(ctx, worldDesc);
-            worldState.setWorld(newWorld);
+    /**
+     * Resolves a world descriptor from app/module.
+     * <p>
+     * Preferred:
+     * - app.getWorld(ctx) -> worldDesc
+     * - app.world -> worldDesc
+     * Backwards compatible:
+     * - module.world / module.exports.world
+     */
+    private static Value resolveWorldDescriptor(Value mainModule, Value appObj, SystemContext ctx) {
+        // app.getWorld(ctx)
+        try {
+            if (appObj != null && !appObj.isNull() && appObj.hasMember("getWorld")) {
+                Value f = appObj.getMember("getWorld");
+                if (f != null && f.canExecute()) {
+                    Value wd = f.execute(ctx);
+                    if (wd != null && !wd.isNull()) return wd;
+                }
+            }
+        } catch (Throwable ignored) {
+            // ignore and fall back
+        }
 
-            // 3) declarative entities spawn BEFORE bootstrap
-            applyEntitiesFromWorldDesc(worldDesc);
+        // app.world
+        try {
+            if (appObj != null && !appObj.isNull() && appObj.hasMember("world")) {
+                Value wd = appObj.getMember("world");
+                if (wd != null && !wd.isNull()) return wd;
+            }
+        } catch (Throwable ignored) {
+            // ignore and fall back
+        }
 
-            // 4) optional bootstrap AFTER world created + entities spawned
-            callIfExists(main, "bootstrap", ctx);
+        // legacy module.exports.world
+        return extractWorldDescriptor(mainModule);
+    }
 
-            log.info("World rebuilt from {}", mainAssetPath);
-
-        } catch (Exception e) {
-            log.error("Failed to rebuild world from {}", mainAssetPath, e);
+    private static void callIfExists(Value module, String fn, Object... args) {
+        if (module == null || module.isNull()) return;
+        if (!module.hasMember(fn)) return;
+        Value f = module.getMember(fn);
+        if (f == null || !f.canExecute()) return;
+        try {
+            f.execute(args);
+        } catch (Throwable t) {
+            // keep reload resilient: do not crash Java world loop due to JS lifecycle bug
+            log.error("JS hook '{}' failed", fn, t);
+            throw t;
         }
     }
 
@@ -277,12 +217,164 @@ public final class RuntimeAppState extends BaseAppState {
         return null;
     }
 
-    private static void callIfExists(Value module, String fn, Object... args) {
-        if (module == null || module.isNull()) return;
-        if (!module.hasMember(fn)) return;
-        Value f = module.getMember(fn);
-        if (f == null || !f.canExecute()) return;
-        f.execute(args);
+    @Override
+    protected void initialize(Application app) {
+        this.sa = (SimpleApplication) app;
+
+        // --- PHYSICS: one per RuntimeAppState (stable across world rebuilds) ---
+        bullet = new BulletAppState();
+        bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("log.level", "false")));
+        app.getStateManager().attach(bullet);
+
+        space = bullet.getPhysicsSpace();
+        space.setGravity(new Vector3f(0, -9.81f, 0));
+
+        // --- Shared runtime ---
+        runtime = new ScriptRuntime();
+        runtime.setModuleStreamProvider(moduleId -> {
+            String id = moduleId;
+            if (!id.endsWith(".js")) id += ".js";
+
+            AssetManager am = app.getAssetManager();
+            try {
+                return am.locateAsset(new AssetKey<>(id)).openStream();
+            } catch (Exception e) {
+                return null;
+            }
+        });
+
+        // stable API for JS
+        engineApi = new EngineApiImpl(this);
+        // give PhysicsSpace to EngineApiImpl (so engine.physics() uses this space)
+        engineApi.__setPhysicsSpace(space);
+
+        runtime.initBuiltIns(engineApi);
+        runtime.setModuleSourceProvider(path -> sa.getAssetManager().loadAsset(new AssetKey<>(path)));
+
+        // dev hot reload watcher
+        watcher = new HotReloadWatcher(watchRoot);
+
+        // providers registry (ServiceLoader)
+        registry = new SystemRegistry();
+
+        // world runner (keeps SystemContext)
+        worldState = new WorldAppState(this);
+        getStateManager().attach(worldState);
+
+        // builder uses registry
+        worldBuilder = new WorldBuilder(sa, registry);
+
+        log.info("RuntimeAppState started: main='{}', watchRoot={}", mainAssetPath, watchRoot.toAbsolutePath());
+        dirty = true;
+    }
+
+    @Override
+    public void update(float tpf) {
+        if (!isEnabled()) return;
+
+        engineApi.__updateTime(tpf);
+
+        // пока WorldAppState не готов — просто ждём
+        if (worldState == null || worldState.getContextForJs() == null) return;
+
+        cooldown -= tpf;
+        if (cooldown <= 0f && watcher != null) {
+            Set<String> changed = watcher.pollChanged();
+            if (!changed.isEmpty()) {
+                cooldown = reloadCooldownSec;
+
+                // 1) Invalidate changed modules so require() reloads them.
+                if (runtime != null) {
+                    runtime.invalidateMany(changed);
+                }
+
+                // 2) Notify scripts (optional): allow JS to react.
+                bus.emit("hotreload:changed", changed);
+
+                // 3) Rebuild world ONLY if main descriptor changed.
+                if (changed.contains(mainAssetPath.replace('\\', '/'))) {
+                    dirty = true;
+                }
+            }
+        }
+
+        if (dirty) {
+            dirty = false;
+            reloadMainAndRebuildWorld();
+        }
+
+        engineApi.__endFrameInput();
+    }
+
+    private void reloadMainAndRebuildWorld() {
+        // ВАЖНО: WorldAppState может быть ещё не initialized -> ctx == null
+        SystemContext ctx = (worldState != null) ? worldState.getContextForJs() : null;
+        if (ctx == null) {
+            dirty = true;
+            return;
+        }
+
+        SimpleApplication app = (SimpleApplication) getApplication();
+        try {
+            // main.js source (invalidate asset cache on dirty rebuild)
+            app.getAssetManager().deleteFromCache(new AssetKey<>(mainAssetPath));
+            String code = app.getAssetManager().loadAsset(new AssetKey<>(mainAssetPath));
+
+            String hash = sha1(code);
+            if (hash.equals(lastHash)) {
+                // main descriptor not changed; keep current world.
+                return;
+            }
+            lastHash = hash;
+
+            // Ensure main module is re-evaluated on rebuild (even if it was required before)
+            runtime.invalidate(mainAssetPath);
+            Value main = runtime.require(mainAssetPath);
+
+            // --- NEW CONTRACT (no magic keys): entry provides an "app" which yields a world descriptor ---
+            // Preferred:
+            //   module.create() -> app
+            //   app.getWorld(ctx) -> worldDesc
+            //   app.world -> worldDesc
+            // Backwards compatible:
+            //   module.world / module.exports.world
+            Value appObj = instantiateApp(main);
+            Value worldDesc = resolveWorldDescriptor(main, appObj, ctx);
+            if (worldDesc == null || worldDesc.isNull()) {
+                log.error(
+                        "Entry '{}' provides no world descriptor. Implement one of: create()->{getWorld(ctx)}, app.world, or legacy exports.world",
+                        mainAssetPath
+                );
+                return;
+            }
+
+            // 0) editor-mode by descriptor (optional, soft)
+            applyMode(worldDesc);
+
+            // Clear physics objects before hard ECS reset / world rebuild
+            try { engineApi.__physicsClearWorld(); } catch (Throwable ignored) {}
+
+            // 1) HARD reset ECS so rebuild does not accumulate entities/components
+            ecs.reset();
+
+            // 2) build world systems
+            KWorld newWorld = worldBuilder.buildFromWorldDesc(ctx, worldDesc);
+            worldState.setWorld(newWorld);
+
+            // 3) declarative entities spawn BEFORE lifecycle hooks
+            applyEntitiesFromWorldDesc(worldDesc);
+
+            // 4) optional lifecycle AFTER world created + entities spawned
+            // New lifecycle first
+            callIfExists(appObj, "start", ctx);
+            // Legacy hook (kept for compatibility)
+            callIfExists(main, "bootstrap", ctx);
+
+            log.info("World rebuilt from {}", mainAssetPath);
+
+        } catch (Exception e) {
+            log.error("Failed to rebuild world from {}", mainAssetPath, e);
+        }
     }
 
     private static String sha1(String s) {
@@ -303,8 +395,15 @@ public final class RuntimeAppState extends BaseAppState {
         if (worldState != null) {
             try {
                 worldState.setEnabled(false);
-            } catch (Exception ignored) {}
-            if (bullet != null) {try { getStateManager().detach(bullet); } catch (Exception ignored) {}bullet = null;}
+            } catch (Exception ignored) {
+            }
+            if (bullet != null) {
+                try {
+                    getStateManager().detach(bullet);
+                } catch (Exception ignored) {
+                }
+                bullet = null;
+            }
             engineApi.__setPhysicsSpace(null);
             try { getStateManager().detach(worldState); } catch (Exception ignored) {}
             worldState = null;
@@ -328,7 +427,6 @@ public final class RuntimeAppState extends BaseAppState {
 
         log.info("RuntimeAppState stopped");
     }
-
 
     public EngineApiImpl getEngineApi() {
         return engineApi;
@@ -355,8 +453,7 @@ public final class RuntimeAppState extends BaseAppState {
     }
 
     public BulletAppState getBullet() {
-        return bullet;
-    }
+        return bullet; }
 
     @Override protected void onEnable() {}
     @Override protected void onDisable() {}
