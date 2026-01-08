@@ -1,37 +1,23 @@
-// FILE: Scripts/player/PlayerEntityController.js
 "use strict";
 
-const {EntityControllerLink} = require("../core/controller/EntityControllerLink.js");
-const {ControllerStack} = require("../core/controller/ControllerStack.js");
-
-const {PlayerPawn} = require("./PlayerPawn.js");
-
 const {PlayerController} = require("./PlayerController.js");
-const {PlayerCameraController} = require("./controllers/PlayerCameraController.js");
-const {PlayerUIController} = require("./controllers/PlayerUIController.js");
-const {PlayerEventsController} = require("./controllers/PlayerEventsController.js");
 
+/**
+ * Legacy adapter kept ONLY as an entrypoint compatibility layer.
+ * Can be deleted later when you change Scripts/player/index.js to use PlayerController directly.
+ */
 class PlayerEntityController {
     constructor(ctx, cfg) {
-        this.entity = new PlayerPawn(ctx, cfg).init();
-
-        const stack = new ControllerStack([
-            new PlayerEventsController(),
-            new PlayerController(),
-            new PlayerCameraController(),
-            new PlayerUIController()
-        ]);
-
-        this.link = new EntityControllerLink(ctx, this.entity, stack);
+        this.root = new PlayerController(ctx, cfg).init();
     }
 
     update(dt) {
-        this.link.update(dt);
+        this.root.update(dt);
     }
 
     dispose() {
-        this.link.dispose();
-        this.entity.destroy();
+        this.root.dispose();
+        this.root = null;
     }
 }
 

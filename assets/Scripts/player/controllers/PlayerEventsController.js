@@ -1,19 +1,23 @@
-// FILE: Scripts/player/controllers/PlayerEventsController.js
 "use strict";
 
-const {EntityController} = require("../../core/controller/EntityController.js");
 const PlayerEvents = require("../PlayerEvents.js");
 
-class PlayerEventsController extends EntityController {
+class PlayerEventsController {
     constructor() {
-        super();
+        this.ctx = null;
+        this.entity = null;
         this.impl = null;
+    }
+
+    bind(ctx, entity) {
+        this.ctx = ctx;
+        this.entity = entity;
+        return this;
     }
 
     onStart() {
         this.impl = new PlayerEvents(this.entity);
 
-        // spawn event (как у тебя было)
         if (this.impl && typeof this.impl.emit === "function") {
             this.impl.emit("player.spawn", {
                 entityId: this.entity.entityId,
@@ -21,7 +25,6 @@ class PlayerEventsController extends EntityController {
             });
         }
 
-        // state export (как было)
         const ctx = this.entity.ctx;
         if (ctx && typeof ctx.state === "function") {
             ctx.state().set("player", {

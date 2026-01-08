@@ -1,22 +1,29 @@
-// FILE: Scripts/player/controllers/PlayerUIController.js
 "use strict";
 
-const {EntityController} = require("../../core/controller/EntityController.js");
 const PlayerUI = require("../PlayerUI.js");
 
-class PlayerUIController extends EntityController {
+class PlayerUIController {
     constructor() {
-        super();
+        this.ctx = null;
+        this.entity = null;
         this.impl = null;
     }
 
+    bind(ctx, entity) {
+        this.ctx = ctx;
+        this.entity = entity;
+        return this;
+    }
+
     onStart() {
-        const d = this.entity.d;
+        const pawn = this.entity;
+        const d = pawn.d;
+
         if (d.hudNative && typeof d.hudNative.setCursorEnabled === "function") {
             d.hudNative.setCursorEnabled(false, true);
         }
 
-        this.impl = new PlayerUI(this.entity);
+        this.impl = new PlayerUI(pawn);
         this.impl.create();
     }
 

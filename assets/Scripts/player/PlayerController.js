@@ -1,63 +1,72 @@
-// FILE: Scripts/player/PlayerController.js
 "use strict";
 
-const {EntityController} = require("../core/controller/EntityController.js");
-const MovementSystem = require("./systems/MovementSystem.js");
-const ShootSystem = require("./systems/ShootSystem.js");
+const {EntityControllerLink} = require("../core/controller/EntityControllerLink.js");
+const {ControllerStack} = require("../core/controller/ControllerStack.js");
+
+const {PlayerPawn} = require("./PlayerPawn.js");
+
+const {PlayerEventsController} = require("./controllers/PlayerEventsController.js");
+const {PlayerGameplayController} = require("./controllers/PlayerGameplayController.js");
+const {PlayerCameraController} = require("./controllers/PlayerCameraController.js");
+const {PlayerUIController} = require("./controllers/PlayerUIController.js");
 
 /**
- * PlayerController (UE6-style, hard OOP)
+ * PlayerController (ROOT, UE6-style binder)
  *
- * Owns the gameplay loop for PlayerPawn:
- *  - beginFrame(dt)
- *  - syncPose()
- *  - movement.update(frame, characterCfg)
- *  - shoot.update(frame, ownerBodyId)
+ * - Creates PlayerPawn
+ * - Creates controller stack (modules)
+ * - Binds via EntityControllerLink
  *
- * Contract:
- *  - entity is PlayerPawn (has beginFrame/syncPose/frame/bodyId/characterCfg)
- *  - PlayerPawn.beginFrame MUST already fill frame.input as a STRUCT (InputRouter)
+ * This is the only place that "knows everything".
+ * No legacy. No extends. No scattered ctx.
  */
-class PlayerController extends EntityController {
-    constructor() {
-        super();
-        this.movement = null;
-        this.shoot = null;
+class PlayerController {
+    constructor(ctx, cfg) {
+        this.ctx = ctx;
+        this.cfg = cfg || null;
+
+        this.pawn = null;
+        this.stack = null;
+        this.link = null;
+
+        this._alive = false;
     }
 
-    onStart() {
-        const pawn = this.entity;
+    init() {
+        if (this._alive) return this;
 
-        if (!pawn || typeof pawn.beginFrame !== "function") throw new Error("[PlayerController] entity must be PlayerPawn (beginFrame)");
-        if (typeof pawn.syncPose !== "function") throw new Error("[PlayerController] entity must be PlayerPawn (syncPose)");
-        if (!pawn.frame) throw new Error("[PlayerController] pawn.frame is required");
-        if ((pawn.bodyId | 0) <= 0) throw new Error("[PlayerController] pawn.bodyId must be > 0");
+        this.pawn = new PlayerPawn(this.ctx, this.cfg).init();
 
-        this.movement = new MovementSystem((pawn.cfg && pawn.cfg.movement) || null);
-        this.shoot = new ShootSystem(pawn);
+        this.stack = new ControllerStack([
+            new PlayerEventsController(),
+            new PlayerGameplayController(),
+            new PlayerCameraController(),
+            new PlayerUIController()
+        ]);
+
+        this.link = new EntityControllerLink(this.ctx, this.pawn, this.stack);
+
+        this._alive = true;
+        return this;
     }
 
-    onUpdate(dt) {
-        const pawn = this.entity;
-
-        pawn.beginFrame(dt);
-        pawn.syncPose();
-
-        const frame = pawn.frame;
-
-        // hard contract: frame.input is a state object, not InputApi
-        if (!frame.input || typeof frame.input !== "object") {
-            throw new Error("[PlayerController] frame.input must be an object (InputRouter state)");
-        }
-
-        this.movement.update(frame, pawn.characterCfg);
-        this.shoot.update(frame, pawn.bodyId | 0);
+    update(dt) {
+        if (!this._alive) return;
+        this.link.update(dt);
     }
 
-    onStop() {
-        if (this.shoot && typeof this.shoot.destroy === "function") this.shoot.destroy();
-        this.shoot = null;
-        this.movement = null;
+    dispose() {
+        if (!this._alive) return;
+
+        this.link.dispose();
+        this.link = null;
+
+        this.stack = null;
+
+        this.pawn.destroy();
+        this.pawn = null;
+
+        this._alive = false;
     }
 }
 

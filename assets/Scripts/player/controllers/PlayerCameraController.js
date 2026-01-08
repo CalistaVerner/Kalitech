@@ -1,22 +1,28 @@
-// FILE: Scripts/player/controllers/PlayerCameraController.js
 "use strict";
 
-const {EntityController} = require("../../core/controller/EntityController.js");
 const PlayerCamera = require("../PlayerCamera.js");
 
-class PlayerCameraController extends EntityController {
+class PlayerCameraController {
     constructor() {
-        super();
+        this.ctx = null;
+        this.entity = null;
         this.impl = null;
     }
 
+    bind(ctx, entity) {
+        this.ctx = ctx;
+        this.entity = entity;
+        return this;
+    }
+
     onStart() {
-        this.impl = new PlayerCamera(this.entity); // PlayerPawn
+        this.impl = new PlayerCamera(this.entity);
         this.impl.attach();
     }
 
     onUpdate(dt) {
         const pawn = this.entity;
+
         this.impl.update(pawn.frame);
 
         pawn.frame.view.yaw = this.impl.getYaw();
