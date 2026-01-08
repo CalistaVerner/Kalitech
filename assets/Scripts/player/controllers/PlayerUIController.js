@@ -1,7 +1,7 @@
 // FILE: Scripts/player/controllers/PlayerUIController.js
 "use strict";
 
-const {EntityController} = require("../../core/EntityController.js");
+const {EntityController} = require("../../core/controller/EntityController.js");
 const PlayerUI = require("../PlayerUI.js");
 
 class PlayerUIController extends EntityController {

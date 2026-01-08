@@ -1,7 +1,7 @@
 // FILE: Scripts/player/PlayerController.js
 "use strict";
 
-const {EntityController} = require("../core/EntityController.js");
+const {EntityController} = require("../core/controller/EntityController.js");
 const MovementSystem = require("./systems/MovementSystem.js");
 const ShootSystem = require("./systems/ShootSystem.js");
 

@@ -1,7 +1,7 @@
 // FILE: Scripts/player/controllers/PlayerCameraController.js
 "use strict";
 
-const {EntityController} = require("../../core/EntityController.js");
+const {EntityController} = require("../../core/controller/EntityController.js");
 const PlayerCamera = require("../PlayerCamera.js");
 
 class PlayerCameraController extends EntityController {

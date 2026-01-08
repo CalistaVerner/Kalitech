@@ -1,8 +1,8 @@
 // FILE: Scripts/player/PlayerEntityController.js
 "use strict";
 
-const {EntityControllerLink} = require("../core/EntityControllerLink.js");
-const {ControllerStack} = require("../core/ControllerStack.js");
+const {EntityControllerLink} = require("../core/controller/EntityControllerLink.js");
+const {ControllerStack} = require("../core/controller/ControllerStack.js");
 
 const {PlayerPawn} = require("./PlayerPawn.js");
 
