@@ -1,3 +1,4 @@
+// FILE: Scripts/core/ControllerStack.js
 "use strict";
 
 function req(v, msg) {
@@ -11,13 +12,22 @@ function reqFn(fn, msg) {
 }
 
 class ControllerStack {
-    constructor(modules) {
+    constructor(modules, ids) {
         this.ctx = null;
         this.entity = null;
 
         this.modules = Array.isArray(modules) ? modules : [];
+        this.ids = Array.isArray(ids) ? ids : new Array(this.modules.length);
+
         this._started = false;
         this._modsStarted = new Array(this.modules.length).fill(false);
+    }
+
+    static fromRegistry(registry, ctx, entity, cfg) {
+        registry = req(registry, "[Stack] registry is required");
+        const built = registry.build(ctx, entity, cfg);
+        const stack = new ControllerStack(built.list, built.ids);
+        return stack.bind(ctx, entity);
     }
 
     bind(ctx, entity) {

@@ -1,17 +1,17 @@
 // FILE: Scripts/player/index.js
 "use strict";
 
-const {PlayerEntityController} = require("./PlayerEntityController.js");
+const {PlayerController} = require("./PlayerController.js");
 
 let _player = null;
 
 module.exports.create = function create(ctx, cfg) {
-    return new PlayerEntityController(ctx, cfg || null);
+    return new PlayerController(ctx, cfg || null);
 };
 
 module.exports.init = function init(ctx, cfg) {
     if (_player) return _player;
-    _player = new PlayerEntityController(ctx, cfg || null);
+    _player = new PlayerController(ctx, cfg || null);
     return _player;
 };
 
@@ -24,4 +24,4 @@ module.exports.destroy = function destroy(ctx) {
     _player = null;
 };
 
-module.exports.PlayerEntityController = PlayerEntityController;
+module.exports.PlayerController = PlayerController;
