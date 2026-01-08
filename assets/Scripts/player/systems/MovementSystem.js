@@ -26,16 +26,12 @@ function norm2(x, z, out) {
     return out;
 }
 
-function teleportBody(body, x, y, z) {
-    if (typeof body.teleport === "function") {
-        body.teleport({x, y, z});
-        return true;
-    }
-    if (typeof body.warp === "function") {
-        body.warp({x, y, z});
-        return true;
-    }
-    return false;
+function canTeleport(bodyAccess) {
+    return !!(bodyAccess && typeof bodyAccess.teleport === "function");
+}
+
+function teleportBody(bodyAccess, x, y, z) {
+    bodyAccess.teleport(x, y, z);
 }
 
 const DEFAULT_CFG = Object.freeze({
@@ -95,36 +91,41 @@ class MovementSystem {
 
     _raycastEx(frame, fx, fy, fz, tx, ty, tz, ignoreBodyId) {
         const PHYS = frame.physics;
-        if (!PHYS || typeof PHYS.raycastEx !== "function") throw new Error("[move] frame.physics.raycastEx required");
-        return PHYS.raycastEx({from: [fx, fy, fz], to: [tx, ty, tz], ignoreBodyId: ignoreBodyId | 0});
+        return PHYS.raycastEx({
+            from: [fx, fy, fz],
+            to: [tx, ty, tz],
+            ignoreBodyId: ignoreBodyId | 0
+        });
     }
 
-    _tryStepUp(frame, body, cc, wishDirWorld, dt) {
+    _tryStepUp(frame, bodyAccess, cc, wishDirWorld, dt) {
         const su = cc.stepUp;
         if (!su || !su.enabled) return false;
+        if (!canTeleport(bodyAccess)) return false;
+
         if (this._stepUpCd > 0) {
             this._stepUpCd = Math.max(0, this._stepUpCd - dt);
             return false;
         }
 
-        const p = body.position();
+        const dirx = wishDirWorld.x;
+        const dirz = wishDirWorld.z;
+        if ((dirx * dirx + dirz * dirz) < 1e-8) return false;
+
+        const p = bodyAccess.position();
         const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
 
         const r = U.num(cc.radius, 0.35);
         const h = U.num(cc.height, 1.80);
         const footY = py - ((h * 0.5) - r);
 
-        const ignoreId = (typeof body.id === "function") ? (body.id() | 0) : 0;
-
-        const dirx = wishDirWorld.x;
-        const dirz = wishDirWorld.z;
+        const ignoreId = (frame.bodyId | 0) || 0;
 
         const fwd = U.num(su.forwardProbe, 0.35);
         const up = U.num(su.upProbe, 0.60);
         const maxH = U.num(su.maxHeight, 0.40);
+        const minH = Math.max(0, U.num(su.minHeight, 0.04));
         const minNy = U.num(su.minClearNormalY, 0.25);
-
-        if ((dirx * dirx + dirz * dirz) < 1e-8) return false;
 
         const probeX = px + dirx * (r + fwd);
         const probeZ = pz + dirz * (r + fwd);
@@ -156,22 +157,19 @@ class MovementSystem {
 
         const dy = targetCenterY - py;
         if (dy <= 0 || dy > (maxH + 0.10)) return false;
+        if (dy < minH) return false;
 
-        const ok = teleportBody(body, px, py + dy, pz);
-        if (!ok) return false;
+        teleportBody(bodyAccess, px, py + dy, pz);
 
         this._stepUpCd = U.clamp(U.num(su.warpCooldown, 0.07), 0, 0.25);
         return true;
     }
 
-    update(frame, body, characterCfg) {
+    update(frame, characterCfg) {
         if (!this.enabled) return;
-        if (!frame || !frame.input || !frame.view || !frame.pose) return;
-        if (!frame.ground) throw new Error("[move] frame.ground required (probeGroundCapsule first)");
-        if (!body) return;
 
-        if (typeof body.velocity !== "function") throw new Error("[move] body.velocity() required");
-        if (typeof body.position !== "function") throw new Error("[move] body.position() required");
+        const body = frame.bodyAccess;
+        if (!body) throw new Error("[move] frame.bodyAccess required");
 
         const dt = U.clamp(U.num(frame.dt, 1 / 60), 0, 0.05);
 
@@ -180,16 +178,13 @@ class MovementSystem {
 
         const grounded = !!frame.pose.grounded;
 
-        if (grounded) this._coyote = this.coyoteTime;
-        else this._coyote = Math.max(0, this._coyote - dt);
+        this._coyote = grounded ? this.coyoteTime : Math.max(0, this._coyote - dt);
+        this._jumpBuf = input.jump ? this.jumpBuffer : Math.max(0, this._jumpBuf - dt);
 
-        if (input.jump) this._jumpBuf = this.jumpBuffer;
-        else this._jumpBuf = Math.max(0, this._jumpBuf - dt);
-
-        const v = body.velocity();
-        let vx = U.vx(v, 0);
-        let vy = U.vy(v, 0);
-        let vz = U.vz(v, 0);
+        const v0 = body.getVel();
+        let vx = U.vx(v0, 0);
+        let vy = U.vy(v0, 0);
+        let vz = U.vz(v0, 0);
 
         if (vy < -this.maxFallSpeed) vy = -this.maxFallSpeed;
 
@@ -227,48 +222,63 @@ class MovementSystem {
         if (this._jumpBuf > 0 && this._coyote > 0) {
             this._jumpBuf = 0;
             this._coyote = 0;
-
             if (vy < 0) vy = 0;
             vy = this.jumpSpeed;
             jumpedThisTick = true;
         }
 
-        const cc = characterCfg || frame.character || null;
+        const cc = characterCfg || frame.character;
         const g = frame.ground;
 
         if (!jumpedThisTick && grounded && hasMove && cc && cc.stepUp && cc.stepUp.enabled) {
             const stepped = this._tryStepUp(frame, body, cc, this._wishWorld, dt);
             if (stepped) {
-                frame.probeGroundCapsule(body, cc);
-                frame.pose.grounded = !!frame.ground.grounded;
-            }
-        }
-
-        const sd = cc && cc.stepDown ? cc.stepDown : null;
-        const stickVel = sd ? U.num(sd.stickVel, 1.6) : 1.6;
-        const stepDownMax = sd ? U.num(sd.max, 0.28) : 0.28;
-        const deadZone = sd ? U.num(sd.deadZone, 0.01) : 0.01;
-        const stepDownEnabled = sd ? !!sd.enabled : true;
-
-        const allowStick = stepDownEnabled && grounded && !g.steep && !jumpedThisTick && vy <= 0;
-
-        if (allowStick) {
-            if (vy > -stickVel) vy = -stickVel;
-
-            if (g.hasHit) {
-                const fd = U.num(g.footDistance, 0);
-                if (fd < -deadZone) {
-                    const down = -fd;
-                    if (down <= stepDownMax) {
-                        const p = body.position();
-                        const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
-                        if (teleportBody(body, px, py + fd, pz)) vy = -stickVel;
-                    }
+                const probe = frame.probeGroundCapsule;
+                if (typeof probe === "function") {
+                    if (probe.length >= 3) probe.call(frame, body, cc, frame.bodyId | 0);
+                    else probe.call(frame, body, cc);
+                    frame.pose.grounded = !!frame.ground.grounded;
                 }
             }
         }
 
-        body.velocity({ x: vx, y: vy, z: vz });
+        const sd = cc && cc.stepDown ? cc.stepDown : null;
+        const stepDownEnabled = sd ? !!sd.enabled : true;
+        const stickVel = sd ? U.num(sd.stickVel, 1.6) : 1.6;
+        const stepDownMax = sd ? U.num(sd.max, 0.28) : 0.28;
+        const deadZone = sd ? U.num(sd.deadZone, 0.015) : 0.015;
+
+        const allowStick = stepDownEnabled && grounded && !g.steep && !jumpedThisTick && vy <= 0 && g.hasHit;
+
+        if (allowStick) {
+            if (vy > -stickVel) vy = -stickVel;
+
+            const fd = U.num(g.footDistance, 0);
+            if (fd < -deadZone && canTeleport(body)) {
+                const down = -fd;
+                if (down <= stepDownMax) {
+                    const p = body.position();
+                    const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
+                    teleportBody(body, px, py + fd, pz);
+                    vy = -stickVel;
+                }
+            }
+        }
+
+        if (body.mode === "SET_VEL") {
+            body.setVel({x: vx, y: vy, z: vz});
+        } else {
+            const cur = body.getVel();
+            const cvx = U.vx(cur, 0), cvy = U.vy(cur, 0), cvz = U.vz(cur, 0);
+
+            const m = (cc && cc.mass != null) ? U.num(cc.mass, 80) : 80;
+
+            const ix = (vx - cvx) * m;
+            const iy = (vy - cvy) * m;
+            const iz = (vz - cvz) * m;
+
+            body.applyImpulse(ix, iy, iz);
+        }
 
         frame.pose.vx = vx;
         frame.pose.vy = vy;

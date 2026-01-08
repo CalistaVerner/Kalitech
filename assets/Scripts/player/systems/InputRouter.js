@@ -20,11 +20,7 @@ const DEFAULT_KEYS = Object.freeze({
 class InputRouter {
     constructor(inputApi, cfg) {
         this.inp = inputApi;
-        if (!this.inp || typeof this.inp.keyCode !== "function") throw new Error("[input] input.keyCode required");
-        if (typeof this.inp.mouseDown !== "function") throw new Error("[input] input.mouseDown required");
-
-        cfg = cfg || Object.create(null);
-        const keys = (cfg.keys && typeof cfg.keys === "object") ? cfg.keys : DEFAULT_KEYS;
+        const keys = (cfg && cfg.keys && typeof cfg.keys === "object") ? cfg.keys : DEFAULT_KEYS;
 
         this._codes = {
             forward: this._pack(keys.forward || DEFAULT_KEYS.forward),
@@ -58,8 +54,6 @@ class InputRouter {
         return out;
     }
 
-    bind() { return this; }
-
     _anyDown(keysDown, codes) {
         for (let i = 0; i < codes.length; i++) if (arrHas(keysDown, codes[i])) return true;
         return false;
@@ -70,8 +64,6 @@ class InputRouter {
         if (!snap) return this._state;
 
         const kd = snap.keysDown;
-        if (!kd) throw new Error("[input] snap.keysDown required");
-
         const c = this._codes;
         const s = this._state;
 
@@ -86,7 +78,7 @@ class InputRouter {
         s.run = this._anyDown(kd, c.run);
 
         const jumpDown = this._anyDown(kd, c.jump);
-        s.jump = jumpDown && !this._prevJumpDown;
+        s.jump = jumpDown && !this._prevJumpDown;   // EDGE
         this._prevJumpDown = jumpDown;
 
         s.dx = U.num(snap.dx, 0);

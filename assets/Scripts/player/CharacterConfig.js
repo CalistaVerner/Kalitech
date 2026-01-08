@@ -2,8 +2,6 @@
 
 const U = require("./util.js");
 
-function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
-
 function readPath(obj, path) {
     let o = obj;
     for (let i = 0; i < path.length; i++) {
@@ -12,10 +10,12 @@ function readPath(obj, path) {
     }
     return o;
 }
+
 function readNum(obj, path, fb) {
     const v = readPath(obj, path);
     return (v === undefined || v === null) ? fb : U.num(v, fb);
 }
+
 function readBool(obj, path, fb) {
     const v = readPath(obj, path);
     return (v === undefined || v === null) ? fb : !!v;
@@ -36,6 +36,7 @@ class CharacterConfig {
         this.stepUp = {
             enabled: true,
             maxHeight: 0.40,
+            minHeight: 0.04,       // FIX: анти-джиттер (минимальная высота шага)
             forwardProbe: 0.35,
             upProbe: 0.60,
             snapUpSpeed: 28.0,
@@ -43,13 +44,11 @@ class CharacterConfig {
             warpCooldown: 0.07
         };
 
-        this.stepDown = {enabled: true, max: 0.28, stickVel: 1.6, deadZone: 0.01};
-
-        this.slope = {
-            slideEnabled: true,
-            slideAccel: 18.0,
-            maxSlideSpeed: 9.0,
-            minSlideNormalY: 0.05
+        this.stepDown = {
+            enabled: true,
+            max: 0.28,
+            stickVel: 1.6,
+            deadZone: 0.015       // FIX: чуть шире зона, меньше дребезга
         };
     }
 
@@ -77,11 +76,12 @@ class CharacterConfig {
         this.groundRay = readNum(mc, ["ground", "rayLength"], this.groundRay);
         this.groundStart = readNum(mc, ["ground", "startUp"], this.groundStart);
         this.groundEps = readNum(mc, ["ground", "eps"], this.groundEps);
-        this.maxSlopeDot = clamp01(readNum(mc, ["ground", "maxSlopeDot"], this.maxSlopeDot));
+        this.maxSlopeDot = U.clamp(readNum(mc, ["ground", "maxSlopeDot"], this.maxSlopeDot), 0, 1);
         this.probeRing = U.clamp(readNum(mc, ["ground", "probeRing"], this.probeRing), 0.1, 1.2);
 
         this.stepUp.enabled = readBool(mc, ["stepUp", "enabled"], this.stepUp.enabled);
         this.stepUp.maxHeight = readNum(mc, ["stepUp", "maxHeight"], this.stepUp.maxHeight);
+        this.stepUp.minHeight = Math.max(0, readNum(mc, ["stepUp", "minHeight"], this.stepUp.minHeight));
         this.stepUp.forwardProbe = readNum(mc, ["stepUp", "forwardProbe"], this.stepUp.forwardProbe);
         this.stepUp.upProbe = readNum(mc, ["stepUp", "upProbe"], this.stepUp.upProbe);
         this.stepUp.snapUpSpeed = readNum(mc, ["stepUp", "snapUpSpeed"], this.stepUp.snapUpSpeed);
@@ -92,11 +92,6 @@ class CharacterConfig {
         this.stepDown.max = readNum(mc, ["stepDown", "max"], this.stepDown.max);
         this.stepDown.stickVel = readNum(mc, ["stepDown", "stickVel"], this.stepDown.stickVel);
         this.stepDown.deadZone = readNum(mc, ["stepDown", "deadZone"], this.stepDown.deadZone);
-
-        this.slope.slideEnabled = readBool(mc, ["slope", "slideEnabled"], this.slope.slideEnabled);
-        this.slope.slideAccel = readNum(mc, ["slope", "slideAccel"], this.slope.slideAccel);
-        this.slope.maxSlideSpeed = readNum(mc, ["slope", "maxSlideSpeed"], this.slope.maxSlideSpeed);
-        this.slope.minSlideNormalY = readNum(mc, ["slope", "minSlideNormalY"], this.slope.minSlideNormalY);
 
         return this;
     }

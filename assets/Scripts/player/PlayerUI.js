@@ -41,8 +41,6 @@ class PlayerUI {
         if (this.layer) return this;
 
         const HUD = this.player.d.hud;
-        if (!HUD || typeof HUD.layer !== "function") throw new Error("[PlayerUI] HUD.layer required");
-
         const layer = HUD.layer(this.layerName);
         this.layer = layer;
 
@@ -74,11 +72,12 @@ class PlayerUI {
         const layer = this.layer;
         if (!layer || typeof layer.setText !== "function") return;
 
-        const dom = this.player.dom;
-        const p = dom.pose;
-        const camType = dom.view.type;
-        const camYaw = dom.view.yaw;
-        const camPitch = dom.view.pitch;
+        const f = this.player.frame;
+        const p = f.pose;
+
+        const camType = f.view.type;
+        const camYaw = f.view.yaw;
+        const camPitch = f.view.pitch;
 
         const eng = this.player.d.engine;
         const fps = (eng && typeof eng.fps === "function") ? (+eng.fps() || 0) : 0;

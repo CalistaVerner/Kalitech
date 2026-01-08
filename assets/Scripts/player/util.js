@@ -9,6 +9,24 @@ function clamp(v, a, b) {
     return v < a ? a : (v > b ? b : v);
 }
 
+function vget(v, key, fb = 0) {
+    const m = v && v[key];
+    const n = (typeof m === "function") ? num(m.call(v), fb) : num(m, fb);
+    return Number.isFinite(n) ? n : fb;
+}
+
+function vx(v, fb = 0) {
+    return vget(v, "x", fb);
+}
+
+function vy(v, fb = 0) {
+    return vget(v, "y", fb);
+}
+
+function vz(v, fb = 0) {
+    return vget(v, "z", fb);
+}
+
 function isPlainObj(x) {
     if (!x || typeof x !== "object") return false;
     const p = Object.getPrototypeOf(x);
@@ -17,8 +35,8 @@ function isPlainObj(x) {
 
 function deepMerge(dst, src) {
     if (!isPlainObj(src)) return isPlainObj(dst) ? dst : Object.create(null);
-    const out = isPlainObj(dst) ? dst : Object.create(null);
 
+    const out = isPlainObj(dst) ? dst : Object.create(null);
     const keys = Object.keys(src);
     for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
@@ -31,14 +49,4 @@ function deepMerge(dst, src) {
     return out;
 }
 
-function vget(v, key, fb = 0) {
-    const m = v && v[key];
-    if (typeof m === "function") return num(m.call(v), fb);
-    return num(m, fb);
-}
-
-function vx(v, fb = 0) { return vget(v, "x", fb); }
-function vy(v, fb = 0) { return vget(v, "y", fb); }
-function vz(v, fb = 0) { return vget(v, "z", fb); }
-
-module.exports = { num, clamp, isPlainObj, deepMerge, vx, vy, vz };
+module.exports = {num, clamp, vx, vy, vz, isPlainObj, deepMerge};

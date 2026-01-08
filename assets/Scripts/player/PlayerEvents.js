@@ -5,47 +5,54 @@ const U = require("./util.js");
 class PlayerEvents {
     constructor(player) {
         this.player = player;
-
         const cfg = (player.cfg && player.cfg.events) || Object.create(null);
         this.enabled = (cfg.enabled !== undefined) ? !!cfg.enabled : true;
 
-        this._spawned = false;
+        this._subs = [];
         this._wasGrounded = false;
-        this._wasJump = false;
     }
 
-    reset() {
-        this._spawned = false;
-        this._wasGrounded = false;
-        this._wasJump = false;
+    on(topic, fn) {
+        if (!this.enabled) return 0;
+        const bus = this.player.d.bus;
+        if (!bus) return 0;
+        const id = (bus.on(topic, fn) | 0);
+        if (id) this._subs.push(id);
+        return id;
     }
 
-    onSpawn() {
-        if (!this.enabled || this._spawned) return;
-        this._spawned = true;
-        this.player.camera.attach();
+    emit(topic, payload) {
+        if (!this.enabled) return;
+        const bus = this.player.d.bus;
+        if (!bus) return;
+        bus.emit(topic, payload);
     }
 
-    onState(state) {
+    tick(frame) {
         if (!this.enabled) return;
 
-        const grounded = !!state.grounded;
-        const jump = !!state.jump;
-        const fallSpeed = U.num(state.fallSpeed, 0);
-
+        const grounded = !!frame.pose.grounded;
         if (grounded !== this._wasGrounded) {
-            const cam = this.player.camera && this.player.camera.orch;
-
-            if (grounded) {
-                if (cam && typeof cam.onLand === "function") cam.onLand(0.4 + fallSpeed / 6.0);
-            } else {
-                if ((jump || this._wasJump) && cam && typeof cam.onJump === "function") cam.onJump(1.0);
-            }
-
+            if (grounded) this.emit("player.land", {fallSpeed: U.num(frame.pose.fallSpeed, 0)});
+            else this.emit("player.air", {});
             this._wasGrounded = grounded;
         }
 
-        this._wasJump = jump;
+        if (frame.input.jump) this.emit("player.jump", {});
+    }
+
+    destroy() {
+        const bus = this.player.d.bus;
+        if (bus && typeof bus.off === "function") {
+            for (let i = 0; i < this._subs.length; i++) {
+                try {
+                    bus.off(this._subs[i] | 0);
+                } catch (_) {
+                }
+            }
+        }
+        this._subs.length = 0;
+        this._wasGrounded = false;
     }
 }
 

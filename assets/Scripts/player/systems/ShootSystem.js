@@ -9,6 +9,7 @@ function normalize3_into(x, y, z, out) {
     out.x = x * inv; out.y = y * inv; out.z = z * inv;
     return out;
 }
+
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
 const DEFAULT_CFG = Object.freeze({
@@ -28,8 +29,8 @@ const DEFAULT_CFG = Object.freeze({
     }
 });
 
-function mergeCfg(src) {
-    src = (src && typeof src === "object") ? src : Object.create(null);
+function mergeCfg(rootCfg) {
+    const src = (rootCfg && rootCfg.shoot && typeof rootCfg.shoot === "object") ? rootCfg.shoot : Object.create(null);
     const b = DEFAULT_CFG;
     const d = (src.debug && typeof src.debug === "object") ? src.debug : Object.create(null);
     const e = (src.events && typeof src.events === "object") ? src.events : Object.create(null);
@@ -72,11 +73,11 @@ function idOfBodyHandle(g) {
 }
 
 class ShootSystem {
-    constructor(player, rootCfg) {
+    constructor(player) {
         this.player = player;
-        this.cfg = mergeCfg((rootCfg || Object.create(null)).shoot);
-        this._shotId = 0;
+        this.cfg = mergeCfg(player.cfg);
 
+        this._shotId = 0;
         this._dir = { x: 0, y: 0, z: 1 };
         this._origin = { x: 0, y: 0, z: 0 };
         this._spawn = { x: 0, y: 0, z: 0 };
@@ -86,37 +87,34 @@ class ShootSystem {
         this._shotsByBody = Object.create(null);
 
         this._subCollision = 0;
-        this._bound = false;
     }
 
-    configure(rootCfg) {
-        rootCfg = rootCfg || Object.create(null);
-        if (rootCfg.shoot) this.cfg = mergeCfg(Object.assign({}, this.cfg, rootCfg.shoot));
+    configure(cfg) {
+        if (!cfg) return this;
+        this.player.cfg = cfg;
+        this.cfg = mergeCfg(cfg);
         return this;
     }
 
     _bus() {
-        return this.player && this.player.d ? this.player.d.bus : null;
+        return this.player.d.bus;
     }
 
-    _ensureBound() {
-        if (this._bound) return;
-        this._bound = true;
-
+    _bindCollision() {
+        if (this._subCollision) return;
         const bus = this._bus();
-        if (!bus || typeof bus.on !== "function") return;
-
-        this._subCollision = bus.on("engine.physics.collision.begin", (payload) => {
+        if (!bus) return;
+        this._subCollision = (bus.on("engine.physics.collision.begin", (payload) => {
             try {
                 this._onCollisionBegin(payload);
             } catch (_) {
             }
-        }) | 0;
+        }) | 0);
     }
 
     _emit(topic, payload) {
         const bus = this._bus();
-        if (!bus || typeof bus.emit !== "function") return;
+        if (!bus) return;
         bus.emit(topic, payload);
     }
 
@@ -136,7 +134,7 @@ class ShootSystem {
 
     _readOrigin_into(frame, outOrigin) {
         outOrigin.x = U.num(frame.pose.x, 0);
-        outOrigin.y = U.num(frame.pose.y, 0) + (frame.character ? U.num(frame.character.eyeHeight, 1.55) : 1.55);
+        outOrigin.y = U.num(frame.pose.y, 0) + U.num(frame.character.eyeHeight, 1.55);
         outOrigin.z = U.num(frame.pose.z, 0);
         return outOrigin;
     }
@@ -157,10 +155,10 @@ class ShootSystem {
         const c = this.cfg;
         if (!c.enabled || !ownerBodyId) return;
 
-        this._ensureBound();
+        this._bindCollision();
 
-        const yaw = frame.view ? frame.view.yaw : 0;
-        const pitch = frame.view ? frame.view.pitch : 0;
+        const yaw = frame.view.yaw;
+        const pitch = frame.view.pitch;
 
         this._readOrigin_into(frame, this._origin);
         this._dirFromYawPitch_into(yaw, pitch, this._dir);
@@ -262,10 +260,6 @@ class ShootSystem {
 
     update(frame, ownerBodyId) {
         if (!this.cfg.enabled) return;
-        if (!frame || !frame.input) return;
-
-        this._ensureBound();
-
         if (!frame.input.lmbJustPressed) return;
         this._fire(frame, ownerBodyId | 0);
     }
@@ -279,8 +273,6 @@ class ShootSystem {
             }
         }
         this._subCollision = 0;
-        this._bound = false;
-
         this._shotsBySurface = Object.create(null);
         this._shotsByBody = Object.create(null);
     }

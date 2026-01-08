@@ -9,8 +9,6 @@ class FrameContext {
 
         this.physics = null;
 
-        this.ids = { entityId: 0, surfaceId: 0, bodyId: 0 };
-
         this.input = {
             ax: 0, az: 0,
             run: false,
@@ -47,28 +45,21 @@ class FrameContext {
     begin(player, dt, snap) {
         this.dt = U.num(dt, 0);
         this.snap = snap || null;
-
-        this.physics = player && player.d ? player.d.physics : null;
-
-        this.ids.entityId = player.entityId | 0;
-        this.ids.surfaceId = player.surfaceId | 0;
-        this.ids.bodyId = player.bodyId | 0;
+        this.physics = player.d.physics;
 
         const cc = player.characterCfg;
-        if (cc) {
-            this.character.radius = U.num(cc.radius, 0.35);
-            this.character.height = U.num(cc.height, 1.80);
-            this.character.eyeHeight = U.num(cc.eyeHeight, 1.65);
-        }
+        this.character.radius = U.num(cc.radius, 0.35);
+        this.character.height = U.num(cc.height, 1.80);
+        this.character.eyeHeight = U.num(cc.eyeHeight, 1.65);
+
         return this;
     }
 
     _raycastEx(fx, fy, fz, tx, ty, tz, ignoreBodyId) {
         const PHYS = this.physics;
-        if (!PHYS || typeof PHYS.raycastEx !== "function") throw new Error("[frame] physics.raycastEx required");
         return PHYS.raycastEx({
             from: [fx, fy, fz],
-            to:   [tx, ty, tz],
+            to: [tx, ty, tz],
             ignoreBodyId: ignoreBodyId | 0
         });
     }
@@ -82,9 +73,6 @@ class FrameContext {
         g.ny = 1; g.nx = 0; g.nz = 0;
         g.distance = 9999;
         g.footDistance = 9999;
-
-        if (!body || !cfg) return false;
-        if (typeof body.position !== "function") throw new Error("[frame] body.position missing");
 
         const p = body.position();
         if (!p) return false;
