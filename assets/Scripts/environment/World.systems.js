@@ -29,8 +29,23 @@ const worldSystems = [
         id: "jsSystem",
         order: 50,
         stableId: "player",
-        config: {module: "Scripts/player/index.js"}
+        config: {
+            module: "Scripts/player/index.js",
+
+            spawn: {pos: {x: 129, y: 3, z: -300}, radius: 0.35, height: 1.8, mass: 80},
+            camera: {type: "first"},
+            ui: {layerName: "player.debug", anchor: "tl"},
+
+            shoot: {
+                speed: 24,
+                spawnOffset: 0.25,
+                events: {fire: "game.shoot.fire", hit: "game.shoot.hit"}
+            },
+
+            events: {enabled: true}
+        }
     }
+
 ];
 
 exports.worldSystems = worldSystems;

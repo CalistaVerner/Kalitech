@@ -22,8 +22,6 @@ const DEFAULT_CFG = Object.freeze({
     speed: 20.0,
     invertPitch: false,
     debug: {logShots: false},
-
-    // event topics (override if you want)
     events: {
         fire: "game.shoot.fire",
         hit: "game.shoot.hit"
@@ -55,7 +53,6 @@ function mergeCfg(src) {
 }
 
 function idOfSurfaceHandle(g) {
-    // максимально терпимо к разным хэндлам
     if (!g) return 0;
     if (typeof g.surfaceId === "number") return g.surfaceId | 0;
     if (typeof g.id === "number") return g.id | 0;
@@ -66,7 +63,6 @@ function idOfSurfaceHandle(g) {
 }
 
 function idOfBodyHandle(g) {
-    // если у хэндла есть доступ к physics body id — отлично, иначе 0
     if (!g) return 0;
     if (typeof g.bodyId === "number") return g.bodyId | 0;
     if (typeof g.physicsBodyId === "number") return g.physicsBodyId | 0;
@@ -77,9 +73,8 @@ function idOfBodyHandle(g) {
 
 class ShootSystem {
     constructor(player, rootCfg) {
-        rootCfg = rootCfg || Object.create(null);
         this.player = player;
-        this.cfg = mergeCfg(rootCfg.shoot);
+        this.cfg = mergeCfg((rootCfg || Object.create(null)).shoot);
         this._shotId = 0;
 
         this._dir = { x: 0, y: 0, z: 1 };
@@ -87,12 +82,9 @@ class ShootSystem {
         this._spawn = { x: 0, y: 0, z: 0 };
         this._vel = { x: 0, y: 0, z: 0 };
 
-        // active shots registry
-        this._shotsBySurface = Object.create(null); // surfaceId -> shotMeta
-        this._shotsByBody = Object.create(null);    // bodyId -> surfaceId (optional)
+        this._shotsBySurface = Object.create(null);
+        this._shotsByBody = Object.create(null);
 
-        // collision subscription
-        this._ev = null;
         this._subCollision = 0;
         this._bound = false;
     }
@@ -103,29 +95,29 @@ class ShootSystem {
         return this;
     }
 
+    _bus() {
+        return this.player && this.player.d ? this.player.d.bus : null;
+    }
+
     _ensureBound() {
         if (this._bound) return;
         this._bound = true;
 
-        const ev = this.player.ctx.engine.api().bus();
-        this._ev = ev;
+        const bus = this._bus();
+        if (!bus || typeof bus.on !== "function") return;
 
-        // если Events API отсутствует — просто работаем без событий
-        if (!ev || typeof ev.on !== "function") return;
-
-        // ловим столкновения физики (PhysicsApiImpl уже эмитит эти топики)
-        this._subCollision = ev.on("engine.physics.collision.begin", (payload) => {
+        this._subCollision = bus.on("engine.physics.collision.begin", (payload) => {
             try {
                 this._onCollisionBegin(payload);
             } catch (_) {
             }
-        });
+        }) | 0;
     }
 
     _emit(topic, payload) {
-        const ev = this.player.ctx.engine.api().bus();
-        if (!ev || typeof ev.emit !== "function") return;
-        ev.emit(topic, payload);
+        const bus = this._bus();
+        if (!bus || typeof bus.emit !== "function") return;
+        bus.emit(topic, payload);
     }
 
     _dirFromYawPitch_into(yaw, pitch, outDir) {
@@ -161,9 +153,9 @@ class ShootSystem {
         return meta;
     }
 
-    _fire(frame, bodyId) {
+    _fire(frame, ownerBodyId) {
         const c = this.cfg;
-        if (!c.enabled || !bodyId) return;
+        if (!c.enabled || !ownerBodyId) return;
 
         this._ensureBound();
 
@@ -200,8 +192,6 @@ class ShootSystem {
         this._vel.z = this._dir.z * speed;
         if (g && typeof g.velocity === "function") g.velocity(this._vel);
 
-        //SND.create({ soundFile: "Sounds/hit.ogg", volume: 1.0, pitch: 1.0, looping: false }).play();
-
         const meta = this._registerShot(g, {
             shotIndex,
             name,
@@ -210,10 +200,9 @@ class ShootSystem {
             vel: {x: this._vel.x, y: this._vel.y, z: this._vel.z},
             yaw: +yaw || 0,
             pitch: +pitch || 0,
-            ownerBodyId: bodyId | 0
+            ownerBodyId: ownerBodyId | 0
         });
 
-        // ✅ EVENT: shot fired
         this._emit(c.events.fire, {
             shotIndex: meta.shotIndex,
             name: meta.name,
@@ -228,7 +217,7 @@ class ShootSystem {
         });
 
         if (c.debug && c.debug.logShots && LOG && LOG.info) {
-            LOG.info("[shoot] " + name + " sid=" + meta.surfaceId + " bid=" + meta.bodyId + " yaw=" + yaw + " pitch=" + pitch);
+            LOG.info("[shoot] " + name + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
         }
     }
 
@@ -257,7 +246,6 @@ class ShootSystem {
         const shotMeta = this._shotsBySurface[shotSid];
         if (!shotMeta) return;
 
-        // ✅ EVENT: shot hit something
         this._emit(c.events.hit, {
             shotIndex: shotMeta.shotIndex,
             name: shotMeta.name,
@@ -268,35 +256,29 @@ class ShootSystem {
             contact: payload.contact || null
         });
 
-        // обычно после первого контакта снаряд "умирает":
-        // если хочешь — раскомментируй удаление из реестра (и/или remove сущности)
         delete this._shotsBySurface[shotSid];
         if (shotMeta.bodyId > 0) delete this._shotsByBody[shotMeta.bodyId];
     }
 
-    update(frame, bodyId) {
+    update(frame, ownerBodyId) {
         if (!this.cfg.enabled) return;
         if (!frame || !frame.input) return;
 
-        // подписка на collision может быть нужна даже до первого выстрела
         this._ensureBound();
 
         if (!frame.input.lmbJustPressed) return;
-        this._fire(frame, bodyId | 0);
+        this._fire(frame, ownerBodyId | 0);
     }
 
     destroy() {
-        // отписка от collision
-        const ev = this.player.ctx.engine.api().bus();
-        if (ev && typeof ev.off === "function" && this._subCollision) {
+        const bus = this._bus();
+        if (bus && typeof bus.off === "function" && this._subCollision) {
             try {
-                ev.off(this._subCollision | 0);
+                bus.off(this._subCollision | 0);
             } catch (_) {
             }
         }
-
         this._subCollision = 0;
-        this._ev = null;
         this._bound = false;
 
         this._shotsBySurface = Object.create(null);

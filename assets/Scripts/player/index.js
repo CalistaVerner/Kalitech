@@ -10,9 +10,9 @@ const PlayerUI = require("./PlayerUI.js");
 const PlayerEvents = require("./PlayerEvents.js");
 const { PlayerEntityFactory } = require("./PlayerEntityFactory.js");
 
-function must(obj, name) {
-    if (!obj) throw new Error(name + " is required");
-    return obj;
+function must(x, msg) {
+    if (!x) throw new Error(msg);
+    return x;
 }
 
 function resolveEngineApi(ctx) {
@@ -23,24 +23,62 @@ function resolveEngineApi(ctx) {
     return null;
 }
 
-function resolveDomains(ctx, engineApi) {
-    const E = engineApi || resolveEngineApi(ctx);
+function resolveDomains(ctx) {
+    const E = resolveEngineApi(ctx);
     if (!E) throw new Error("[player] cannot resolve engine api from ctx");
 
-    const PH = (typeof PHYS !== "undefined" && PHYS) ? PHYS : (typeof E.physics === "function" ? E.physics() : null);
-    const IN = (typeof INP !== "undefined" && INP) ? INP : (typeof E.input === "function" ? E.input() : null);
-    const HUD_NATIVE = (typeof E.hud === "function") ? E.hud() : null;
+    const physics = (typeof PHYS !== "undefined" && PHYS) ? PHYS : (typeof E.physics === "function" ? E.physics() : null);
+    const input = (typeof INP !== "undefined" && INP) ? INP : (typeof E.input === "function" ? E.input() : null);
+    const assets = (typeof E.assets === "function") ? E.assets() : null;
+    const camera = (typeof E.camera === "function") ? E.camera() : null;
+    const surface = (typeof E.surface === "function") ? E.surface() : null;
 
-    return {E, PH, IN, HUD_NATIVE};
+    const bus =
+        (typeof E.bus === "function") ? E.bus()
+            : (typeof E.scriptBus === "function") ? E.scriptBus()
+                : null;
+
+    const hud = (typeof HUD !== "undefined" && HUD) ? HUD : null;
+    const hudNative = (typeof E.hud === "function") ? E.hud() : null;
+
+    return Object.freeze({
+        ctx,
+        engine: E,
+        physics: must(physics, "[player] engine.physics() required"),
+        input: must(input, "[player] engine.input() required"),
+        assets,
+        camera: must(camera, "[player] engine.camera() required"),
+        surface,
+        bus,
+        hud,
+        hudNative,
+        log: (typeof LOG !== "undefined" && LOG) ? LOG : null
+    });
 }
 
 class PlayerDomain {
     constructor(player) {
         this.player = player;
         this.ids = { entityId: 0, surfaceId: 0, bodyId: 0 };
-        this.input = { ax: 0, az: 0, run: false, jump: false, lmbDown: false, lmbJustPressed: false };
+
+        this.input = {
+            ax: 0, az: 0,
+            run: false,
+            jump: false,
+            lmbDown: false,
+            lmbJustPressed: false,
+            dx: 0, dy: 0, wheel: 0
+        };
+
         this.view = { yaw: 0, pitch: 0, type: "third" };
-        this.pose = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, grounded: false, speed: 0, fallSpeed: 0 };
+
+        this.pose = {
+            x: 0, y: 0, z: 0,
+            vx: 0, vy: 0, vz: 0,
+            grounded: false,
+            speed: 0,
+            fallSpeed: 0
+        };
     }
 
     syncIds(p) {
@@ -55,21 +93,13 @@ class Player {
         this.ctx = ctx;
         this.cfg = cfg || Object.create(null);
 
-        this.alive = false;
-
-        this.engine = null;
-        this.PHYS = null;
-        this.INP = null;
-
-        this.HUD_NATIVE = null;
-        this.HUD = null;
         this.d = null;
+        this.alive = false;
 
         this.entity = null;
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
-
         this.body = null;
 
         this.model = null;
@@ -85,14 +115,9 @@ class Player {
         this.camera = new PlayerCamera(this);
         this.ui = new PlayerUI(this);
         this.events = new PlayerEvents(this);
-    }
 
-    getBodyId() { return this.bodyId | 0; }
-
-    getModel() {
-        const e = this.entity;
-        if (e && e.model) return e.model;
-        return this.model;
+        this._subFire = 0;
+        this._subHit = 0;
     }
 
     withConfig(cfg) {
@@ -106,40 +131,17 @@ class Player {
         return this;
     }
 
+    getModel() {
+        return (this.entity && this.entity.getModel) ? this.entity.getModel() : this.model;
+    }
+
     init() {
-        if (this.alive) return;
+        if (this.alive) return this;
 
-        const r = resolveDomains(this.ctx, null);
-        this.engine = r.E;
-        this.PHYS = must(r.PH, "[player] PHYS domain");
-        this.INP = must(r.IN, "[player] INP domain");
-        this.HUD_NATIVE = r.HUD_NATIVE;
+        this.d = resolveDomains(this.ctx);
 
-        this.HUD = (typeof HUD !== "undefined" && HUD) ? HUD : null;
-
-        // ✅ Domains container for all subsystems (camera expects this)
-        this.d = Object.freeze({
-            ctx: this.ctx,
-            engine: this.engine,
-            physics: this.PHYS,
-            input: this.INP,
-            camera: (this.engine && typeof this.engine.camera === "function") ? this.engine.camera() : null,
-            assets: (this.engine && typeof this.engine.assets === "function") ? this.engine.assets() : null,
-            hud: this.HUD,
-            hudNative: this.HUD_NATIVE,
-            bus: (this.engine && typeof this.engine.bus === "function") ? this.engine.bus() : null,
-            surface: (this.engine && typeof this.engine.surface === "function") ? this.engine.surface() : null,
-            log: (typeof LOG !== "undefined" && LOG) ? LOG : null
-        });
-
-        if (!this.d.camera) throw new Error("[player] engine.camera() required");
-
-
-        if (typeof this.PHYS.ref !== "function") throw new Error("[player] PHYS.ref required");
-        if (typeof this.INP.consumeSnapshot !== "function") throw new Error("[player] INP.consumeSnapshot required");
-
-        if (this.HUD_NATIVE && typeof this.HUD_NATIVE.setCursorEnabled === "function") {
-            this.HUD_NATIVE.setCursorEnabled(false, true);
+        if (this.d.hudNative && typeof this.d.hudNative.setCursorEnabled === "function") {
+            this.d.hudNative.setCursorEnabled(false, true);
         }
 
         this.cfg = U.deepMerge({
@@ -147,7 +149,8 @@ class Player {
             spawn: { pos: { x: 129, y: 3, z: -300 }, radius: 0.35, height: 1.80, mass: 80.0 },
             camera: { type: "first" },
             ui: {},
-            events: { enabled: true }
+            events: {enabled: true},
+            shoot: {events: {fire: "game.shoot.fire", hit: "game.shoot.hit"}}
         }, this.cfg);
 
         this.ui.create();
@@ -160,11 +163,10 @@ class Player {
 
         if (this.bodyId <= 0) throw new Error("[player] invalid bodyId=" + this.bodyId);
 
-        this.body = this.PHYS.ref(this.bodyId);
-        if (!this.body) throw new Error("[player] PHYS.ref(bodyId) returned null bodyId=" + this.bodyId);
+        this.body = this.d.physics.ref(this.bodyId);
+        if (!this.body) throw new Error("[player] physics.ref(bodyId) returned null bodyId=" + this.bodyId);
 
         this.dom.syncIds(this);
-
         this.controller.bind();
 
         const movCfg = this.controller.getMovementCfg();
@@ -174,6 +176,22 @@ class Player {
 
         this.events.reset();
         this.events.onSpawn();
+
+        const bus = this.d.bus;
+        if (bus && typeof bus.on === "function") {
+            const se = (this.cfg.shoot && this.cfg.shoot.events) ? this.cfg.shoot.events : null;
+            const fireTopic = se && se.fire ? String(se.fire) : "game.shoot.fire";
+            const hitTopic = se && se.hit ? String(se.hit) : "game.shoot.hit";
+
+            if (LOG && LOG.info) {
+                this._subFire = (bus.on(fireTopic, (e) => {
+                    LOG.info("[event] FIRE shot=" + e.name + " sid=" + e.surfaceId);
+                }) | 0);
+                this._subHit = (bus.on(hitTopic, (e) => {
+                    LOG.info("[event] HIT shot=" + e.name + " otherSid=" + (e.other ? e.other.surfaceId : 0));
+                }) | 0);
+            }
+        }
 
         if (this.ctx && typeof this.ctx.state === "function") {
             this.ctx.state().set("player", {
@@ -186,10 +204,8 @@ class Player {
 
         this.alive = true;
         if (LOG && LOG.info) LOG.info("[player] init ok entity=" + this.entityId + " bodyId=" + this.bodyId);
-        //EVENT.on("game.shoot.hit", (e) => {
-        //    LOG.info("[event] HIT shot=" + e.name + " otherSid=" + e.other.surfaceId + " impulse=" + (e.contact ? e.contact.maxImpulse : 0));
-        //});
 
+        return this;
     }
 
     _syncPose(frame) {
@@ -238,17 +254,10 @@ class Player {
         frame.view.type = type;
     }
 
-    setModelVisible(visible) {
-        const m = this.getModel();
-        if (!m) return;
-        if (typeof m.setVisible !== "function") throw new Error("[player] model must implement setVisible(boolean)");
-        m.setVisible(!!visible);
-    }
-
     update(tpf) {
         if (!this.alive) return;
 
-        const snap = this.INP.consumeSnapshot();
+        const snap = this.d.input.consumeSnapshot();
 
         this.frame.begin(this, tpf, snap);
         this.dom.syncIds(this);
@@ -266,53 +275,85 @@ class Player {
             jump: this.dom.input.jump,
             fallSpeed: this.frame.pose.fallSpeed
         });
+
         this.ui.refresh();
-        this.ctx.engine.api().bus().on("game.shoot.fire", (e) => {
-            LOG.info("[event] FIRE shot=" + e.name + " sid=" + e.surfaceId);
-        });
-        if (this.INP && typeof this.INP.endFrame === "function") this.INP.endFrame();
+
+        if (this.d.input && typeof this.d.input.endFrame === "function") this.d.input.endFrame();
     }
 
     destroy() {
         if (!this.alive) return;
 
+        if (this.d && this.d.bus && typeof this.d.bus.off === "function") {
+            if (this._subFire) {
+                try {
+                    this.d.bus.off(this._subFire | 0);
+                } catch (_) {
+                }
+            }
+            if (this._subHit) {
+                try {
+                    this.d.bus.off(this._subHit | 0);
+                } catch (_) {
+                }
+            }
+        }
+        this._subFire = 0;
+        this._subHit = 0;
+
+        this.controller.destroy();
         this.camera.destroy();
         this.ui.destroy();
 
-        if (this.entity) this.entity.destroy();
+        if (this.entity) this.entity.destroy(this.d.physics);
 
         this.entity = null;
         this.body = null;
+
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
 
         if (this.ctx && typeof this.ctx.state === "function") this.ctx.state().remove("player");
 
-        this.engine = null;
-        this.PHYS = null;
-        this.INP = null;
-        this.HUD_NATIVE = null;
-        this.HUD = null;
         this.d = null;
-
         this.alive = false;
+
         if (LOG && LOG.info) LOG.info("[player] destroy");
     }
+
+    getBodyId() {
+        return this.bodyId | 0;
+    }
+
+    getEntityId() {
+        return this.entityId | 0;
+    }
+
+    getSurfaceId() {
+        return this.surfaceId | 0;
+    }
+
 }
 
 let _player = null;
 
-module.exports.init = function init(ctx) {
-    if (_player && _player.alive) return;
-    _player = new Player(ctx, null);
+module.exports.create = function create(ctx, cfg) {
+    const p = new Player(ctx, cfg || null);
+    p.init();
+    return p;
+};
+
+module.exports.init = function init(ctx, cfg) {
+    if (_player && _player.alive) return _player;
+    _player = new Player(ctx, cfg || null);
     _player.init();
+    return _player;
 };
 
 module.exports.update = function update(ctx, tpf) {
     if (_player) _player.update(tpf);
 };
-
 module.exports.destroy = function destroy(ctx) {
     if (_player) _player.destroy();
     _player = null;

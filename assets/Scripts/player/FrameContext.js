@@ -1,5 +1,3 @@
-// FILE: Scripts/player/FrameContext.js
-// Author: KΛYLΛ
 "use strict";
 
 const U = require("./util.js");
@@ -9,7 +7,10 @@ class FrameContext {
         this.dt = 0;
         this.snap = null;
 
+        this.physics = null;
+
         this.ids = { entityId: 0, surfaceId: 0, bodyId: 0 };
+
         this.input = {
             ax: 0, az: 0,
             run: false,
@@ -35,20 +36,19 @@ class FrameContext {
             ny: 1,
             nx: 0,
             nz: 0,
-            distance: 9999,      // distance from start of ray
-            footDistance: 9999,  // distance from footY (>=0 means below foot)
+            distance: 9999,
+            footDistance: 9999,
             steep: false
         };
 
         this.character = { radius: 0.35, height: 1.80, eyeHeight: 1.65 };
-
-        this._fromA = [0, 0, 0];
-        this._toA = [0, 0, 0];
     }
 
     begin(player, dt, snap) {
         this.dt = U.num(dt, 0);
         this.snap = snap || null;
+
+        this.physics = player && player.d ? player.d.physics : null;
 
         this.ids.entityId = player.entityId | 0;
         this.ids.surfaceId = player.surfaceId | 0;
@@ -64,6 +64,8 @@ class FrameContext {
     }
 
     _raycastEx(fx, fy, fz, tx, ty, tz, ignoreBodyId) {
+        const PHYS = this.physics;
+        if (!PHYS || typeof PHYS.raycastEx !== "function") throw new Error("[frame] physics.raycastEx required");
         return PHYS.raycastEx({
             from: [fx, fy, fz],
             to:   [tx, ty, tz],
@@ -92,7 +94,6 @@ class FrameContext {
         const r = U.num(cfg.radius, 0.35);
         const h = U.num(cfg.height, 1.80);
 
-        // center - (halfHeight - radius)
         const footY = py - ((h * 0.5) - r);
 
         const rayDown = U.num(cfg.groundRay, 0.55);
@@ -114,8 +115,6 @@ class FrameContext {
             const hz = pz + oz;
 
             const hit = this._raycastEx(hx, startY, hz, hx, endY, hz, ignoreId);
-
-            // IMPORTANT: some engine builds return null -> treat as "no hit"
             if (!hit || hit.hit !== true) return;
 
             const dist = U.num(hit.distance, NaN);
@@ -146,16 +145,10 @@ class FrameContext {
         g.ny = U.num(n.y, 1);
         g.nz = U.num(n.z, 0);
 
-        // dist is measured FROM startY вниз
-        // точка хита по Y: hitY = startY - dist
-        // расстояние от footY: footDist = (startY - dist) - footY = startUp - dist
-        // когда стоим на земле: dist ≈ startUp  => footDist ≈ 0
         const footDist = startUp - dist;
         g.footDistance = footDist;
 
-        // ✅ правильный контакт: хит должен быть в пределах "под ногой" (около startUp)
         const inContact = dist <= (startUp + eps);
-
         const walkable = inContact && (g.ny >= maxSlopeDot);
 
         g.grounded = walkable;

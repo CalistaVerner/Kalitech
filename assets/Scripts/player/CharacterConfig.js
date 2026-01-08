@@ -12,12 +12,10 @@ function readPath(obj, path) {
     }
     return o;
 }
-
 function readNum(obj, path, fb) {
     const v = readPath(obj, path);
     return (v === undefined || v === null) ? fb : U.num(v, fb);
 }
-
 function readBool(obj, path, fb) {
     const v = readPath(obj, path);
     return (v === undefined || v === null) ? fb : !!v;
@@ -30,21 +28,22 @@ class CharacterConfig {
         this.eyeHeight = 1.65;
 
         this.groundRay = 1.15;
+        this.groundStart = 0.20;
         this.groundEps = 0.08;
         this.maxSlopeDot = 0.55;
         this.probeRing = 0.65;
 
         this.stepUp = {
-            enabled: false,
-            maxHeight: 0.45,
+            enabled: true,
+            maxHeight: 0.40,
             forwardProbe: 0.35,
-            upProbe: 0.55,
-            snapUpSpeed: 24.0,
-            minClearNormalY: 0.35,
+            upProbe: 0.60,
+            snapUpSpeed: 28.0,
+            minClearNormalY: 0.25,
             warpCooldown: 0.07
         };
 
-        this.stepDown = {enabled: true, max: 0.45, speed: 22.0};
+        this.stepDown = {enabled: true, max: 0.28, stickVel: 1.6, deadZone: 0.01};
 
         this.slope = {
             slideEnabled: true,
@@ -76,8 +75,9 @@ class CharacterConfig {
         const mc = movementCfg || Object.create(null);
 
         this.groundRay = readNum(mc, ["ground", "rayLength"], this.groundRay);
+        this.groundStart = readNum(mc, ["ground", "startUp"], this.groundStart);
         this.groundEps = readNum(mc, ["ground", "eps"], this.groundEps);
-        this.maxSlopeDot = readNum(mc, ["ground", "maxSlopeDot"], this.maxSlopeDot);
+        this.maxSlopeDot = clamp01(readNum(mc, ["ground", "maxSlopeDot"], this.maxSlopeDot));
         this.probeRing = U.clamp(readNum(mc, ["ground", "probeRing"], this.probeRing), 0.1, 1.2);
 
         this.stepUp.enabled = readBool(mc, ["stepUp", "enabled"], this.stepUp.enabled);
@@ -90,15 +90,13 @@ class CharacterConfig {
 
         this.stepDown.enabled = readBool(mc, ["stepDown", "enabled"], this.stepDown.enabled);
         this.stepDown.max = readNum(mc, ["stepDown", "max"], this.stepDown.max);
-        this.stepDown.speed = readNum(mc, ["stepDown", "speed"], this.stepDown.speed);
+        this.stepDown.stickVel = readNum(mc, ["stepDown", "stickVel"], this.stepDown.stickVel);
+        this.stepDown.deadZone = readNum(mc, ["stepDown", "deadZone"], this.stepDown.deadZone);
 
         this.slope.slideEnabled = readBool(mc, ["slope", "slideEnabled"], this.slope.slideEnabled);
         this.slope.slideAccel = readNum(mc, ["slope", "slideAccel"], this.slope.slideAccel);
         this.slope.maxSlideSpeed = readNum(mc, ["slope", "maxSlideSpeed"], this.slope.maxSlideSpeed);
         this.slope.minSlideNormalY = readNum(mc, ["slope", "minSlideNormalY"], this.slope.minSlideNormalY);
-
-        if (!(this.stepDown.max > 0)) this.stepDown.max = this.stepUp.maxHeight;
-        this.maxSlopeDot = clamp01(this.maxSlopeDot);
 
         return this;
     }

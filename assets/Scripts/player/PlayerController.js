@@ -71,23 +71,28 @@ class PlayerController {
         const st = this.input.read(frame);
 
         const dom = p.dom;
-        if (dom && dom.input) {
-            dom.input.ax = st.ax | 0;
-            dom.input.az = st.az | 0;
-            dom.input.run = !!st.run;
-            dom.input.jump = !!st.jump;
-            dom.input.lmbDown = !!st.lmbDown;
-            dom.input.lmbJustPressed = !!st.lmbJustPressed;
-            dom.input.wheel = st.wheel;
-        }
+        dom.input.ax = st.ax | 0;
+        dom.input.az = st.az | 0;
+        dom.input.run = !!st.run;
+        dom.input.jump = !!st.jump;
+        dom.input.lmbDown = !!st.lmbDown;
+        dom.input.lmbJustPressed = !!st.lmbJustPressed;
+        dom.input.wheel = st.wheel;
 
-        const yaw = (dom && dom.view) ? U.num(dom.view.yaw, 0) : 0;
+        const yaw = dom.view ? U.num(dom.view.yaw, 0) : 0;
 
         if (typeof p.body.yaw !== "function") throw new Error("[player] body.yaw(yaw) required");
         p.body.yaw(yaw);
 
         this.shoot.update(frame, p.bodyId | 0);
-        this.movement.update(frame, p.body);
+        this.movement.update(frame, p.body, p.characterCfg);
+    }
+
+    destroy() {
+        if (this.shoot) this.shoot.destroy();
+        this.input = null;
+        this.movement = null;
+        this.shoot = null;
     }
 }
 

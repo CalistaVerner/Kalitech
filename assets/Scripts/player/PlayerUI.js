@@ -11,8 +11,6 @@ function isObj(v) {
 
 class PlayerUI {
     constructor(player) {
-        if (!player) throw new Error("[PlayerUI] player is required");
-
         this.player = player;
 
         const c = (player.cfg && player.cfg.ui) ? player.cfg.ui : Object.create(null);
@@ -35,7 +33,6 @@ class PlayerUI {
             border: {size: 1, color: "#8AA0B6", alpha: 0.45, radius: 8}
         };
 
-        this.hud = null;
         this.layer = null;
         this.panel = null;
     }
@@ -43,15 +40,13 @@ class PlayerUI {
     create() {
         if (this.layer) return this;
 
-        const hud = this.player.HUD;
-        if (!hud || typeof hud.layer !== "function") {
-            throw new Error("[PlayerUI] HUD builtin is required (HUD.layer)");
-        }
+        const HUD = this.player.d.hud;
+        if (!HUD || typeof HUD.layer !== "function") throw new Error("[PlayerUI] HUD.layer required");
 
-        this.hud = hud;
-        this.layer = hud.layer(this.layerName);
+        const layer = HUD.layer(this.layerName);
+        this.layer = layer;
 
-        this.panel = this.layer.panel({
+        this.panel = layer.panel({
             id: "debug.panel",
             w: this.w,
             h: 60,
@@ -70,7 +65,7 @@ class PlayerUI {
         this.panel.stack("debug.camYaw", "CAM(yaw): --", {fontSize: this.fontLine, color: "#FFFFFF"});
         this.panel.stack("debug.camPitch", "CAM(pitch): --", {fontSize: this.fontLine, color: "#FFFFFF"});
 
-        if (typeof this.layer.relayout === "function") this.layer.relayout();
+        if (typeof layer.relayout === "function") layer.relayout();
         this.refresh();
         return this;
     }
@@ -80,14 +75,12 @@ class PlayerUI {
         if (!layer || typeof layer.setText !== "function") return;
 
         const dom = this.player.dom;
-        const p = dom && dom.pose ? dom.pose : null;
-        if (!p) return;
-
+        const p = dom.pose;
         const camType = dom.view.type;
-        const camYaw = dom.view.yaw
-        const camPitch = dom.view.pitch
+        const camYaw = dom.view.yaw;
+        const camPitch = dom.view.pitch;
 
-        const eng = this.player.engine;
+        const eng = this.player.d.engine;
         const fps = (eng && typeof eng.fps === "function") ? (+eng.fps() || 0) : 0;
 
         layer.setText("debug.fps", "FPS: " + fps);
@@ -98,10 +91,9 @@ class PlayerUI {
     }
 
     destroy() {
-        if (!this.layer) return;
-        if (typeof this.layer.destroy === "function") this.layer.destroy();
-
-        this.hud = null;
+        const layer = this.layer;
+        if (!layer) return;
+        if (typeof layer.destroy === "function") layer.destroy();
         this.layer = null;
         this.panel = null;
     }
