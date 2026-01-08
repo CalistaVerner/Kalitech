@@ -41,6 +41,9 @@ public interface EngineApi {
     @HostAccess.Export
     DebugDrawApi debug();
 
+    @HostAccess.Export
+    ParticlesApi particles();
+
     // ✅ new unified surface layer
     @HostAccess.Export
     SurfaceApi surface();

@@ -72,6 +72,7 @@ public final class EngineApiImpl implements EngineApi {
     private final LightApiImpl lightApi;
     private final SoundApiImpl soundApi;
     private final DebugDrawApiImpl debugApi;
+    private final ParticlesApiImpl particles;
 
     private final SurfaceRegistry surfaceRegistry;
     private final SurfaceApi surfaceApi;
@@ -146,16 +147,8 @@ public final class EngineApiImpl implements EngineApi {
         this.hudApi = apiRegistry.register(new HudApiImpl());
         this.worldApi = apiRegistry.register(new WorldApiImpl());
         this.editorApi = apiRegistry.register(new EditorApiImpl());
+        this.particles = apiRegistry.register(new ParticlesApiImpl());
     }
-
-    @HostAccess.Export @Override public LogApi log() { return logApi; }
-    @HostAccess.Export @Override public AssetsApi assets() { return assetsApi; }
-    @HostAccess.Export @Override public EventsApi bus() { return eventsApi; }
-    @HostAccess.Export @Override public MaterialApi material() { return materialApi; }
-
-    @HostAccess.Export @Override public RenderApi render() { return renderApi; }
-    @HostAccess.Export @Override public CameraApi camera() { return cameraApi; }
-    @HostAccess.Export @Override public PhysicsApi physics() { return physicsApi; }
 
     private static boolean boolProp(String key, boolean def) {
         String v = System.getProperty(key);
@@ -185,6 +178,53 @@ public final class EngineApiImpl implements EngineApi {
         }
     }
 
+    @HostAccess.Export
+    @Override
+    public LogApi log() {
+        return logApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public AssetsApi assets() {
+        return assetsApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public EventsApi bus() {
+        return eventsApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public MaterialApi material() {
+        return materialApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public RenderApi render() {
+        return renderApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public CameraApi camera() {
+        return cameraApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public PhysicsApi physics() {
+        return physicsApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public ParticlesApi particles() {
+        return particles;
+    }
     @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
     @HostAccess.Export @Override public TerrainApi terrain() { return terrainApi; }
     @HostAccess.Export @Override public TerrainSplatApi terrainSplat() { return terrainSplatApi; }

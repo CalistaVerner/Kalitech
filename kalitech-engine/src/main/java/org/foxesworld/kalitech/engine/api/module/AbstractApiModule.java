@@ -4,6 +4,9 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public abstract class AbstractApiModule implements ApiModule {
@@ -16,6 +19,7 @@ public abstract class AbstractApiModule implements ApiModule {
     protected ApiContext ctx;
     protected Logger log;
     private volatile boolean attached;
+    private static final long DEFAULT_TIMEOUT_MS = 2_000;
 
     protected AbstractApiModule(String id, String name, String version) {
         this.id = Objects.requireNonNull(id, "id");
@@ -74,6 +78,53 @@ public abstract class AbstractApiModule implements ApiModule {
             throw t;
         }
     }
+
+    protected boolean isJmeThread() {
+        try {
+            return engine.isJmeThread();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Threading helpers
+    // ------------------------------------------------------------
+    protected void onJmeSyncVoid(String where, Runnable r) {
+        if (isJmeThread()) {
+            r.run();
+            return;
+        }
+        try {
+            Future<?> f = engine.getApp().enqueue(() -> {
+                r.run();
+                return null;
+            });
+            f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            log.warn("[surface] {}: JME hop failed/timeout", where, t);
+        }
+    }
+
+    protected <T> T onJmeSync(String where, Callable<T> c, T fallback) {
+        if (isJmeThread()) {
+            try {
+                return c.call();
+            } catch (Throwable t) {
+                log.warn("[surface] {}: failed", where, t);
+                return fallback;
+            }
+        }
+        try {
+            Future<T> f = engine.getApp().enqueue(c);
+            return f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (Throwable t) {
+            log.warn("[surface] {}: JME hop failed/timeout", where, t);
+            return fallback;
+        }
+    }
+
+
 
     protected final <T> T profiled(Supplier<T> fn) {
         long t0 = System.nanoTime();

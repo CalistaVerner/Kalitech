@@ -65,6 +65,7 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     }
 
     @HostAccess.Export
+    @Deprecated
     public Object consumeSnapshot() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();

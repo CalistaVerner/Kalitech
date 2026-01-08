@@ -31,9 +31,6 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
@@ -41,8 +38,6 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceApi {
 
     private static final Logger log = LogManager.getLogger(SurfaceApiImpl.class);
-
-    private static final long DEFAULT_TIMEOUT_MS = 2_000;
 
     private SurfaceRegistry registry;
     private static final String UD_UV_SCALE = "__kt_uvScale";
@@ -96,51 +91,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return engine.getBus(); // ✅ dynamic resolve (never cached)
     }
 
-    // ------------------------------------------------------------
-    // Threading helpers
-    // ------------------------------------------------------------
-
-    private boolean isJmeThread() {
-        try {
-            return engine.isJmeThread();
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private void onJmeSyncVoid(String where, Runnable r) {
-        if (isJmeThread()) {
-            r.run();
-            return;
-        }
-        try {
-            Future<?> f = engine.getApp().enqueue(() -> {
-                r.run();
-                return null;
-            });
-            f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (Throwable t) {
-            log.warn("[surface] {}: JME hop failed/timeout", where, t);
-        }
-    }
-
-    private <T> T onJmeSync(String where, Callable<T> c, T fallback) {
-        if (isJmeThread()) {
-            try {
-                return c.call();
-            } catch (Throwable t) {
-                log.warn("[surface] {}: failed", where, t);
-                return fallback;
-            }
-        }
-        try {
-            Future<T> f = engine.getApp().enqueue(c);
-            return f.get(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (Throwable t) {
-            log.warn("[surface] {}: JME hop failed/timeout", where, t);
-            return fallback;
-        }
-    }
 
     // ------------------------------------------------------------
     // Events
