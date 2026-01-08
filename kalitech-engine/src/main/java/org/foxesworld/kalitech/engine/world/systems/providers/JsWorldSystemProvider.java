@@ -1,5 +1,7 @@
 package org.foxesworld.kalitech.engine.world.systems.providers;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
@@ -11,9 +13,18 @@ import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
 
 public final class JsWorldSystemProvider implements SystemProvider {
+
+    private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
+
+    private static String normalize(String s) {
+        if (s == null) return "world";
+        String t = s.trim().toLowerCase();
+        return t.isEmpty() ? "world" : t;
+    }
 
     private static Object toProxy(Value v) {
         if (v == null || v.isNull()) return null;
@@ -23,15 +34,21 @@ public final class JsWorldSystemProvider implements SystemProvider {
         if (v.isString()) return v.asString();
 
         if (v.hasArrayElements()) {
-            final int len = (int) Math.min(v.getArraySize(), Integer.MAX_VALUE);
-            final Object[] arr = new Object[len];
+            long n = v.getArraySize();
+            int len = (int) Math.min(n, Integer.MAX_VALUE);
+            Object[] arr = new Object[len];
             for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
             return ProxyArray.fromArray(arr);
         }
 
         if (v.hasMembers()) {
-            final Map<String, Object> map = new LinkedHashMap<>();
-            for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
+            Map<String, Object> map = new LinkedHashMap<>();
+            for (String k : v.getMemberKeys()) {
+                try {
+                    map.put(k, toProxy(v.getMember(k)));
+                } catch (Throwable ignored) {
+                }
+            }
             return ProxyObject.fromMap(map);
         }
 
@@ -50,19 +67,44 @@ public final class JsWorldSystemProvider implements SystemProvider {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
 
-        final String requestedProfile = str(config, "profile", "world").trim();
+        final boolean sandboxReq = bool(config, "sandbox", false);
+        final String rtReq = str(config, "runtime", null);
+        final String requested = sandboxReq ? "sandbox" : ((rtReq == null || rtReq.isBlank()) ? "world" : rtReq.trim());
 
+        // policy optional
         final SystemContext.RuntimePolicy pol = ctx.runtimePolicy();
-        final String resolvedProfile = (pol != null)
-                ? pol.resolveProfile(requestedProfile, SystemContext.RuntimePolicy.Origin.SCRIPT_CONFIG)
-                : requestedProfile;
+        final String resolved = (pol != null)
+                ? pol.resolveProfile(requested, SystemContext.RuntimePolicy.Origin.SCRIPT_CONFIG)
+                : normalize(requested);
 
-        final Value innerCfg = (config != null && !config.isNull() && config.hasMember("config"))
-                ? config.getMember("config")
-                : null;
+        // Optional unwrap inner config
+        Value inner = config;
+        boolean unwrapped = false;
+        try {
+            if (config != null && !config.isNull() && config.hasMember("config")) {
+                Value c = config.getMember("config");
+                if (c != null && !c.isNull()) {
+                    inner = c;
+                    unwrapped = true;
+                }
+            }
+        } catch (Throwable t) {
+            log.warn("[jsSystem] unwrap inner config failed: {}", t.toString());
+        }
 
-        final Object cfgJs = toProxy(innerCfg);
+        final Object cfgJs = toProxy(inner);
 
-        return new JsWorldSystem(module, cfgJs, resolvedProfile);
+        final Map<String, Object> sysDesc = new LinkedHashMap<>();
+        sysDesc.put("provider", id());
+        sysDesc.put("module", module);
+        sysDesc.put("runtime", resolved);
+        sysDesc.put("config", cfgJs);
+
+        if (log.isDebugEnabled()) {
+            log.debug("[jsSystem] prepared (module={}, unwrapped={}, runtime={} -> {})", module, unwrapped, requested, resolved);
+        }
+        log.info("[jsSystem] module={} runtime={}", module, resolved);
+
+        return new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), resolved);
     }
 }

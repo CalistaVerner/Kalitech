@@ -1,6 +1,7 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 public interface WorldApi {
 
@@ -9,7 +10,9 @@ public interface WorldApi {
      * args: { name?: string, prefab: string }
      * returns entityId
      */
-    @HostAccess.Export int spawn(Object args);
+    //@HostAccess.Export int spawn(Object args);
+    @HostAccess.Export
+    int spawn(Value args);
 
     /** Find entityId by Name (stored in ComponentStore byName "Name"). */
     @HostAccess.Export int findByName(String name);

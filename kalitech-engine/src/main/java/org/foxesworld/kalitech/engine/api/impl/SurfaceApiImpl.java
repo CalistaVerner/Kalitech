@@ -227,6 +227,25 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     @HostAccess.Export
+    public int attachedBody(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return attachedBody(h);
+    }
+
+    @HostAccess.Export
+    public int attachedBody(SurfaceHandle target) {
+        requireHandle(target);
+        PhysicsApi p = this.physicsApi;
+        if (p == null) return 0;
+        try {
+            if (p instanceof PhysicsApiImpl impl) return impl.bodyOfSurface(target.id());
+        } catch (Throwable ignored) {
+        }
+        return 0;
+    }
+
+
+    @HostAccess.Export
     public void setVisible(Object target, boolean visible) {
         SurfaceHandle h = requireHandle(target);
         onJmeSyncVoid("setVisible", () -> setVisible(h, visible));
@@ -598,8 +617,16 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     @Override
     public void destroy(SurfaceHandle target) {
         requireHandle(target);
-        onJmeSyncVoid("destroy", () -> registry.destroy(target.id()));
+        onJmeSyncVoid("destroy", () -> {
+            try {
+                PhysicsApi p = this.physicsApi;
+                if (p instanceof PhysicsApiImpl impl) impl.__cleanupSurface(target.id());
+            } catch (Throwable ignored) {
+            }
+            registry.destroy(target.id());
+        });
     }
+
 
     @HostAccess.Export
     @Override

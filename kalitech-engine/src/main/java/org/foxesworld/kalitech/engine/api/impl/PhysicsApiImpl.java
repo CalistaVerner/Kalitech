@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/physics/PhysicsApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -760,19 +759,21 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         int id = bodyIdFromCollisionObject(obj);
         if (id > 0) return byId.get(id);
 
+        if (!log.isTraceEnabled()) return null; // <-- убрали O(n) на проде
+
         if (obj == null) return null;
         for (PhysicsBodyHandle h : byId.values()) {
             if (h == null) continue;
-
             Object key = collisionKeyFromHandle(h);
             if (key == obj) return h;
-
             try {
                 if (h.__raw() == obj) return h;
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
         return null;
     }
+
 
     private boolean passesStaticDynamicFilter(RigidBodyControl rb, boolean staticOnly, boolean dynamicOnly) {
         if (rb == null) return false;
@@ -902,6 +903,25 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
         return handle;
     }
+
+    @HostAccess.Export
+    public int bodyOfSurface(int surfaceId) {
+        if (surfaceId <= 0) return 0;
+        Integer id = bodyIdBySurface.get(surfaceId);
+        return (id == null) ? 0 : id;
+    }
+
+    @HostAccess.Export
+    public PhysicsBodyHandle handle(int bodyId) {
+        if (bodyId <= 0) return null;
+        return byId.get(bodyId);
+    }
+
+    @HostAccess.Export
+    public boolean exists(int bodyId) {
+        return bodyId > 0 && byId.containsKey(bodyId);
+    }
+
 
     @HostAccess.Export
     @Override

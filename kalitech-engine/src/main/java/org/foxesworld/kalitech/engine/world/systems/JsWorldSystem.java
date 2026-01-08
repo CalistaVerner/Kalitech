@@ -1,94 +1,179 @@
 package org.foxesworld.kalitech.engine.world.systems;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 
 public final class JsWorldSystem implements KSystem {
 
+    private static final Logger log = LogManager.getLogger(JsWorldSystem.class);
+
     private final String module;
     private final Object cfg;
+    private final Object sysDesc;
     private final String runtimeProfile;
 
     private volatile Value exports;
-    private volatile Value instance;
 
-    public JsWorldSystem(String module, Object cfg, String runtimeProfile) {
-        this.module = Objects.requireNonNull(module, "module").trim();
-        if (this.module.isEmpty()) throw new IllegalArgumentException("module is blank");
+    public JsWorldSystem(String module, Object cfg, Object sysDesc, String runtimeProfile) {
+        this.module = Objects.requireNonNull(module, "module");
         this.cfg = cfg;
+        this.sysDesc = sysDesc;
         this.runtimeProfile = (runtimeProfile == null || runtimeProfile.isBlank()) ? "world" : runtimeProfile.trim();
     }
 
-    private static void callOptional(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) return;
-        if (!obj.hasMember(member)) return;
-
-        final Value fn = obj.getMember(member);
-        if (fn == null || fn.isNull() || !fn.canExecute()) {
-            throw new IllegalStateException("Member exists but not executable: " + member);
-        }
-        fn.execute(args);
+    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
+        this(module, cfg, sysDesc, "world");
     }
 
-    private static void callRequired(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) throw new IllegalStateException("JS instance is null");
-        if (!obj.hasMember(member)) throw new IllegalStateException("JS instance missing required method: " + member);
+    public JsWorldSystem(String module) {
+        this(module, null, null, "world");
+    }
 
-        final Value fn = obj.getMember(member);
-        if (fn == null || fn.isNull() || !fn.canExecute()) {
-            throw new IllegalStateException("Required method not executable: " + member);
+    private static boolean safeHas(SystemContext ctx, String k) {
+        try {
+            return ctx != null && ctx.has(k);
+        } catch (Throwable ignored) {
+            return false;
         }
-        fn.execute(args);
+    }
+
+    private static Object safeGet(SystemContext ctx, String k) {
+        try {
+            return (ctx == null) ? null : ctx.get(k);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void safePut(SystemContext ctx, String k, Object v) {
+        try {
+            if (ctx != null) ctx.put(k, v);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void safeRemove(SystemContext ctx, String k) {
+        try {
+            if (ctx != null) ctx.remove(k);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
+        final Class<?> c = rt.getClass();
+
+        Value v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "requireModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "loadModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "evalModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "evaluateModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        throw new IllegalStateException("Cannot load module via ScriptRuntime reflection: " + module);
+    }
+
+    private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
+        try {
+            Method m = c.getMethod(name, sig);
+            Object r = m.invoke(target, args);
+            return (r instanceof Value vv) ? vv : null;
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime." + name + " invocation failed: " + t, t);
+        }
     }
 
     @Override
     public void onStart(SystemContext ctx) {
-        ensureInstance(ctx);
-        callOptional(instance, "init");
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("init", ctx);
+            return null;
+        });
     }
 
     @Override
     public void onUpdate(SystemContext ctx, float tpf) {
-        ensureInstance(ctx);
-        callRequired(instance, "update", tpf);
+        withScopedConfig(ctx, () -> {
+            ensureLoaded(ctx);
+            invokeIfPresent("update", ctx, tpf);
+            return null;
+        });
     }
 
     @Override
     public void onStop(SystemContext ctx) {
-        final Value inst = this.instance;
-        if (inst != null) callOptional(inst, "destroy");
-        this.instance = null;
-        this.exports = null;
+        withScopedConfig(ctx, () -> {
+            try {
+                invokeIfPresent("destroy");
+            } catch (Throwable ignored) {
+            }
+            return null;
+        });
     }
 
-    private void ensureInstance(SystemContext ctx) {
-        if (instance != null) return;
+    private <T> T withScopedConfig(SystemContext ctx, Callable<T> call) {
+        final boolean hadConfig = safeHas(ctx, "config");
+        final boolean hadCfg = safeHas(ctx, "cfg");
+        final boolean hadSystem = safeHas(ctx, "system");
 
-        final ScriptRuntime rt = Objects.requireNonNull(
-                ctx.runtime(runtimeProfile),
-                "JsWorldSystem requires ScriptRuntime for profile=" + runtimeProfile
-        );
+        final Object prevConfig = hadConfig ? safeGet(ctx, "config") : null;
+        final Object prevCfg = hadCfg ? safeGet(ctx, "cfg") : null;
+        final Object prevSystem = hadSystem ? safeGet(ctx, "system") : null;
 
-        final Value exp = Objects.requireNonNull(rt.require(module), "ScriptRuntime.require returned null: " + module);
-        this.exports = exp;
-
-        if (!exp.hasMember("create")) {
-            throw new IllegalStateException("JS module must export create(ctx,cfg): " + module);
+        if (cfg != null) {
+            safePut(ctx, "config", cfg);
+            safePut(ctx, "cfg", cfg);
         }
+        if (sysDesc != null) safePut(ctx, "system", sysDesc);
 
-        final Value create = exp.getMember("create");
-        if (create == null || !create.canExecute()) {
-            throw new IllegalStateException("JS module export 'create' is not executable: " + module);
+        try {
+            return call.call();
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (hadConfig) safePut(ctx, "config", prevConfig);
+            else safeRemove(ctx, "config");
+            if (hadCfg) safePut(ctx, "cfg", prevCfg);
+            else safeRemove(ctx, "cfg");
+            if (hadSystem) safePut(ctx, "system", prevSystem);
+            else safeRemove(ctx, "system");
         }
+    }
 
-        final Value inst = create.execute(ctx, cfg);
+    private void ensureLoaded(SystemContext ctx) throws Exception {
+        if (exports != null) return;
 
-        if (inst == null || inst.isNull()) {
-            throw new IllegalStateException("JS create(ctx,cfg) returned null instance: " + module);
-        }
+        ScriptRuntime rt = ctx.runtime(runtimeProfile);
+        if (rt == null) rt = ctx.runtime();
+        if (rt == null) throw new IllegalStateException("JsWorldSystem requires ScriptRuntime in SystemContext");
 
-        this.instance = inst;
+        exports = requireViaReflection(rt, module);
+        if (exports == null)
+            throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
+    }
+
+    private void invokeIfPresent(String fnName, Object... args) {
+        if (exports == null || !exports.hasMember(fnName)) return;
+        Value fn = exports.getMember(fnName);
+        if (fn == null || !fn.canExecute()) return;
+        fn.execute(args);
     }
 }
