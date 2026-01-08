@@ -7,7 +7,9 @@ class FrameContext {
         this.dt = 0;
         this.snap = null;
 
-        this.physics = null;
+        this.physics = null;   // PHYS (API3)
+        this.bodyAccess = null;
+        this.bodyId = 0;
 
         this.input = {
             ax: 0, az: 0,
@@ -31,12 +33,10 @@ class FrameContext {
         this.ground = {
             hasHit: false,
             grounded: false,
-            ny: 1,
-            nx: 0,
-            nz: 0,
+            steep: false,
+            nx: 0, ny: 1, nz: 0,
             distance: 9999,
-            footDistance: 9999,
-            steep: false
+            footDistance: 9999
         };
 
         this.character = { radius: 0.35, height: 1.80, eyeHeight: 1.65 };
@@ -45,7 +45,10 @@ class FrameContext {
     begin(player, dt, snap) {
         this.dt = U.num(dt, 0);
         this.snap = snap || null;
-        this.physics = player.d.physics;
+
+        const P = player.d.physics;
+        if (!P) throw new Error("[player] PHYS missing in domains");
+        this.physics = P;
 
         const cc = player.characterCfg;
         this.character.radius = U.num(cc.radius, 0.35);
@@ -56,25 +59,26 @@ class FrameContext {
     }
 
     _raycastEx(fx, fy, fz, tx, ty, tz, ignoreBodyId) {
-        const PHYS = this.physics;
-        return PHYS.raycastEx({
+        return this.physics.raycastEx({
             from: [fx, fy, fz],
             to: [tx, ty, tz],
             ignoreBodyId: ignoreBodyId | 0
         });
     }
 
-    probeGroundCapsule(body, cfg) {
+    probeGroundCapsule(bodyAccess, cfg, ignoreBodyId) {
         const g = this.ground;
 
         g.hasHit = false;
         g.grounded = false;
         g.steep = false;
-        g.ny = 1; g.nx = 0; g.nz = 0;
+        g.nx = 0;
+        g.ny = 1;
+        g.nz = 0;
         g.distance = 9999;
         g.footDistance = 9999;
 
-        const p = body.position();
+        const p = bodyAccess && typeof bodyAccess.position === "function" ? bodyAccess.position() : null;
         if (!p) return false;
 
         const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
@@ -93,7 +97,7 @@ class FrameContext {
         const startY = footY + startUp;
         const endY = footY - rayDown;
 
-        const ignoreId = (typeof body.id === "function") ? (body.id() | 0) : 0;
+        const ignoreId = (ignoreBodyId | 0) || 0;
 
         let bestWalk = null, bestWalkDist = 9999;
         let bestAny = null, bestAnyDist = 9999;

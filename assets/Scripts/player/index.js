@@ -25,31 +25,25 @@ function must(x, msg) {
 function resolveDomains(ctx) {
     const E = engineApiFrom(ctx);
 
-    const physics = must(E.physics(), "[player] engine.physics() required");
-    const input = must(E.input(), "[player] engine.input() required");
-    const camera = must(E.camera(), "[player] engine.camera() required");
-    const assets = must(E.assets(), "[player] engine.assets() required");
-
-    const bus = (typeof E.bus === "function") ? E.bus()
-        : (typeof E.scriptBus === "function") ? E.scriptBus()
-            : null;
-
-    const hud = must((typeof HUD !== "undefined" && HUD) ? HUD : null, "[player] HUD builtin required");
-    const hudNative = (typeof E.hud === "function") ? E.hud() : null;
+    const physics = (typeof PHYS !== "undefined" && PHYS) ? PHYS : null;
+    if (!physics) throw new Error("[player] PHYS builtin required (API3)");
 
     return Object.freeze({
         ctx,
         engine: E,
-        physics,
-        input,
-        camera,
-        assets,
-        bus,
-        hud,
-        hudNative,
-        log: (typeof LOG !== "undefined" && LOG) ? LOG : null
+        physics,          // <- теперь это PHYS (API3)
+        input: must(E.input(), "[player] engine.input() required"),
+        camera: must(E.camera(), "[player] engine.camera() required"),
+        assets: must(E.assets(), "[player] engine.assets() required"),
+        entity: must(E.entity && E.entity(), "[player] engine.entity() required"),
+        mesh: must(E.mesh && E.mesh(), "[player] engine.mesh() required"),
+        surface: must(E.surface && E.surface(), "[player] engine.surface() required"),
+        bus: (typeof E.bus === "function") ? E.bus() : null,
+        hud: must((typeof HUD !== "undefined" && HUD) ? HUD : null, "[player] HUD builtin required"),
+        hudNative: (typeof E.hud === "function") ? E.hud() : null
     });
 }
+
 
 function pickFirst(obj, names) {
     for (let i = 0; i < names.length; i++) {

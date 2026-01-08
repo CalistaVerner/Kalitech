@@ -32,6 +32,11 @@ class PlayerController {
         this.shoot = null;
     }
 
+    ensure() {
+        this._ensureSystems();
+        return this;
+    }
+
     getMovementCfg() {
         return this._movementCfg;
     }
@@ -55,7 +60,7 @@ class PlayerController {
 
     update(frame) {
         const p = this.player;
-        if (!p.body) return;
+        if (!p.bodyAccess) return;
 
         this._ensureSystems();
         if (!this.enabled) return;
@@ -63,10 +68,12 @@ class PlayerController {
         this.input.read(frame);
 
         const yaw = +frame.view.yaw || 0;
-        if (typeof p.body.yaw === "function") p.body.yaw(yaw);
+        if (p.bodyAccess && typeof p.bodyAccess.yaw === "function") p.bodyAccess.yaw(yaw);
 
         this.shoot.update(frame, p.bodyId | 0);
-        this.movement.update(frame, p.body, p.characterCfg);
+
+        // MovementSystem читает frame.bodyAccess сам
+        this.movement.update(frame, p.characterCfg);
     }
 
     destroy() {

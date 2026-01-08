@@ -144,6 +144,8 @@ class PlayerEntityFactory {
                 Player: (ctx) => ({
                     entityId: ctx.entityId,
                     surfaceId: ctx.surfaceId,
+
+
                     bodyId: ctx.bodyId,
                     capsule: { radius, height, mass },
                     view: { hideModelInFirstPerson: hideInFirstPerson }
