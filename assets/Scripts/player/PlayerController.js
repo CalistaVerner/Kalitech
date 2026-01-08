@@ -1,87 +1,64 @@
+// FILE: Scripts/player/PlayerController.js
 "use strict";
 
+const {EntityController} = require("../core/EntityController.js");
 const MovementSystem = require("./systems/MovementSystem.js");
 const ShootSystem = require("./systems/ShootSystem.js");
-const InputRouter = require("./systems/InputRouter.js");
 
-const MOVEMENT_CFG_JSON = "data/player/movement.config.json";
-
-function readJsonStrict(domains, path) {
-    const assets = domains.assets;
-    const txt = assets.readText(path);
-    if (!txt) throw new Error("[player] movement config not found: " + path);
-    const obj = JSON.parse(String(txt));
-    if (!obj || typeof obj !== "object") throw new Error("[player] movement config must be JSON object: " + path);
-    return obj;
-}
-
-function movementPath(rootCfg) {
-    if (rootCfg && typeof rootCfg.movementConfigPath === "string" && rootCfg.movementConfigPath.length > 0) return rootCfg.movementConfigPath;
-    return MOVEMENT_CFG_JSON;
-}
-
-class PlayerController {
-    constructor(player) {
-        this.player = player;
-
-        this.enabled = true;
-        this._movementCfg = Object.create(null);
-
-        this.input = null;
+/**
+ * PlayerController (UE6-style, hard OOP)
+ *
+ * Owns the gameplay loop for PlayerPawn:
+ *  - beginFrame(dt)
+ *  - syncPose()
+ *  - movement.update(frame, characterCfg)
+ *  - shoot.update(frame, ownerBodyId)
+ *
+ * Contract:
+ *  - entity is PlayerPawn (has beginFrame/syncPose/frame/bodyId/characterCfg)
+ *  - PlayerPawn.beginFrame MUST already fill frame.input as a STRUCT (InputRouter)
+ */
+class PlayerController extends EntityController {
+    constructor() {
+        super();
         this.movement = null;
         this.shoot = null;
     }
 
-    ensure() {
-        this._ensureSystems();
-        return this;
+    onStart() {
+        const pawn = this.entity;
+
+        if (!pawn || typeof pawn.beginFrame !== "function") throw new Error("[PlayerController] entity must be PlayerPawn (beginFrame)");
+        if (typeof pawn.syncPose !== "function") throw new Error("[PlayerController] entity must be PlayerPawn (syncPose)");
+        if (!pawn.frame) throw new Error("[PlayerController] pawn.frame is required");
+        if ((pawn.bodyId | 0) <= 0) throw new Error("[PlayerController] pawn.bodyId must be > 0");
+
+        this.movement = new MovementSystem((pawn.cfg && pawn.cfg.movement) || null);
+        this.shoot = new ShootSystem(pawn);
     }
 
-    getMovementCfg() {
-        return this._movementCfg;
+    onUpdate(dt) {
+        const pawn = this.entity;
+
+        pawn.beginFrame(dt);
+        pawn.syncPose();
+
+        const frame = pawn.frame;
+
+        // hard contract: frame.input is a state object, not InputApi
+        if (!frame.input || typeof frame.input !== "object") {
+            throw new Error("[PlayerController] frame.input must be an object (InputRouter state)");
+        }
+
+        this.movement.update(frame, pawn.characterCfg);
+        this.shoot.update(frame, pawn.bodyId | 0);
     }
 
-    _ensureSystems() {
-        if (this.input && this.movement && this.shoot) return;
-
-        const p = this.player;
-        const rootCfg = p.cfg || Object.create(null);
-
-        const movOverrides = (rootCfg.movement && typeof rootCfg.movement === "object") ? rootCfg.movement : null;
-        const movCfg = movOverrides || readJsonStrict(p.d, movementPath(rootCfg));
-
-        this.enabled = (movCfg.enabled !== undefined) ? !!movCfg.enabled : true;
-        this._movementCfg = movCfg;
-
-        this.input = new InputRouter(p.d.input, movCfg);
-        this.movement = new MovementSystem(movCfg);
-        this.shoot = new ShootSystem(p);
-    }
-
-    update(frame) {
-        const p = this.player;
-        if (!p.bodyAccess) return;
-
-        this._ensureSystems();
-        if (!this.enabled) return;
-
-        this.input.read(frame);
-
-        const yaw = +frame.view.yaw || 0;
-        if (p.bodyAccess && typeof p.bodyAccess.yaw === "function") p.bodyAccess.yaw(yaw);
-
-        this.shoot.update(frame, p.bodyId | 0);
-
-        // MovementSystem читает frame.bodyAccess сам
-        this.movement.update(frame, p.characterCfg);
-    }
-
-    destroy() {
-        if (this.shoot) this.shoot.destroy();
-        this.input = null;
-        this.movement = null;
+    onStop() {
+        if (this.shoot && typeof this.shoot.destroy === "function") this.shoot.destroy();
         this.shoot = null;
+        this.movement = null;
     }
 }
 
-module.exports = PlayerController;
+module.exports = {PlayerController};
