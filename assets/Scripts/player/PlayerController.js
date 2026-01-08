@@ -10,19 +10,14 @@ const {PlayerGameplayController} = require("./controllers/PlayerGameplayControll
 const {PlayerCameraController} = require("./controllers/PlayerCameraController.js");
 const {PlayerUIController} = require("./controllers/PlayerUIController.js");
 
-/**
- * PlayerController (ROOT, UE6-style binder)
- *
- * - Creates PlayerPawn
- * - Creates controller stack (modules)
- * - Binds via EntityControllerLink
- *
- * This is the only place that "knows everything".
- * No legacy. No extends. No scattered ctx.
- */
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
+    return v;
+}
+
 class PlayerController {
     constructor(ctx, cfg) {
-        this.ctx = ctx;
+        this.ctx = req(ctx, "[PlayerController] ctx is required");
         this.cfg = cfg || null;
 
         this.pawn = null;
@@ -45,28 +40,25 @@ class PlayerController {
         ]);
 
         this.link = new EntityControllerLink(this.ctx, this.pawn, this.stack);
-
         this._alive = true;
         return this;
     }
 
     update(dt) {
-        if (!this._alive) return;
+        if (!this._alive) throw new Error("[PlayerController] update() before init/disposed");
         this.link.update(dt);
     }
 
     dispose() {
         if (!this._alive) return;
+        this._alive = false;
 
         this.link.dispose();
         this.link = null;
-
         this.stack = null;
 
         this.pawn.destroy();
         this.pawn = null;
-
-        this._alive = false;
     }
 }
 

@@ -1,39 +1,52 @@
-// FILE: Scripts/core/EntityControllerLink.js
 "use strict";
 
-function must(v, name) {
-    if (v == null) throw new Error("[EntityControllerLink] " + name + " is required");
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
     return v;
 }
 
-/**
- * Hard binder: ties entity + controller into one runtime unit.
- * No magic. No optional paths. No fallbacks.
- */
+function reqFn(fn, msg) {
+    if (typeof fn !== "function") throw new Error(msg);
+    return fn;
+}
+
 class EntityControllerLink {
-    constructor(ctx, entity, controller) {
-        this.ctx = must(ctx, "ctx");
-        this.entity = must(entity, "entity");
-        this.controller = must(controller, "controller");
+    constructor(ctx, entity, orchestrator) {
+        this.ctx = req(ctx, "[Link] ctx is required");
+        this.entity = req(entity, "[Link] entity is required");
+        this.orch = req(orchestrator, "[Link] orchestrator is required");
 
-        if (typeof this.controller.bind !== "function") throw new Error("[EntityControllerLink] controller.bind(ctx,entity) required");
-        if (typeof this.controller._tick !== "function") throw new Error("[EntityControllerLink] controller._tick(dt) required");
-        if (typeof this.controller._shutdown !== "function") throw new Error("[EntityControllerLink] controller._shutdown() required");
+        reqFn(this.orch.bind, "[Link] orchestrator.bind(ctx,entity) required");
+        reqFn(this.orch._tick, "[Link] orchestrator._tick(dt) required");
+        reqFn(this.orch._shutdown, "[Link] orchestrator._shutdown() required");
 
-        this.controller.bind(this.ctx, this.entity);
+        this._alive = true;
+        this._started = false;
 
-        this._dead = false;
+        this.orch.bind(this.ctx, this.entity);
     }
 
     update(dt) {
-        if (this._dead) return;
-        this.controller._tick(dt);
+        if (!this._alive) throw new Error("[Link] update() on disposed link");
+        if (!Number.isFinite(dt)) throw new Error("[Link] dt must be finite");
+
+        if (!this._started) {
+            this._started = true;
+            if (typeof this.orch._start === "function") this.orch._start();
+        }
+
+        this.orch._tick(dt);
     }
 
     dispose() {
-        if (this._dead) return;
-        this._dead = true;
-        this.controller._shutdown();
+        if (!this._alive) return;
+        this._alive = false;
+
+        this.orch._shutdown();
+
+        this.orch = null;
+        this.entity = null;
+        this.ctx = null;
     }
 }
 
