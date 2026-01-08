@@ -21,7 +21,7 @@
 "use strict";
 
 const META = Object.freeze({
-    name: "Terrain",
+    moduleId: "terrain",
     globalName: "TERR",
     version: "2.0.0",
     engineMin: "0.1.0",

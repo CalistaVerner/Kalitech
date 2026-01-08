@@ -1,9 +1,7 @@
 // FILE: Scripts/player/PlayerController.js
 "use strict";
 
-const {ControllerStack} = require("../core/controller/ControllerStack.js");
 const {PlayerPawn} = require("./PlayerPawn.js");
-const {createPlayerRegistry} = require("./PlayerControllers.js");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);
@@ -15,24 +13,27 @@ class PlayerController {
         this.ctx = req(ctx, "[PlayerController] ctx is required");
         this.cfg = cfg || null;
 
-        this.pawn = new PlayerPawn(this.ctx, this.cfg).init();
+        // create pawn
+        this.pawn = new PlayerPawn(this.ctx, this.cfg);
+        if (this.pawn && typeof this.pawn.init === "function") this.pawn.init();
 
-        // registry -> stack -> bind to pawn
-        this.registry = createPlayerRegistry();
-        this.stack = ControllerStack.fromRegistry(this.registry, this.ctx, this.pawn, this.cfg);
+        // entity controller via engine controllers
+        const ENGINE = globalThis.ENGINE;
+        if (!ENGINE || !ENGINE.controllers) throw new Error("[PlayerController] ENGINE.controllers is not available");
+        this.ec = ENGINE.controllers.entity("player", this.ctx, this.pawn, this.cfg);
     }
 
     update(dt) {
-        this.stack._tick(dt);
+        if (this.ec) this.ec.update(dt);
     }
 
     dispose() {
-        if (this.stack) this.stack._shutdown();
-        this.stack = null;
-        this.registry = null;
+        if (this.ec) this.ec.dispose();
+        this.ec = null;
 
-        if (this.pawn) this.pawn.destroy();
+        if (this.pawn && typeof this.pawn.destroy === "function") this.pawn.destroy();
         this.pawn = null;
+
         this.ctx = null;
         this.cfg = null;
     }

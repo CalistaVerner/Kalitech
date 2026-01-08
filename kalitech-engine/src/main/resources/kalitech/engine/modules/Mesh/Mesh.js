@@ -308,7 +308,7 @@ function create(engine /*, K */) {
 }
 
 create.META = {
-    name: "mesh",
+    moduleId: "mesh",
     globalName: "MSH",
     version: "2.0.0",
     description: "Strict mesh primitives factory with bodyId-only physics calls (no fallbacks)",

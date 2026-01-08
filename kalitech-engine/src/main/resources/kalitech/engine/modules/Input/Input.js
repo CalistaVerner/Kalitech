@@ -1,5 +1,5 @@
 const META = {
-    name: "Input",
+    moduleId: "input",
     globalName: "INP",
     version: "1.0.0",
     engineMin: "0.0.0",

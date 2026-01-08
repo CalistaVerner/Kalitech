@@ -16,8 +16,8 @@ function engineApiFrom(ctx) {
 function resolveDomains(ctx) {
     const E = engineApiFrom(ctx);
 
-    const physics = (typeof PHYS !== "undefined" && PHYS) ? PHYS : null;
-    if (!physics) throw new Error("[player] PHYS builtin required (API3)");
+    const physics = ENGINE.physics;
+    if (!physics) throw new Error("[player] PHYSICS builtin required (API)");
 
     return Object.freeze({
         ctx,

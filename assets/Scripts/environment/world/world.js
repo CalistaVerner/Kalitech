@@ -9,7 +9,7 @@ class Index {
     }
 
     init(ctx) {
-        LOG.info("[scene] init");
+        ENGINE.log.info("[scene] init");
 
         const size = 513;
         const xz = 2.0;
@@ -56,9 +56,9 @@ class Index {
         const phys = st.get(this.KEY_GROUND_PHYS);
         if (phys) {
             try {
-                PHYS.remove(phys);
+                ENGINE.physics.remove(phys);
             } catch (e) {
-                LOG.error("[scene] failed to remove ground body", e);
+                ENGINE.log.error("[scene] failed to remove ground body", e);
             }
         }
         st.remove(this.KEY_GROUND_PHYS);
@@ -68,7 +68,7 @@ class Index {
             try {
                 engine.surface().destroy(ground);
             } catch (e) {
-                LOG.error("[scene] failed to destroy ground surface", e);
+                ENGINE.log.error("[scene] failed to destroy ground surface", e);
             }
         }
         st.remove(this.KEY_GROUND);

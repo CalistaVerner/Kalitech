@@ -863,7 +863,7 @@ function create(engine, K) {
 }
 
 create.META = {
-    name: "entity",
+    moduleId: "entity",
     globalName: "ENT",
     version: "1.1.0",
     description: "Declarative entity builder (entity + surface + body + components) + physics methods on EntityHandle",

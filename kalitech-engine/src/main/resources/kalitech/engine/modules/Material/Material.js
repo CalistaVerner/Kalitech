@@ -321,7 +321,7 @@ function create(engine, K) {
 
 // META (adult contract)
 create.META = {
-    name: "materials",
+    moduleId: "materials",
     globalName: "MAT",
     version: "1.0.0",
     description: "Materials registry with JSON DB, caching, overrides and presets",

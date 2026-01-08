@@ -30,7 +30,8 @@ const DEFAULT_CONFIG = {
             input: "@module/Input/Input",
             events: "@module/Events/Events",
             terrain: "@module/Terrain/Terrain",
-            hud: "@module/Hud/Hud"
+            hud: "@module/Hud/Hud",
+            controllers: "@module/Controllers/Controllers"
         }
     },
 

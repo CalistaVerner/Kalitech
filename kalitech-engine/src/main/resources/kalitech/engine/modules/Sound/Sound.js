@@ -186,7 +186,7 @@ function create(engine, K) {
 
 // META (adult contract)
 create.META = {
-    name: "sound",
+    moduleId: "sound",
     globalName: "SND",
     version: "1.0.0",
     description: "Sound registry & instances wrapper (positional, reverb, direction, velocity)",

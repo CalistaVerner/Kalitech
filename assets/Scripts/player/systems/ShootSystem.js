@@ -171,7 +171,7 @@ class ShootSystem {
         const shotIndex = (++this._shotId) | 0;
         const name = "shot-" + shotIndex;
 
-        const g = MSH.loadModel(c.model, {
+        const g = ENGINE.mesh.loadModel(c.model, {
             scale: c.scale,
             name,
             pos: [this._spawn.x, this._spawn.y, this._spawn.z],
@@ -214,8 +214,8 @@ class ShootSystem {
             pitch: meta.pitch
         });
 
-        if (c.debug && c.debug.logShots && LOG && LOG.info) {
-            LOG.info("[shoot] " + name + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
+        if (c.debug && c.debug.logShots && ENGINE.log && ENGINE.log.info) {
+            ENGINE.log.info("[shoot] " + name + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
         }
     }
 

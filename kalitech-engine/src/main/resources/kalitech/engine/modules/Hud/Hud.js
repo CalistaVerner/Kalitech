@@ -655,4 +655,4 @@ function HudModule(engine, opts) {
 }
 
 module.exports = HudModule;
-module.exports.META = { name: "hud", globalName: "HUD", version: "2.4.3" };
+module.exports.META = {moduleId: "hud", globalName: "HUD", version: "2.4.3"};

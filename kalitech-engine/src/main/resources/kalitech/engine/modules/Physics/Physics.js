@@ -3,7 +3,7 @@
 "use strict";
 
 const META = {
-    name: "Physics",
+    moduleId: "physics",
     globalName: "PHYS",
     version: "1.0.3",
     engineMin: "0.1.0",

@@ -97,7 +97,10 @@ class LightRig {
                 intensity: 1.2
             });
         } catch (e) {
-            try { LOG.error("[sky] failed to create sun light: " + e); } catch (_) {}
+            try {
+                ENGINE.log.error("[sky] failed to create sun light: " + e);
+            } catch (_) {
+            }
         }
 
         try {
@@ -109,7 +112,10 @@ class LightRig {
                 intensity: Math.max(this.minAmbient, this.ambientDay.intensity)
             });
         } catch (e) {
-            try { LOG.error("[sky] failed to create ambient light: " + e); } catch (_) {}
+            try {
+                ENGINE.log.error("[sky] failed to create ambient light: " + e);
+            } catch (_) {
+            }
         }
 
         this.test(engine);
@@ -129,7 +135,10 @@ class LightRig {
                     intensity: sunEval.intensity
                 });
             } catch (e) {
-                try { LOG.warn("[sky] sun light set failed: " + e); } catch (_) {}
+                try {
+                    ENGINE.log.warn("[sky] sun light set failed: " + e);
+                } catch (_) {
+                }
             }
         }
 
@@ -145,7 +154,10 @@ class LightRig {
                     intensity: Math.max(this.minAmbient, ambI)
                 });
             } catch (e) {
-                try { LOG.warn("[sky] ambient light set failed: " + e); } catch (_) {}
+                try {
+                    ENGINE.log.warn("[sky] ambient light set failed: " + e);
+                } catch (_) {
+                }
             }
         }
 
@@ -252,7 +264,10 @@ class LightRig {
             intensity: 8.0
         });
 
-        try { LOG.info("[sky] torch id=" + torch.id()); } catch (_) {}
+        try {
+            ENGINE.log.info("[sky] torch id=" + torch.id());
+        } catch (_) {
+        }
 
         for (let i = 0; i < 10; i++) {
             let size = this.randNum(1, 5);
@@ -260,7 +275,7 @@ class LightRig {
             const weightBias = 0.6;    // насколько "больше = тяжелее"
             const mass = density * Math.pow(size, 3) * (1 + size * weightBias);
 
-            MSH
+            ENGINE.mesh
                 .box$()
                 .size(size)
                 .name("box-" + i)

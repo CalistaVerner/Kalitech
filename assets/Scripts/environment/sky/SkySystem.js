@@ -32,13 +32,22 @@ class SkySystem {
     }
 
     init(ctx) {
-        try { LOG.info("[sky] init"); } catch (_) {}
+        try {
+            ENGINE.log.info("[sky] init");
+        } catch (_) {
+        }
         try {
             const c = ctx.get("config");
             const sh = c && c.shadows;
-            try { LOG.info("[sky] cfg.shadows exists=" + !!sh + " mapSize=" + (sh ? sh.mapSize : "null")); } catch (_) {}
+            try {
+                ENGINE.log.info("[sky] cfg.shadows exists=" + !!sh + " mapSize=" + (sh ? sh.mapSize : "null"));
+            } catch (_) {
+            }
         } catch (e) {
-            try { LOG.warn("[sky] cfg dump failed: " + e); } catch (_) {}
+            try {
+                ENGINE.log.warn("[sky] cfg dump failed: " + e);
+            } catch (_) {
+            }
         }
 
         const cfg = this.readCfg(ctx);
@@ -74,7 +83,7 @@ class SkySystem {
             this.dbgAcc = 0.0;
             /*
             try {
-                LOG.debug(
+                ENGINE.log.debug(
                     "[sky] phase=" + this.clock.time01.toFixed(3) +
                     " t=" + this.clock.t.toFixed(2) +
                     " dt=" + dt.toFixed(4)
@@ -165,10 +174,16 @@ class SkySystem {
             if (ms !== this._lastShadowMapSize) {
                 this._lastShadowMapSize = ms;
                 try {
-                    try { LOG.info("[sky] apply shadows mapSize=" + ms); } catch (_) {}
+                    try {
+                        ENGINE.log.info("[sky] apply shadows mapSize=" + ms);
+                    } catch (_) {
+                    }
                     this.render.sunShadows(ms);
                 } catch (e) {
-                    try { LOG.warn("[sky] render.sunShadows failed: " + e); } catch (_) {}
+                    try {
+                        ENGINE.log.warn("[sky] render.sunShadows failed: " + e);
+                    } catch (_) {
+                    }
                 }
             }
         }
@@ -177,7 +192,10 @@ class SkySystem {
         if (pp && pp !== this._lastPostRef) {
             this._lastPostRef = pp;
             try { this.render.postCfg(pp); } catch (e) {
-                try { LOG.warn("[sky] render.postCfg failed: " + e); } catch (_) {}
+                try {
+                    ENGINE.log.warn("[sky] render.postCfg failed: " + e);
+                } catch (_) {
+                }
             }
         }
     }
@@ -263,12 +281,18 @@ class SkySystem {
                 if (!p) return;
                 this._lastPostRef = null;
                 try { this.render.postCfg(p); } catch (e) {
-                    try { LOG.warn("[sky] render:post failed: " + e); } catch (_) {}
+                    try {
+                        ENGINE.log.warn("[sky] render:post failed: " + e);
+                    } catch (_) {
+                    }
                 }
             });
 
         } catch (e) {
-            try { LOG.warn("[sky] events wiring skipped: " + e); } catch (_) {}
+            try {
+                ENGINE.log.warn("[sky] events wiring skipped: " + e);
+            } catch (_) {
+            }
         }
     }
 }

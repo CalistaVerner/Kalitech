@@ -270,7 +270,7 @@ function create(engine, K) {
 }
 
 create.META = {
-    name: "events",
+    moduleId: "events",
     globalName: "EVENTS",
     version: "1.2.0",
     description: "Native-first Events wrapper for Kalitech (token-based offFn, stable with Java EventsApiImpl)",

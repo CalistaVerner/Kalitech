@@ -135,7 +135,7 @@ function create(engine, K) {
 }
 
 create.META = {
-    name: "log",
+    moduleId: "log",
     globalName: "LOG",
     version: "1.0.0",
     description: "Rootkit wrapper for engine.log() with safe formatting + scoped child loggers",

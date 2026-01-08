@@ -34,22 +34,22 @@ class SkyBox {
         try {
             if (render && typeof render.ensureScene === "function") render.ensureScene();
         } catch (e) {
-            (globalThis.LOG || console).warn("[skybox] ensureScene failed:", e && (e.stack || e.message || String(e)));
+            (globalThis.ENGINE.log || console).warn("[skybox] ensureScene failed:", e && (e.stack || e.message || String(e)));
         }
 
         // 2) проверить метод
         if (!render || typeof render.skyboxCube !== "function") {
-            (globalThis.LOG || console).warn("[skybox] render.skyboxCube() not found. render keys maybe host-object.");
+            (globalThis.ENGINE.log || console).warn("[skybox] render.skyboxCube() not found. render keys maybe host-object.");
             return;
         }
 
         // 3) применить и залогировать
         try {
-            (globalThis.LOG || console).info("[skybox] applying:", asset);
+            (globalThis.ENGINE.log || console).info("[skybox] applying:", asset);
             render.skyboxCube(asset);
             this.lastAsset = asset;
         } catch (e) {
-            (globalThis.LOG || console).error("[skybox] skyboxCube failed asset=" + asset + " err=" + (e && (e.stack || e.message || String(e))));
+            (globalThis.ENGINE.log || console).error("[skybox] skyboxCube failed asset=" + asset + " err=" + (e && (e.stack || e.message || String(e))));
             // не обновляем lastAsset, чтобы пробовало снова после фикса
         }
     }
