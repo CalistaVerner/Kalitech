@@ -1,7 +1,5 @@
 package org.foxesworld.kalitech.engine.world.systems.providers;
 
-// package org.foxesworld.kalitech.engine.world.systems.providers;
-
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.TransformSystem;
