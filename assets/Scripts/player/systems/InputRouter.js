@@ -72,8 +72,9 @@ class InputRouter {
         const right = this._anyDown(kd, c.right) ? 1 : 0;
         const left = this._anyDown(kd, c.left) ? 1 : 0;
 
+        s.ax = left - right;
         s.az = fwd - back;
-        s.ax = right - left;
+
 
         s.run = this._anyDown(kd, c.run);
 
