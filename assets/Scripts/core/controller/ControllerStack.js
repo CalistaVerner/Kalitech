@@ -24,7 +24,6 @@ class ControllerStack {
     }
 
     static fromRegistry(registry, ctx, entity, cfg) {
-        registry = req(registry, "[Stack] registry is required");
         const built = registry.build(ctx, entity, cfg);
         const stack = new ControllerStack(built.list, built.ids);
         return stack.bind(ctx, entity);
@@ -55,7 +54,6 @@ class ControllerStack {
 
     _tick(dt) {
         if (!this._started) this._start();
-
         for (let i = 0; i < this.modules.length; i++) {
             const m = this.modules[i];
             if (typeof m.onUpdate === "function") m.onUpdate(dt);
@@ -73,6 +71,31 @@ class ControllerStack {
         }
 
         this._started = false;
+    }
+
+    rebuildFromRegistry(registry, cfg) {
+        registry = req(registry, "[Stack] registry is required");
+        if (!this.ctx || !this.entity) throw new Error("[Stack] rebuild requires bound stack");
+
+        // 1) stop old
+        this._shutdown();
+
+        // 2) build new
+        const built = registry.build(this.ctx, this.entity, cfg);
+
+        // 3) swap
+        this.modules = built.list;
+        this.ids = built.ids;
+        this._modsStarted = new Array(this.modules.length).fill(false);
+
+        // 4) bind new modules to same ctx/entity
+        for (let i = 0; i < this.modules.length; i++) {
+            const m = req(this.modules[i], "[Stack] module is null at index " + i);
+            reqFn(m.bind, "[Stack] module.bind(ctx,entity) required at index " + i);
+            m.bind(this.ctx, this.entity);
+        }
+
+        // start will happen on next _tick()
     }
 }
 

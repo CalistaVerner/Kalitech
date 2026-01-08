@@ -30,12 +30,9 @@ class ControllerRegistry {
         this._defs = new Map(); // id -> def
     }
 
-    /**
-     * register("player.input", PlayerInputController, { order: 10, deps: ["player.events"], enabled: true, when:(ctx,e,cfg)=>true })
-     */
     register(id, Ctor, opts) {
-        id = reqStr(id, "[Registry] id is required");
-        Ctor = reqFn(Ctor, "[Registry] Ctor is required");
+        id = reqStr(id, `[Registry:${this.name}] id is required`);
+        Ctor = reqFn(Ctor, `[Registry:${this.name}] Ctor is required`);
 
         if (this._defs.has(id)) throw new Error(`[Registry:${this.name}] duplicate id '${id}'`);
 
@@ -53,19 +50,16 @@ class ControllerRegistry {
         return this;
     }
 
-    has(id) {
-        return this._defs.has(id);
+    registerPack(packFn, packCfg) {
+        packFn = reqFn(packFn, `[Registry:${this.name}] packFn(registry, cfg) is required`);
+        packFn(this, packCfg || null);
+        return this;
     }
 
-    /**
-     * Build ordered controller instances for конкретной entity.
-     * Returns: { list: [instance...], ids: [id...] }
-     */
     build(ctx, entity, cfg) {
         ctx = req(ctx, `[Registry:${this.name}] ctx is required`);
         entity = req(entity, `[Registry:${this.name}] entity is required`);
 
-        // 1) take enabled + when
         const active = [];
         for (const def of this._defs.values()) {
             if (!def.enabled) continue;
@@ -73,27 +67,19 @@ class ControllerRegistry {
             active.push(def);
         }
 
-        // 2) ensure deps exist and are active
-        const activeSet = new Map(); // id -> def
+        const activeSet = new Map();
         for (let i = 0; i < active.length; i++) activeSet.set(active[i].id, active[i]);
 
         for (const def of active) {
             for (let i = 0; i < def.deps.length; i++) {
                 const dep = def.deps[i];
-                if (!this._defs.has(dep)) {
-                    throw new Error(`[Registry:${this.name}] '${def.id}' depends on unknown '${dep}'`);
-                }
-                if (!activeSet.has(dep)) {
-                    throw new Error(`[Registry:${this.name}] '${def.id}' depends on disabled '${dep}'`);
-                }
+                if (!this._defs.has(dep)) throw new Error(`[Registry:${this.name}] '${def.id}' depends on unknown '${dep}'`);
+                if (!activeSet.has(dep)) throw new Error(`[Registry:${this.name}] '${def.id}' depends on disabled '${dep}'`);
             }
         }
 
-        // 3) stable topo sort with order priority
-        // Kahn + stable queue by (order asc, id asc)
         const indeg = new Map();
-        const edges = new Map(); // from -> [to...]
-
+        const edges = new Map();
         for (const def of active) {
             indeg.set(def.id, 0);
             edges.set(def.id, []);
@@ -127,13 +113,11 @@ class ControllerRegistry {
         }
 
         if (orderedDefs.length !== active.length) {
-            // cycle debug
             const stuck = [];
             for (const def of active) if (indeg.get(def.id) > 0) stuck.push(def.id);
             throw new Error(`[Registry:${this.name}] dependency cycle: ` + stuck.join(" -> "));
         }
 
-        // 4) instantiate
         const list = new Array(orderedDefs.length);
         const ids = new Array(orderedDefs.length);
 

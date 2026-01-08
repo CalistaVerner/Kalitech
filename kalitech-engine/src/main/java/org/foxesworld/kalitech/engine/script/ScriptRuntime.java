@@ -42,7 +42,7 @@ public final class ScriptRuntime implements Closeable {
      * Built-in prefix and resources directory.
      */
     private static final String BUILTIN_PREFIX = "@builtin/";
-    private static final String BUILTIN_RES_DIR = "kalitech/builtin/";
+    private static final String BUILTIN_RES_DIR = "kalitech/engine/";
     private final Context ctx;
     private final ScriptCaches caches;
     private final ThreadLocal<ArrayDeque<String>> requireStack = ThreadLocal.withInitial(ArrayDeque::new);
@@ -79,7 +79,7 @@ public final class ScriptRuntime implements Closeable {
     /**
      * Built-in bootstrap module id.
      */
-    private final String builtinBootstrapId = "@builtin/bootstrap";
+    private final String builtinBootstrapId = "@builtin/init";
     private long invalidateEpoch = 0L;
     private volatile Thread ownerThread;
     /**
@@ -104,7 +104,12 @@ public final class ScriptRuntime implements Closeable {
         // - then namespace kalitech:ui -> Mods/kalitech/ui/index.js
         // - then aliases (loaded from bootstrap)
         // - then pass-through
-        this.resolver = new ResolverChain().add(new BuiltinResolver(BUILTIN_PREFIX)).add(new RelativeResolver()).add(new NamespaceResolver("Mods")).add(aliasResolver).add(new PassThroughResolver());
+        this.resolver = new ResolverChain()
+                .add(new BuiltinResolver(BUILTIN_PREFIX))
+                .add(new EngineResolver("@module", "@builtin/modules"))
+                .add(new RelativeResolver())
+                .add(new NamespaceResolver("Mods"))
+                .add(aliasResolver).add(new PassThroughResolver());
 
         this.ctx = Context.newBuilder("js").allowExperimentalOptions(true).option("engine.WarnInterpreterOnly", "false").allowHostAccess(HostAccess.newBuilder(HostAccess.NONE).allowAccessAnnotatedBy(HostAccess.Export.class).build()).allowHostClassLookup(className -> false).allowAllAccess(false).build();
 

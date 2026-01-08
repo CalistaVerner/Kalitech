@@ -1,11 +1,16 @@
 // Author: Calista Verner
 
 /**
- * Kalitech builtin primitives (TypeScript declarations).
+ * Kalitech builtin primitives (TypeScript declarations) — STRICT.
  *
- * Works for:
+ * Contract:
  * - require("@builtin/Primitives")(K) -> PrimitivesApi
  * - globalThis.primitives -> PrimitivesApi (when exposeGlobals=true)
+ *
+ * No fallbacks:
+ * - SurfaceHandle MUST provide id(): number
+ * - engine.surface().attachedBody(surfaceId) MUST exist
+ * - physics calls are bodyId-only (no handle/bodyRef paths)
  */
 
 export type Vec3 =
@@ -108,78 +113,54 @@ export interface CapsuleCfg extends PrimitiveCfgBase {
 }
 
 /**
- * Minimal SurfaceHandle shape used by JS.
- * Your real handle may expose more members; keep it permissive.
+ * Minimal SurfaceHandle shape used by STRICT primitives wrapper.
+ * id() is mandatory and must be stable.
  */
-export type IdLike = number | (() => number);
-export type StrLike = string | (() => string);
-
 export interface SurfaceHandle {
-    id?: IdLike;
-    kind?: StrLike;
-
+    id(): number;
     [key: string]: unknown;
 }
 
 /**
- * Wrapper returned by Primitives.js (Proxy) that adds physics sugar.
- * NOTE: All methods are best-effort (can no-op if body isn't linked yet),
- * but typings expose them for IDE/TS help.
+ * Wrapper returned by Primitives.js (Proxy) that adds bodyId-only physics sugar.
+ * STRICT behavior:
+ * - bodyId is resolved once (surface.attachedBody(surfaceId)) during wrapping.
+ * - if bodyId is 0, wrapper creation throws.
  */
 export interface PrimitiveHandle extends SurfaceHandle {
-    /**
-     * Markers used by wrapper.
-     */
-    __isPrimitiveWrapper?: true;
-    __surface?: SurfaceHandle;
+    __isPrimitiveWrapper: true;
+    __surface: SurfaceHandle;
 
-    /**
-     * Body id bound to this surface, if physics was created.
-     * (0 if not bound / not yet resolved)
-     */
-    bodyId?(): number;
+    /** Body id bound to this surface (must be > 0). */
+    bodyId(): number;
 
-    /**
-     * Preferred physics access: PHYS.ref(bodyId) if available,
-     * otherwise an id-based wrapper around engine.physics().
-     */
-    bodyRef?(): {
-        id(): number;
-        position(v?: Vec3): unknown;
-        warp(v: Vec3): unknown;
-        velocity(v?: Vec3): unknown;
-        yaw?(yawRad: number): unknown;
-        applyImpulse(v: Vec3): unknown;
-        applyCentralForce?(v: Vec3): unknown;
-        applyTorque?(v: Vec3): unknown;
-        angularVelocity?(v?: Vec3): unknown;
-        clearForces?(): unknown;
-        lockRotation?(lock: boolean): unknown;
-    };
+    /** Physics sugar (bodyId-only). */
+    applyImpulse(v: Vec3): void;
 
-    /**
-     * Physics sugar (provided by wrapper).
-     */
-    applyImpulse?(v: Vec3): void;
-
-    applyCentralForce?(v: Vec3): void;
+    applyCentralForce(v: Vec3): void;
 
     /**
      * Getter/setter pattern:
-     *  - g.velocity() -> Vec3 | undefined
+     *  - g.velocity() -> Vec3
      *  - g.velocity(v) -> void
      */
-    velocity?(): Vec3 | undefined;
+    velocity(): Vec3;
 
-    velocity?(v: Vec3): void;
+    velocity(v: Vec3): void;
 
-    position?(): Vec3 | undefined;
+    position(): Vec3;
 
-    position?(p: Vec3): void;
+    position(p: Vec3): void;
 
-    teleport?(p: Vec3): void;
+    /** Alias to warp/position-setter. */
+    teleport(p: Vec3): void;
 
-    lockRotation?(lock: boolean): void;
+    lockRotation(lock: boolean): void;
+
+    /** Optional render sugar if exposed by engine.surface(). */
+    setVisible?(v: boolean): void;
+
+    setCull?(hint: string): void;
 }
 
 /**
@@ -190,7 +171,6 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
     name(v: string): this;
 
     pos(x: number, y: number, z: number): this;
-
     pos(v: Vec3): this;
 
     rot(v: Vec3 | Vec4): this;
@@ -205,9 +185,7 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
     physics(mass?: number, opts?: Omit<PhysicsCfg, "mass"> & Record<string, unknown>): this;
 
     mass(v: number): this;
-
     lockRotation(v: boolean): this;
-
     kinematic(v: boolean): this;
 
     /**
@@ -215,43 +193,33 @@ export interface PrimitiveBuilder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBa
      * Some fields may be ignored depending on primitive type.
      */
     size(v: number): this;
-
     radius(v: number): this;
-
     height(v: number): this;
 
     attach(v?: boolean): this;
 
-    /**
-     * Expose assembled cfg (copy).
-     */
+    /** Expose assembled cfg (copy). */
     cfg(): TCfg;
 
-    /**
-     * Finalize: call primitives.create(cfg)
-     */
+    /** Finalize: call primitives.create(cfg). */
     create(): PrimitiveHandle;
 }
 
 export interface PrimitivesApi {
-    // Declarative API (existing)
+    // Declarative API
     create(cfg: PrimitiveCfgBase): PrimitiveHandle;
 
     box(cfg?: BoxCfg): PrimitiveHandle;
-
     cube(cfg?: BoxCfg): PrimitiveHandle;
 
     sphere(cfg?: SphereCfg): PrimitiveHandle;
-
     cylinder(cfg?: CylinderCfg): PrimitiveHandle;
-
     capsule(cfg?: CapsuleCfg): PrimitiveHandle;
 
     /**
      * Load model via engine.mesh().create({type:"model", path:"..."}).
      */
     loadModel(path: string, cfg?: PrimitiveCfgBase): PrimitiveHandle;
-
     loadModel(cfg: PrimitiveCfgBase & { path: string }): PrimitiveHandle;
 
     many(list: PrimitiveCfgBase[]): PrimitiveHandle[];
@@ -272,20 +240,15 @@ export interface PrimitivesApi {
         }
     ): PhysicsCfg;
 
-    // NEW: fluent builder API
+    // Fluent builder API
     builder<TCfg extends PrimitiveCfgBase = PrimitiveCfgBase>(type: PrimitiveType | string): PrimitiveBuilder<TCfg>;
 
-    /**
-     * Sugar aliases (if you add them in Primitives.js export):
-     */
+    // Sugar aliases
     box$(): PrimitiveBuilder<BoxCfg>;
-
     cube$(): PrimitiveBuilder<BoxCfg>;
 
     sphere$(): PrimitiveBuilder<SphereCfg>;
-
     cylinder$(): PrimitiveBuilder<CylinderCfg>;
-
     capsule$(): PrimitiveBuilder<CapsuleCfg>;
 
     /** Model builder (type="model"). */
