@@ -58,7 +58,7 @@ class PlayerController {
 
         this.input = new InputRouter(this.player.d.input, movCfg);
         this.movement = new MovementSystem(movCfg);
-        this.shoot = new ShootSystem(rootCfg);
+        this.shoot = new ShootSystem(this.player, rootCfg);
     }
 
     update(frame) {

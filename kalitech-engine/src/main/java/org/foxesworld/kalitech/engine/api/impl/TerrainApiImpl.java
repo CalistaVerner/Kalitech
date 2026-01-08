@@ -8,6 +8,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.terrain.*;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;

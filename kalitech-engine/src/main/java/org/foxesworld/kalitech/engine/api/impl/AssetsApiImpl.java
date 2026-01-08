@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.asset.AssetIO;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;

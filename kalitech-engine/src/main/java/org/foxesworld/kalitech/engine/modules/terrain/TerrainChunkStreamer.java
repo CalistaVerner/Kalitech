@@ -3,8 +3,8 @@ package org.foxesworld.kalitech.engine.modules.terrain;
 import com.jme3.scene.Spatial;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.api.impl.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 

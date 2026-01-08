@@ -1,11 +1,13 @@
 // FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceRegistry.java
-package org.foxesworld.kalitech.engine.api.impl;
+package org.foxesworld.kalitech.engine.api.services;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.scene.Spatial;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.module.EngineService;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.Objects;
@@ -15,16 +17,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public final class SurfaceRegistry {
+public final class SurfaceRegistry implements EngineService {
 
     private static final Logger log = LogManager.getLogger(SurfaceRegistry.class);
 
-    private final SimpleApplication app;
+    private SimpleApplication app;
 
     /**
      * IMPORTANT: bus can be null early-boot; resolve dynamically.
      */
-    private final Supplier<ScriptEventBus> busSupplier;
+    private Supplier<ScriptEventBus> busSupplier;
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
@@ -35,6 +37,19 @@ public final class SurfaceRegistry {
 
     private final ConcurrentLinkedQueue<Integer> pendingAttach = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean attachFlushScheduled = new AtomicBoolean(false);
+
+    // ---------------------------------------------------------------------
+    // Service identity
+    // ---------------------------------------------------------------------
+
+    @Override
+    public String id() {
+        return "surfaceRegistry";
+    }
+
+    // ---------------------------------------------------------------------
+    // Constructors (kept; no logic changes)
+    // ---------------------------------------------------------------------
 
     public SurfaceRegistry(SimpleApplication app) {
         this(app, (Supplier<ScriptEventBus>) () -> null);
@@ -52,6 +67,41 @@ public final class SurfaceRegistry {
         this.app = Objects.requireNonNull(app, "app");
         this.busSupplier = (busSupplier != null) ? busSupplier : () -> null;
     }
+
+    // ---------------------------------------------------------------------
+    // Optional lifecycle hook (does not change behavior)
+    // ---------------------------------------------------------------------
+
+    @Override
+    public void attach(ApiContext ctx) {
+        // if created via service registry: bind from ctx
+        if (ctx != null) {
+            this.app = ctx.app;
+            // IMPORTANT: keep dynamic bus resolve (early boot safe)
+            this.busSupplier = ctx.engine::getBus;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[service] attached id='{}' app={} busSupplier={}",
+                    id(),
+                    (app != null ? app.getClass().getSimpleName() : "null"),
+                    (busSupplier != null ? busSupplier.getClass().getName() : "null"));
+        }
+    }
+
+    @Override
+    public void detach() {
+        pendingAttach.clear();
+        byId.clear();
+        kindById.clear();
+        surfaceToEntity.clear();
+        entityToSurface.clear();
+        attachFlushScheduled.set(false);
+        if (log.isDebugEnabled()) log.debug("[service] detached id='{}'", id());
+    }
+
+    // ---------------------------------------------------------------------
+    // Original logic below (unchanged)
+    // ---------------------------------------------------------------------
 
     public SurfaceApi.SurfaceHandle register(Spatial spatial, String kind, SurfaceApi api) {
         Objects.requireNonNull(spatial, "spatial");

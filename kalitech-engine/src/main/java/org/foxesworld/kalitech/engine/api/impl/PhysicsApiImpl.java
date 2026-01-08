@@ -33,6 +33,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
 import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;

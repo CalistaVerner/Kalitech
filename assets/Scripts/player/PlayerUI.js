@@ -63,10 +63,12 @@ class PlayerUI {
             style: this.style
         });
 
-        this.panel.stack("debug.title", "DEBUG", {fontSize: this.fontTitle, color: "#FFFFFF"});
+        this.panel.stack("debug.title", "DEBUG", {fontSize: 18, color: "#FFFFFF"});
         this.panel.stack("debug.fps", "FPS: --", {fontSize: this.fontLine, color: "#FFFFFF"});
         this.panel.stack("debug.pos", "POS: --", {fontSize: this.fontLine, color: "#FFFFFF"});
-        this.panel.stack("debug.cam", "CAM: --", {fontSize: this.fontLine, color: "#FFFFFF"});
+        this.panel.stack("debug.camType", "CAM(type): --", {fontSize: this.fontLine, color: "#FFFFFF"});
+        this.panel.stack("debug.camYaw", "CAM(yaw): --", {fontSize: this.fontLine, color: "#FFFFFF"});
+        this.panel.stack("debug.camPitch", "CAM(pitch): --", {fontSize: this.fontLine, color: "#FFFFFF"});
 
         if (typeof this.layer.relayout === "function") this.layer.relayout();
         this.refresh();
@@ -81,14 +83,18 @@ class PlayerUI {
         const p = dom && dom.pose ? dom.pose : null;
         if (!p) return;
 
-        const cam = (dom && dom.view && dom.view.type) ? dom.view.type : "--";
+        const camType = dom.view.type;
+        const camYaw = dom.view.yaw
+        const camPitch = dom.view.pitch
 
         const eng = this.player.engine;
         const fps = (eng && typeof eng.fps === "function") ? (+eng.fps() || 0) : 0;
 
-        layer.setText("debug.fps", "FPS: " + (fps > 0 ? fps.toFixed(1) : "--"));
+        layer.setText("debug.fps", "FPS: " + fps);
         layer.setText("debug.pos", "POS: " + p.x.toFixed(2) + " | " + p.y.toFixed(2) + " | " + p.z.toFixed(2));
-        layer.setText("debug.cam", "CAM: " + cam);
+        layer.setText("debug.camType", "CAM(type): " + camType);
+        layer.setText("debug.camYaw", "CAM(yaw): " + camYaw);
+        layer.setText("debug.camPitch", "CAM(pitch): " + camPitch);
     }
 
     destroy() {

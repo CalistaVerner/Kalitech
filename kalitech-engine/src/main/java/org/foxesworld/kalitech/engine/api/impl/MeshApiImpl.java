@@ -19,6 +19,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 

@@ -23,8 +23,8 @@ class Index {
             heights: TERR.heights.perlin({
                 size,
                 seed: 1337,
-                scale: 120,
-                octaves: 6,
+                scale: 360,
+                octaves: 12,
                 warp: { amp: 18, scale: 42, octaves: 3 }
             }),
 

@@ -186,6 +186,10 @@ class Player {
 
         this.alive = true;
         if (LOG && LOG.info) LOG.info("[player] init ok entity=" + this.entityId + " bodyId=" + this.bodyId);
+        //EVENT.on("game.shoot.hit", (e) => {
+        //    LOG.info("[event] HIT shot=" + e.name + " otherSid=" + e.other.surfaceId + " impulse=" + (e.contact ? e.contact.maxImpulse : 0));
+        //});
+
     }
 
     _syncPose(frame) {
@@ -262,9 +266,10 @@ class Player {
             jump: this.dom.input.jump,
             fallSpeed: this.frame.pose.fallSpeed
         });
-
         this.ui.refresh();
-
+        this.ctx.engine.api().bus().on("game.shoot.fire", (e) => {
+            LOG.info("[event] FIRE shot=" + e.name + " sid=" + e.surfaceId);
+        });
         if (this.INP && typeof this.INP.endFrame === "function") this.INP.endFrame();
     }
 

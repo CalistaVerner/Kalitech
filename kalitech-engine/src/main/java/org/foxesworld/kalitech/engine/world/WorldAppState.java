@@ -121,7 +121,7 @@ public final class WorldAppState extends BaseAppState {
                 engine,
                 engine.getEcs(),
                 engine.getBus(),
-                engine.getPhysicsSpace(),
+                engine.__getPhysicsSpaceOrNull(),
                 rt0,                         // base runtime (shared)
                 this::getRuntime,            // runtimeProvider (profiles)
                 null,                        // runtimePolicy (optional)

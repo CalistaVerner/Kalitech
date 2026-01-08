@@ -137,6 +137,7 @@ function placePoint(containerW, containerH, place) {
 // base wrappers
 // ------------------------------------------------------------
 
+// inside class Element
 class Element {
     constructor(hud, handle, layer, parent) {
         this._hud = hud;
@@ -147,13 +148,33 @@ class Element {
         this.parent = parent || null;
 
         this.kind = "element";
-        this.key = null;     // registry key
-        this._place = null;  // stored placement for relayout
-        this._w = 0;         // known size for relayout (panels always)
+        this.key = null;
+
+        this._place = null;
+        this._w = 0;
         this._h = 0;
+
+        // ✅ value-binding
+        this._bindPrefix = null;   // string
+        this._bindFmt = null;      // function(value)=>string
     }
 
     text(v) { this._api.setText(this.handle, String(v ?? "")); return this; }
+
+    value(v) {
+        let s;
+        if (this._bindFmt) {
+            s = this._bindFmt(v);
+        } else {
+            s = (v == null) ? "" : String(v);
+        }
+
+        // ✅ prefix always prepended if present
+        if (this._bindPrefix != null) s = this._bindPrefix + String(s ?? "");
+        return this.text(String(s ?? ""));
+    }
+
+
     visible(v) { this._api.setVisible(this.handle, !!v); return this; }
     pos(x, y) { this._api.setPosition(this.handle, num(x), num(y)); return this; }
 
@@ -220,6 +241,12 @@ class Panel extends Element {
     setText(id, text) {
         const el = this.get(id);
         if (el) el.text(text);
+        return el;
+    }
+
+    setValue(id, v) {
+        const el = this.get(id);
+        if (el) el.value(v);
         return el;
     }
 
@@ -307,6 +334,12 @@ class Layer {
     }
 
     setText(id, text) { const el = this.get(id); if (el) el.text(text); return el; }
+
+    setValue(id, v) {
+        const el = this.get(id);
+        if (el) el.value(v);
+        return el;
+    }
     setVisible(id, v) { const el = this.get(id); if (el) el.visible(v); return el; }
 
     _vp() {
@@ -471,6 +504,9 @@ class Layer {
 
         const el = new Element(this._hud, hLabel, this, parent0);
 
+        if (c.key != null) el._bindPrefix = String(c.key);
+        if (typeof c.format === "function") el._bindFmt = c.format;
+
         if (!bool(c.visible, true)) el.visible(false);
         if (c.fontSize != null) el.fontSize(c.fontSize);
 
@@ -519,6 +555,23 @@ class Layer {
 
         // advance cursor for next line
         panel.flow.y += lh + gap;
+
+        const prefix = (c.key != null) ? String(c.key)
+            : (c.prefix != null) ? String(c.prefix)
+                : null;
+
+        const fmt = (typeof c.format === "function") ? c.format : null;
+
+// initial text
+        let text0;
+        if (c.text != null) text0 = String(c.text);
+        else if (fmt) text0 = String(fmt(c.value));
+        else if (prefix != null) {
+            const v0 = (c.value != null) ? c.value : "--";
+            text0 = prefix + String(v0);
+        } else {
+            text0 = String(c.value != null ? c.value : "");
+        }
 
         const el = this.text({
             parent: panel,
