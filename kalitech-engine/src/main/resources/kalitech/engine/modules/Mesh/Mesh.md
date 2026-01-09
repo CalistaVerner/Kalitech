@@ -1,34 +1,32 @@
 # Mesh (builtin) — гайд по использованию
 
-> **Mesh** — встроенный JS‑оркестратор для создания примитивов и загрузки моделей через `engine.mesh().create(...)`.
+> **Mesh** — встроенный JS‑оркестратор, который **декорирует `ENGINE.mesh()`** и сохраняет **объектную модель**.
 >
-> Возвращает **SurfaceHandle‑обёртку** (Proxy), которая добавляет удобные методы физики:
+> Главная идея: `ENGINE.mesh.create(cfg)` возвращает **обёрнутый SurfaceHandle** (Proxy), на который можно вызывать
+> методы физики **напрямую**:
 >
-> * `applyImpulse(vec3)`
-> * `applyCentralForce(vec3)`
-> * `velocity()` / `velocity(vec3)`
-> * `position()` / `position(vec3)`
-> * `teleport(vec3)`
-> * `lockRotation(true|false)`
-> * `bodyId()` / `bodyRef()` (доступ к id‑based физике)
+> ```js
+> const m = ENGINE.mesh.create({ type: "box", size: 1, pos: [0,2,0], physics: { mass: 5 } });
+> m.warp(10, 5, 76);
+> m.applyImpulse([0, 6, 0]);
+> ```
 >
-> При этом **физическое тело создаётся на Java‑стороне** (через `mesh.create({ physics: ... })`).
-> JS‑обёртка НЕ создаёт второе тело и работает через **bodyId** (через `PHYS.ref(bodyId)` либо `engine.physics()`
-> id‑API).
+> Важно: обёртка **не создаёт физическое тело сама**. Тело создаётся на Java‑стороне при
+`mesh.create({ physics: ... })`.
+> Обёртка работает через **bodyId**, который берётся из `ENGINE.surface().attachedBody(surfaceId)`.
 
 ---
 
-## Подключение
+## Доступ
 
-### Вариант 1: через require
+В новой схеме модуль живёт в **ENGINE**:
 
 ```js
-const Mesh = require("@builtin/Mesh")(engine, K);
+// декорированный API
+const Mesh = ENGINE.mesh;
 ```
 
-### Вариант 2: через глобальный алиас
-
-Если включено `exposeGlobals`, модуль может быть доступен как `globalThis.MSH` (или как вы его переименовали).
+Если у вас включён `exposeGlobals`, могут быть алиасы, но каноничный путь — **только через ENGINE**.
 
 ---
 
@@ -37,370 +35,250 @@ const Mesh = require("@builtin/Mesh")(engine, K);
 ### Куб с физикой
 
 ```js
-const box = Mesh.cube({
+const box = ENGINE.mesh.create({
+    type: "box",
     name: "box01",
     size: 2,
     pos: [0, 5, 0],
-    physics: { mass: 10, lockRotation: false }
+    material: MAT.getMaterial("box"),
+    physics: {mass: 10, lockRotation: false}
 });
 
 box.applyImpulse({ x: 0, y: 6, z: 0 });
 ```
 
-### Статичный объект (без движения)
+### Статичный объект
 
 ```js
-const ground = Mesh.box({
+const ground = ENGINE.mesh.create({
+    type: "box",
     name: "ground",
     hx: 50, hy: 1, hz: 50,
     pos: [0, -1, 0],
-    physics: { mass: 0 }
+    physics: {mass: 0}
 });
 ```
 
 ---
 
-## Создание примитивов
+## Создание объектов
 
-Все фабрики внутри вызывают `engine.mesh().create(cfg)` и возвращают обёртку.
+### `ENGINE.mesh.create(cfg)`
 
-### `Mesh.create(cfg)`
-
-Создаёт объект указанного типа.
+Создаёт объект указанного типа через Java:
 
 ```js
-const g = Mesh.create({
+engine.mesh().create(cfg)
+```
+
+и возвращает **обёртку** (Proxy) над SurfaceHandle.
+
+Пример:
+
+```js
+const s = ENGINE.mesh.create({
     type: "sphere",
     radius: 0.5,
     pos: [1, 3, 0],
-    physics: { mass: 1 }
+    physics: {mass: 1}
 });
 ```
 
-Поддерживаемые `type`:
+Ожидаемые `type` (ориентир):
 
-* `box` (или `cube` как алиас)
+* `box`
 * `sphere`
 * `cylinder`
 * `capsule`
-* `model` (загрузка моделей)
-
-### `Mesh.box(cfg)` / `Mesh.cube(cfg)`
-
-Параметры:
-
-* `size` — размер куба (если задан, задаёт `hx=hy=hz=size/2`)
-* или `hx, hy, hz` — half‑extents
-* `pos` — позиция
-* `material` — материал (см. ниже)
-* `physics` — физика
-
-```js
-const b = Mesh.box({ hx: 1, hy: 0.5, hz: 2, pos: [0, 2, 0], physics: { mass: 3 } });
-```
-
-### `Mesh.sphere(cfg)`
-
-Параметры:
-
-* `radius`
-* (опционально) `zSamples`, `radialSamples`
-
-```js
-const s = Mesh.sphere({ radius: 0.35, pos: [2, 4, 0], physics: { mass: 0.5 } });
-```
-
-### `Mesh.cylinder(cfg)`
-
-Параметры:
-
-* `radius`
-* `height`
-* (опционально) `axisSamples`, `radialSamples`
-
-```js
-const c = Mesh.cylinder({ radius: 0.3, height: 1.2, pos: [0, 3, 2], physics: { mass: 2 } });
-```
-
-### `Mesh.capsule(cfg)`
-
-Параметры:
-
-* `radius`
-* `height`
-
-```js
-const cap = Mesh.capsule({ radius: 0.35, height: 1.8, pos: [0, 1, 0], physics: { mass: 80 } });
-```
-
----
-
-## Загрузка моделей
-
-Mesh добавляет удобный метод `loadModel`, который внутри вызывает:
-
-```js
-engine.mesh().create({ type: "model", path: "...", ... })
-```
-
-### `Mesh.loadModel(path, cfg?)`
-
-```js
-const house = Mesh.loadModel("Models/house.obj", {
-    pos: [10, 0, -5],
-    scale: 1,
-    physics: { mass: 0 }
-});
-```
-
-### `Mesh.loadModel(cfg)`
-
-```js
-const npc = Mesh.loadModel({
-    path: "Models/npc.fbx",
-    pos: [0, 0, 0],
-    scale: 0.01,
-    physics: { mass: 60 }
-});
-```
-
-#### Нормализация пути
-
-`cfg.path` можно задавать синонимами:
-
-* `path`
 * `model`
-* `asset`
-* `url`
 
-В итоге будет использовано `cfg.path`.
+> Конкретный набор `type` определяется вашей Java‑реализацией `MeshApiImpl`.
 
 ---
 
-## Позиция/поворот/масштаб
+## Пакетное создание
 
-### Позиция `pos`
-
-Поддерживаемые форматы:
+Если ваша Java‑реализация поддерживает `many(list)`, он будет проксирован и вернёт массив обёрток:
 
 ```js
-pos: [x, y, z]
-pos: { x, y, z }
+const arr = ENGINE.mesh.many([
+    {type: "box", size: 1, pos: [0, 2, 0], physics: {mass: 1}},
+    {type: "sphere", radius: 0.5, pos: [2, 2, 0], physics: {mass: 2}}
+]);
+
+arr[0].applyImpulse([1, 0, 0]);
 ```
 
-Допустимые алиасы, которые будут приведены к `pos`:
+---
 
-* `position`
-* `loc`
-* `location`
+## Builder API (цепочки)
 
-### Вращение `rot` и масштаб `scale`
+Mesh предоставляет builder прямо на `ENGINE.mesh`:
 
-Обычно обрабатываются Java‑стороной (`mesh.create`). Если ваш `MeshApiImpl` поддерживает их:
+* `box$()` / `cube$()`
+* `sphere$()`
+* `cylinder$()`
+* `capsule$()`
+* `model$()`
+
+### Примитив
 
 ```js
-const m = Mesh.loadModel("Models/thing.obj", {
-    pos: [0,0,0],
-    rot: [0, 90, 0],
-    scale: 1.5
-});
+const b = ENGINE.mesh
+    .box$()
+    .size(1)
+    .name("box")
+    .pos(0, 5, 0)
+    .material(MAT.getMaterial("box"))
+    .physics(3, {lockRotation: false})
+    .create();
+
+b.applyImpulse([0, 6, 0]);
 ```
 
-Если в вашей Java‑реализации `rot/scale` ещё не поддерживаются — добавьте их в `MeshApiImpl` (вы уже это делали в
-патче).
+### Модель
+
+```js
+const npc = ENGINE.mesh
+    .model$()
+    .name("npc")
+    .path("Models/npc.fbx")
+    .pos([0, 0, 0])
+    .physics(60, {lockRotation: true})
+    .create();
+```
+
+Builder пишет конфиг в поля `cfg` (в итоге уходит в `ENGINE.mesh.create(cfg)`):
+
+* `.name(string)`
+* `.pos(x,y,z)` или `.pos([x,y,z])` или `.pos({x,y,z})`
+* `.size(number)`
+* `.radius(number)` / `.height(number)` (если вы добавляете в cfg напрямую через `.cfg()`)
+* `.material(any)`
+* `.path(string)` / `.model(string)`
+* `.physics(mass, opts)` → записывает `cfg.physics = { mass, ... }`
 
 ---
 
 ## Физика
 
-### Быстрый вариант: `physics: number`
+### Ключевой контракт
+
+* Физика создаётся **только** на Java‑стороне (через `cfg.physics`).
+* JS‑обёртка не создаёт второе тело.
+* Доступ к физике идёт через **`ENGINE.physics()`**.
+* `bodyId` резолвится так:
 
 ```js
-const s = Mesh.sphere({ radius: 0.3, pos: [0, 2, 0], physics: 1 }); // mass=1
+const sid = surface.id();
+const bid = ENGINE.surface().attachedBody(sid);
 ```
 
-### Полный вариант: `physics: { ... }`
-
-Поддерживаемые поля (ориентир):
-
-* `mass` (0 = static)
-* `enabled`
-* `lockRotation`
-* `kinematic`
-* `friction`
-* `restitution`
-* `damping: { linear, angular }`
-* `collider: { ... }`
+### Быстрый формат
 
 ```js
-const body = Mesh.box({
+const s = ENGINE.mesh.create({
+    type: "sphere",
+    radius: 0.3,
+    pos: [0, 2, 0],
+    physics: 1 // => mass=1
+});
+```
+
+### Полный формат
+
+```js
+const obj = ENGINE.mesh.create({
+    type: "box",
     size: 1,
     pos: [0, 5, 0],
     physics: {
         mass: 5,
         friction: 0.8,
         restitution: 0.05,
-        damping: { linear: 0.1, angular: 0.2 },
-        lockRotation: false
+        damping: {linear: 0.1, angular: 0.2},
+        lockRotation: false,
+        kinematic: false,
+        collider: {type: "box", halfExtents: [0.5, 0.5, 0.5]}
     }
 });
 ```
 
-### Легаси‑поля (совместимость)
-
-Mesh нормализует физику из верхнего уровня:
-
-* `mass`
-* `enabled` / `physicsEnabled`
-* `lockRotation`
-* `kinematic`
-* `friction`
-* `restitution`
-* `damping`
-* `collider`
-
-То есть так тоже можно:
-
-```js
-const b = Mesh.box({ size: 1, pos: [0, 4, 0], mass: 2, friction: 0.9 });
-```
+> Поля `physics` должны соответствовать вашему Java контракту `PhysicsApiImpl`.
 
 ---
 
-## Коллайдеры (важно для моделей)
+## Методы обёртки (object model)
 
-Если вы используете Java‑реализацию `mesh.create({ type:"model", ... })` с авто‑коллайдером:
+Обёрнутый mesh‑объект — это SurfaceHandle + «sugar» поверх **id‑based** физики:
 
-* `mass <= 0` → `collider.type = "mesh"` (статический треугольный)
-* `mass > 0` → `collider.type = "dynamicMesh"` (движущийся треугольный)
+### Трансформации
 
-Можно переопределить вручную:
+* `warp(x,y,z)` или `warp([x,y,z])` или `warp({x,y,z})`
+* `position()` / `position(vec3)`  *(setter использует warp)*
+* `velocity()` / `velocity(vec3)`
+* `yaw(yawRad)`
 
-```js
-const car = Mesh.loadModel({
-    path: "Models/car.fbx",
-    scale: 0.01,
-    physics: {
-        mass: 1200,
-        collider: { type: "box", halfExtents: [1.2, 0.6, 2.4] }
-    }
-});
-```
+### Силы
+
+* `applyImpulse(vec3)`
+* *(если поддерживается Java API)* `applyCentralForce(vec3)`
+* *(если поддерживается Java API)* `applyTorque(vec3)`
+* *(если поддерживается Java API)* `angularVelocity()` / `angularVelocity(vec3)`
+* *(если поддерживается Java API)* `clearForces()`
+
+### Флаги
+
+* `lockRotation(bool)`
+* *(если поддерживается Java API)* `setKinematic(bool)`
+* *(если поддерживается Java API)* `collisionGroups(group, mask)`
+
+### Идентификаторы
+
+* `surfaceId()`
+* `bodyId()`
 
 ---
 
 ## Материалы
 
-### Быстрый Unshaded
+`cfg.material` может быть:
+
+* handle материала (как возвращает ваш MAT API)
+* объект‑конфиг материала `{ def, params }` (если ваш движок это поддерживает)
+
+Пример:
 
 ```js
-const red = Mesh.unshadedColor([1, 0, 0, 1]);
-const b = Mesh.box({ size: 1, pos: [0, 2, 0], material: red });
-```
-
-`material` может быть:
-
-* конфиг материала `{ def, params }`
-* или handle материала (если ваш движок так возвращает)
-
----
-
-## Пакетное создание: `Mesh.many(list)`
-
-```js
-const arr = Mesh.many([
-    { type: "box", size: 1, pos: [0,2,0], physics: 1 },
-    { type: "sphere", radius: 0.5, pos: [2,2,0], physics: 2 },
-    { type: "model", path: "Models/house.obj", pos: [10,0,-5], physics: 0 }
-]);
-
-arr[0].applyImpulse({ x: 1, y: 0, z: 0 });
-```
-
----
-
-## Builder API
-
-Builder удобен для цепочек.
-
-### Примитив
-
-```js
-const b = Mesh.box$()
-    .name("box")
-    .size(1)
-    .pos(0, 5, 0)
-    .physics(3, { lockRotation: false })
-    .create();
-```
-
-### Модель
-
-```js
-const npc = Mesh.model$()
-    .name("npc")
-    .path("Models/npc.fbx")
-    .pos([0,0,0])
-    .physics(60, { lockRotation: true })
-    .create();
-```
-
----
-
-## Методы обёртки (physics sugar)
-
-### `applyImpulse(vec3)`
-
-```js
-obj.applyImpulse({ x: 0, y: 6, z: 0 });
-```
-
-### `applyCentralForce(vec3)`
-
-```js
-obj.applyCentralForce({ x: 10, y: 0, z: 0 });
-```
-
-### `velocity()` / `velocity(vec3)`
-
-```js
-const v = obj.velocity();
-obj.velocity({ x: 0, y: 0, z: 0 });
-```
-
-### `position()` / `position(vec3)` / `teleport(vec3)`
-
-```js
-const p = obj.position();
-obj.position([0, 10, 0]);
-obj.teleport({ x: 0, y: 2, z: 0 });
-```
-
-### `lockRotation(true|false)`
-
-```js
-obj.lockRotation(true);
+const b = ENGINE.mesh.create({
+    type: "box",
+    size: 1,
+    pos: [0, 2, 0],
+    material: MAT.getMaterial("box"),
+    physics: {mass: 2}
+});
 ```
 
 ---
 
 ## Частые ошибки
 
-### 1) `loadModel: path is required`
+### 1) `surface has no physics body (bodyId=0)`
 
-Вы вызвали `Mesh.loadModel({ ... })` без `path/model/asset/url`.
+Значит тело не создано на Java‑стороне:
+
+* вы не передали `cfg.physics`
+* или `physics.enabled=false`
+* или Java `MeshApiImpl` не создаёт body для этого типа/конфига
+
+Решение: убедиться, что `cfg.physics` реально обрабатывается вашей Java реализацией.
 
 ### 2) Модель не грузится (FBX/OBJ)
 
-Проверьте что на Java‑стороне подключены loader’ы (например `jme3-plugins` для FBX) и путь верный.
+Проверьте:
 
-### 3) Нет реакции на physics‑методы
-
-Значит тело не создано:
-
-* нет `physics` в конфиге
-* или `physics.enabled=false`
-* или Java‑сторона не создала body
+* подключены ли loader’ы на Java стороне
+* путь `cfg.path` корректен
 
 ---
 
@@ -409,12 +287,13 @@ obj.lockRotation(true);
 ### Дешёвый коллайдер для динамических моделей
 
 ```js
-const npc = Mesh.loadModel({
+const npc = ENGINE.mesh.create({
+    type: "model",
     path: "Models/npc.fbx",
     scale: 0.01,
     physics: {
         mass: 80,
-        collider: { type: "capsule", radius: 0.35, height: 1.2 },
+        collider: {type: "capsule", radius: 0.35, height: 1.2},
         lockRotation: true
     }
 });
@@ -423,8 +302,15 @@ const npc = Mesh.loadModel({
 ### Статичная сцена
 
 ```js
-Mesh.loadModel({
+ENGINE.mesh.create({
+    type: "model",
     path: "Models/level.obj",
-    physics: { mass: 0 } // static mesh collider
+    physics: {mass: 0, collider: {type: "mesh"}}
 });
 ```
+
+---
+
+## Версия
+
+* Mesh JS: **v1.x** (ENGINE.mesh RootKit)
