@@ -7,13 +7,10 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 
-/**
- * World-level operations (not tied to a single body).
- */
 final class PhysicsWorld {
 
     private final PhysicsState S;
-    private final PhysicsContacts contacts;
+    final PhysicsContacts contacts;
 
     PhysicsWorld(PhysicsState state, PhysicsContacts contacts) {
         this.S = state;
@@ -30,38 +27,42 @@ final class PhysicsWorld {
     }
 
     void gravity(Object vec3) {
-        PhysicsSpace space = S.requireSpace();
-        contacts.ensureBound(space);
+        PhysicsSpace sp = S.requireSpace();
+        contacts.ensureBound(sp);
         Vector3f g = PhysicsValueParsers.vec3(vec3, 0, -9.81f, 0);
-        space.setGravity(g);
+        sp.setGravity(g);
     }
 
     void cleanupSurface(int surfaceId) {
         if (surfaceId <= 0) return;
         Integer id = S.bodyIdBySurface.get(surfaceId);
-        if (id != null) {
-            // remove uses bodies service normally, но чтобы не делать цикл зависимостей —
-            // оставляем простой вызов через handle remove на уровне world:
-            PhysicsBodyHandle h = S.byId.get(id);
-            if (h != null) {
-                // прямой remove минимумом операций
-                removeBodyDirect(id, h);
-            }
-        }
+        if (id == null) return;
+
+        PhysicsBodyHandle h = S.byId.get(id);
+        if (h == null) return;
+
+        removeBodyDirect(id, h);
     }
 
     void clearAll() {
+        // pending ops
         S.pendingAdd.clear();
-        S.shapeCache.clear();
+        S.pendingRemove.clear();
 
-        S.currPairs.clear();
-        S.prevPairs.clear();
+        // caches
+        S.shapeCache.clear();
         S.bodyIdByCollisionObject.clear();
+
+        // ✅ contacts (раньше были S.currPairs/S.prevPairs)
+        contacts.currContacts.clear();
+        contacts.prevContacts.clear();
 
         PhysicsSpace sp = S.engine.__getPhysicsSpaceOrNull();
         if (sp == null) {
             S.byId.clear();
             S.bodyIdBySurface.clear();
+            S.idByControl.clear();
+            PhysicsState.log.info("[physics] cleared all bodies (no space)");
             return;
         }
 
@@ -73,10 +74,8 @@ final class PhysicsWorld {
             int surfaceId = h.surfaceId;
             RigidBodyControl rb = h.__raw();
 
-            try {
-                sp.remove(rb);
-            } catch (Throwable ignored) {
-            }
+            // НЕ удаляем напрямую mid-step — ставим в очередь
+            S.pendingRemove.add(rb);
 
             try {
                 Spatial s = S.surfaces.get(surfaceId);
@@ -101,19 +100,8 @@ final class PhysicsWorld {
         S.idByControl.remove(rb, id);
         S.unindexCollisionObject(h);
 
-        try {
-            S.pendingAdd.remove(rb);
-        } catch (Throwable ignored) {
-        }
-
-        PhysicsSpace sp = S.engine.__getPhysicsSpaceOrNull();
-        if (sp != null) {
-            contacts.ensureBound(sp);
-            try {
-                sp.remove(rb);
-            } catch (Throwable ignored) {
-            }
-        }
+        S.pendingAdd.remove(rb);
+        S.pendingRemove.add(rb); // ✅ только очередь
 
         try {
             Spatial s = S.surfaces.get(surfaceId);

@@ -14,7 +14,6 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.foxesworld.kalitech.engine.util.LongHashSet;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -44,14 +43,12 @@ final class PhysicsState {
     final ConcurrentHashMap<RigidBodyControl, Integer> idByControl = new ConcurrentHashMap<>(1024);
     final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>(1024);
     final ConcurrentLinkedQueue<RigidBodyControl> pendingAdd = new ConcurrentLinkedQueue<>();
+    final ConcurrentLinkedQueue<RigidBodyControl> pendingRemove = new ConcurrentLinkedQueue<>();
     final AtomicLong physicsStepCounter = new AtomicLong(0);
     final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
     final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
-    final PhysicsContacts.LongContactMap currContacts = new PhysicsContacts.LongContactMap(4096);
     final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>(256);
     volatile float lastDt = 0f;
-    LongHashSet prevPairs = new LongHashSet(4096);
-    LongHashSet currPairs = new LongHashSet(4096);
 
     PhysicsState(EngineApiImpl engine, SimpleApplication app, SurfaceRegistry surfaces) {
         this.engine = Objects.requireNonNull(engine, "engine");

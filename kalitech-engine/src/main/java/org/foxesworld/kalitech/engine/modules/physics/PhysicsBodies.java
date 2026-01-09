@@ -177,14 +177,10 @@ final class PhysicsBodies {
         } catch (Throwable ignored) {
         }
 
+        // remove from physics space on physics thread to avoid mid-step mutation
+        S.pendingRemove.add(rb);
         PhysicsSpace space = S.engine.__getPhysicsSpaceOrNull();
-        if (space != null) {
-            contacts.ensureBound(space);
-            try {
-                space.remove(rb);
-            } catch (Throwable ignored) {
-            }
-        }
+        if (space != null) contacts.ensureBound(space);
 
         try {
             if (spatial != null) spatial.removeControl(rb);
