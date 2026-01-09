@@ -22,6 +22,12 @@ function hostMethod(target, name) {
     };
 }
 
+function cloneCfgShallow(state) {
+    const out = Object.assign({}, state);
+    if (state.physics) out.physics = Object.assign({}, state.physics);
+    return out;
+}
+
 // ------------------------------------------------------------
 // Orchestrator
 // ------------------------------------------------------------
@@ -205,7 +211,9 @@ class MeshOrchestrator {
 
                 // ---------------- create() ----------------
                 if (prop === "create") {
-                    const createFn = hostMethod(target, "create");
+                    const createFn = hostMethod(target, "create") || (typeof target.create === "function" ? target.create.bind(target) : null);
+                    if (!createFn) throw new Error("[MESH] ENGINE.mesh().create(cfg) is required");
+
                     return (cfg) => {
                         const c = C.normalizeCfg(cfg);
                         const h = createFn(c);
@@ -234,7 +242,7 @@ class MeshOrchestrator {
 
                 // ---------------- many() ----------------
                 if (prop === "many" && typeof target.many === "function") {
-                    const manyFn = hostMethod(target, "many");
+                    const manyFn = hostMethod(target, "many") || target.many.bind(target);
                     return (list) => {
                         const arr = manyFn(list);
                         if (!Array.isArray(arr)) return arr;
@@ -249,31 +257,44 @@ class MeshOrchestrator {
                         const state = C.normalizeCfg({type: String(type)});
 
                         const b = {
+                            /**
+                             * Унифицированный размер.
+                             * - sphere: size(v) -> cfg.radius = v
+                             * - остальные: size(v) -> cfg.size = v
+                             */
                             size(v) {
-                                state.size = M.num(v, state.size);
+                                const n = M.num(v, (state.type === "sphere" ? state.radius : state.size));
+                                if (state.type === "sphere") state.radius = n;
+                                else state.size = n;
                                 return b;
                             },
+
                             name(v) {
                                 state.name = String(v);
                                 return b;
                             },
+
                             pos(x, y, z) {
                                 if (Array.isArray(x) || M.isObj(x)) state.pos = M.normalizePos(x);
                                 else state.pos = [M.num(x, 0), M.num(y, 0), M.num(z, 0)];
                                 return b;
                             },
+
                             material(m) {
                                 state.material = m;
                                 return b;
                             },
+
                             path(v) {
                                 state.path = String(v);
                                 return b;
                             },
+
                             model(v) {
                                 state.path = String(v);
                                 return b;
                             },
+
                             physics(mass, opts) {
                                 const o = opts || {};
                                 const p = {mass: (mass != null ? mass : 0)};
@@ -287,11 +308,21 @@ class MeshOrchestrator {
                                 state.physics = p;
                                 return b;
                             },
+
                             cfg() {
-                                return Object.assign({}, state);
+                                return cloneCfgShallow(state);
                             },
+
                             create() {
-                                return decorated.create(state);
+                                const out = cloneCfgShallow(state);
+
+                                // FIX: sphere + physics enabled + collider missing -> auto collider.radius
+                                if (out.type === "sphere" && out.physics && out.physics.enabled !== false && !out.physics.collider) {
+                                    const r = M.num(out.radius, M.num(out.size, 1.0));
+                                    out.physics.collider = {type: "sphere", radius: r};
+                                }
+
+                                return decorated.create(out);
                             }
                         };
 
