@@ -1,82 +1,55 @@
 // FILE: resources/kalitech/builtin/helpers/entity/BodyAccessResolver.js
 "use strict";
 
-function pickFirst(obj, names) {
-    for (let i = 0; i < names.length; i++) {
-        const n = names[i];
-        if (obj && typeof obj[n] === "function") return n;
-    }
-    return "";
-}
+/**
+ * Strict body access for EntityCore.
+ * No heuristics, no legacy names.
+ *
+ * Required ENGINE.physics contract:
+ *   - position(bodyId) -> {x,y,z} | [x,y,z]
+ *   - velocity(bodyId) -> {x,y,z} | [x,y,z]
+ *   - velocity(bodyId, vec3) -> void
+ * Optional:
+ *   - applyImpulse(bodyId, vec3)
+ *   - yaw(bodyId, yawRad)
+ *   - teleport(bodyId, vec3) or warp(bodyId, vec3)
+ */
 
-function resolveBodyAccess(physics, bodyHandle, bodyId) {
+function resolveBodyAccess(physics, _bodyHandle, bodyId) {
     if (!physics) throw new Error("[ENT] physics missing");
-    bodyId = bodyId | 0;
-    if (bodyId <= 0) throw new Error("[ENT] invalid bodyId=" + bodyId);
+    const id = bodyId | 0;
+    if (id <= 0) throw new Error("[ENT] invalid bodyId=" + id);
 
-    const PHYS_POS = pickFirst(physics, ["position", "location", "getPosition", "getLocation", "bodyPosition"]);
-    const PHYS_VGET = pickFirst(physics, ["velocity", "linearVelocity", "getVelocity", "getLinearVelocity", "vel", "getVel"]);
-    const PHYS_VSET = pickFirst(physics, ["setVelocity", "setLinearVelocity", "velocitySet", "linearVelocitySet", "setVel"]);
-    const PHYS_YAW = pickFirst(physics, ["yaw", "setYaw", "bodyYaw"]);
-    const PHYS_TP = pickFirst(physics, ["teleport", "warp", "setPosition", "setLocation", "bodyTeleport"]);
+    if (typeof physics.position !== "function") throw new Error("[ENT] ENGINE.physics.position(bodyId) missing");
+    if (typeof physics.velocity !== "function") throw new Error("[ENT] ENGINE.physics.velocity(bodyId[,vec3]) missing");
 
-    const BODY_POS = bodyHandle && typeof bodyHandle.position === "function" ? "position" : "";
-    const BODY_VGET = bodyHandle ? pickFirst(bodyHandle, ["velocity", "linearVelocity", "getVelocity", "getLinearVelocity", "vel", "getVel"]) : "";
-    const BODY_VSET = bodyHandle ? pickFirst(bodyHandle, ["setVelocity", "setLinearVelocity", "velocity", "linearVelocity", "setVel"]) : "";
-    const BODY_YAW = bodyHandle ? pickFirst(bodyHandle, ["yaw", "setYaw"]) : "";
-    const BODY_TP = bodyHandle ? pickFirst(bodyHandle, ["teleport", "warp", "setPosition", "position"]) : "";
-    const BODY_IMP = bodyHandle ? pickFirst(bodyHandle, ["applyCentralImpulse", "applyImpulse", "impulse", "applyForce"]) : "";
-
-    const position = BODY_POS
-        ? () => bodyHandle.position()
-        : PHYS_POS
-            ? () => physics[PHYS_POS](bodyId)
+    const hasTeleport = typeof physics.teleport === "function";
+    const hasWarp = typeof physics.warp === "function";
+    const teleportImpl = hasTeleport
+        ? (x, y, z) => physics.teleport(id, {x, y, z})
+        : hasWarp
+            ? (x, y, z) => physics.warp(id, {x, y, z})
             : null;
 
-    if (!position) throw new Error("[ENT] cannot resolve position getter (body.position or physics.position/location)");
+    const setVel = (v) => physics.velocity(id, v);
 
-    const getVel = BODY_VGET
-        ? () => bodyHandle[BODY_VGET]()
-        : PHYS_VGET
-            ? () => physics[PHYS_VGET](bodyId)
-            : null;
-
-    if (!getVel) throw new Error("[ENT] cannot resolve velocity getter (body or physics)");
-
-    const setVel = BODY_VSET
-        ? (v) => bodyHandle[BODY_VSET](v)
-        : PHYS_VSET
-            ? (v) => physics[PHYS_VSET](bodyId, v)
-            : null;
-
-    const applyImpulse = BODY_IMP
-        ? (ix, iy, iz) => bodyHandle[BODY_IMP]({x: ix, y: iy, z: iz})
+    const applyImpulse = (typeof physics.applyImpulse === "function")
+        ? (ix, iy, iz) => physics.applyImpulse(id, {x: ix, y: iy, z: iz})
         : null;
 
-    const mode = setVel ? "SET_VEL" : (applyImpulse ? "IMPULSE" : "");
-    if (!mode) throw new Error("[ENT] cannot resolve velocity setter nor impulse");
-
-    const setYaw = BODY_YAW
-        ? (yaw) => bodyHandle[BODY_YAW](+yaw || 0)
-        : PHYS_YAW
-            ? (yaw) => physics[PHYS_YAW](bodyId, +yaw || 0)
-            : null;
-
-    const teleport = BODY_TP
-        ? (x, y, z) => bodyHandle[BODY_TP]({x, y, z})
-        : PHYS_TP
-            ? (x, y, z) => physics[PHYS_TP](bodyId, {x, y, z})
-            : null;
+    const setYaw = (typeof physics.yaw === "function")
+        ? (yaw) => physics.yaw(id, +yaw || 0)
+        : null;
 
     return Object.freeze({
-        bodyId,
-        mode,
-        position,
-        getVel,
-        setVel: setVel || null,
-        applyImpulse: applyImpulse || null,
-        setYaw: setYaw || null,
-        teleport: teleport || null
+        bodyId: id,
+        mode: "SET_VEL",
+        position: () => physics.position(id),
+        getVel: () => physics.velocity(id),
+        setVel,
+        applyImpulse,
+        setYaw,
+        teleport: teleportImpl
     });
 }
 

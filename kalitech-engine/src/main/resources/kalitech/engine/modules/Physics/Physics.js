@@ -1,51 +1,59 @@
 "use strict";
 
-const PhysicsOrchestrator = require("./PhysicsOrchestrator.js");
-const PhysicsCollider = require("./helpers/PhysicsCollider.js");
-const PhysicsEvents = require("./helpers/PhysicsEvents.js");
-const {bodyIdOf, surfaceIdOf} = require("./helpers/PhysicsIds.js");
-const {vec3Obj} = require("./helpers/PhysicsMath.js");
+// FILE: kalitech/engine/modules/Physics/Physics.js
+// Author: KΛYLΛ
 
-class Physics {
-    constructor(engine) {
-        this._orch = new PhysicsOrchestrator(engine);
-        this.collider = PhysicsCollider;
-        this.events = PhysicsEvents;
-        Object.freeze(this.collider);
+const {PhysicsOrchestrator} = require("./PhysicsOrchestrator.js");
+const {createPhysicsEvents} = require("./helpers/PhysicsEvents.js");
+
+/**
+ * ENGINE-only Physics module.
+ *
+ * IMPORTANT:
+ *  - This module does NOT register itself into ENGINE.
+ *  - Bootstrap owns module registration: ENGINE.setModule("physics", api, moduleId).
+ *  - Access it via ENGINE.modules.physics (canonical).
+ */
+class EnginePhysics {
+    constructor(ENGINE) {
+        if (!ENGINE) throw new Error("[ENGINE.physics] ENGINE is required");
+
+        // Orchestrator resolves raw physics API from ENGINE (host/proxy safe)
+        this._orch = new PhysicsOrchestrator(ENGINE);
+
+        // Events use ENGINE.physics.on(...) passthrough (or raw backend on)
+        this.events = createPhysicsEvents(ENGINE, this);
         Object.freeze(this.events);
+
         Object.freeze(this);
     }
 
-    body(c) {
-        return this._orch.body(c);
+    raw() {
+        return this._orch.raw();
+    }
+
+    body(cfg) {
+        return this._orch.body(cfg);
     }
 
     remove(h) {
         return this._orch.remove(h);
     }
 
-    raycast(c) {
-        return this._orch.raycast(c);
-    }
-
-    raycastEx(c) {
-        return this._orch.raycastEx(c);
-    }
-
-    raycastAll(c) {
-        return this._orch.raycastAll(c);
-    }
-
     position(h, v) {
         return this._orch.position(h, v);
     }
 
-    warp(h, v) {
-        return this._orch.warp(h, v);
-    }
-
     velocity(h, v) {
         return this._orch.velocity(h, v);
+    }
+
+    teleport(h, v) {
+        return this._orch.teleport(h, v);
+    }
+
+    warp(h, v) {
+        return this._orch.warp(h, v);
     }
 
     yaw(h, y) {
@@ -56,12 +64,28 @@ class Physics {
         return this._orch.applyImpulse(h, i);
     }
 
+    applyCentralForce(h, f) {
+        return this._orch.applyCentralForce(h, f);
+    }
+
     lockRotation(h, l) {
         return this._orch.lockRotation(h, l);
     }
 
     setKinematic(h, k) {
         return this._orch.setKinematic(h, k);
+    }
+
+    raycast(cfg) {
+        return this._orch.raycast(cfg);
+    }
+
+    raycastEx(cfg) {
+        return this._orch.raycastEx(cfg);
+    }
+
+    raycastAll(cfg) {
+        return this._orch.raycastAll(cfg);
     }
 
     debug(e) {
@@ -72,44 +96,25 @@ class Physics {
         return this._orch.gravity(g);
     }
 
-    idOf(h) {
-        return bodyIdOf(h);
-    }
-
-    surfaceIdOf(h) {
-        return surfaceIdOf(h);
-    }
-
-    vec3(v, x, y, z) {
-        return vec3Obj(v, x, y, z);
-    }
-
-    ensureBodyForSurface(s, c) {
-        return this._orch.ensureBodyForSurface(s, c);
+    on(topic, fn) {
+        return this._orch.on(topic, fn);
     }
 
     ref(h) {
-        const id = bodyIdOf(h);
-        if (id <= 0) throw new Error("[PHYS] ref(): invalid body");
-        return Object.freeze({
-            id: () => id,
-            position: v => this.position(id, v),
-            warp: v => this.warp(id, v),
-            velocity: v => this.velocity(id, v),
-            yaw: y => this.yaw(id, y),
-            applyImpulse: i => this.applyImpulse(id, i),
-            lockRotation: l => this.lockRotation(id, l),
-            setKinematic: k => this.setKinematic(id, k),
-            remove: () => this.remove(id),
-        });
+        return this._orch.ref(h);
     }
 }
 
-module.exports = engine => new Physics(engine);
-module.exports.Physics = Physics;
+function create(ENGINE) {
+    if (!ENGINE) throw new Error("[ENGINE.physics] ENGINE is required");
+    return new EnginePhysics(ENGINE);
+}
+
+module.exports = create;
+module.exports.EnginePhysics = EnginePhysics;
 module.exports.META = Object.freeze({
     moduleId: "physics",
-    globalName: "PHYS",
-    version: "1.0.3",
-    engineMin: "0.1.0",
+    version: "2.0.5",
+    description: "ENGINE-only physics module (bootstrap-owned registration)",
+    engineMin: "0.2.0"
 });

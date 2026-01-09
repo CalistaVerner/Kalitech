@@ -90,32 +90,30 @@ class EntityHandle {
         const id = this.requireBodyId("bodyRef()");
         if (this._bodyRef && (this._refId | 0) === id) return this._bodyRef;
 
-        if (globalThis.PHYS && typeof globalThis.PHYS.ref === "function") {
-            this._bodyRef = globalThis.PHYS.ref(id);
+        const phys = this.physApi();
+        if (phys && typeof phys.ref === "function") {
+            this._bodyRef = phys.ref(id);
             this._refId = id;
             return this._bodyRef;
         }
 
-        const phys = this.physApi();
-        const self = Object.freeze({
+        const teleport = (typeof phys.teleport === "function") ? phys.teleport.bind(phys) : phys.warp.bind(phys);
+
+        this._bodyRef = Object.freeze({
             id: () => id,
-            position: (v) => (v === undefined ? phys.position(id) : phys.warp(id, v)),
-            warp: (v) => phys.warp(id, v),
+            position: (v) => (v === undefined ? phys.position(id) : teleport(id, v)),
+            teleport: (v) => teleport(id, v),
+            warp: (v) => teleport(id, v),
             velocity: (v) => (v === undefined ? phys.velocity(id) : phys.velocity(id, v)),
             yaw: (yawRad) => phys.yaw(id, +yawRad || 0),
             applyImpulse: (imp) => phys.applyImpulse(id, imp),
             applyCentralForce: (f) => phys.applyCentralForce(id, f),
-            applyTorque: (t) => phys.applyTorque(id, t),
-            angularVelocity: (v) => (v === undefined ? phys.angularVelocity(id) : phys.angularVelocity(id, v)),
-            clearForces: () => phys.clearForces(id),
             lockRotation: (lock) => phys.lockRotation(id, !!lock),
-            collisionGroups: (g, m) => phys.collisionGroups(id, g | 0, m | 0),
             remove: () => phys.remove(id)
         });
 
-        this._bodyRef = self;
         this._refId = id;
-        return self;
+        return this._bodyRef;
     }
 
     position(v) {
@@ -123,7 +121,7 @@ class EntityHandle {
         const phys = this.physApi();
         try {
             if (v === undefined) return phys.position(id);
-            return phys.warp(id, v);
+            return (typeof phys.teleport === "function" ? phys.teleport(id, v) : phys.warp(id, v));
         } catch (e) {
             throw new Error(errCtx("[ENT] position failed bodyId=" + id, e));
         }
@@ -133,7 +131,7 @@ class EntityHandle {
         const id = this.requireBodyId("warp()");
         const phys = this.physApi();
         try {
-            return phys.warp(id, pos);
+            return (typeof phys.teleport === "function" ? phys.teleport(id, pos) : phys.warp(id, pos));
         } catch (e) {
             throw new Error(errCtx("[ENT] warp failed bodyId=" + id, e));
         }
@@ -173,7 +171,6 @@ class EntityHandle {
     applyCentralForce(force) {
         const id = this.requireBodyId("applyCentralForce()");
         const phys = this.physApi();
-        req(typeof phys.applyCentralForce === "function", "[ENT] engine.physics().applyCentralForce missing");
         try {
             return phys.applyCentralForce(id, force);
         } catch (e) {
@@ -184,7 +181,6 @@ class EntityHandle {
     applyTorque(torque) {
         const id = this.requireBodyId("applyTorque()");
         const phys = this.physApi();
-        req(typeof phys.applyTorque === "function", "[ENT] engine.physics().applyTorque missing");
         try {
             return phys.applyTorque(id, torque);
         } catch (e) {
@@ -195,7 +191,6 @@ class EntityHandle {
     angularVelocity(v) {
         const id = this.requireBodyId("angularVelocity()");
         const phys = this.physApi();
-        req(typeof phys.angularVelocity === "function", "[ENT] engine.physics().angularVelocity missing");
         try {
             if (v === undefined) return phys.angularVelocity(id);
             return phys.angularVelocity(id, v);
@@ -207,7 +202,6 @@ class EntityHandle {
     clearForces() {
         const id = this.requireBodyId("clearForces()");
         const phys = this.physApi();
-        req(typeof phys.clearForces === "function", "[ENT] engine.physics().clearForces missing");
         try {
             return phys.clearForces(id);
         } catch (e) {
@@ -228,7 +222,6 @@ class EntityHandle {
     collisionGroups(group, mask) {
         const id = this.requireBodyId("collisionGroups()");
         const phys = this.physApi();
-        req(typeof phys.collisionGroups === "function", "[ENT] engine.physics().collisionGroups missing");
         try {
             return phys.collisionGroups(id, group | 0, mask | 0);
         } catch (e) {
@@ -238,7 +231,6 @@ class EntityHandle {
 
     raycast(cfg) {
         const phys = this.physApi();
-        req(typeof phys.raycast === "function", "[ENT] engine.physics().raycast missing");
         try {
             return phys.raycast(cfg);
         } catch (e) {
@@ -246,99 +238,97 @@ class EntityHandle {
         }
     }
 
-    raycastDown(distance = 2.0, startOffsetY = 0.15) {
-        const id = this.requireBodyId("raycastDown()");
-        const phys = this.physApi();
-        req(typeof phys.position === "function", "[ENT] engine.physics().position missing");
-        req(typeof phys.raycast === "function", "[ENT] engine.physics().raycast missing");
-
-        const p = phys.position(id);
-        req(p, "[ENT] raycastDown: position() returned null for bodyId=" + id);
-
-        const px = (typeof p.x === "function") ? num(p.x(), 0) : num(p.x, 0);
-        const py = (typeof p.y === "function") ? num(p.y(), 0) : num(p.y, 0);
-        const pz = (typeof p.z === "function") ? num(p.z(), 0) : num(p.z, 0);
-
-        const from = {x: px, y: py + num(startOffsetY, 0.15), z: pz};
-        const to = {x: px, y: py - num(distance, 2.0), z: pz};
-
-        try {
-            return phys.raycast({from, to});
-        } catch (e) {
-            throw new Error(errCtx("[ENT] raycastDown failed bodyId=" + id, e));
-        }
-    }
-
-    component(name, data) {
-        const n = String(name || "");
-        if (!n) return this;
-
-        const id = (this.entityId | 0);
-        req(id > 0, "[ENT] component(): entityId=0");
-
-        try {
-            const ent = subsystem(this._engine, "entity");
-            ent.setComponent(id, n, data);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] setComponent failed id=" + id + " name=" + n, e));
-        }
-        return this;
-    }
-
-    components(mapOrFn) {
-        if (!mapOrFn) return this;
-
-        const id = (this.entityId | 0);
-        req(id > 0, "[ENT] components(): entityId=0");
-
-        let map = mapOrFn;
-        if (typeof mapOrFn === "function") {
-            map = mapOrFn({
-                entityId: id,
-                surface: this.surface,
-                body: this.body,
-                surfaceId: (this.surfaceId | 0),
-                bodyId: (this.bodyId | 0)
-            });
-        }
-
-        if (!map || typeof map !== "object") return this;
-
-        const ent = subsystem(this._engine, "entity");
-
-        for (const k of Object.keys(map)) {
-            const n = String(k || "");
-            if (!n) continue;
-            try {
-                ent.setComponent(id, n, map[k]);
-            } catch (e) {
-                throw new Error(errCtx("[ENT] setComponent failed id=" + id + " name=" + n, e));
-            }
-        }
-
-        return this;
-    }
-
     destroy() {
-        for (let i = this._destroyers.length - 1; i >= 0; i--) {
-            this._destroyers[i]();
-        }
-        this._destroyers.length = 0;
+        const engine = this._engine;
 
+        const ent = subsystem(engine, "entity");
+        const surf = subsystem(engine, "surface");
+        const phys = subsystem(engine, "physics");
+
+        const eid = (this.entityId | 0);
+        const sid = (this.surfaceId | 0);
         const bid = (this.bodyId | 0);
-        if (bid > 0) {
-            const p = subsystem(this._engine, "physics");
-            p.remove(bid);
+
+        try {
+            for (let i = 0; i < this._destroyers.length; i++) {
+                try {
+                    this._destroyers[i]();
+                } catch (_) {
+                }
+            }
+        } finally {
+            this._destroyers.length = 0;
         }
 
-        this.body = null;
-        this.surface = null;
-        this.entityId = 0;
-        this.surfaceId = 0;
-        this.bodyId = 0;
+        if (bid > 0) {
+            try {
+                phys.remove(bid);
+            } catch (_) {
+            }
+            this.bodyId = 0;
+            this.body = null;
+        }
 
-        this._bodyRef = null;
-        this._refId = 0;
+        if (sid > 0) {
+            try {
+                surf.drop(sid, true);
+            } catch (_) {
+            }
+            this.surfaceId = 0;
+            this.surface = null;
+        }
+
+        if (eid > 0) {
+            try {
+                ent.destroy(eid);
+            } catch (_) {
+            }
+            this.entityId = 0;
+        }
+    }
+
+    addDestroyer(fn) {
+        if (typeof fn !== "function") throw new Error("[ENT] addDestroyer(fn): fn must be a function");
+        this._destroyers.push(fn);
+        return this;
+    }
+
+    setComponent(type, value) {
+        const ent = subsystem(this._engine, "entity");
+        const eid = (this.entityId | 0);
+        if (!eid) throw new Error("[ENT] setComponent: entityId=0");
+        ent.setComponent(eid, String(type), value);
+        return this;
+    }
+
+    getComponent(type) {
+        const ent = subsystem(this._engine, "entity");
+        const eid = (this.entityId | 0);
+        if (!eid) throw new Error("[ENT] getComponent: entityId=0");
+        return ent.getComponent(eid, String(type));
+    }
+
+    hasComponent(type) {
+        const ent = subsystem(this._engine, "entity");
+        const eid = (this.entityId | 0);
+        if (!eid) throw new Error("[ENT] hasComponent: entityId=0");
+        return !!ent.hasComponent(eid, String(type));
+    }
+
+    // convenience
+    logInfo(msg) {
+        this._log.info(String(msg));
+        return this;
+    }
+
+    logWarn(msg) {
+        this._log.warn(String(msg));
+        return this;
+    }
+
+    logError(msg) {
+        this._log.error(String(msg));
+        return this;
     }
 }
 

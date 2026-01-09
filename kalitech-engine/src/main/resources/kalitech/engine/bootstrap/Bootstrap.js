@@ -7,6 +7,7 @@ const U = require("./Util.js");
 const {createDeferredProxy} = require("./Deferred.js");
 const {buildDataConfigApi} = require("./DataConfig.js");
 const {normalizeMeta} = require("./Meta.js");
+const {createEngineProxy} = require("./EngineProxy.js");
 
 const K = ensureRootState(getRoot());
 
@@ -153,7 +154,8 @@ class KalitechBootstrap {
         const expose = !!(this.config.builtins && this.config.builtins.exposeGlobals);
         const engVer = U.readEngineVersion(engine);
 
-        const ENGINE = ensureENGINE();
+        //const ENGINE = ensureENGINE();
+        const ENGINE = createEngineProxy(engine);
 
         try {
             K.dataConfig = (this.config && this.config.dataConfig) ? this.config.dataConfig : Object.create(null);
@@ -187,11 +189,13 @@ class KalitechBootstrap {
                 ? str(meta.moduleId).trim()
                 : pickEngineKey(meta, moduleId);
 
-            if (ENGINE[key]) {
-                throw new Error("[ENGINE] duplicate module key '" + sOrUnknown(key) + "' while registering: " + sOrUnknown(moduleId));
+            if (ENGINE.hasModule(key)) {
+                throw new Error("[ENGINE] duplicate module key '" + key + "' while registering: " + moduleId);
             }
+            ENGINE.setModule(key, api);
 
-            ENGINE[key] = api;
+
+            //ENGINE[key] = api;
 
             if (expose) globalThis.ENGINE = ENGINE;
 
