@@ -1,16 +1,56 @@
-// FILE: Scripts/player/PlayerPawn.js
 "use strict";
 
 const U = require("./util.js");
 const FrameContext = require("./FrameContext.js");
 const CharacterConfig = require("./CharacterConfig.js");
 const {PlayerEntityFactory} = require("./PlayerEntityFactory.js");
-const {resolveDomains} = require("./PlayerDomains.js");
 const InputRouter = require("./systems/InputRouter.js");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);
     return v;
+}
+
+function apiFrom(ctx) {
+    if (ctx && typeof ctx.api === "function") return ctx.api();
+    if (ctx && ctx.engine && typeof ctx.engine.api === "function") return ctx.engine.api();
+    if (ctx && typeof ctx.engineApi === "function") return ctx.engineApi();
+    throw new Error("[player] ctx must provide api()");
+}
+
+function buildDomains(ctx) {
+    const E = apiFrom(ctx);
+
+    const ENGINE = req(globalThis.ENGINE, "[player] globalThis.ENGINE is required");
+    const physics = req(ENGINE.physics, "[player] ENGINE.physics is required");
+
+    const input = req(E.input && E.input(), "[player] engine.input() required");
+    const camera = req(E.camera && E.camera(), "[player] engine.camera() required");
+    const assets = req(E.assets && E.assets(), "[player] engine.assets() required");
+
+    const entity = req(E.entity && E.entity(), "[player] engine.entity() required");
+    const mesh = req(E.mesh && E.mesh(), "[player] engine.mesh() required");
+    const surface = req(E.surface && E.surface(), "[player] engine.surface() required");
+
+    const hud = req((typeof HUD !== "undefined" && HUD) ? HUD : null, "[player] HUD builtin required");
+    const hudNative = (typeof E.hud === "function") ? E.hud() : null;
+
+    const bus = (typeof E.bus === "function") ? E.bus() : null;
+
+    return Object.freeze({
+        ctx,
+        engine: E,
+        physics,
+        input,
+        camera,
+        assets,
+        entity,
+        mesh,
+        surface,
+        bus,
+        hud,
+        hudNative
+    });
 }
 
 class PlayerPawn {
@@ -68,7 +108,7 @@ class PlayerPawn {
             shoot: {}
         }, this.cfg);
 
-        this.d = resolveDomains(this.ctx, this.cfg);
+        this.d = buildDomains(this.ctx);
 
         this.inputRouter = new InputRouter(this.d.input, this.cfg.input);
 
@@ -76,24 +116,25 @@ class PlayerPawn {
         this.handle = factory.create(this.cfg.spawn);
 
         this.core = this.handle.core;
-        if (!this.core || !this.core.bodyAccess) throw new Error("[PlayerPawn] ENT core/bodyAccess missing");
+        if (!this.core) throw new Error("[PlayerPawn] ENT.create() must return {core}");
+        if (!this.core.bodyAccess) throw new Error("[PlayerPawn] core.bodyAccess missing (engine must fill EntityCore)");
+        if ((this.core.bodyId | 0) <= 0) throw new Error("[PlayerPawn] invalid core.bodyId");
 
         if (typeof this.frame.probeGroundCapsule !== "function") {
             throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule required");
         }
 
-        const ch = this.cfg.character;
+        // Character tuning
         this.characterCfg.loadFrom(this.cfg, this.cfg.movement);
 
-        this.core
-            .configureShape(ch.mass, ch.radius, ch.height)
-            .setGroundProbe(() => {
-                const probe = this.frame.probeGroundCapsule;
-                // сигнатуру оставляем совместимой с тем, что у тебя уже есть
-                return (probe.length >= 3)
-                    ? probe.call(this.frame, this.core.bodyAccess, this.characterCfg, this.core.bodyId | 0)
-                    : probe.call(this.frame, this.core.bodyAccess, this.characterCfg);
-            });
+        // Bind ground probe once (engine uses it for grounded/step systems if needed)
+        // keep signature compatibility with existing FrameContext implementation
+        this.core.setGroundProbe(() => {
+            const probe = this.frame.probeGroundCapsule;
+            return (probe.length >= 3)
+                ? probe.call(this.frame, this.core.bodyAccess, this.characterCfg, this.core.bodyId | 0)
+                : probe.call(this.frame, this.core.bodyAccess, this.characterCfg);
+        });
 
         this.alive = true;
         return this;
@@ -146,7 +187,6 @@ class PlayerPawn {
     destroy() {
         if (!this.alive) return;
 
-        // core.destroy() удалит entity/body/surface на стороне движка
         this.core.destroy();
 
         this.core = null;

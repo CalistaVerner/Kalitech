@@ -1,4 +1,3 @@
-// FILE: Scripts/player/PlayerEntityFactory.js
 "use strict";
 
 function num(v, fb) {
@@ -28,7 +27,6 @@ class PlayerEntityFactory {
             throw new Error("[player] ENT.create(cfg) required (engine Entity module)");
         }
 
-        // ENT.create теперь обязан вернуть core + bodyAccess уже внутри core.
         const h = ENT.create({
             name: (cfg.name != null) ? cfg.name : "player",
             surface: {
@@ -43,7 +41,6 @@ class PlayerEntityFactory {
                 mass,
                 lockRotation: false,
                 collider: {type: "box", radius, height},
-                // физические детали (friction/damping/...) — пусть остаются тут, но без лишней обвязки
                 friction: (cfg.friction != null) ? cfg.friction : 0.9,
                 restitution: (cfg.restitution != null) ? cfg.restitution : 0.0,
                 damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95}
@@ -61,6 +58,7 @@ class PlayerEntityFactory {
 
         if (!h || !h.core) throw new Error("[player] ENT.create() must return {core}");
         if ((h.core.bodyId | 0) <= 0) throw new Error("[player] ENT.create() returned invalid core.bodyId");
+        if (!h.core.bodyAccess) throw new Error("[player] ENT.create() must provide core.bodyAccess (engine-filled)");
 
         return h;
     }
