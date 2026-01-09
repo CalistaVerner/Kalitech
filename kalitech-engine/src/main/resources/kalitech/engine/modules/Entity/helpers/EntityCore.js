@@ -1,12 +1,20 @@
+// FILE: resources/kalitech/builtin/helpers/entity/EntityCore.js
 "use strict";
 
 /**
- * EntityCore — REDengine MAX
- * База для любой Entity:
- *  - ids/handles
+ * EntityCore (builtin) — attached to EntityHandle as handle.core
+ *
+ * Responsibilities:
+ *  - cached ids
  *  - position/rotation
  *  - linear/angular velocity
- *  - grounded (через pluggable ground-probe)
+ *  - grounded (via pluggable ground-probe)
+ *
+ * Contract requirements for bodyAccess:
+ *  - position() -> {x,y,z}
+ *  - getVel()   -> {x,y,z}
+ *  - (optional) rotation()/getRotation()/... -> quat-like {x,y,z,w}
+ *  - (optional) getAngVel()/... -> {x,y,z}
  */
 
 function req(v, msg) {
@@ -20,12 +28,8 @@ function reqFn(fn, msg) {
 }
 
 class EntityCore {
-    constructor(ctx, domains, cfg) {
-        this.ctx = req(ctx, "[EntityCore] ctx is required");
-        this.d = req(domains, "[EntityCore] domains is required");
-        this.cfg = cfg || Object.create(null);
-
-        this.entity = null;
+    constructor() {
+        this.handle = null;
         this.body = null;
         this.bodyAccess = null;
 
@@ -33,13 +37,11 @@ class EntityCore {
         this.surfaceId = 0;
         this.bodyId = 0;
 
-        // resolved accessors (ONE TIME)
         this._getPos = null;
         this._getVel = null;
         this._getRot = null;
         this._getAngVel = null;
 
-        // optional hook: (core) => boolean
         this._groundProbe = null;
 
         this.state = {
@@ -51,13 +53,9 @@ class EntityCore {
 
             x: 0, y: 0, z: 0,
 
-            // quaternion
             rx: 0, ry: 0, rz: 0, rw: 1,
 
-            // linear vel
             vx: 0, vy: 0, vz: 0,
-
-            // angular vel
             avx: 0, avy: 0, avz: 0,
 
             speed: 0,
@@ -68,16 +66,12 @@ class EntityCore {
     }
 
     configureShape(mass, radius, height) {
-        this.state.mass = +mass;
-        this.state.radius = +radius;
-        this.state.height = +height;
+        this.state.mass = +mass || 0;
+        this.state.radius = +radius || 0;
+        this.state.height = +height || 0;
         return this;
     }
 
-    /**
-     * Set ground probe hook.
-     * @param {Function|null} fn (core) => boolean
-     */
     setGroundProbe(fn) {
         if (fn != null && typeof fn !== "function") {
             throw new Error("[EntityCore] groundProbe must be a function or null");
@@ -86,14 +80,14 @@ class EntityCore {
         return this;
     }
 
-    attach(entity, body, bodyAccess) {
-        this.entity = req(entity, "[EntityCore] entity is required");
+    attach(handle, body, bodyAccess) {
+        this.handle = req(handle, "[EntityCore] handle is required");
         this.body = body || null;
         this.bodyAccess = req(bodyAccess, "[EntityCore] bodyAccess is required");
 
-        this.entityId = entity.entityId | 0;
-        this.surfaceId = entity.surfaceId | 0;
-        this.bodyId = entity.bodyId | 0;
+        this.entityId = (handle.entityId | 0) || 0;
+        this.surfaceId = (handle.surfaceId | 0) || 0;
+        this.bodyId = (handle.bodyId | 0) || 0;
 
         if (this.bodyId <= 0) throw new Error("[EntityCore] invalid bodyId=" + this.bodyId);
 
@@ -142,14 +136,41 @@ class EntityCore {
         s.avy = avy;
         s.avz = avz;
 
-        // grounded is CORE concern now
-        if (this._groundProbe) {
-            s.grounded = !!this._groundProbe(this);
-        } else {
-            s.grounded = false;
-        }
+        s.grounded = this._groundProbe ? !!this._groundProbe(this) : false;
 
         return s;
+    }
+
+    model() {
+        const h = this.handle;
+        if (!h) return null;
+        if (typeof h.getModel === "function") return h.getModel();
+        if (h.model !== undefined) return h.model;
+        return null;
+    }
+
+    destroy() {
+        if (!this.state.alive) return;
+
+        // destruction is handle responsibility (body + surface + entity)
+        this.handle.destroy();
+
+        this.handle = null;
+        this.body = null;
+        this.bodyAccess = null;
+
+        this.entityId = 0;
+        this.surfaceId = 0;
+        this.bodyId = 0;
+
+        this._getPos = null;
+        this._getVel = null;
+        this._getRot = null;
+        this._getAngVel = null;
+
+        this._groundProbe = null;
+
+        this.state.alive = false;
     }
 
     _resolveRotationAccessor(ba) {
@@ -183,7 +204,6 @@ class EntityCore {
             };
         }
 
-        // stable baseline
         return () => ({x: 0, y: 0, z: 0, w: 1});
     }
 
@@ -222,7 +242,7 @@ class EntityCore {
     }
 
     _comp(o, k) {
-        const v = o[k];
+        const v = o ? o[k] : undefined;
         return (typeof v === "function") ? +v.call(o) : +v;
     }
 
@@ -242,39 +262,6 @@ class EntityCore {
         if (q == null) return 1;
         if (q.w === undefined && typeof q.w !== "function") return 1;
         return this._comp(q, "w");
-    }
-
-    model() {
-        const e = this.entity;
-        if (!e) return null;
-
-        if (typeof e.getModel === "function") return e.getModel();
-        if (e.model !== undefined) return e.model;
-
-        return null;
-    }
-
-    destroy() {
-        if (!this.state.alive) return;
-
-        this.entity.destroy(this.d.physics);
-
-        this.entity = null;
-        this.body = null;
-        this.bodyAccess = null;
-
-        this.entityId = 0;
-        this.surfaceId = 0;
-        this.bodyId = 0;
-
-        this._getPos = null;
-        this._getVel = null;
-        this._getRot = null;
-        this._getAngVel = null;
-
-        this._groundProbe = null;
-
-        this.state.alive = false;
     }
 }
 

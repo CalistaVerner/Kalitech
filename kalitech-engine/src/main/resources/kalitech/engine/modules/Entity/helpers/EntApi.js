@@ -1,11 +1,67 @@
 // FILE: resources/kalitech/builtin/helpers/entity/EntApi.js
 "use strict";
 
-const {req, isObj, vec3, deepMerge, subsystem} = require("./EntUtil.js");
+const {req, vec3, deepMerge, subsystem} = require("./EntUtil.js");
 const {idOf} = require("./IdExtractor.js");
 const {PhysicsBinding} = require("./PhysicsBinding.js");
 const {EntityHandle} = require("./EntityHandle.js");
 const {EntBuilder} = require("./EntBuilder.js");
+
+// NEW
+const {EntityCore} = require("./EntityCore.js");
+const {resolveBodyAccess} = require("./BodyAccessResolver.js");
+
+function inferShapeFromCfg(cfg, surfaceCfg, bodyCfg) {
+    const out = {mass: 0, radius: 0, height: 0};
+
+    if (bodyCfg && typeof bodyCfg === "object") {
+        if (bodyCfg.mass != null) out.mass = +bodyCfg.mass || 0;
+
+        const col = bodyCfg.collider;
+        if (col && typeof col === "object") {
+            if (col.radius != null) out.radius = +col.radius || 0;
+            if (col.height != null) out.height = +col.height || 0;
+            if (col.size != null && out.radius === 0) out.radius = +col.size || 0;
+        }
+    }
+
+    if (surfaceCfg && typeof surfaceCfg === "object") {
+        if (out.radius === 0 && surfaceCfg.radius != null) out.radius = +surfaceCfg.radius || 0;
+        if (out.height === 0 && surfaceCfg.height != null) out.height = +surfaceCfg.height || 0;
+        if (out.radius === 0 && surfaceCfg.size != null) out.radius = +surfaceCfg.size || 0;
+
+        if (out.mass === 0 && surfaceCfg.physics && typeof surfaceCfg.physics === "object") {
+            if (surfaceCfg.physics.mass != null) out.mass = +surfaceCfg.physics.mass || 0;
+        }
+    }
+
+    // sane defaults if caller wants to set later
+    return out;
+}
+
+function attachCoreOrProxy(handle, core) {
+    // If handle is extensible – attach directly.
+    if (handle && Object.isExtensible(handle)) {
+        Object.defineProperty(handle, "core", {
+            value: core,
+            enumerable: true,
+            configurable: false,
+            writable: false
+        });
+        return handle;
+    }
+
+    // Otherwise return proxy that exposes .core
+    return new Proxy(handle, {
+        get(t, p) {
+            if (p === "core") return core;
+            return t[p];
+        },
+        set() {
+            throw new Error("[ENT] EntityHandle is immutable");
+        }
+    });
+}
 
 class EntApi {
     constructor(engine, K) {
@@ -130,6 +186,7 @@ class EntApi {
         const ent = subsystem(this.engine, "entity");
         const mesh = subsystem(this.engine, "mesh");
         const surfApi = subsystem(this.engine, "surface");
+        const phys = subsystem(this.engine, "physics");
 
         // 1) entity
         const name = String(cfg.name || "entity");
@@ -208,7 +265,23 @@ class EntApi {
             );
         }
 
-        return new EntityHandle(this.engine, ctx);
+        // 5) handle
+        const handle = new EntityHandle(this.engine, ctx);
+
+        // 6) core (embedded)
+        if ((ctx.bodyId | 0) > 0) {
+            const bodyAccess = resolveBodyAccess(phys, ctx.body, ctx.bodyId | 0);
+
+            const sh = inferShapeFromCfg(cfg, surfCfg, bodyCfg);
+            const core = new EntityCore()
+                .configureShape(sh.mass, sh.radius, sh.height)
+                .attach(handle, ctx.body, bodyAccess);
+
+            return attachCoreOrProxy(handle, core);
+        }
+
+        // no body -> return handle as-is (core would be meaningless)
+        return handle;
     }
 
     idOf(h, kind) {

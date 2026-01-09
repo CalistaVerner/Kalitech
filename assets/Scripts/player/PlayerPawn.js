@@ -1,3 +1,4 @@
+// FILE: Scripts/player/PlayerPawn.js
 "use strict";
 
 const U = require("./util.js");
@@ -5,10 +6,7 @@ const FrameContext = require("./FrameContext.js");
 const CharacterConfig = require("./CharacterConfig.js");
 const {PlayerEntityFactory} = require("./PlayerEntityFactory.js");
 const {resolveDomains} = require("./PlayerDomains.js");
-const {resolveBodyAccess} = require("./PlayerBodyAccess.js");
 const InputRouter = require("./systems/InputRouter.js");
-
-const {EntityCore} = require("../core/entity/EntityCore.js");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);
@@ -21,17 +19,19 @@ class PlayerPawn {
         this.cfg = cfg || Object.create(null);
 
         this.d = null;
-        this.core = null;
 
         this.characterCfg = new CharacterConfig();
         this.frame = new FrameContext();
         this.inputRouter = null;
 
+        this.handle = null; // ENT.create(...) result
+        this.core = null;   // handle.core (engine-filled)
+
         this.alive = false;
     }
 
     get entity() {
-        return this.core.entity;
+        return this.handle;
     }
 
     get bodyAccess() {
@@ -73,28 +73,26 @@ class PlayerPawn {
         this.inputRouter = new InputRouter(this.d.input, this.cfg.input);
 
         const factory = new PlayerEntityFactory(this);
-        const ent = factory.create(this.cfg.spawn);
+        this.handle = factory.create(this.cfg.spawn);
 
-        const body = ent.body || null;
-        const bodyAccess = resolveBodyAccess(this.d.physics, body, ent.bodyId | 0);
+        this.core = this.handle.core;
+        if (!this.core || !this.core.bodyAccess) throw new Error("[PlayerPawn] ENT core/bodyAccess missing");
 
         if (typeof this.frame.probeGroundCapsule !== "function") {
             throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule required");
         }
-
-        this.core = new EntityCore(this.ctx, this.d, this.cfg);
 
         const ch = this.cfg.character;
         this.characterCfg.loadFrom(this.cfg, this.cfg.movement);
 
         this.core
             .configureShape(ch.mass, ch.radius, ch.height)
-            .attach(ent, body, bodyAccess)
-            .setGroundProbe((core) => {
+            .setGroundProbe(() => {
                 const probe = this.frame.probeGroundCapsule;
+                // сигнатуру оставляем совместимой с тем, что у тебя уже есть
                 return (probe.length >= 3)
-                    ? probe.call(this.frame, core.bodyAccess, this.characterCfg, core.bodyId | 0)
-                    : probe.call(this.frame, core.bodyAccess, this.characterCfg);
+                    ? probe.call(this.frame, this.core.bodyAccess, this.characterCfg, this.core.bodyId | 0)
+                    : probe.call(this.frame, this.core.bodyAccess, this.characterCfg);
             });
 
         this.alive = true;
@@ -142,15 +140,17 @@ class PlayerPawn {
 
     endFrame() {
         if (!this.alive) throw new Error("[PlayerPawn] endFrame on dead pawn");
-        if (typeof this.d.input.endFrame !== "function") throw new Error("[PlayerPawn] input.endFrame() required");
         this.d.input.endFrame();
     }
 
     destroy() {
         if (!this.alive) return;
 
+        // core.destroy() удалит entity/body/surface на стороне движка
         this.core.destroy();
+
         this.core = null;
+        this.handle = null;
 
         this.inputRouter = null;
         this.d = null;
