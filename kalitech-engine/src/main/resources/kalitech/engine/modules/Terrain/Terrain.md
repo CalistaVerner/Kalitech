@@ -1,9 +1,11 @@
 # Terrain JS API (v2) — Kalitech
 
-Этот гайд описывает **удобный декларативный JS API** для террейна (TERR) и совместимые низкоуровневые вызовы.
+Этот гайд описывает **удобный декларативный JS API** для террейна и совместимые низкоуровневые вызовы.
+
+> В новой схеме **террейн создаётся через `ENGINE.terrain`** (а не глобальный `TERR`).
 
 * Поддержка: **plane / quad / heightmap / heights / noise(perlin/ridged)**
-* Декларативный стиль: один вход `TERR.create({...})`
+* Декларативный стиль: один вход `ENGINE.terrain.create({...})`
 * Безопасный interop: генераторы высот возвращают **Float32Array**
 * Валидация размеров JME: `size` и `patchSize` должны быть **(2^k + 1)**
 
@@ -12,8 +14,8 @@
 ## Быстрый старт
 
 ```js
-// Получить модуль TERR обычно можно глобально: TERR
-// (или через require в вашей системе модулей)
+// Получить TERR-API через ENGINE
+const TERR = ENGINE.terrain;
 
 const ground = TERR.create({
     name: "ground",
@@ -26,13 +28,13 @@ const ground = TERR.create({
 });
 ```
 
-`TERR.create()` возвращает:
+`ENGINE.terrain.create()` возвращает:
 
 * **SurfaceHandle** (или обёртку `{ surface, bodyId, body }` если была физика)
 
 ---
 
-## Декларативный API: `TERR.create(cfg)`
+## Декларативный API: `ENGINE.terrain.create(cfg)`
 
 ### Общие поля
 
@@ -76,6 +78,8 @@ scale: { xz: 2.0, y: 40.0 }
 Создаёт плоскость (обычно Mesh/Surface), удобна для «земли без рельефа».
 
 ```js
+const TERR = ENGINE.terrain;
+
 const g = TERR.create({
     kind: "plane",
     plane: {w: 1000, h: 1000},
@@ -97,6 +101,8 @@ const g = TERR.create({
 Быстрый вариант простой сетки, когда TerrainQuad не нужен.
 
 ```js
+const TERR = ENGINE.terrain;
+
 const q = TERR.create({
     kind: "quad",
     quad: {w: 200, h: 200},
@@ -112,6 +118,8 @@ const q = TERR.create({
 Создание TerrainQuad на основе **heightmap ассета**.
 
 ```js
+const TERR = ENGINE.terrain;
+
 const t = TERR.create({
     kind: "heightmap",
     terrain: {
@@ -138,6 +146,8 @@ const t = TERR.create({
 TerrainQuad из **массива высот** (Float32Array или JS array).
 
 ```js
+const TERR = ENGINE.terrain;
+
 const heights = TERR.heights.perlin({
   size: 513,
   seed: 1337,
@@ -174,6 +184,8 @@ const t = TERR.create({
 Супер-удобный режим: **создать террейн и сгенерировать высоты внутри**.
 
 ```js
+const TERR = ENGINE.terrain;
+
 const t = TERR.create({
   kind: "noise",
   terrain: { size: 513, patchSize: 65 },
@@ -197,13 +209,15 @@ const t = TERR.create({
 
 ---
 
-## Генераторы высот: `TERR.heights.*`
+## Генераторы высот: `ENGINE.terrain.heights.*`
 
 Все генераторы возвращают **Float32Array** — это важно для Graal interop.
 
 ### Perlin
 
 ```js
+const TERR = ENGINE.terrain;
+
 const h = TERR.heights.perlin({
   size: 513,
   seed: 1337,
@@ -218,6 +232,8 @@ const h = TERR.heights.perlin({
 ### Ridged
 
 ```js
+const TERR = ENGINE.terrain;
+
 const h = TERR.heights.ridged({
   size: 513,
   seed: 1337,
@@ -230,6 +246,8 @@ const h = TERR.heights.ridged({
 ### Утилиты
 
 ```js
+const TERR = ENGINE.terrain;
+
 const f32 = TERR.heights.toF32(anyArrayLike);
 const size = TERR.heights.sizeOf(f32); // 0 если не квадрат
 ```
@@ -240,18 +258,20 @@ const size = TERR.heights.sizeOf(f32); // 0 если не квадрат
 
 Если тебе нужно напрямую вызывать базовый Java API — он доступен и в v2:
 
-* `TERR.terrain(cfg)` — TerrainQuad из heightmap/параметров
-* `TERR.terrainHeights(cfg)` — TerrainQuad из массива высот
-* `TERR.plane(cfg)` / `TERR.quad(cfg)`
-* `TERR.physics(surface, cfg)` — привязать физику
-* `TERR.material(surface, mat)`
-* `TERR.uv(surface, cfg)`
-* `TERR.lod(surface, cfg)`
-* `TERR.scale(surface, xzScale, { yScale })`
+* `ENGINE.terrain.terrain(cfg)` — TerrainQuad из heightmap/параметров
+* `ENGINE.terrain.terrainHeights(cfg)` — TerrainQuad из массива высот
+* `ENGINE.terrain.plane(cfg)` / `ENGINE.terrain.quad(cfg)`
+* `ENGINE.terrain.physics(surface, cfg)` — привязать физику
+* `ENGINE.terrain.material(surface, mat)`
+* `ENGINE.terrain.uv(surface, cfg)`
+* `ENGINE.terrain.lod(surface, cfg)`
+* `ENGINE.terrain.scale(surface, xzScale, { yScale })`
 
 Пример:
 
 ```js
+const TERR = ENGINE.terrain;
+
 const t = TERR.terrainHeights({
     name: "t",
     size: 513,
@@ -268,6 +288,8 @@ const t = TERR.terrainHeights({
 ## Query API (высота и нормаль)
 
 ```js
+const TERR = ENGINE.terrain;
+
 const y = TERR.heightAt(terrainSurface, x, z, true);   // world=true
 const n = TERR.normalAt(terrainSurface, x, z, true);
 ```
@@ -281,12 +303,16 @@ const n = TERR.normalAt(terrainSurface, x, z, true);
 ### Поставить новый heightmap (массив высот)
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.setHeightmap(terrainSurface, heights, 513, true);
 ```
 
 или object-формат:
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.setHeightmap(terrainSurface, {
     heights,
     size: 513,
@@ -297,6 +323,8 @@ TERR.setHeightmap(terrainSurface, {
 ### Точечная правка
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.setHeight(terrainSurface, x, z, 10.0, true);
 TERR.adjustHeight(terrainSurface, x, z, +0.25, true);
 ```
@@ -304,6 +332,8 @@ TERR.adjustHeight(terrainSurface, x, z, +0.25, true);
 ### Rebuild
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.rebuild(terrainSurface);
 ```
 
@@ -314,12 +344,16 @@ TERR.rebuild(terrainSurface);
 ### UV
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.uv(terrainSurface, { scale: [50, 50] });
 ```
 
 ### LOD
 
 ```js
+const TERR = ENGINE.terrain;
+
 TERR.lod(terrainSurface, {
     enabled: true,
     // любые параметры, которые поддерживает ваша Java реализация
@@ -331,6 +365,8 @@ TERR.lod(terrainSurface, {
 ## Physics (типично)
 
 ```js
+const TERR = ENGINE.terrain;
+
 const t = TERR.create({
   kind: "heights",
   terrain: { size: 513, patchSize: 65 },
