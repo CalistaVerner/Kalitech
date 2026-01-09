@@ -1,52 +1,49 @@
-<!-- Author: Calista Verner -->
+# Physics (PHYS) — RootKit-обёртка над engine.physics()
 
-# Physics (PHYS) — RootKit-обёртка над `engine.physics()`
+Автор: **Calista Verner**
 
-Автор: Calista Verner
+Этот модуль — тонкий и стабильный слой над Java-API физики (**PhysicsApiImpl**), который:
 
-Этот модуль — тонкий и **стабильный** слой над Java-API физики (PhysicsApiImpl), который:
-
-* нормализует *handle/id* (число, Java-handle, `{id}`, `{bodyId}`, Graal `Value`, и т.п.);
-* принимает удобные форматы векторов (массивы, plain-объекты, Java Vec3);
-* даёт дружелюбные хелперы (коллайдеры, `ref()` и т.д.);
+* нормализует **handle/id** (число, Java-handle, `{id}`, `{bodyId}`, Graal Value и т.п.);
+* принимает удобные форматы **векторов** (массивы, plain-объекты, Java Vec3);
+* даёт дружелюбные **хелперы** (коллайдеры, `ref()` и т.д.);
 * старается быть «безопасным»: где это уместно — `try/catch` вокруг host-вызовов.
 
-> Важно: модуль **не меняет** Java API. Он лишь вызывает `engine.physics()` и прокидывает туда данные.
+****Важно:** модуль не меняет Java API. Он **работает только через `ENGINE.physics()`** и прокидывает туда данные.
 
 ---
 
 ## Подключение
 
-Обычно модуль регистрируется в глобальных алиасах как **`PHYS`** (см. `META.globalName`). Тогда в скриптах:
+Обычно модуль регистрируется в глобальных алиасах как **ENGINE.physics** (см. `META.globalName`). **Единственный
+источник физики — `ENGINE.physics`**. Тогда в скриптах:
 
 ```js
-// вариант 1: через глобальный алиас (рекомендовано)
-PHYS.debug(true);
-
-// вариант 2: прямой require (если у вас так принято)
-const PHYS = require("@builtin/Physics")(engine, K);
+const PHYS = ENGINE.physics;
 ```
+
+> Актуально: **других путей нет** — доступ к физике идёт **только через `ENGINE.physics`**.
 
 ---
 
 ## Ключевая идея: «handle или id — всё равно»
 
-Большинство методов принимают **`handleOrId`**:
+Большинство методов принимают `handleOrId`:
 
-* `number` (bodyId)
-* Java handle с `.id`/`.bodyId` или методами `id()/getId()/bodyId()/getBodyId()/handle()`
+* `number` (**bodyId**)
+* Java handle с `.id/.bodyId` или методами `id()/getId()/bodyId()/getBodyId()/handle()`
 * объект вида `{ id: 12 }` или `{ bodyId: 12 }`
-* Graal `Value`, который приводит к числу через `valueOf()`
+* Graal Value, который приводит к числу через `valueOf()`
 
-Модуль всегда приводит всё к **целому `bodyId`** через `bodyIdOf()`.
+Модуль всегда приводит всё к целому `bodyId` через `bodyIdOf()`.
 
-### `PHYS.idOf(handleOrId)`
+### PHYS.idOf(handleOrId)
 
 ```js
 const id = PHYS.idOf(bodyHandle); // -> 12
 ```
 
-### `PHYS.surfaceIdOf(surfaceHandleOrId)`
+### PHYS.surfaceIdOf(surfaceHandleOrId)
 
 Нужно, когда вы создаёте физическое тело «по поверхности».
 
@@ -56,14 +53,14 @@ const sid = PHYS.surfaceIdOf(surfaceHandle);
 
 ---
 
-## Векторы: `PHYS.vec3()`
+## Векторы: PHYS.vec3()
 
 Принимаются:
 
 * `[x, y, z]`
 * `{ x, y, z }`
 * `{ x:()=>, y:()=>, z:()=> }`
-* Java Vec3 с полями `.x/.y/.z` **или** методами `.x()/.y()/.z()`
+* Java Vec3 с полями `.x/.y/.z` или методами `.x()/.y()/.z()`
 
 ```js
 PHYS.vec3([1,2,3]);            // -> {x:1,y:2,z:3}
@@ -71,15 +68,15 @@ PHYS.vec3({x:1,y:2,z:3});      // -> {x:1,y:2,z:3}
 PHYS.vec3(null, 0,1,0);        // -> {x:0,y:1,z:0}
 ```
 
-> Внутри все физические вызовы получают вектор уже в нормализованном виде.
+Внутри все физические вызовы получают вектор уже в нормализованном виде.
 
 ---
 
-## Создание тела: `PHYS.body(cfg)`
+## Создание тела: PHYS.body(cfg)
 
 Создаёт `RigidBody` на стороне Java.
 
-**Минимум нужно**: `cfg.surface` (surfaceId или surface-handle).
+Минимум нужно: `cfg.surface` (surfaceId или surface-handle).
 
 Поддерживаемые поля (типично):
 
@@ -101,7 +98,7 @@ const surf = MSH.create({
   pos: [0, 3, 0]
 });
 
-const body = PHYS.body({
+const body = ENGINE.physics.body({
   surface: surf,              // можно handle
   mass: 80,
   friction: 0.9,
@@ -110,81 +107,84 @@ const body = PHYS.body({
   collider: PHYS.collider.capsule(0.35, 1.8)
 });
 
-// body — Java handle (обычно имеет .id/.surfaceId)
 LOG.info("bodyId=" + PHYS.idOf(body));
 ```
 
-### `PHYS.ensureBodyForSurface(surface, cfg)`
+---
+
+## PHYS.ensureBodyForSurface(surface, cfg)
 
 Удобно, когда поверхность уже есть, а тело нужно создать (или «получить существующее»):
 
 ```js
-const body = PHYS.ensureBodyForSurface(surf, { mass: 0, kinematic: true });
+const body = ENGINE.physics.ensureBodyForSurface(surf, {mass: 0, kinematic: true});
 ```
 
-> Если тело уже привязано к поверхности — Java может вернуть существующий handle.
+Если тело уже привязано к поверхности — Java может вернуть существующий handle.
 
 ---
 
 ## Управление телом (трансформации)
 
-### `PHYS.position(handleOrId)` → Vec3
+### PHYS.position(handleOrId) → Vec3
 
-### `PHYS.position(handleOrId, vec3)` → warp
+### PHYS.position(handleOrId, vec3) → warp
 
 ```js
-const p = PHYS.position(body);
+const p = ENGINE.physics.position(body);
 LOG.info("pos=" + JSON.stringify(p));
 
-PHYS.position(body, [10, 2, -5]); // сеттер = warp
+ENGINE.physics.position(body, [10, 2, -5]); // сеттер = warp
 ```
 
-### `PHYS.warp(handleOrId, pos)`
+### PHYS.warp(handleOrId, pos)
 
 Жёстко телепортирует тело.
 
 ```js
-PHYS.warp(body, { x: 0, y: 5, z: 0 });
+ENGINE.physics.warp(body, {x: 0, y: 5, z: 0});
 ```
 
-### `PHYS.velocity(handleOrId)` / `PHYS.velocity(handleOrId, v)`
+### PHYS.velocity(handleOrId) / PHYS.velocity(handleOrId, v)
 
 ```js
-const v = PHYS.velocity(body);
-PHYS.velocity(body, [0, 0, 0]);
+const v = ENGINE.physics.velocity(body);
+v.velocity(body, [0, 0, 0]);
 ```
 
-### `PHYS.yaw(handleOrId, yawRad)`
+### PHYS.yaw(handleOrId, yawRad)
 
 Поворачивает тело по yaw (в радианах):
 
 ```js
-PHYS.yaw(body, Math.PI * 0.5);
+ENGINE.physics.yaw(body, Math.PI * 0.5);
 ```
 
 ---
 
 ## Силы и импульсы
 
-### `PHYS.applyImpulse(handleOrId, impulse)`
+### PHYS.applyImpulse(handleOrId, impulse)
 
 ```js
-PHYS.applyImpulse(body, [0, 6.5, 0]);
+ENGINE.physics.applyImpulse(body, [0, 6.5, 0]);
 ```
 
-> Импульс — мгновенное изменение скорости.
+Импульс — мгновенное изменение скорости.
 
-### Дополнительные методы (если проброшены Java-API)
+---
+
+## Дополнительные методы (если проброшены Java-API)
 
 Внутри модуля есть обёртки на:
 
 * `applyCentralForce(handleOrId, force)`
 * `applyTorque(handleOrId, torque)`
-* `angularVelocity(handleOrId)` / `angularVelocity(handleOrId, v)`
+* `angularVelocity(handleOrId) / angularVelocity(handleOrId, v)`
 * `clearForces(handleOrId)`
 * `collisionGroups(handleOrId, group, mask)`
 
-Если они экспортированы из `engine.physics()`, используйте так:
+Если они экспортированы из `ENGINE.physics`, используйте так:
 
 ```js
 PHYS.applyCentralForce(body, [0, 0, 12]);
@@ -192,7 +192,6 @@ PHYS.applyTorque(body, [0, 2.0, 0]);
 PHYS.angularVelocity(body, [0, 0.4, 0]);
 PHYS.clearForces(body);
 
-// группы коллизий (пример)
 PHYS.collisionGroups(body, 0x0002, 0xFFFF);
 ```
 
@@ -200,7 +199,7 @@ PHYS.collisionGroups(body, 0x0002, 0xFFFF);
 
 ## Флаги
 
-### `PHYS.lockRotation(handleOrId, bool)`
+### PHYS.lockRotation(handleOrId, bool)
 
 ```js
 PHYS.lockRotation(body, true);
@@ -213,10 +212,10 @@ PHYS.lockRotation(body, true);
 Модуль даёт «тонкие» прокси на Java-методы:
 
 * `PHYS.raycast(cfg)`
-* `PHYS.raycastEx(cfg)`
-* `PHYS.raycastAll(cfg)`
+* `PHYS.raycastEx(cfg)` *(если доступно)*
+* `PHYS.raycastAll(cfg)` *(если доступно)*
 
-### Базовый `raycast({ from, to })`
+### Базовый raycast({ from, to })
 
 ```js
 const hit = PHYS.raycast({
@@ -244,20 +243,16 @@ function groundCheck(bodyId) {
 
 ### Практика: «камера не пролезает сквозь стены»
 
-Идея: луч от **точки интереса** (например, голова игрока) к желаемой позиции камеры. Если есть хит — приблизить камеру.
+Идея: луч от точки интереса (например, голова игрока) к желаемой позиции камеры. Если есть хит — приблизить камеру.
 
 ```js
 function clampCameraByRay(targetPos, desiredCamPos) {
   const hit = PHYS.raycast({ from: targetPos, to: desiredCamPos });
   if (!hit) return desiredCamPos;
 
-  // В зависимости от формата PhysicsRayHit на Java стороне,
-  // обычно есть точка столкновения hit.point / hit.hitPos / hit.position.
-  // Ниже — псевдо-обработка:
   const hp = hit.point || hit.position || hit.hitPos;
   if (!hp) return desiredCamPos;
 
-  // небольшой отступ от стены
   const pad = 0.12;
   const dir = {
     x: desiredCamPos[0] - targetPos[0],
@@ -271,12 +266,11 @@ function clampCameraByRay(targetPos, desiredCamPos) {
 }
 ```
 
-> Именно такие проверки вам пригодятся для AAA-камеры: third-person, free, и даже first (чтобы не «влезать» в
-> геометрию).
+Именно такие проверки пригодятся для AAA-камеры: third-person, free и даже first (чтобы не «влезать» в геометрию).
 
 ---
 
-## Быстрые пресеты коллайдеров: `PHYS.collider.*`
+## Быстрые пресеты коллайдеров: PHYS.collider.*
 
 Коллайдеры — чистый JSON, который уходит в Java.
 
@@ -287,11 +281,7 @@ const c3 = PHYS.collider.capsule(0.35, 1.8);
 const c4 = PHYS.collider.cylinder(0.5, 1.0);
 const c5 = PHYS.collider.mesh();
 const c6 = PHYS.collider.dynamicMesh();
-```
 
-Использование:
-
-```js
 PHYS.body({
   surface: surf,
   mass: 10,
@@ -301,9 +291,9 @@ PHYS.body({
 
 ---
 
-## Удобная привязка: `PHYS.ref(handleOrId)`
+## Удобная привязка: PHYS.ref(handleOrId)
 
-`ref()` возвращает **замороженный** JS-объект, привязанный к конкретному `bodyId`.
+`ref()` возвращает замороженный JS-объект, привязанный к конкретному `bodyId`.
 
 ```js
 const b = PHYS.ref(body);
@@ -316,7 +306,6 @@ LOG.info("p=" + JSON.stringify(p));
 
 b.lockRotation(true);
 
-// удалить
 b.remove();
 ```
 
@@ -330,7 +319,7 @@ b.remove();
 
 ## Debug и гравитация
 
-### `PHYS.debug(true/false)`
+### PHYS.debug(true/false)
 
 ```js
 PHYS.debug(true);
@@ -338,7 +327,7 @@ PHYS.debug(true);
 
 Если Java-слой поддерживает debug-рендер/логирование — включится.
 
-### `PHYS.gravity(vec3)`
+### PHYS.gravity(vec3)
 
 ```js
 PHYS.gravity([0, -9.81, 0]);
@@ -372,7 +361,6 @@ const body = PHYS.body({
   collider: PHYS.collider.capsule(0.35, 1.8)
 });
 
-// каждую обнову:
 PHYS.warp(body, [x, y, z]);
 ```
 
@@ -440,11 +428,8 @@ function safeImpulse(h, v) {
 
 ## Советы для AAA-камеры
 
-1. **Third-person**: луч `target(head)` → `desiredCam` и поджимать дистанцию при препятствии.
-2. **First-person**: иногда полезно делать короткий луч вперёд, чтобы не «протыкать» тонкие стены при рывках.
-3. **Free-cam**: опционально можно включать коллизии/скольжение (если реализуете) — но базовый режим может оставаться
-   «без физики».
-4. Не забывайте про **pad** (отступ от стены), иначе камера будет дрожать на поверхности.
-
-Если хочешь — я допишу готовый модуль `CameraCollisionSolver.js`, который подключается в `CameraOrchestrator` как
-пост-проход и использует `PHYS.raycast` для стабилизации всех режимов (особенно third/top).
+* **Third-person:** луч `target(head) → desiredCam` и поджимать дистанцию при препятствии.
+* **First-person:** иногда полезно делать короткий луч вперёд, чтобы не «протыкать» тонкие стены при рывках.
+* **Free-cam:** опционально можно включать коллизии/скольжение (если реализуете), но базовый режим может оставаться «без
+  физики».
+* Не забывайте про `pad` (отступ от стены), иначе камера будет дрожать на поверхности.
