@@ -14,6 +14,11 @@ import java.util.Arrays;
  *  - EMPTY key is 0L (reserved, cannot be added)
  *  - For backwards compatibility, contains(0) returns true (legacy behavior).
  *    Use containsStrict(k) if you want sane semantics for 0.
+ *
+ * Implementation:
+ *  - Open addressing + Robin Hood linear probing
+ *  - Early-exit contains() using probe-distance ordering
+ *  - Deletion via backward shift (no tombstones) compatible with Robin Hood invariant
  */
 public final class LongHashSet {
 
@@ -65,9 +70,6 @@ public final class LongHashSet {
         return (pos - start) & mask;
     }
 
-    /**
-     * @return number of stored keys
-     */
     public int size() {
         return size;
     }
@@ -76,9 +78,6 @@ public final class LongHashSet {
         return size == 0;
     }
 
-    /**
-     * @return backing table length (power-of-two)
-     */
     public int capacity() {
         return table.length;
     }
@@ -87,10 +86,6 @@ public final class LongHashSet {
         return loadFactor;
     }
 
-    /**
-     * Clears set. O(n) fill, no allocations.
-     * Use clear() for predictable behavior.
-     */
     public void clear() {
         Arrays.fill(table, EMPTY);
         size = 0;
@@ -98,7 +93,6 @@ public final class LongHashSet {
 
     /**
      * Legacy contains semantics: contains(0) == true.
-     * (This matches your original behavior.)
      */
     public boolean contains(long k) {
         if (k == EMPTY) return true;
@@ -107,73 +101,106 @@ public final class LongHashSet {
 
     /**
      * Sane contains semantics: containsStrict(0) == false.
+     *
+     * Robin Hood early-exit:
+     *  - If current slot's resident has probeDistance < our probeDistance, key is not present.
      */
     public boolean containsStrict(long k) {
         if (k == EMPTY) return false;
 
         long[] t = table;
         int m = mask;
-        int i = mix64to32(k) & m;
+
+        int home = mix64to32(k) & m;
+        int i = home;
+        int pd = 0;
 
         while (true) {
             long v = t[i];
             if (v == EMPTY) return false;
             if (v == k) return true;
+
+            int vHome = mix64to32(v) & m;
+            int vPd = distance(vHome, i, m);
+
+            if (vPd < pd) return false;
+
             i = (i + 1) & m;
+            pd++;
         }
     }
 
-    /**
-     * @return true if added (was not present)
-     */
     public boolean add(long k) {
-        if (k == EMPTY) return false; // reserved sentinel
+        if (k == EMPTY) return false;
         if (size >= resizeAt) rehash(table.length << 1);
 
         long[] t = table;
         int m = mask;
-        int i = mix64to32(k) & m;
+
+        int home = mix64to32(k) & m;
+        int i = home;
+        int pd = 0;
+
+        long cur = k;
+        int curHome = home;
 
         while (true) {
             long v = t[i];
+
             if (v == EMPTY) {
-                t[i] = k;
+                t[i] = cur;
                 size++;
                 return true;
             }
-            if (v == k) return false;
+
+            if (v == cur) return false;
+
+            int vHome = mix64to32(v) & m;
+            int vPd = distance(vHome, i, m);
+
+            // Robin Hood: steal if we are "poorer" (have larger probe distance)
+            if (vPd < pd) {
+                t[i] = cur;
+                cur = v;
+
+                curHome = vHome;
+                pd = vPd;
+            }
+
             i = (i + 1) & m;
+            pd++;
         }
     }
 
-    /**
-     * Remove key if present.
-     * Uses back-shift deletion (no tombstones).
-     *
-     * @return true if removed
-     */
     public boolean remove(long k) {
         if (k == EMPTY) return false;
 
         long[] t = table;
         int m = mask;
 
-        int i = mix64to32(k) & m;
+        int home = mix64to32(k) & m;
+        int i = home;
+        int pd = 0;
+
         while (true) {
             long v = t[i];
             if (v == EMPTY) return false;
             if (v == k) {
-                deleteAndShift(i);
+                deleteAndShiftRobinHood(i);
                 size--;
                 return true;
             }
+
+            int vHome = mix64to32(v) & m;
+            int vPd = distance(vHome, i, m);
+
+            if (vPd < pd) return false;
+
             i = (i + 1) & m;
+            pd++;
         }
     }
 
-    /**
-     * Ensure the set can add at least {@code additional} new distinct keys without rehash.
-     */
     public void ensureCapacity(int additional) {
         if (additional <= 0) return;
         int need = size + additional;
@@ -184,10 +211,6 @@ public final class LongHashSet {
         if (cap != table.length) rehash(cap);
     }
 
-    /**
-     * Add all keys from another LongHashSet.
-     * No allocations.
-     */
     public void addAll(LongHashSet other) {
         if (other == null || other.size == 0) return;
         ensureCapacity(other.size);
@@ -199,27 +222,18 @@ public final class LongHashSet {
         }
     }
 
-    /**
-     * Add all keys from an array.
-     */
     public void addAll(long[] keys) {
         if (keys == null || keys.length == 0) return;
         ensureCapacity(keys.length);
         for (long k : keys) add(k);
     }
 
-    /**
-     * Copy keys into a new array.
-     */
     public long[] toArray() {
         long[] out = new long[size];
         copyTo(out, 0);
         return out;
     }
 
-    /**
-     * Call consumer for each key. No iterator objects.
-     */
     public void forEach(LongConsumer consumer) {
         long[] t = table;
         for (int i = 0; i < t.length; i++) {
@@ -228,11 +242,6 @@ public final class LongHashSet {
         }
     }
 
-    /**
-     * Copy keys into target array starting at offset.
-     *
-     * @return number of copied keys
-     */
     public int copyTo(long[] out, int offset) {
         if (out == null) throw new NullPointerException("out");
         if (offset < 0 || offset > out.length) throw new IndexOutOfBoundsException("offset");
@@ -249,10 +258,6 @@ public final class LongHashSet {
         return p - offset;
     }
 
-    /**
-     * Swap all internals with another set (O(1)).
-     * Useful for ping-pong (curr/prev) structures in tight loops.
-     */
     public void swapWith(LongHashSet other) {
         if (other == null) throw new NullPointerException("other");
 
@@ -273,8 +278,18 @@ public final class LongHashSet {
     }
 
     /**
-     * Rehash into newCap table (power of two).
+     * Optional: shrink to minimal capacity that can hold current size under loadFactor.
+     * Useful after big spikes.
      */
+    public void trimToSize() {
+        int minCap = 16;
+        int need = (int) Math.ceil(size / loadFactor);
+        int cap = 1;
+        while (cap < need) cap <<= 1;
+        if (cap < minCap) cap = minCap;
+        if (cap < table.length) rehash(cap);
+    }
+
     private void rehash(int newCap) {
         int cap = 1;
         while (cap < newCap) cap <<= 1;
@@ -288,22 +303,44 @@ public final class LongHashSet {
             long k = old[i];
             if (k == EMPTY) continue;
 
-            int idx = mix64to32(k) & nm;
-            while (nt[idx] != EMPTY) idx = (idx + 1) & nm;
-            nt[idx] = k;
+            // Insert using Robin Hood into the new table
+            int home = mix64to32(k) & nm;
+            int idx = home;
+            int pd = 0;
+
+            long cur = k;
+            while (true) {
+                long v = nt[idx];
+                if (v == EMPTY) {
+                    nt[idx] = cur;
+                    break;
+                }
+                if (v == cur) break;
+
+                int vHome = mix64to32(v) & nm;
+                int vPd = distance(vHome, idx, nm);
+
+                if (vPd < pd) {
+                    nt[idx] = cur;
+                    cur = v;
+                    pd = vPd;
+                }
+
+                idx = (idx + 1) & nm;
+                pd++;
+            }
         }
 
         this.table = nt;
         this.mask = nm;
         this.resizeAt = (int) (cap * loadFactor);
-        // size unchanged
     }
 
     /**
-     * Back-shift deletion for linear probing.
-     * Keeps cluster intact without tombstones.
+     * Robin Hood compatible backward shift deletion.
+     * After clearing a slot, shift subsequent entries left while their probe distance > 0.
      */
-    private void deleteAndShift(int deleteIndex) {
+    private void deleteAndShiftRobinHood(int deleteIndex) {
         long[] t = table;
         int m = mask;
 
@@ -317,16 +354,18 @@ public final class LongHashSet {
                 return;
             }
 
-            // ideal slot for v
-            int ideal = mix64to32(v) & m;
+            int vHome = mix64to32(v) & m;
+            int vPd = distance(vHome, j, m);
 
-            // If v is in a probe sequence that would have visited i, shift it back.
-            // This condition is the standard "is ideal in (i, j] circular interval?" negation.
-            if (distance(ideal, j, m) >= distance(ideal, i, m)) {
-                t[i] = v;
-                i = j;
+            // If resident is at its home (pd == 0), cluster boundary -> stop.
+            if (vPd == 0) {
+                t[i] = EMPTY;
+                return;
             }
 
+            // shift left
+            t[i] = v;
+            i = j;
             j = (j + 1) & m;
         }
     }
