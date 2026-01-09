@@ -27,22 +27,6 @@ final class PhysicsRaycasts {
         return Float.isFinite(v);
     }
 
-    private void flushPendingAdd() {
-        PhysicsSpace sp = S.engine.__getPhysicsSpaceOrNull();
-        if (sp == null) return;
-
-        contacts.ensureBound(sp);
-
-        int n = 0;
-        RigidBodyControl rb;
-        while (n < PhysicsState.ADD_FLUSH_MAX_PER_TICK && (rb = S.pendingAdd.poll()) != null) {
-            try {
-                sp.add(rb);
-            } catch (Throwable ignored) {
-            }
-            n++;
-        }
-    }
 
     private PhysicsBodyHandle findHandleByCollisionObject(Object obj) {
         int id = S.bodyIdFromCollisionObject(obj);
@@ -69,7 +53,6 @@ final class PhysicsRaycasts {
     }
 
     PhysicsRayHit raycast(Object cfg) {
-        flushPendingAdd();
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
@@ -115,7 +98,6 @@ final class PhysicsRaycasts {
     }
 
     Object raycastEx(Object cfg) {
-        flushPendingAdd();
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
@@ -177,7 +159,6 @@ final class PhysicsRaycasts {
     }
 
     Object raycastAll(Object cfg) {
-        flushPendingAdd();
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
