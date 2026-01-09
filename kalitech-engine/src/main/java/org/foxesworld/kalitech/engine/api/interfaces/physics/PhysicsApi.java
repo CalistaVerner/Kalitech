@@ -6,49 +6,91 @@ import org.graalvm.polyglot.HostAccess;
 /**
  * Physics facade exposed to JS.
  *
+ * <p>All methods annotated with {@link HostAccess.Export} are part of the public scripting surface.</p>
+ *
  * <pre>
- * const body = engine.physics().body({
- *   surface: surfaceHandleOrId,
- *   mass: 80,
- *   friction: 0.8,
- *   restitution: 0.1,
- *   damping: { linear:0.05, angular:0.1 },
- *   kinematic: false,
- *   lockRotation: true,
- *   collider: { type:"box" }
- * })
+ * const PH = engine.physics();
+ * const body = PH.body({ type:"capsule", radius:0.35, height:1.6, mass:80, surface: surfaceId });
+ * PH.warp(body, {x:0,y:5,z:0});
+ * PH.velocity(body, {x:0,y:0,z:5});
  * </pre>
  */
-@SuppressWarnings("unused")
+@HostAccess.Implementable
 public interface PhysicsApi {
 
-    /**
-     * Creates (or returns existing) rigid body bound to a surface.
-     */
+    /* ==========================================================
+       Exported to JS
+       ========================================================== */
+
     @HostAccess.Export
     PhysicsBodyHandle body(Object cfg);
 
-    /**
-     * Removes a rigid body by handle or id.
-     */
+    @HostAccess.Export
+    int bodyOfSurface(int surfaceId);
+
+    @HostAccess.Export
+    PhysicsBodyHandle handle(int bodyId);
+
+    @HostAccess.Export
+    boolean exists(int bodyId);
+
     @HostAccess.Export
     void remove(Object handleOrId);
 
-    /**
-     * Performs a raycast in the physics space.
-     */
     @HostAccess.Export
     PhysicsRayHit raycast(Object cfg);
 
-    /**
-     * Enables or disables Bullet debug draw.
-     */
+    @HostAccess.Export
+    Object raycastEx(Object cfg);
+
+    @HostAccess.Export
+    Object raycastAll(Object cfg);
+
+    @HostAccess.Export
+    Object position(Object handleOrId);
+
+    @HostAccess.Export
+    void warp(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    Object velocity(Object handleOrId);
+
+    @HostAccess.Export
+    void velocity(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    void yaw(Object handleOrId, double yaw);
+
+    @HostAccess.Export
+    void applyImpulse(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    void lockRotation(Object handleOrId, boolean lock);
+
+    @HostAccess.Export
+    void setKinematic(Object handleOrId, boolean kinematic);
+
+    @HostAccess.Export
+    void collisionGroups(Object handleOrId, int group, int mask);
+
+    @HostAccess.Export
+    void applyCentralForce(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    void applyTorque(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    Object angularVelocity(Object handleOrId);
+
+    @HostAccess.Export
+    void angularVelocity(Object handleOrId, Object vec3);
+
+    @HostAccess.Export
+    void clearForces(Object handleOrId);
+
     @HostAccess.Export
     void debug(boolean enabled);
 
-    /**
-     * Sets global gravity vector.
-     */
     @HostAccess.Export
     void gravity(Object vec3);
 

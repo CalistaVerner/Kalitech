@@ -905,6 +905,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public int bodyOfSurface(int surfaceId) {
         if (surfaceId <= 0) return 0;
         Integer id = bodyIdBySurface.get(surfaceId);
@@ -912,12 +913,14 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public PhysicsBodyHandle handle(int bodyId) {
         if (bodyId <= 0) return null;
         return byId.get(bodyId);
     }
 
     @HostAccess.Export
+    @Override
     public boolean exists(int bodyId) {
         return bodyId > 0 && byId.containsKey(bodyId);
     }
@@ -1002,6 +1005,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public Object raycastEx(Object cfg) {
         flushPendingAdd();
         PhysicsSpace space = space();
@@ -1061,6 +1065,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public Object raycastAll(Object cfg) {
         flushPendingAdd();
         PhysicsSpace space = space();
@@ -1135,6 +1140,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ------------------------------------------------------------
 
     @HostAccess.Export
+    @Override
     public Object position(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
         Vector3f p = h.__raw().getPhysicsLocation();
@@ -1142,6 +1148,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void warp(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.warp(pos)");
         Vector3f p = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
@@ -1152,6 +1159,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public Object velocity(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity()");
         Vector3f v = h.__raw().getLinearVelocity();
@@ -1159,6 +1167,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void velocity(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity(v)");
         Vector3f v = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
@@ -1166,6 +1175,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void yaw(Object handleOrId, double yaw) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.yaw(yaw)");
         RigidBodyControl rb = h.__raw();
@@ -1178,6 +1188,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void applyImpulse(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.applyImpulse(impulse)");
         Vector3f imp = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
@@ -1185,6 +1196,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void lockRotation(Object handleOrId, boolean lock) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.lockRotation(lock)");
         RigidBodyControl rb = h.__raw();
@@ -1197,6 +1209,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void setKinematic(Object handleOrId, boolean kinematic) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.setKinematic(kinematic)");
         RigidBodyControl rb = h.__raw();
@@ -1209,6 +1222,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ------------------------------------------------------------
 
     @HostAccess.Export
+    @Override
     public void collisionGroups(Object handleOrId, int group, int mask) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.collisionGroups(group,mask)");
         RigidBodyControl rb = h.__raw();
@@ -1217,6 +1231,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void applyCentralForce(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.applyCentralForce(force)");
         Vector3f f = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
@@ -1231,6 +1246,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public Object angularVelocity(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.angularVelocity()");
         Vector3f v = h.__raw().getAngularVelocity();
@@ -1238,6 +1254,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void angularVelocity(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.angularVelocity(v)");
         Vector3f v = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
@@ -1245,6 +1262,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @Override
     public void clearForces(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.clearForces()");
         RigidBodyControl rb = h.__raw();
@@ -1280,6 +1298,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // integration helpers (internal)
     // ------------------------------------------------------------
 
+    @Override
     public void __cleanupSurface(int surfaceId) {
         if (surfaceId <= 0) return;
         Integer id = bodyIdBySurface.get(surfaceId);
@@ -1372,6 +1391,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return 0;
     }
 
+    @Override
     public void __clearAll() {
         pendingAdd.clear();
         shapeCache.clear();
