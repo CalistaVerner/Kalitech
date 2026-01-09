@@ -1,7 +1,7 @@
 // FILE: @module/Controllers/EngineControllers.js
 "use strict";
 
-const {ControllerRegistry} = require("@module/Controllers/ControllerRegistry");
+const {ControllerRegistry} = require("./ControllerRegistry");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);

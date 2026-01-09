@@ -12,10 +12,10 @@ function reqStr(s, msg) {
 }
 
 function loadCore() {
-    const {ControllerStack} = require("@module/Controllers/ControllerStack");
-    const {ControllerRegistry} = require("@module/Controllers/ControllerRegistry");
-    const {ensureControllersHub} = require("@module/Controllers/EngineControllers");
-    const {EntityController} = require("@module/Controllers/EntityController");
+    const {ControllerStack} = require("./helpers/ControllerStack");
+    const {ControllerRegistry} = require("./helpers/ControllerRegistry");
+    const {ensureControllersHub} = require("./helpers/EngineControllers");
+    const {EntityController} = require("./helpers/EntityController");
     return {ControllerStack, ControllerRegistry, ensureControllersHub, EntityController};
 }
 
