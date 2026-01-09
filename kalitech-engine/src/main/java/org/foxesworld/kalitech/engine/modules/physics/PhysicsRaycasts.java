@@ -7,18 +7,23 @@ import com.jme3.math.Vector3f;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Ray queries.
+ *
+ * Threading:
+ *  - MUST NOT mutate PhysicsSpace.
+ *  - Safe to call from game/JS thread.
  */
-final class PhysicsRaycasts {
+public final class PhysicsRaycasts {
 
     private final PhysicsState S;
     private final PhysicsContacts contacts;
 
-    PhysicsRaycasts(PhysicsState state, PhysicsContacts contacts) {
+    private static final ThreadLocal<Temps> TL = ThreadLocal.withInitial(Temps::new);
+
+    public PhysicsRaycasts(PhysicsState state, PhysicsContacts contacts) {
         this.S = state;
         this.contacts = contacts;
     }
@@ -27,13 +32,7 @@ final class PhysicsRaycasts {
         return Float.isFinite(v);
     }
 
-
-    private PhysicsBodyHandle findHandleByCollisionObject(Object obj) {
-        int id = S.bodyIdFromCollisionObject(obj);
-        return (id > 0) ? S.byId.get(id) : null;
-    }
-
-    private boolean passesStaticDynamicFilter(RigidBodyControl rb, boolean staticOnly, boolean dynamicOnly) {
+    private static boolean passesStaticDynamicFilter(RigidBodyControl rb, boolean staticOnly, boolean dynamicOnly) {
         if (rb == null) return false;
         float mass = rb.getMass();
         boolean dynamic = mass > 0f && !rb.isKinematic();
@@ -43,7 +42,12 @@ final class PhysicsRaycasts {
         return true;
     }
 
-    private boolean passesMaskFilter(RigidBodyControl rb, int mask) {
+    private PhysicsBodyHandle findHandleByCollisionObject(Object obj) {
+        int id = S.bodyIdFromCollisionObject(obj);
+        return (id > 0) ? S.byId.get(id) : null;
+    }
+
+    private static boolean passesMaskFilter(RigidBodyControl rb, int mask) {
         if (mask == 0) return true;
         try {
             return (rb.getCollideWithGroups() & mask) != 0;
@@ -52,7 +56,7 @@ final class PhysicsRaycasts {
         }
     }
 
-    PhysicsRayHit raycast(Object cfg) {
+    public PhysicsRayHit raycast(Object cfg) {
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
@@ -66,38 +70,43 @@ final class PhysicsRaycasts {
 
         PhysicsRayTestResult best = null;
         float bestFrac = Float.POSITIVE_INFINITY;
+
         for (PhysicsRayTestResult r : hits) {
             float f = r.getHitFraction();
+            if (!isFinite(f)) continue;
             if (f < bestFrac) {
                 bestFrac = f;
                 best = r;
             }
         }
+
         if (best == null) return null;
 
         int bodyId = 0;
         int surfaceId = 0;
-
         PhysicsBodyHandle h = findHandleByCollisionObject(best.getCollisionObject());
         if (h != null) {
             bodyId = h.id;
             surfaceId = h.surfaceId;
         }
 
-        Vector3f dir = to.subtract(from);
-        Vector3f hitPoint = from.add(dir.mult(bestFrac));
+        Temps t = TL.get();
+        t.dir.set(to).subtractLocal(from);
+        t.hit.set(t.dir).multLocal(bestFrac).addLocal(from);
+
         Vector3f n = best.getHitNormalLocal();
+        PhysicsRayHit.Vec3 nn = (n == null) ? new PhysicsRayHit.Vec3(0, 1, 0) : new PhysicsRayHit.Vec3(n.x, n.y, n.z);
 
         return new PhysicsRayHit(
                 bodyId,
                 surfaceId,
                 bestFrac,
-                new PhysicsRayHit.Vec3(hitPoint.x, hitPoint.y, hitPoint.z),
-                n == null ? new PhysicsRayHit.Vec3(0, 1, 0) : new PhysicsRayHit.Vec3(n.x, n.y, n.z)
+                new PhysicsRayHit.Vec3(t.hit.x, t.hit.y, t.hit.z),
+                nn
         );
     }
 
-    Object raycastEx(Object cfg) {
+    public Object raycastEx(Object cfg) {
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
@@ -142,23 +151,24 @@ final class PhysicsRaycasts {
             }
         }
 
-        if (best == null) {
-            return PhysicsState.hitObj(false, 0, 0, 0f, 0f, from, null);
-        }
+        if (best == null) return PhysicsState.hitObj(false, 0, 0, 0f, 0f, from, null);
 
         PhysicsBodyHandle bh = findHandleByCollisionObject(best.getCollisionObject());
         int bodyId = (bh != null) ? bh.id : 0;
         int surfaceId = (bh != null) ? bh.surfaceId : 0;
 
-        Vector3f dir = to.subtract(from);
-        float rayLen = dir.length();
-        Vector3f hitPoint = from.add(dir.mult(bestFrac));
+        Temps t = TL.get();
+        t.dir.set(to).subtractLocal(from);
+        float rayLen = t.dir.length();
+        if (rayLen <= 1e-6f) rayLen = 1e-6f;
+
+        t.hit.set(t.dir).multLocal(bestFrac).addLocal(from);
         float distance = rayLen * bestFrac;
 
-        return PhysicsState.hitObj(true, bodyId, surfaceId, bestFrac, distance, hitPoint, best.getHitNormalLocal());
+        return PhysicsState.hitObj(true, bodyId, surfaceId, bestFrac, distance, t.hit, best.getHitNormalLocal());
     }
 
-    Object raycastAll(Object cfg) {
+    public Object raycastAll(Object cfg) {
         PhysicsSpace space = S.requireSpace();
         contacts.ensureBound(space);
 
@@ -182,7 +192,11 @@ final class PhysicsRaycasts {
         List<PhysicsRayTestResult> hits = space.rayTest(from, to);
         if (hits == null || hits.isEmpty()) return new Object[0];
 
-        ArrayList<PhysicsRayTestResult> filtered = new ArrayList<>(hits.size());
+        // Select up to maxHits best by fraction without sorting whole list.
+        PhysicsRayTestResult[] best = new PhysicsRayTestResult[maxHits];
+        float[] fracs = new float[maxHits];
+        int n = 0;
+
         for (PhysicsRayTestResult r : hits) {
             float f = r.getHitFraction();
             if (!isFinite(f)) continue;
@@ -197,34 +211,62 @@ final class PhysicsRaycasts {
             if (!passesStaticDynamicFilter(rb, staticOnly, dynamicOnly)) continue;
             if (!passesMaskFilter(rb, mask)) continue;
 
-            filtered.add(r);
+            // insert into small sorted arrays (ascending)
+            int ins = n;
+            if (ins < maxHits) {
+                best[ins] = r;
+                fracs[ins] = f;
+                n++;
+            } else {
+                // array full; if worse than worst -> skip
+                if (f >= fracs[maxHits - 1]) continue;
+                best[maxHits - 1] = r;
+                fracs[maxHits - 1] = f;
+                ins = maxHits;
+            }
+
+            // insertion sort step
+            int i = Math.min(n, maxHits) - 1;
+            while (i > 0 && fracs[i] < fracs[i - 1]) {
+                float tf = fracs[i - 1];
+                fracs[i - 1] = fracs[i];
+                fracs[i] = tf;
+
+                PhysicsRayTestResult tr = best[i - 1];
+                best[i - 1] = best[i];
+                best[i] = tr;
+                i--;
+            }
         }
 
-        if (filtered.isEmpty()) return new Object[0];
+        if (n == 0) return new Object[0];
+        int outN = Math.min(n, maxHits);
 
-        filtered.sort((a, b) -> Float.compare(a.getHitFraction(), b.getHitFraction()));
-
-        Vector3f dir = to.subtract(from);
-        float rayLen = dir.length();
+        Temps t = TL.get();
+        t.dir.set(to).subtractLocal(from);
+        float rayLen = t.dir.length();
         if (rayLen <= 1e-6f) rayLen = 1e-6f;
 
-        int outN = Math.min(maxHits, filtered.size());
         Object[] out = new Object[outN];
-
         for (int i = 0; i < outN; i++) {
-            PhysicsRayTestResult r = filtered.get(i);
-            float frac = r.getHitFraction();
+            PhysicsRayTestResult r = best[i];
+            float frac = fracs[i];
 
             PhysicsBodyHandle h = findHandleByCollisionObject(r.getCollisionObject());
             int bodyId = (h != null) ? h.id : 0;
             int surfaceId = (h != null) ? h.surfaceId : 0;
 
-            Vector3f hitPoint = from.add(dir.mult(frac));
+            t.hit.set(t.dir).multLocal(frac).addLocal(from);
             float distance = rayLen * frac;
 
-            out[i] = PhysicsState.hitObj(true, bodyId, surfaceId, frac, distance, hitPoint, r.getHitNormalLocal());
+            out[i] = PhysicsState.hitObj(true, bodyId, surfaceId, frac, distance, t.hit, r.getHitNormalLocal());
         }
 
         return out;
+    }
+
+    private static final class Temps {
+        final Vector3f dir = new Vector3f();
+        final Vector3f hit = new Vector3f();
     }
 }
