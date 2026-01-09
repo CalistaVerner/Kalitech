@@ -1,290 +1,831 @@
-[01:22:46.747][INFO][KalitechApplication] KALITECH CORE 0.2.5-SNAPSHOT
-[01:22:46.749][INFO][KalitechApplication] Java: 17.0.15
-[01:22:46.749][INFO][KalitechApplication] OS: Windows 10 10.0
-[01:22:46.761][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@3edb51d0
-[01:22:46.768][INFO][GuiGlobals] Lemur build date:20220405
-[01:22:46.769][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[01:22:47.707][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[01:22:48.337][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[01:22:48.380][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
-[01:22:48.381][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
-[01:22:48.382][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
-[01:22:48.383][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
-[01:22:48.383][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
-[01:22:48.411][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
-[01:22:48.420][WARN][MaterialUtils] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> using SYNC texture load fallback.
-[01:22:48.421][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
-[01:22:48.422][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
-[01:22:48.423][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
-[01:22:48.424][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
-[01:22:48.429][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
-[01:22:48.430][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
-[01:22:48.435][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
-[01:22:48.436][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
-[01:22:48.436][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
-[01:22:48.438][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
-[01:22:48.438][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
-[01:22:48.438][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
-[01:22:48.439][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
-[01:22:48.440][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
-[01:22:48.441][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
-[01:22:48.442][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[01:22:48.512][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[01:22:48.717][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[01:22:48.717][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
-[01:22:48.718][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
-[01:22:48.719][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
-[01:22:48.720][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
-[01:22:49.495][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
-[01:22:49.497][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
-[01:22:49.601][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
-[01:22:49.690][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
-[01:22:49.695][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
-[01:22:49.699][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
-[01:22:49.718][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
-[01:22:49.722][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
-[01:22:49.729][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
-[01:22:49.734][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
-[01:22:49.818][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
-[01:22:49.833][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
-[01:22:49.971][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
-[01:22:49.993][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
-[01:22:50.003][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
-[01:22:50.039][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
-[01:22:50.056][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
-[01:22:50.069][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
-[01:22:50.069][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
-[01:22:50.083][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
-[01:22:50.084][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
-[01:22:50.093][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
-[01:22:50.094][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
-[01:22:50.113][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
-[01:22:50.113][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
-[01:22:50.131][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
-[01:22:50.133][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
-[01:22:50.138][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/ControllerStack.js
-[01:22:50.141][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/ControllerRegistry.js
-[01:22:50.147][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/EngineControllers.js
-[01:22:50.149][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/EntityController.js
-[01:22:50.152][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.3' from='@module/Controllers/Controllers'
-[01:22:50.158][ERROR][EngineApiImpl] [bootstrap] controllers.registrators failed: Unresolved require: 'resources/kalitech/engine/controllers/registrators/player.controllers.js' from '@builtin/modules/Controllers/Controllers'
-[01:22:50.158][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (662 ms)
-[01:22:50.161][DEBUG][ScriptRuntime] [script] builtins: aliases applied (6) [@core, @lib, @engine, @systems, @materials, @env]
-[01:22:50.165][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[01:22:50.166][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
-[01:22:50.167][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
-[01:22:50.167][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
-[01:22:50.168][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
-[01:22:50.168][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
-[01:22:50.168][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
-[01:22:50.169][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera
-[01:22:50.169][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera\modes
-[01:22:50.169][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\core
-[01:22:50.170][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\core\entity
-[01:22:50.170][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
-[01:22:50.170][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
-[01:22:50.171][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
-[01:22:50.171][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
-[01:22:50.172][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
-[01:22:50.172][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
-[01:22:50.172][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
-[01:22:50.172][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
-[01:22:50.173][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
-[01:22:50.173][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
-[01:22:50.173][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
-[01:22:50.174][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
-[01:22:50.174][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
-[01:22:50.174][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
-[01:22:50.175][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
-[01:22:50.175][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
-[01:22:50.175][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[01:22:50.178][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[01:22:50.181][INFO][PhysicsApiImpl] [physics] cleared all bodies
-[01:22:50.202][INFO][WorldAppState] [World] created 'main'
-[01:22:50.233][INFO][EngineApiImpl] [sky] init
-[01:22:50.238][INFO][EngineApiImpl] [sky] cfg.shadows exists=false mapSize=null
-[01:22:50.251][INFO][EngineApiImpl] [sky] torch id=4
-[01:22:50.282][DEBUG][SurfaceRegistry] Registered spatial id=1 kind=box name=box-0 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.284][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
-[01:22:50.294][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=71.34329 kinematic=false lockRotation=false
-[01:22:50.299][DEBUG][SurfaceRegistry] Registered spatial id=2 kind=box name=box-1 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.300][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=1249.1182 kinematic=false lockRotation=false
-[01:22:50.301][DEBUG][SurfaceRegistry] Registered spatial id=3 kind=box name=box-2 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.302][DEBUG][PhysicsApiImpl] [physics] body created id=3 surfaceId=3 mass=1581.8926 kinematic=false lockRotation=false
-[01:22:50.303][DEBUG][SurfaceRegistry] Registered spatial id=4 kind=box name=box-3 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.304][DEBUG][PhysicsApiImpl] [physics] body created id=4 surfaceId=4 mass=16.107088 kinematic=false lockRotation=false
-[01:22:50.305][DEBUG][SurfaceRegistry] Registered spatial id=5 kind=box name=box-4 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.306][DEBUG][PhysicsApiImpl] [physics] body created id=5 surfaceId=5 mass=8.69721 kinematic=false lockRotation=false
-[01:22:50.307][DEBUG][SurfaceRegistry] Registered spatial id=6 kind=box name=box-5 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.308][DEBUG][PhysicsApiImpl] [physics] body created id=6 surfaceId=6 mass=55.477608 kinematic=false lockRotation=false
-[01:22:50.309][DEBUG][SurfaceRegistry] Registered spatial id=7 kind=box name=box-6 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.309][DEBUG][PhysicsApiImpl] [physics] body created id=7 surfaceId=7 mass=2108.7568 kinematic=false lockRotation=false
-[01:22:50.311][DEBUG][SurfaceRegistry] Registered spatial id=8 kind=box name=box-7 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.311][DEBUG][PhysicsApiImpl] [physics] body created id=8 surfaceId=8 mass=335.8907 kinematic=false lockRotation=false
-[01:22:50.313][DEBUG][SurfaceRegistry] Registered spatial id=9 kind=box name=box-8 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.313][DEBUG][PhysicsApiImpl] [physics] body created id=9 surfaceId=9 mass=2054.865 kinematic=false lockRotation=false
-[01:22:50.314][DEBUG][SurfaceRegistry] Registered spatial id=10 kind=box name=box-9 worldPos=(120.0, 3.0, -300.0)
-[01:22:50.315][DEBUG][PhysicsApiImpl] [physics] body created id=10 surfaceId=10 mass=239.30115 kinematic=false lockRotation=false
-[01:22:50.322][INFO][RenderApiImpl] RenderApi: ambient created
-[01:22:50.323][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
-[01:22:50.323][INFO][RenderApiImpl] RenderApi: scene ensured
-[01:22:50.324][INFO][EngineApiImpl] [skybox] applying: Textures/Sky/skyBox.dds
-[01:22:50.365][INFO][RenderApiImpl] RenderApi: skybox set asset='Textures/Sky/skyBox.dds'
-[01:22:50.366][INFO][EngineApiImpl] [sky] apply shadows mapSize=2048
-[01:22:50.367][INFO][RenderApiImpl] RenderApi: sun created
-[01:22:50.375][INFO][RenderApiImpl] RenderApi: shadows enabled mapSize=2048 splits=3 lambda=0.65
-[01:22:50.390][INFO][EngineApiImpl] [scene] init
-[01:22:50.943][DEBUG][SurfaceRegistry] Registered spatial id=11 kind=terrain name=proc worldPos=(0.0, 0.0, 0.0)
-[01:22:50.983][DEBUG][PhysicsApiImpl] [physics] body created id=11 surfaceId=11 mass=0.0 kinematic=false lockRotation=false
-[01:22:51.075][DEBUG][SurfaceRegistry] Registered spatial id=12 kind=box name=box worldPos=(129.0, 3.0, -300.0)
-[01:22:51.093][DEBUG][PhysicsApiImpl] [physics] body created id=12 surfaceId=12 mass=80.0 kinematic=false lockRotation=false
-[01:22:51.119][INFO][WorldApiImpl] [world.create] name=main systems=3 start=true
-[01:22:51.120][INFO][RuntimeAppState] [Runtime] app started
-[01:23:00.465][DEBUG][SurfaceRegistry] Registered spatial id=13 kind=model name=shot-1 worldPos=(119.31441, -11.346442, -294.25345)
-[01:23:00.473][DEBUG][PhysicsApiImpl] [physics] body created id=13 surfaceId=13 mass=600.0 kinematic=false lockRotation=false
-[01:23:33.399][DEBUG][SurfaceRegistry] Registered spatial id=14 kind=model name=shot-2 worldPos=(153.46286, -8.754867, -291.77423)
-[01:23:33.404][DEBUG][PhysicsApiImpl] [physics] body created id=14 surfaceId=14 mass=600.0 kinematic=false lockRotation=false
-[01:23:34.449][DEBUG][SurfaceRegistry] Registered spatial id=15 kind=model name=shot-3 worldPos=(153.00871, -9.376544, -287.8395)
-[01:23:34.453][DEBUG][PhysicsApiImpl] [physics] body created id=15 surfaceId=15 mass=600.0 kinematic=false lockRotation=false
-[01:23:35.198][DEBUG][SurfaceRegistry] Registered spatial id=16 kind=model name=shot-4 worldPos=(151.19077, -9.841491, -285.51297)
-[01:23:35.203][DEBUG][PhysicsApiImpl] [physics] body created id=16 surfaceId=16 mass=600.0 kinematic=false lockRotation=false
-[01:23:36.182][DEBUG][SurfaceRegistry] Registered spatial id=17 kind=model name=shot-5 worldPos=(148.75182, -9.713628, -285.60553)
-[01:23:36.186][DEBUG][PhysicsApiImpl] [physics] body created id=17 surfaceId=17 mass=600.0 kinematic=false lockRotation=false
-[01:23:38.133][DEBUG][SurfaceRegistry] Registered spatial id=18 kind=model name=shot-6 worldPos=(143.4848, -9.937491, -287.1396)
-[01:23:38.137][DEBUG][PhysicsApiImpl] [physics] body created id=18 surfaceId=18 mass=600.0 kinematic=false lockRotation=false
-[01:23:39.000][DEBUG][SurfaceRegistry] Registered spatial id=19 kind=model name=shot-7 worldPos=(143.45459, -10.019049, -287.05746)
-[01:23:39.004][DEBUG][PhysicsApiImpl] [physics] body created id=19 surfaceId=19 mass=600.0 kinematic=false lockRotation=false
-[01:23:39.849][DEBUG][SurfaceRegistry] Registered spatial id=20 kind=model name=shot-8 worldPos=(143.46272, -10.05954, -287.01596)
-[01:23:39.854][DEBUG][PhysicsApiImpl] [physics] body created id=20 surfaceId=20 mass=600.0 kinematic=false lockRotation=false
-[01:23:41.299][DEBUG][SurfaceRegistry] Registered spatial id=21 kind=model name=shot-9 worldPos=(142.39578, -10.294219, -287.0238)
-[01:23:41.303][DEBUG][PhysicsApiImpl] [physics] body created id=21 surfaceId=21 mass=600.0 kinematic=false lockRotation=false
-[01:23:42.582][DEBUG][SurfaceRegistry] Registered spatial id=22 kind=model name=shot-10 worldPos=(141.34076, -10.283706, -287.01242)
-[01:23:42.587][DEBUG][PhysicsApiImpl] [physics] body created id=22 surfaceId=22 mass=600.0 kinematic=false lockRotation=false
-[01:23:43.616][DEBUG][SurfaceRegistry] Registered spatial id=23 kind=model name=shot-11 worldPos=(139.96973, -10.4844, -287.00357)
-[01:23:43.620][DEBUG][PhysicsApiImpl] [physics] body created id=23 surfaceId=23 mass=600.0 kinematic=false lockRotation=false
-[01:23:44.299][DEBUG][SurfaceRegistry] Registered spatial id=24 kind=model name=shot-12 worldPos=(139.96458, -10.504747, -286.9354)
-[01:23:44.304][DEBUG][PhysicsApiImpl] [physics] body created id=24 surfaceId=24 mass=600.0 kinematic=false lockRotation=false
-[01:23:45.016][DEBUG][SurfaceRegistry] Registered spatial id=25 kind=model name=shot-13 worldPos=(139.97134, -10.54965, -286.83328)
-[01:23:45.020][DEBUG][PhysicsApiImpl] [physics] body created id=25 surfaceId=25 mass=600.0 kinematic=false lockRotation=false
-[01:23:45.649][DEBUG][SurfaceRegistry] Registered spatial id=26 kind=model name=shot-14 worldPos=(140.00162, -10.665734, -286.67334)
-[01:23:45.654][DEBUG][PhysicsApiImpl] [physics] body created id=26 surfaceId=26 mass=600.0 kinematic=false lockRotation=false
-[01:23:46.199][DEBUG][SurfaceRegistry] Registered spatial id=27 kind=model name=shot-15 worldPos=(139.99838, -10.667886, -286.66525)
-[01:23:46.204][DEBUG][PhysicsApiImpl] [physics] body created id=27 surfaceId=27 mass=600.0 kinematic=false lockRotation=false
-[01:23:46.633][DEBUG][SurfaceRegistry] Registered spatial id=28 kind=model name=shot-16 worldPos=(139.99829, -10.66789, -286.66525)
-[01:23:46.637][DEBUG][PhysicsApiImpl] [physics] body created id=28 surfaceId=28 mass=600.0 kinematic=false lockRotation=false
-[01:23:47.016][DEBUG][SurfaceRegistry] Registered spatial id=29 kind=model name=shot-17 worldPos=(139.9982, -10.667899, -286.66525)
-[01:23:47.020][DEBUG][PhysicsApiImpl] [physics] body created id=29 surfaceId=29 mass=600.0 kinematic=false lockRotation=false
-[01:23:47.433][DEBUG][SurfaceRegistry] Registered spatial id=30 kind=model name=shot-18 worldPos=(139.87228, -10.614562, -286.6915)
-[01:23:47.437][DEBUG][PhysicsApiImpl] [physics] body created id=30 surfaceId=30 mass=600.0 kinematic=false lockRotation=false
-[01:23:47.755][DEBUG][SurfaceRegistry] Registered spatial id=31 kind=model name=shot-19 worldPos=(139.72275, -10.554083, -286.69995)
-[01:23:47.760][DEBUG][PhysicsApiImpl] [physics] body created id=31 surfaceId=31 mass=600.0 kinematic=false lockRotation=false
-[01:23:48.163][DEBUG][SurfaceRegistry] Registered spatial id=32 kind=model name=shot-20 worldPos=(138.5057, -10.189471, -286.3854)
-[01:23:48.167][DEBUG][PhysicsApiImpl] [physics] body created id=32 surfaceId=32 mass=600.0 kinematic=false lockRotation=false
-[01:23:48.629][DEBUG][SurfaceRegistry] Registered spatial id=33 kind=model name=shot-21 worldPos=(134.59853, -10.336744, -286.05502)
-[01:23:48.633][DEBUG][PhysicsApiImpl] [physics] body created id=33 surfaceId=33 mass=600.0 kinematic=false lockRotation=false
-[01:23:49.179][DEBUG][SurfaceRegistry] Registered spatial id=34 kind=model name=shot-22 worldPos=(129.918, -10.545351, -286.12238)
-[01:23:49.183][DEBUG][PhysicsApiImpl] [physics] body created id=34 surfaceId=34 mass=600.0 kinematic=false lockRotation=false
-[01:23:49.663][DEBUG][SurfaceRegistry] Registered spatial id=35 kind=model name=shot-23 worldPos=(126.1191, -10.327818, -286.23172)
-[01:23:49.667][DEBUG][PhysicsApiImpl] [physics] body created id=35 surfaceId=35 mass=600.0 kinematic=false lockRotation=false
-[01:23:57.463][DEBUG][SurfaceRegistry] Registered spatial id=36 kind=model name=shot-24 worldPos=(138.25334, -11.049929, -281.96356)
-[01:23:57.467][DEBUG][PhysicsApiImpl] [physics] body created id=36 surfaceId=36 mass=600.0 kinematic=false lockRotation=false
-[01:23:58.797][DEBUG][SurfaceRegistry] Registered spatial id=37 kind=model name=shot-25 worldPos=(140.50836, -10.900056, -281.41977)
-[01:23:58.801][DEBUG][PhysicsApiImpl] [physics] body created id=37 surfaceId=37 mass=600.0 kinematic=false lockRotation=false
-[01:24:13.831][DEBUG][SurfaceRegistry] Registered spatial id=38 kind=model name=shot-26 worldPos=(172.17508, -8.681204, -275.7873)
-[01:24:13.836][DEBUG][PhysicsApiImpl] [physics] body created id=38 surfaceId=38 mass=600.0 kinematic=false lockRotation=false
-[01:24:14.665][DEBUG][SurfaceRegistry] Registered spatial id=39 kind=model name=shot-27 worldPos=(174.12158, -8.363187, -275.26205)
-[01:24:14.669][DEBUG][PhysicsApiImpl] [physics] body created id=39 surfaceId=39 mass=600.0 kinematic=false lockRotation=false
-[01:24:15.298][DEBUG][SurfaceRegistry] Registered spatial id=40 kind=model name=shot-28 worldPos=(175.8946, -8.088674, -274.84967)
-[01:24:15.303][DEBUG][PhysicsApiImpl] [physics] body created id=40 surfaceId=40 mass=600.0 kinematic=false lockRotation=false
-[01:24:15.682][DEBUG][SurfaceRegistry] Registered spatial id=41 kind=model name=shot-29 worldPos=(176.8253, -7.8671117, -274.51758)
-[01:24:15.686][DEBUG][PhysicsApiImpl] [physics] body created id=41 surfaceId=41 mass=600.0 kinematic=false lockRotation=false
-[01:24:16.366][DEBUG][SurfaceRegistry] Registered spatial id=42 kind=model name=shot-30 worldPos=(178.75179, -7.743173, -273.60223)
-[01:24:16.370][DEBUG][PhysicsApiImpl] [physics] body created id=42 surfaceId=42 mass=600.0 kinematic=false lockRotation=false
-[01:24:16.898][DEBUG][SurfaceRegistry] Registered spatial id=43 kind=model name=shot-31 worldPos=(179.6545, -7.4902406, -273.19208)
-[01:24:16.903][DEBUG][PhysicsApiImpl] [physics] body created id=43 surfaceId=43 mass=600.0 kinematic=false lockRotation=false
-[01:24:17.549][DEBUG][SurfaceRegistry] Registered spatial id=44 kind=model name=shot-32 worldPos=(180.8084, -7.2313867, -272.63293)
-[01:24:17.552][DEBUG][PhysicsApiImpl] [physics] body created id=44 surfaceId=44 mass=600.0 kinematic=false lockRotation=false
-[01:24:17.866][DEBUG][SurfaceRegistry] Registered spatial id=45 kind=model name=shot-33 worldPos=(181.6183, -7.2340226, -272.7386)
-[01:24:17.870][DEBUG][PhysicsApiImpl] [physics] body created id=45 surfaceId=45 mass=600.0 kinematic=false lockRotation=false
-[01:24:18.149][DEBUG][SurfaceRegistry] Registered spatial id=46 kind=model name=shot-34 worldPos=(182.17764, -7.245436, -273.13696)
-[01:24:18.153][DEBUG][PhysicsApiImpl] [physics] body created id=46 surfaceId=46 mass=600.0 kinematic=false lockRotation=false
-[01:24:18.415][DEBUG][SurfaceRegistry] Registered spatial id=47 kind=model name=shot-35 worldPos=(182.45076, -7.203197, -273.37375)
-[01:24:18.419][DEBUG][PhysicsApiImpl] [physics] body created id=47 surfaceId=47 mass=600.0 kinematic=false lockRotation=false
-[01:24:18.665][DEBUG][SurfaceRegistry] Registered spatial id=48 kind=model name=shot-36 worldPos=(182.63531, -7.0662265, -273.4717)
-[01:24:18.669][DEBUG][PhysicsApiImpl] [physics] body created id=48 surfaceId=48 mass=600.0 kinematic=false lockRotation=false
-[01:24:18.915][DEBUG][SurfaceRegistry] Registered spatial id=49 kind=model name=shot-37 worldPos=(182.1957, -7.114184, -273.23676)
-[01:24:18.919][DEBUG][PhysicsApiImpl] [physics] body created id=49 surfaceId=49 mass=600.0 kinematic=false lockRotation=false
-[01:24:19.166][DEBUG][SurfaceRegistry] Registered spatial id=50 kind=model name=shot-38 worldPos=(182.38417, -7.1358914, -272.82773)
-[01:24:19.169][DEBUG][PhysicsApiImpl] [physics] body created id=50 surfaceId=50 mass=600.0 kinematic=false lockRotation=false
-[01:24:19.449][DEBUG][SurfaceRegistry] Registered spatial id=51 kind=model name=shot-39 worldPos=(182.69603, -7.0858665, -272.4091)
-[01:24:19.453][DEBUG][PhysicsApiImpl] [physics] body created id=51 surfaceId=51 mass=600.0 kinematic=false lockRotation=false
-[01:24:19.682][DEBUG][SurfaceRegistry] Registered spatial id=52 kind=model name=shot-40 worldPos=(182.97887, -6.929525, -272.07922)
-[01:24:19.686][DEBUG][PhysicsApiImpl] [physics] body created id=52 surfaceId=52 mass=600.0 kinematic=false lockRotation=false
-[01:24:19.933][DEBUG][SurfaceRegistry] Registered spatial id=53 kind=model name=shot-41 worldPos=(183.32626, -6.8587165, -271.68588)
-[01:24:19.937][DEBUG][PhysicsApiImpl] [physics] body created id=53 surfaceId=53 mass=600.0 kinematic=false lockRotation=false
-[01:24:20.166][DEBUG][SurfaceRegistry] Registered spatial id=54 kind=model name=shot-42 worldPos=(183.84851, -6.921209, -271.46246)
-[01:24:20.170][DEBUG][PhysicsApiImpl] [physics] body created id=54 surfaceId=54 mass=600.0 kinematic=false lockRotation=false
-[01:24:20.399][DEBUG][SurfaceRegistry] Registered spatial id=55 kind=model name=shot-43 worldPos=(184.40372, -6.8611064, -271.53516)
-[01:24:20.403][DEBUG][PhysicsApiImpl] [physics] body created id=55 surfaceId=55 mass=600.0 kinematic=false lockRotation=false
-[01:24:20.649][DEBUG][SurfaceRegistry] Registered spatial id=56 kind=model name=shot-44 worldPos=(185.09644, -6.881229, -272.02097)
-[01:24:20.653][DEBUG][PhysicsApiImpl] [physics] body created id=56 surfaceId=56 mass=600.0 kinematic=false lockRotation=false
-[01:24:20.883][DEBUG][SurfaceRegistry] Registered spatial id=57 kind=model name=shot-45 worldPos=(185.43532, -6.7111163, -272.5197)
-[01:24:20.887][DEBUG][PhysicsApiImpl] [physics] body created id=57 surfaceId=57 mass=600.0 kinematic=false lockRotation=false
-[01:24:21.099][DEBUG][SurfaceRegistry] Registered spatial id=58 kind=model name=shot-46 worldPos=(186.02148, -6.7955594, -273.0934)
-[01:24:21.103][DEBUG][PhysicsApiImpl] [physics] body created id=58 surfaceId=58 mass=600.0 kinematic=false lockRotation=false
-[01:24:21.333][DEBUG][SurfaceRegistry] Registered spatial id=59 kind=model name=shot-47 worldPos=(186.5526, -6.7292695, -273.4159)
-[01:24:21.337][DEBUG][PhysicsApiImpl] [physics] body created id=59 surfaceId=59 mass=600.0 kinematic=false lockRotation=false
-[01:24:21.549][DEBUG][SurfaceRegistry] Registered spatial id=60 kind=model name=shot-48 worldPos=(187.0427, -6.620463, -273.4293)
-[01:24:21.553][DEBUG][PhysicsApiImpl] [physics] body created id=60 surfaceId=60 mass=600.0 kinematic=false lockRotation=false
-[01:24:21.783][DEBUG][SurfaceRegistry] Registered spatial id=61 kind=model name=shot-49 worldPos=(187.49654, -6.581658, -273.3401)
-[01:24:21.787][DEBUG][PhysicsApiImpl] [physics] body created id=61 surfaceId=61 mass=600.0 kinematic=false lockRotation=false
-[01:24:22.016][DEBUG][SurfaceRegistry] Registered spatial id=62 kind=model name=shot-50 worldPos=(188.15121, -6.6970725, -272.97708)
-[01:24:22.020][DEBUG][PhysicsApiImpl] [physics] body created id=62 surfaceId=62 mass=600.0 kinematic=false lockRotation=false
-[01:24:22.250][DEBUG][SurfaceRegistry] Registered spatial id=63 kind=model name=shot-51 worldPos=(188.75145, -6.4878974, -272.5175)
-[01:24:22.253][DEBUG][PhysicsApiImpl] [physics] body created id=63 surfaceId=63 mass=600.0 kinematic=false lockRotation=false
-[01:24:22.499][DEBUG][SurfaceRegistry] Registered spatial id=64 kind=model name=shot-52 worldPos=(189.62701, -6.587378, -272.0294)
-[01:24:22.503][DEBUG][PhysicsApiImpl] [physics] body created id=64 surfaceId=64 mass=600.0 kinematic=false lockRotation=false
-[01:24:22.733][DEBUG][SurfaceRegistry] Registered spatial id=65 kind=model name=shot-53 worldPos=(189.99927, -6.372583, -271.71365)
-[01:24:22.737][DEBUG][PhysicsApiImpl] [physics] body created id=65 surfaceId=65 mass=600.0 kinematic=false lockRotation=false
-[01:24:22.966][DEBUG][SurfaceRegistry] Registered spatial id=66 kind=model name=shot-54 worldPos=(190.51924, -6.266592, -271.68735)
-[01:24:22.970][DEBUG][PhysicsApiImpl] [physics] body created id=66 surfaceId=66 mass=600.0 kinematic=false lockRotation=false
-[01:24:23.199][DEBUG][SurfaceRegistry] Registered spatial id=67 kind=model name=shot-55 worldPos=(190.90244, -6.2967014, -271.71524)
-[01:24:23.203][DEBUG][PhysicsApiImpl] [physics] body created id=67 surfaceId=67 mass=600.0 kinematic=false lockRotation=false
-[01:24:23.433][DEBUG][SurfaceRegistry] Registered spatial id=68 kind=model name=shot-56 worldPos=(189.62415, -6.2173457, -271.67096)
-[01:24:23.437][DEBUG][PhysicsApiImpl] [physics] body created id=68 surfaceId=68 mass=600.0 kinematic=false lockRotation=false
-[01:24:23.665][DEBUG][SurfaceRegistry] Registered spatial id=69 kind=model name=shot-57 worldPos=(187.185, -6.075644, -271.75638)
-[01:24:23.670][DEBUG][PhysicsApiImpl] [physics] body created id=69 surfaceId=69 mass=600.0 kinematic=false lockRotation=false
-[01:24:23.932][DEBUG][SurfaceRegistry] Registered spatial id=70 kind=model name=shot-58 worldPos=(184.3031, -5.909647, -271.6124)
-[01:24:23.936][DEBUG][PhysicsApiImpl] [physics] body created id=70 surfaceId=70 mass=600.0 kinematic=false lockRotation=false
-[01:24:24.166][DEBUG][SurfaceRegistry] Registered spatial id=71 kind=model name=shot-59 worldPos=(181.71335, -5.3855767, -271.44653)
-[01:24:24.170][DEBUG][PhysicsApiImpl] [physics] body created id=71 surfaceId=71 mass=600.0 kinematic=false lockRotation=false
-[01:24:24.449][DEBUG][SurfaceRegistry] Registered spatial id=72 kind=model name=shot-60 worldPos=(179.14667, -5.369301, -271.34625)
-[01:24:24.453][DEBUG][PhysicsApiImpl] [physics] body created id=72 surfaceId=72 mass=600.0 kinematic=false lockRotation=false
-[01:24:32.901][DEBUG][SurfaceRegistry] Registered spatial id=73 kind=model name=shot-61 worldPos=(172.04338, -8.652552, -270.99936)
-[01:24:32.904][DEBUG][PhysicsApiImpl] [physics] body created id=73 surfaceId=73 mass=600.0 kinematic=false lockRotation=false
-[01:24:33.721][DEBUG][SurfaceRegistry] Registered spatial id=74 kind=model name=shot-62 worldPos=(172.04338, -8.652553, -270.99936)
-[01:24:33.725][DEBUG][PhysicsApiImpl] [physics] body created id=74 surfaceId=74 mass=600.0 kinematic=false lockRotation=false
-[01:24:34.471][DEBUG][SurfaceRegistry] Registered spatial id=75 kind=model name=shot-63 worldPos=(172.04338, -8.652554, -270.99936)
-[01:24:34.475][DEBUG][PhysicsApiImpl] [physics] body created id=75 surfaceId=75 mass=600.0 kinematic=false lockRotation=false
-[01:24:34.821][DEBUG][SurfaceRegistry] Registered spatial id=76 kind=model name=shot-64 worldPos=(172.04338, -8.652554, -270.99936)
-[01:24:34.825][DEBUG][PhysicsApiImpl] [physics] body created id=76 surfaceId=76 mass=600.0 kinematic=false lockRotation=false
-[01:24:35.204][DEBUG][SurfaceRegistry] Registered spatial id=77 kind=model name=shot-65 worldPos=(172.04338, -8.6525545, -270.99936)
-[01:24:35.208][DEBUG][PhysicsApiImpl] [physics] body created id=77 surfaceId=77 mass=600.0 kinematic=false lockRotation=false
-[01:24:35.470][DEBUG][SurfaceRegistry] Registered spatial id=78 kind=model name=shot-66 worldPos=(172.04338, -8.6525545, -270.99936)
-[01:24:35.474][DEBUG][PhysicsApiImpl] [physics] body created id=78 surfaceId=78 mass=600.0 kinematic=false lockRotation=false
-[01:24:35.704][DEBUG][SurfaceRegistry] Registered spatial id=79 kind=model name=shot-67 worldPos=(172.04338, -8.652555, -270.99936)
-[01:24:35.708][DEBUG][PhysicsApiImpl] [physics] body created id=79 surfaceId=79 mass=600.0 kinematic=false lockRotation=false
-[01:24:35.887][DEBUG][SurfaceRegistry] Registered spatial id=80 kind=model name=shot-68 worldPos=(172.04338, -8.652555, -270.99936)
-[01:24:35.891][DEBUG][PhysicsApiImpl] [physics] body created id=80 surfaceId=80 mass=600.0 kinematic=false lockRotation=false
-[01:24:36.103][DEBUG][SurfaceRegistry] Registered spatial id=81 kind=model name=shot-69 worldPos=(172.04338, -8.652555, -270.99936)
-[01:24:36.108][DEBUG][PhysicsApiImpl] [physics] body created id=81 surfaceId=81 mass=600.0 kinematic=false lockRotation=false
-[01:24:36.303][DEBUG][SurfaceRegistry] Registered spatial id=82 kind=model name=shot-70 worldPos=(172.03325, -8.653639, -270.9777)
-[01:24:36.307][DEBUG][PhysicsApiImpl] [physics] body created id=82 surfaceId=82 mass=600.0 kinematic=false lockRotation=false
-[01:24:36.521][DEBUG][SurfaceRegistry] Registered spatial id=83 kind=model name=shot-71 worldPos=(170.53064, -8.097177, -271.1385)
-[01:24:36.524][DEBUG][PhysicsApiImpl] [physics] body created id=83 surfaceId=83 mass=600.0 kinematic=false lockRotation=false
-[01:24:36.720][DEBUG][SurfaceRegistry] Registered spatial id=84 kind=model name=shot-72 worldPos=(168.64102, -7.9875054, -271.08475)
-[01:24:36.724][DEBUG][PhysicsApiImpl] [physics] body created id=84 surfaceId=84 mass=600.0 kinematic=false lockRotation=false
-[01:24:36.921][DEBUG][SurfaceRegistry] Registered spatial id=85 kind=model name=shot-73 worldPos=(166.53229, -8.572114, -270.45013)
-[01:24:36.925][DEBUG][PhysicsApiImpl] [physics] body created id=85 surfaceId=85 mass=600.0 kinematic=false lockRotation=false
-[01:24:38.955][INFO][ScriptRuntime] Closing ScriptRuntime
-[01:24:38.963][INFO][RuntimeAppState] [Runtime] stopped
+[18:34:08.652][INFO][KalitechApplication] KALITECH CORE 0.2.7-SNAPSHOT
+[18:34:08.654][INFO][KalitechApplication] Java: 17.0.15
+[18:34:08.654][INFO][KalitechApplication] OS: Windows 10 10.0
+[18:34:08.666][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@49cda64a
+[18:34:08.674][INFO][GuiGlobals] Lemur build date:20220405
+[18:34:08.674][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[18:34:09.614][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[18:34:10.231][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[18:34:10.276][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
+[18:34:10.278][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
+[18:34:10.279][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
+[18:34:10.279][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
+[18:34:10.280][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
+[18:34:10.308][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
+[18:34:10.317][WARN][MaterialUtils] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> using SYNC texture load fallback.
+[18:34:10.317][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
+[18:34:10.319][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
+[18:34:10.319][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
+[18:34:10.320][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
+[18:34:10.325][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
+[18:34:10.327][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
+[18:34:10.332][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
+[18:34:10.332][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
+[18:34:10.333][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
+[18:34:10.334][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
+[18:34:10.335][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
+[18:34:10.335][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
+[18:34:10.335][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
+[18:34:10.337][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
+[18:34:10.338][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
+[18:34:10.339][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[18:34:10.410][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[18:34:10.607][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[18:34:10.608][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
+[18:34:10.609][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
+[18:34:10.610][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
+[18:34:10.612][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
+[18:34:11.381][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
+[18:34:11.383][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
+[18:34:11.484][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
+[18:34:11.570][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
+[18:34:11.573][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
+[18:34:11.576][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
+[18:34:11.596][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
+[18:34:11.600][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
+[18:34:11.607][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
+[18:34:11.612][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
+[18:34:11.615][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
+[18:34:11.703][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
+[18:34:11.718][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
+[18:34:11.864][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
+[18:34:11.867][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
+[18:34:11.882][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
+[18:34:11.885][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
+[18:34:11.889][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
+[18:34:11.900][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
+[18:34:11.911][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
+[18:34:11.913][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
+[18:34:11.917][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
+[18:34:11.926][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
+[18:34:11.928][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
+[18:34:11.931][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
+[18:34:11.943][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
+[18:34:11.946][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
+[18:34:11.951][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
+[18:34:11.962][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
+[18:34:11.964][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
+[18:34:11.971][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
+[18:34:11.973][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
+[18:34:11.975][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
+[18:34:11.983][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
+[18:34:11.995][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
+[18:34:11.995][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
+[18:34:12.008][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
+[18:34:12.008][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
+[18:34:12.018][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
+[18:34:12.019][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
+[18:34:12.022][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
+[18:34:12.024][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
+[18:34:12.031][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
+[18:34:12.034][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
+[18:34:12.042][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
+[18:34:12.042][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
+[18:34:12.044][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
+[18:34:12.047][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
+[18:34:12.052][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
+[18:34:12.055][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
+[18:34:12.060][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
+[18:34:12.065][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
+[18:34:12.065][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
+[18:34:12.070][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
+[18:34:12.073][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
+[18:34:12.077][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
+[18:34:12.080][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
+[18:34:12.083][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.3' from='@module/Controllers/Controllers'
+[18:34:12.084][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (702 ms)
+[18:34:12.087][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
+[18:34:12.092][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[18:34:12.093][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
+[18:34:12.093][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
+[18:34:12.094][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
+[18:34:12.094][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
+[18:34:12.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
+[18:34:12.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
+[18:34:12.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera
+[18:34:12.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera\modes
+[18:34:12.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
+[18:34:12.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
+[18:34:12.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
+[18:34:12.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
+[18:34:12.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
+[18:34:12.098][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
+[18:34:12.098][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
+[18:34:12.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
+[18:34:12.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
+[18:34:12.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
+[18:34:12.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
+[18:34:12.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
+[18:34:12.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
+[18:34:12.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
+[18:34:12.101][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
+[18:34:12.101][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
+[18:34:12.102][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
+[18:34:12.102][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
+[18:34:12.102][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[18:34:12.106][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[18:34:12.110][INFO][PhysicsApiImpl] [physics] cleared all bodies
+[18:34:12.131][INFO][WorldAppState] [World] created 'main'
+[18:34:12.162][INFO][EngineApiImpl] [sky] init
+[18:34:12.167][INFO][EngineApiImpl] [sky] cfg.shadows exists=false mapSize=null
+[18:34:12.176][INFO][EngineApiImpl] [sky] torch id=4
+[18:34:12.210][DEBUG][SurfaceRegistry] Registered spatial id=1 kind=box name=box-0 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.212][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
+[18:34:12.223][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=528.8721 kinematic=false lockRotation=false
+[18:34:12.227][DEBUG][SurfaceRegistry] Registered spatial id=2 kind=box name=box-1 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.228][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=1779.4601 kinematic=false lockRotation=false
+[18:34:12.230][DEBUG][SurfaceRegistry] Registered spatial id=3 kind=box name=box-2 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.230][DEBUG][PhysicsApiImpl] [physics] body created id=3 surfaceId=3 mass=2213.8054 kinematic=false lockRotation=false
+[18:34:12.232][DEBUG][SurfaceRegistry] Registered spatial id=4 kind=box name=box-3 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.233][DEBUG][PhysicsApiImpl] [physics] body created id=4 surfaceId=4 mass=20.336538 kinematic=false lockRotation=false
+[18:34:12.234][DEBUG][SurfaceRegistry] Registered spatial id=5 kind=box name=box-4 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.235][DEBUG][PhysicsApiImpl] [physics] body created id=5 surfaceId=5 mass=65.84946 kinematic=false lockRotation=false
+[18:34:12.236][DEBUG][SurfaceRegistry] Registered spatial id=6 kind=box name=box-5 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.237][DEBUG][PhysicsApiImpl] [physics] body created id=6 surfaceId=6 mass=266.0086 kinematic=false lockRotation=false
+[18:34:12.238][DEBUG][SurfaceRegistry] Registered spatial id=7 kind=box name=box-6 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.239][DEBUG][PhysicsApiImpl] [physics] body created id=7 surfaceId=7 mass=37.378613 kinematic=false lockRotation=false
+[18:34:12.240][DEBUG][SurfaceRegistry] Registered spatial id=8 kind=box name=box-7 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.240][DEBUG][PhysicsApiImpl] [physics] body created id=8 surfaceId=8 mass=1950.7372 kinematic=false lockRotation=false
+[18:34:12.242][DEBUG][SurfaceRegistry] Registered spatial id=9 kind=box name=box-8 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.242][DEBUG][PhysicsApiImpl] [physics] body created id=9 surfaceId=9 mass=86.33763 kinematic=false lockRotation=false
+[18:34:12.243][DEBUG][SurfaceRegistry] Registered spatial id=10 kind=box name=box-9 worldPos=(120.0, 3.0, -300.0)
+[18:34:12.244][DEBUG][PhysicsApiImpl] [physics] body created id=10 surfaceId=10 mass=1266.0712 kinematic=false lockRotation=false
+[18:34:12.250][INFO][RenderApiImpl] RenderApi: ambient created
+[18:34:12.252][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
+[18:34:12.252][INFO][RenderApiImpl] RenderApi: scene ensured
+[18:34:12.252][INFO][EngineApiImpl] [skybox] applying: Textures/Sky/skyBox.dds
+[18:34:12.294][INFO][RenderApiImpl] RenderApi: skybox set asset='Textures/Sky/skyBox.dds'
+[18:34:12.295][INFO][EngineApiImpl] [sky] apply shadows mapSize=2048
+[18:34:12.296][INFO][RenderApiImpl] RenderApi: sun created
+[18:34:12.303][INFO][RenderApiImpl] RenderApi: shadows enabled mapSize=2048 splits=3 lambda=0.65
+[18:34:12.317][INFO][EngineApiImpl] [scene] init
+[18:34:12.811][DEBUG][SurfaceRegistry] Registered spatial id=11 kind=terrain name=proc worldPos=(0.0, 0.0, 0.0)
+[18:34:12.867][DEBUG][PhysicsApiImpl] [physics] body created id=11 surfaceId=11 mass=0.0 kinematic=false lockRotation=false
+[18:34:12.953][DEBUG][SurfaceRegistry] Registered spatial id=12 kind=box name=box worldPos=(129.0, 3.0, -300.0)
+[18:34:12.970][DEBUG][PhysicsApiImpl] [physics] body created id=12 surfaceId=12 mass=80.0 kinematic=false lockRotation=false
+[18:34:12.996][INFO][WorldApiImpl] [world.create] name=main systems=3 start=true
+[18:34:12.997][INFO][RuntimeAppState] [Runtime] app started
+[18:34:17.583][DEBUG][SurfaceRegistry] Registered spatial id=13 kind=model name=shot-1 worldPos=(132.51694, -10.87731, -293.3103)
+[18:34:17.589][DEBUG][PhysicsApiImpl] [physics] body created id=13 surfaceId=13 mass=120.0 kinematic=false lockRotation=false
+[18:34:18.398][DEBUG][SurfaceRegistry] Registered spatial id=14 kind=model name=shot-2 worldPos=(130.61366, -10.926503, -293.66132)
+[18:34:18.403][DEBUG][PhysicsApiImpl] [physics] body created id=14 surfaceId=14 mass=120.0 kinematic=false lockRotation=false
+[18:34:19.103][DEBUG][SurfaceRegistry] Registered spatial id=15 kind=model name=shot-3 worldPos=(128.99014, -10.87912, -293.77405)
+[18:34:19.107][DEBUG][PhysicsApiImpl] [physics] body created id=15 surfaceId=15 mass=120.0 kinematic=false lockRotation=false
+[18:34:19.878][DEBUG][SurfaceRegistry] Registered spatial id=16 kind=model name=shot-4 worldPos=(126.21959, -10.701194, -293.9493)
+[18:34:19.882][DEBUG][PhysicsApiImpl] [physics] body created id=16 surfaceId=16 mass=120.0 kinematic=false lockRotation=false
+[18:34:20.412][DEBUG][SurfaceRegistry] Registered spatial id=17 kind=model name=shot-5 worldPos=(124.74258, -10.95317, -295.32324)
+[18:34:20.415][DEBUG][PhysicsApiImpl] [physics] body created id=17 surfaceId=17 mass=120.0 kinematic=false lockRotation=false
+[18:34:20.794][DEBUG][SurfaceRegistry] Registered spatial id=18 kind=model name=shot-6 worldPos=(123.534775, -10.862368, -296.2906)
+[18:34:20.798][DEBUG][PhysicsApiImpl] [physics] body created id=18 surfaceId=18 mass=120.0 kinematic=false lockRotation=false
+[18:34:21.127][DEBUG][SurfaceRegistry] Registered spatial id=19 kind=model name=shot-7 worldPos=(122.49622, -11.00298, -297.05585)
+[18:34:21.132][DEBUG][PhysicsApiImpl] [physics] body created id=19 surfaceId=19 mass=120.0 kinematic=false lockRotation=false
+[18:34:21.694][DEBUG][SurfaceRegistry] Registered spatial id=20 kind=model name=shot-8 worldPos=(120.545525, -11.132731, -297.09573)
+[18:34:21.698][DEBUG][PhysicsApiImpl] [physics] body created id=20 surfaceId=20 mass=120.0 kinematic=false lockRotation=false
+[18:34:22.161][DEBUG][SurfaceRegistry] Registered spatial id=21 kind=model name=shot-9 worldPos=(118.76874, -11.190417, -296.80173)
+[18:34:22.165][DEBUG][PhysicsApiImpl] [physics] body created id=21 surfaceId=21 mass=120.0 kinematic=false lockRotation=false
+[18:34:22.594][DEBUG][SurfaceRegistry] Registered spatial id=22 kind=model name=shot-10 worldPos=(117.0552, -11.491527, -296.47598)
+[18:34:22.598][DEBUG][PhysicsApiImpl] [physics] body created id=22 surfaceId=22 mass=120.0 kinematic=false lockRotation=false
+[18:34:22.927][DEBUG][SurfaceRegistry] Registered spatial id=23 kind=model name=shot-11 worldPos=(115.65283, -11.624901, -296.2541)
+[18:34:22.931][DEBUG][PhysicsApiImpl] [physics] body created id=23 surfaceId=23 mass=120.0 kinematic=false lockRotation=false
+[18:34:23.294][DEBUG][SurfaceRegistry] Registered spatial id=24 kind=model name=shot-12 worldPos=(114.46178, -11.696557, -295.9896)
+[18:34:23.298][DEBUG][PhysicsApiImpl] [physics] body created id=24 surfaceId=24 mass=120.0 kinematic=false lockRotation=false
+[18:34:23.679][DEBUG][SurfaceRegistry] Registered spatial id=25 kind=model name=shot-13 worldPos=(112.9768, -11.963288, -295.7579)
+[18:34:23.686][DEBUG][PhysicsApiImpl] [physics] body created id=25 surfaceId=25 mass=120.0 kinematic=false lockRotation=false
+[18:34:24.094][DEBUG][SurfaceRegistry] Registered spatial id=26 kind=model name=shot-14 worldPos=(111.537025, -11.893972, -295.5093)
+[18:34:24.098][DEBUG][PhysicsApiImpl] [physics] body created id=26 surfaceId=26 mass=120.0 kinematic=false lockRotation=false
+[18:34:24.460][DEBUG][SurfaceRegistry] Registered spatial id=27 kind=model name=shot-15 worldPos=(110.28158, -11.877222, -295.37973)
+[18:34:24.465][DEBUG][PhysicsApiImpl] [physics] body created id=27 surfaceId=27 mass=120.0 kinematic=false lockRotation=false
+[18:34:24.861][DEBUG][SurfaceRegistry] Registered spatial id=28 kind=model name=shot-16 worldPos=(108.78736, -11.995584, -295.2919)
+[18:34:24.865][DEBUG][PhysicsApiImpl] [physics] body created id=28 surfaceId=28 mass=120.0 kinematic=false lockRotation=false
+[18:34:25.244][DEBUG][SurfaceRegistry] Registered spatial id=29 kind=model name=shot-17 worldPos=(107.64983, -11.839742, -295.1751)
+[18:34:25.248][DEBUG][PhysicsApiImpl] [physics] body created id=29 surfaceId=29 mass=120.0 kinematic=false lockRotation=false
+[18:34:25.677][DEBUG][SurfaceRegistry] Registered spatial id=30 kind=model name=shot-18 worldPos=(106.36158, -11.784832, -295.00455)
+[18:34:25.682][DEBUG][PhysicsApiImpl] [physics] body created id=30 surfaceId=30 mass=120.0 kinematic=false lockRotation=false
+[18:34:26.077][DEBUG][SurfaceRegistry] Registered spatial id=31 kind=model name=shot-19 worldPos=(104.996475, -11.871171, -294.86154)
+[18:34:26.082][DEBUG][PhysicsApiImpl] [physics] body created id=31 surfaceId=31 mass=120.0 kinematic=false lockRotation=false
+[18:34:26.461][DEBUG][SurfaceRegistry] Registered spatial id=32 kind=model name=shot-20 worldPos=(103.68148, -11.851769, -294.7914)
+[18:34:26.465][DEBUG][PhysicsApiImpl] [physics] body created id=32 surfaceId=32 mass=120.0 kinematic=false lockRotation=false
+[18:34:27.161][DEBUG][SurfaceRegistry] Registered spatial id=33 kind=model name=shot-21 worldPos=(101.44101, -11.965397, -295.30954)
+[18:34:27.164][DEBUG][PhysicsApiImpl] [physics] body created id=33 surfaceId=33 mass=120.0 kinematic=false lockRotation=false
+[18:34:32.078][DEBUG][SurfaceRegistry] Registered spatial id=34 kind=model name=shot-22 worldPos=(89.96831, -12.009075, -305.653)
+[18:34:32.082][DEBUG][PhysicsApiImpl] [physics] body created id=34 surfaceId=34 mass=120.0 kinematic=false lockRotation=false
+[18:34:33.128][DEBUG][SurfaceRegistry] Registered spatial id=35 kind=model name=shot-23 worldPos=(92.84802, -11.713091, -307.95258)
+[18:34:33.132][DEBUG][PhysicsApiImpl] [physics] body created id=35 surfaceId=35 mass=120.0 kinematic=false lockRotation=false
+[18:34:33.878][DEBUG][SurfaceRegistry] Registered spatial id=36 kind=model name=shot-24 worldPos=(96.06037, -11.718856, -308.42914)
+[18:34:33.882][DEBUG][PhysicsApiImpl] [physics] body created id=36 surfaceId=36 mass=120.0 kinematic=false lockRotation=false
+[18:34:34.395][DEBUG][SurfaceRegistry] Registered spatial id=37 kind=model name=shot-25 worldPos=(98.66542, -11.721325, -308.53223)
+[18:34:34.398][DEBUG][PhysicsApiImpl] [physics] body created id=37 surfaceId=37 mass=120.0 kinematic=false lockRotation=false
+[18:34:34.828][DEBUG][SurfaceRegistry] Registered spatial id=38 kind=model name=shot-26 worldPos=(100.86723, -11.619905, -308.70963)
+[18:34:34.832][DEBUG][PhysicsApiImpl] [physics] body created id=38 surfaceId=38 mass=120.0 kinematic=false lockRotation=false
+[18:34:35.512][DEBUG][SurfaceRegistry] Registered spatial id=39 kind=model name=shot-27 worldPos=(104.68975, -11.765923, -309.08057)
+[18:34:35.516][DEBUG][PhysicsApiImpl] [physics] body created id=39 surfaceId=39 mass=120.0 kinematic=false lockRotation=false
+[18:34:36.028][DEBUG][SurfaceRegistry] Registered spatial id=40 kind=model name=shot-28 worldPos=(107.13514, -11.750573, -309.36978)
+[18:34:36.032][DEBUG][PhysicsApiImpl] [physics] body created id=40 surfaceId=40 mass=120.0 kinematic=false lockRotation=false
+[18:34:37.161][DEBUG][SurfaceRegistry] Registered spatial id=41 kind=model name=shot-29 worldPos=(110.05743, -11.671865, -310.6389)
+[18:34:37.166][DEBUG][PhysicsApiImpl] [physics] body created id=41 surfaceId=41 mass=120.0 kinematic=false lockRotation=false
+[18:34:37.561][DEBUG][SurfaceRegistry] Registered spatial id=42 kind=model name=shot-30 worldPos=(110.47514, -11.523562, -311.34064)
+[18:34:37.565][DEBUG][PhysicsApiImpl] [physics] body created id=42 surfaceId=42 mass=120.0 kinematic=false lockRotation=false
+[18:34:37.878][DEBUG][SurfaceRegistry] Registered spatial id=43 kind=model name=shot-31 worldPos=(110.94723, -11.356303, -312.1001)
+[18:34:37.883][DEBUG][PhysicsApiImpl] [physics] body created id=43 surfaceId=43 mass=120.0 kinematic=false lockRotation=false
+[18:34:38.228][DEBUG][SurfaceRegistry] Registered spatial id=44 kind=model name=shot-32 worldPos=(111.73609, -11.305083, -313.29715)
+[18:34:38.232][DEBUG][PhysicsApiImpl] [physics] body created id=44 surfaceId=44 mass=120.0 kinematic=false lockRotation=false
+[18:34:38.697][DEBUG][SurfaceRegistry] Registered spatial id=45 kind=model name=shot-33 worldPos=(112.95648, -11.24565, -314.74606)
+[18:34:38.703][DEBUG][PhysicsApiImpl] [physics] body created id=45 surfaceId=45 mass=120.0 kinematic=false lockRotation=false
+[18:34:39.045][DEBUG][SurfaceRegistry] Registered spatial id=46 kind=model name=shot-34 worldPos=(113.97399, -11.129368, -315.8459)
+[18:34:39.049][DEBUG][PhysicsApiImpl] [physics] body created id=46 surfaceId=46 mass=120.0 kinematic=false lockRotation=false
+[18:34:39.428][DEBUG][SurfaceRegistry] Registered spatial id=47 kind=model name=shot-35 worldPos=(115.25488, -10.964219, -316.7872)
+[18:34:39.432][DEBUG][PhysicsApiImpl] [physics] body created id=47 surfaceId=47 mass=120.0 kinematic=false lockRotation=false
+[18:34:39.729][DEBUG][SurfaceRegistry] Registered spatial id=48 kind=model name=shot-36 worldPos=(116.56541, -11.040127, -317.3099)
+[18:34:39.732][DEBUG][PhysicsApiImpl] [physics] body created id=48 surfaceId=48 mass=120.0 kinematic=false lockRotation=false
+[18:34:40.078][DEBUG][SurfaceRegistry] Registered spatial id=49 kind=model name=shot-37 worldPos=(118.17497, -10.794991, -316.6913)
+[18:34:40.082][DEBUG][PhysicsApiImpl] [physics] body created id=49 surfaceId=49 mass=120.0 kinematic=false lockRotation=false
+[18:34:40.361][DEBUG][SurfaceRegistry] Registered spatial id=50 kind=model name=shot-38 worldPos=(119.68257, -10.809345, -316.13724)
+[18:34:40.365][DEBUG][PhysicsApiImpl] [physics] body created id=50 surfaceId=50 mass=120.0 kinematic=false lockRotation=false
+[18:34:40.678][DEBUG][SurfaceRegistry] Registered spatial id=51 kind=model name=shot-39 worldPos=(121.14639, -10.55136, -315.42822)
+[18:34:40.682][DEBUG][PhysicsApiImpl] [physics] body created id=51 surfaceId=51 mass=120.0 kinematic=false lockRotation=false
+[18:34:40.878][DEBUG][SurfaceRegistry] Registered spatial id=52 kind=model name=shot-40 worldPos=(122.31452, -10.643273, -314.94882)
+[18:34:40.882][DEBUG][PhysicsApiImpl] [physics] body created id=52 surfaceId=52 mass=120.0 kinematic=false lockRotation=false
+[18:34:41.112][DEBUG][SurfaceRegistry] Registered spatial id=53 kind=model name=shot-41 worldPos=(123.34741, -10.352615, -314.39685)
+[18:34:41.116][DEBUG][PhysicsApiImpl] [physics] body created id=53 surfaceId=53 mass=120.0 kinematic=false lockRotation=false
+[18:34:41.328][DEBUG][SurfaceRegistry] Registered spatial id=54 kind=model name=shot-42 worldPos=(124.37678, -10.18523, -313.83392)
+[18:34:41.332][DEBUG][PhysicsApiImpl] [physics] body created id=54 surfaceId=54 mass=120.0 kinematic=false lockRotation=false
+[18:34:41.529][DEBUG][SurfaceRegistry] Registered spatial id=55 kind=model name=shot-43 worldPos=(125.43868, -10.166648, -313.3013)
+[18:34:41.533][DEBUG][PhysicsApiImpl] [physics] body created id=55 surfaceId=55 mass=120.0 kinematic=false lockRotation=false
+[18:34:41.728][DEBUG][SurfaceRegistry] Registered spatial id=56 kind=model name=shot-44 worldPos=(126.2493, -9.903321, -312.88647)
+[18:34:41.732][DEBUG][PhysicsApiImpl] [physics] body created id=56 surfaceId=56 mass=120.0 kinematic=false lockRotation=false
+[18:34:41.929][DEBUG][SurfaceRegistry] Registered spatial id=57 kind=model name=shot-45 worldPos=(127.42483, -10.035033, -312.31586)
+[18:34:41.933][DEBUG][PhysicsApiImpl] [physics] body created id=57 surfaceId=57 mass=120.0 kinematic=false lockRotation=false
+[18:34:42.795][DEBUG][SurfaceRegistry] Registered spatial id=58 kind=model name=shot-46 worldPos=(129.63281, -9.866611, -309.82413)
+[18:34:42.799][DEBUG][PhysicsApiImpl] [physics] body created id=58 surfaceId=58 mass=120.0 kinematic=false lockRotation=false
+[18:34:42.979][DEBUG][SurfaceRegistry] Registered spatial id=59 kind=model name=shot-47 worldPos=(129.35843, -9.862555, -309.40283)
+[18:34:42.983][DEBUG][PhysicsApiImpl] [physics] body created id=59 surfaceId=59 mass=120.0 kinematic=false lockRotation=false
+[18:34:43.195][DEBUG][SurfaceRegistry] Registered spatial id=60 kind=model name=shot-48 worldPos=(128.77101, -10.002033, -308.63077)
+[18:34:43.199][DEBUG][PhysicsApiImpl] [physics] body created id=60 surfaceId=60 mass=120.0 kinematic=false lockRotation=false
+[18:34:43.413][DEBUG][SurfaceRegistry] Registered spatial id=61 kind=model name=shot-49 worldPos=(127.88514, -10.331045, -307.7364)
+[18:34:43.417][DEBUG][PhysicsApiImpl] [physics] body created id=61 surfaceId=61 mass=120.0 kinematic=false lockRotation=false
+[18:34:43.612][DEBUG][SurfaceRegistry] Registered spatial id=62 kind=model name=shot-50 worldPos=(126.95878, -10.410159, -307.08728)
+[18:34:43.616][DEBUG][PhysicsApiImpl] [physics] body created id=62 surfaceId=62 mass=120.0 kinematic=false lockRotation=false
+[18:34:43.829][DEBUG][SurfaceRegistry] Registered spatial id=63 kind=model name=shot-51 worldPos=(125.79013, -10.578734, -306.25833)
+[18:34:43.833][DEBUG][PhysicsApiImpl] [physics] body created id=63 surfaceId=63 mass=120.0 kinematic=false lockRotation=false
+[18:34:44.029][DEBUG][SurfaceRegistry] Registered spatial id=64 kind=model name=shot-52 worldPos=(125.05208, -10.792534, -305.78055)
+[18:34:44.033][DEBUG][PhysicsApiImpl] [physics] body created id=64 surfaceId=64 mass=120.0 kinematic=false lockRotation=false
+[18:34:44.245][DEBUG][SurfaceRegistry] Registered spatial id=65 kind=model name=shot-53 worldPos=(124.88889, -10.777196, -305.68396)
+[18:34:44.249][DEBUG][PhysicsApiImpl] [physics] body created id=65 surfaceId=65 mass=120.0 kinematic=false lockRotation=false
+[18:34:44.446][DEBUG][SurfaceRegistry] Registered spatial id=66 kind=model name=shot-54 worldPos=(124.8938, -10.778699, -305.68796)
+[18:34:44.449][DEBUG][PhysicsApiImpl] [physics] body created id=66 surfaceId=66 mass=120.0 kinematic=false lockRotation=false
+[18:34:44.629][DEBUG][SurfaceRegistry] Registered spatial id=67 kind=model name=shot-55 worldPos=(124.89899, -10.780123, -305.69168)
+[18:34:44.633][DEBUG][PhysicsApiImpl] [physics] body created id=67 surfaceId=67 mass=120.0 kinematic=false lockRotation=false
+[18:34:44.846][DEBUG][SurfaceRegistry] Registered spatial id=68 kind=model name=shot-56 worldPos=(124.90634, -10.782236, -305.69717)
+[18:34:44.850][DEBUG][PhysicsApiImpl] [physics] body created id=68 surfaceId=68 mass=120.0 kinematic=false lockRotation=false
+[18:34:45.045][DEBUG][SurfaceRegistry] Registered spatial id=69 kind=model name=shot-57 worldPos=(124.91309, -10.78427, -305.7022)
+[18:34:45.049][DEBUG][PhysicsApiImpl] [physics] body created id=69 surfaceId=69 mass=120.0 kinematic=false lockRotation=false
+[18:34:45.246][DEBUG][SurfaceRegistry] Registered spatial id=70 kind=model name=shot-58 worldPos=(124.92016, -10.78651, -305.7074)
+[18:34:45.250][DEBUG][PhysicsApiImpl] [physics] body created id=70 surfaceId=70 mass=120.0 kinematic=false lockRotation=false
+[18:34:45.446][DEBUG][SurfaceRegistry] Registered spatial id=71 kind=model name=shot-59 worldPos=(124.927605, -10.788981, -305.7129)
+[18:34:45.449][DEBUG][PhysicsApiImpl] [physics] body created id=71 surfaceId=71 mass=120.0 kinematic=false lockRotation=false
+[18:34:45.663][DEBUG][SurfaceRegistry] Registered spatial id=72 kind=model name=shot-60 worldPos=(124.93545, -10.791718, -305.7186)
+[18:34:45.666][DEBUG][PhysicsApiImpl] [physics] body created id=72 surfaceId=72 mass=120.0 kinematic=false lockRotation=false
+[18:34:45.879][DEBUG][SurfaceRegistry] Registered spatial id=73 kind=model name=shot-61 worldPos=(124.94372, -10.794717, -305.72455)
+[18:34:45.883][DEBUG][PhysicsApiImpl] [physics] body created id=73 surfaceId=73 mass=120.0 kinematic=false lockRotation=false
+[18:34:46.062][DEBUG][SurfaceRegistry] Registered spatial id=74 kind=model name=shot-62 worldPos=(124.95211, -10.797898, -305.73053)
+[18:34:46.066][DEBUG][PhysicsApiImpl] [physics] body created id=74 surfaceId=74 mass=120.0 kinematic=false lockRotation=false
+[18:34:46.296][DEBUG][SurfaceRegistry] Registered spatial id=75 kind=model name=shot-63 worldPos=(124.96395, -10.802759, -305.73935)
+[18:34:46.299][DEBUG][PhysicsApiImpl] [physics] body created id=75 surfaceId=75 mass=120.0 kinematic=false lockRotation=false
+[18:34:46.529][DEBUG][SurfaceRegistry] Registered spatial id=76 kind=model name=shot-64 worldPos=(124.97589, -10.80797, -305.7482)
+[18:34:46.533][DEBUG][PhysicsApiImpl] [physics] body created id=76 surfaceId=76 mass=120.0 kinematic=false lockRotation=false
+[18:34:46.713][DEBUG][SurfaceRegistry] Registered spatial id=77 kind=model name=shot-65 worldPos=(124.985664, -10.812452, -305.7553)
+[18:34:46.717][DEBUG][PhysicsApiImpl] [physics] body created id=77 surfaceId=77 mass=120.0 kinematic=false lockRotation=false
+[18:34:46.963][DEBUG][SurfaceRegistry] Registered spatial id=78 kind=model name=shot-66 worldPos=(125.00234, -10.820725, -305.76773)
+[18:34:46.967][DEBUG][PhysicsApiImpl] [physics] body created id=78 surfaceId=78 mass=120.0 kinematic=false lockRotation=false
+[18:34:47.179][DEBUG][SurfaceRegistry] Registered spatial id=79 kind=model name=shot-67 worldPos=(125.01779, -10.829041, -305.77936)
+[18:34:47.184][DEBUG][PhysicsApiImpl] [physics] body created id=79 surfaceId=79 mass=120.0 kinematic=false lockRotation=false
+[18:34:47.396][DEBUG][SurfaceRegistry] Registered spatial id=80 kind=model name=shot-68 worldPos=(125.03578, -10.839496, -305.79272)
+[18:34:47.400][DEBUG][PhysicsApiImpl] [physics] body created id=80 surfaceId=80 mass=120.0 kinematic=false lockRotation=false
+[18:34:47.629][DEBUG][SurfaceRegistry] Registered spatial id=81 kind=model name=shot-69 worldPos=(125.05253, -10.85, -305.80515)
+[18:34:47.633][DEBUG][PhysicsApiImpl] [physics] body created id=81 surfaceId=81 mass=120.0 kinematic=false lockRotation=false
+[18:34:47.829][DEBUG][SurfaceRegistry] Registered spatial id=82 kind=model name=shot-70 worldPos=(125.068565, -10.860883, -305.81723)
+[18:34:47.833][DEBUG][PhysicsApiImpl] [physics] body created id=82 surfaceId=82 mass=120.0 kinematic=false lockRotation=false
+[18:34:48.095][DEBUG][SurfaceRegistry] Registered spatial id=83 kind=model name=shot-71 worldPos=(125.09092, -10.877359, -305.8339)
+[18:34:48.099][DEBUG][PhysicsApiImpl] [physics] body created id=83 surfaceId=83 mass=120.0 kinematic=false lockRotation=false
+[18:34:48.312][DEBUG][SurfaceRegistry] Registered spatial id=84 kind=model name=shot-72 worldPos=(125.046234, -10.892435, -305.78647)
+[18:34:48.317][DEBUG][PhysicsApiImpl] [physics] body created id=84 surfaceId=84 mass=120.0 kinematic=false lockRotation=false
+[18:34:48.546][DEBUG][SurfaceRegistry] Registered spatial id=85 kind=model name=shot-73 worldPos=(124.77722, -10.836522, -305.57974)
+[18:34:48.549][DEBUG][PhysicsApiImpl] [physics] body created id=85 surfaceId=85 mass=120.0 kinematic=false lockRotation=false
+[18:34:48.746][DEBUG][SurfaceRegistry] Registered spatial id=86 kind=model name=shot-74 worldPos=(124.3826, -10.797079, -305.2996)
+[18:34:48.750][DEBUG][PhysicsApiImpl] [physics] body created id=86 surfaceId=86 mass=120.0 kinematic=false lockRotation=false
+[18:34:48.963][DEBUG][SurfaceRegistry] Registered spatial id=87 kind=model name=shot-75 worldPos=(123.72187, -10.977079, -304.97644)
+[18:34:48.966][DEBUG][PhysicsApiImpl] [physics] body created id=87 surfaceId=87 mass=120.0 kinematic=false lockRotation=false
+[18:34:49.163][DEBUG][SurfaceRegistry] Registered spatial id=88 kind=model name=shot-76 worldPos=(123.22639, -10.951802, -304.6908)
+[18:34:49.166][DEBUG][PhysicsApiImpl] [physics] body created id=88 surfaceId=88 mass=120.0 kinematic=false lockRotation=false
+[18:34:49.396][DEBUG][SurfaceRegistry] Registered spatial id=89 kind=model name=shot-77 worldPos=(122.53946, -10.929272, -304.3834)
+[18:34:49.400][DEBUG][PhysicsApiImpl] [physics] body created id=89 surfaceId=89 mass=120.0 kinematic=false lockRotation=false
+[18:34:49.596][DEBUG][SurfaceRegistry] Registered spatial id=90 kind=model name=shot-78 worldPos=(121.7297, -11.1585, -304.12555)
+[18:34:49.600][DEBUG][PhysicsApiImpl] [physics] body created id=90 surfaceId=90 mass=120.0 kinematic=false lockRotation=false
+[18:34:49.813][DEBUG][SurfaceRegistry] Registered spatial id=91 kind=model name=shot-79 worldPos=(121.2857, -10.964207, -303.87125)
+[18:34:49.817][DEBUG][PhysicsApiImpl] [physics] body created id=91 surfaceId=91 mass=120.0 kinematic=false lockRotation=false
+[18:34:49.996][DEBUG][SurfaceRegistry] Registered spatial id=92 kind=model name=shot-80 worldPos=(120.72818, -10.957866, -303.6402)
+[18:34:50.000][DEBUG][PhysicsApiImpl] [physics] body created id=92 surfaceId=92 mass=120.0 kinematic=false lockRotation=false
+[18:34:50.213][DEBUG][SurfaceRegistry] Registered spatial id=93 kind=model name=shot-81 worldPos=(119.91983, -11.08264, -303.39218)
+[18:34:50.216][DEBUG][PhysicsApiImpl] [physics] body created id=93 surfaceId=93 mass=120.0 kinematic=false lockRotation=false
+[18:34:50.429][DEBUG][SurfaceRegistry] Registered spatial id=94 kind=model name=shot-82 worldPos=(119.18563, -10.937039, -303.3089)
+[18:34:50.433][DEBUG][PhysicsApiImpl] [physics] body created id=94 surfaceId=94 mass=120.0 kinematic=false lockRotation=false
+[18:34:50.646][DEBUG][SurfaceRegistry] Registered spatial id=95 kind=model name=shot-83 worldPos=(118.274796, -11.036328, -303.24075)
+[18:34:50.650][DEBUG][PhysicsApiImpl] [physics] body created id=95 surfaceId=95 mass=120.0 kinematic=false lockRotation=false
+[18:34:50.846][DEBUG][SurfaceRegistry] Registered spatial id=96 kind=model name=shot-84 worldPos=(117.58895, -11.117298, -303.15097)
+[18:34:50.850][DEBUG][PhysicsApiImpl] [physics] body created id=96 surfaceId=96 mass=120.0 kinematic=false lockRotation=false
+[18:34:51.063][DEBUG][SurfaceRegistry] Registered spatial id=97 kind=model name=shot-85 worldPos=(116.86756, -11.093915, -303.0954)
+[18:34:51.067][DEBUG][PhysicsApiImpl] [physics] body created id=97 surfaceId=97 mass=120.0 kinematic=false lockRotation=false
+[18:34:51.263][DEBUG][SurfaceRegistry] Registered spatial id=98 kind=model name=shot-86 worldPos=(116.01569, -11.283952, -303.04315)
+[18:34:51.266][DEBUG][PhysicsApiImpl] [physics] body created id=98 surfaceId=98 mass=120.0 kinematic=false lockRotation=false
+[18:34:51.446][DEBUG][SurfaceRegistry] Registered spatial id=99 kind=model name=shot-87 worldPos=(115.39709, -11.344614, -303.0111)
+[18:34:51.450][DEBUG][PhysicsApiImpl] [physics] body created id=99 surfaceId=99 mass=120.0 kinematic=false lockRotation=false
+[18:34:51.679][DEBUG][SurfaceRegistry] Registered spatial id=100 kind=model name=shot-88 worldPos=(114.54898, -11.340891, -302.94308)
+[18:34:51.683][DEBUG][PhysicsApiImpl] [physics] body created id=100 surfaceId=100 mass=120.0 kinematic=false lockRotation=false
+[18:34:51.913][DEBUG][SurfaceRegistry] Registered spatial id=101 kind=model name=shot-89 worldPos=(113.54062, -11.590713, -302.8754)
+[18:34:51.917][DEBUG][PhysicsApiImpl] [physics] body created id=101 surfaceId=101 mass=120.0 kinematic=false lockRotation=false
+[18:34:52.113][DEBUG][SurfaceRegistry] Registered spatial id=102 kind=model name=shot-90 worldPos=(112.90048, -11.522606, -302.84344)
+[18:34:52.116][DEBUG][PhysicsApiImpl] [physics] body created id=102 surfaceId=102 mass=120.0 kinematic=false lockRotation=false
+[18:34:52.329][DEBUG][SurfaceRegistry] Registered spatial id=103 kind=model name=shot-91 worldPos=(112.01565, -11.609669, -302.77765)
+[18:34:52.333][DEBUG][PhysicsApiImpl] [physics] body created id=103 surfaceId=103 mass=120.0 kinematic=false lockRotation=false
+[18:34:52.530][DEBUG][SurfaceRegistry] Registered spatial id=104 kind=model name=shot-92 worldPos=(111.19063, -11.834037, -302.72607)
+[18:34:52.533][DEBUG][PhysicsApiImpl] [physics] body created id=104 surfaceId=104 mass=120.0 kinematic=false lockRotation=false
+[18:34:52.746][DEBUG][SurfaceRegistry] Registered spatial id=105 kind=model name=shot-93 worldPos=(110.62865, -11.68771, -302.67596)
+[18:34:52.750][DEBUG][PhysicsApiImpl] [physics] body created id=105 surfaceId=105 mass=120.0 kinematic=false lockRotation=false
+[18:34:52.963][DEBUG][SurfaceRegistry] Registered spatial id=106 kind=model name=shot-94 worldPos=(109.80786, -11.779748, -302.6291)
+[18:34:52.967][DEBUG][PhysicsApiImpl] [physics] body created id=106 surfaceId=106 mass=120.0 kinematic=false lockRotation=false
+[18:34:53.179][DEBUG][SurfaceRegistry] Registered spatial id=107 kind=model name=shot-95 worldPos=(109.0028, -11.873103, -302.56717)
+[18:34:53.183][DEBUG][PhysicsApiImpl] [physics] body created id=107 surfaceId=107 mass=120.0 kinematic=false lockRotation=false
+[18:34:53.414][DEBUG][SurfaceRegistry] Registered spatial id=108 kind=model name=shot-96 worldPos=(108.22066, -11.7660265, -302.5416)
+[18:34:53.417][DEBUG][PhysicsApiImpl] [physics] body created id=108 surfaceId=108 mass=120.0 kinematic=false lockRotation=false
+[18:34:53.630][DEBUG][SurfaceRegistry] Registered spatial id=109 kind=model name=shot-97 worldPos=(107.29193, -11.9393015, -302.49716)
+[18:34:53.634][DEBUG][PhysicsApiImpl] [physics] body created id=109 surfaceId=109 mass=120.0 kinematic=false lockRotation=false
+[18:34:53.846][DEBUG][SurfaceRegistry] Registered spatial id=110 kind=model name=shot-98 worldPos=(106.580795, -11.842132, -302.49606)
+[18:34:53.850][DEBUG][PhysicsApiImpl] [physics] body created id=110 surfaceId=110 mass=120.0 kinematic=false lockRotation=false
+[18:34:54.063][DEBUG][SurfaceRegistry] Registered spatial id=111 kind=model name=shot-99 worldPos=(105.73876, -11.833029, -302.4463)
+[18:34:54.066][DEBUG][PhysicsApiImpl] [physics] body created id=111 surfaceId=111 mass=120.0 kinematic=false lockRotation=false
+[18:34:54.280][DEBUG][SurfaceRegistry] Registered spatial id=112 kind=model name=shot-100 worldPos=(104.86142, -12.00612, -302.40707)
+[18:34:54.284][DEBUG][PhysicsApiImpl] [physics] body created id=112 surfaceId=112 mass=120.0 kinematic=false lockRotation=false
+[18:34:54.547][DEBUG][SurfaceRegistry] Registered spatial id=113 kind=model name=shot-101 worldPos=(104.048485, -11.817835, -302.346)
+[18:34:54.551][DEBUG][PhysicsApiImpl] [physics] body created id=113 surfaceId=113 mass=120.0 kinematic=false lockRotation=false
+[18:34:54.747][DEBUG][SurfaceRegistry] Registered spatial id=114 kind=model name=shot-102 worldPos=(103.22186, -11.968784, -302.18387)
+[18:34:54.750][DEBUG][PhysicsApiImpl] [physics] body created id=114 surfaceId=114 mass=120.0 kinematic=false lockRotation=false
+[18:34:54.997][DEBUG][SurfaceRegistry] Registered spatial id=115 kind=model name=shot-103 worldPos=(102.54515, -11.86847, -301.9777)
+[18:34:55.000][DEBUG][PhysicsApiImpl] [physics] body created id=115 surfaceId=115 mass=120.0 kinematic=false lockRotation=false
+[18:34:55.229][DEBUG][SurfaceRegistry] Registered spatial id=116 kind=model name=shot-104 worldPos=(101.73421, -11.867992, -301.63937)
+[18:34:55.234][DEBUG][PhysicsApiImpl] [physics] body created id=116 surfaceId=116 mass=120.0 kinematic=false lockRotation=false
+[18:34:55.463][DEBUG][SurfaceRegistry] Registered spatial id=117 kind=model name=shot-105 worldPos=(100.90708, -12.026203, -301.31345)
+[18:34:55.467][DEBUG][PhysicsApiImpl] [physics] body created id=117 surfaceId=117 mass=120.0 kinematic=false lockRotation=false
+[18:34:55.680][DEBUG][SurfaceRegistry] Registered spatial id=118 kind=model name=shot-106 worldPos=(100.333145, -11.89185, -301.01593)
+[18:34:55.684][DEBUG][PhysicsApiImpl] [physics] body created id=118 surfaceId=118 mass=120.0 kinematic=false lockRotation=false
+[18:34:55.896][DEBUG][SurfaceRegistry] Registered spatial id=119 kind=model name=shot-107 worldPos=(99.52077, -11.990766, -300.65094)
+[18:34:55.900][DEBUG][PhysicsApiImpl] [physics] body created id=119 surfaceId=119 mass=120.0 kinematic=false lockRotation=false
+[18:34:56.147][DEBUG][SurfaceRegistry] Registered spatial id=120 kind=model name=shot-108 worldPos=(98.89458, -11.962129, -300.41425)
+[18:34:56.150][DEBUG][PhysicsApiImpl] [physics] body created id=120 surfaceId=120 mass=120.0 kinematic=false lockRotation=false
+[18:34:56.347][DEBUG][SurfaceRegistry] Registered spatial id=121 kind=model name=shot-109 worldPos=(98.63772, -11.862528, -300.23798)
+[18:34:56.351][DEBUG][PhysicsApiImpl] [physics] body created id=121 surfaceId=121 mass=120.0 kinematic=false lockRotation=false
+[18:34:56.563][DEBUG][SurfaceRegistry] Registered spatial id=122 kind=model name=shot-110 worldPos=(98.428375, -11.720302, -300.1093)
+[18:34:56.567][DEBUG][PhysicsApiImpl] [physics] body created id=122 surfaceId=122 mass=120.0 kinematic=false lockRotation=false
+[18:34:56.763][DEBUG][SurfaceRegistry] Registered spatial id=123 kind=model name=shot-111 worldPos=(98.06037, -11.649798, -299.99942)
+[18:34:56.767][DEBUG][PhysicsApiImpl] [physics] body created id=123 surfaceId=123 mass=120.0 kinematic=false lockRotation=false
+[18:34:56.980][DEBUG][SurfaceRegistry] Registered spatial id=124 kind=model name=shot-112 worldPos=(97.42369, -11.670414, -299.88727)
+[18:34:56.984][DEBUG][PhysicsApiImpl] [physics] body created id=124 surfaceId=124 mass=120.0 kinematic=false lockRotation=false
+[18:34:57.197][DEBUG][SurfaceRegistry] Registered spatial id=125 kind=model name=shot-113 worldPos=(96.603676, -11.817981, -299.59033)
+[18:34:57.200][DEBUG][PhysicsApiImpl] [physics] body created id=125 surfaceId=125 mass=120.0 kinematic=false lockRotation=false
+[18:34:57.397][DEBUG][SurfaceRegistry] Registered spatial id=126 kind=model name=shot-114 worldPos=(95.85676, -12.088482, -299.17548)
+[18:34:57.400][DEBUG][PhysicsApiImpl] [physics] body created id=126 surfaceId=126 mass=120.0 kinematic=false lockRotation=false
+[18:34:57.613][DEBUG][SurfaceRegistry] Registered spatial id=127 kind=model name=shot-115 worldPos=(95.14726, -12.066974, -298.77643)
+[18:34:57.617][DEBUG][PhysicsApiImpl] [physics] body created id=127 surfaceId=127 mass=120.0 kinematic=false lockRotation=false
+[18:34:57.830][DEBUG][SurfaceRegistry] Registered spatial id=128 kind=model name=shot-116 worldPos=(94.46282, -11.985592, -298.21854)
+[18:34:57.834][DEBUG][PhysicsApiImpl] [physics] body created id=128 surfaceId=128 mass=120.0 kinematic=false lockRotation=false
+[18:34:58.064][DEBUG][SurfaceRegistry] Registered spatial id=129 kind=model name=shot-117 worldPos=(93.809586, -11.954259, -297.51816)
+[18:34:58.068][DEBUG][PhysicsApiImpl] [physics] body created id=129 surfaceId=129 mass=120.0 kinematic=false lockRotation=false
+[18:34:58.280][DEBUG][SurfaceRegistry] Registered spatial id=130 kind=model name=shot-118 worldPos=(93.2788, -12.158523, -296.82294)
+[18:34:58.284][DEBUG][PhysicsApiImpl] [physics] body created id=130 surfaceId=130 mass=120.0 kinematic=false lockRotation=false
+[18:34:58.513][DEBUG][SurfaceRegistry] Registered spatial id=131 kind=model name=shot-119 worldPos=(92.80918, -11.9543495, -296.35522)
+[18:34:58.517][DEBUG][PhysicsApiImpl] [physics] body created id=131 surfaceId=131 mass=120.0 kinematic=false lockRotation=false
+[18:34:58.730][DEBUG][SurfaceRegistry] Registered spatial id=132 kind=model name=shot-120 worldPos=(92.21297, -12.042429, -295.6793)
+[18:34:58.734][DEBUG][PhysicsApiImpl] [physics] body created id=132 surfaceId=132 mass=120.0 kinematic=false lockRotation=false
+[18:34:58.963][DEBUG][SurfaceRegistry] Registered spatial id=133 kind=model name=shot-121 worldPos=(91.620865, -12.184526, -295.0313)
+[18:34:58.967][DEBUG][PhysicsApiImpl] [physics] body created id=133 surfaceId=133 mass=120.0 kinematic=false lockRotation=false
+[18:34:59.180][DEBUG][SurfaceRegistry] Registered spatial id=134 kind=model name=shot-122 worldPos=(91.19428, -11.968267, -294.71317)
+[18:34:59.184][DEBUG][PhysicsApiImpl] [physics] body created id=134 surfaceId=134 mass=120.0 kinematic=false lockRotation=false
+[18:34:59.431][DEBUG][SurfaceRegistry] Registered spatial id=135 kind=model name=shot-123 worldPos=(90.51884, -12.052565, -294.1845)
+[18:34:59.435][DEBUG][PhysicsApiImpl] [physics] body created id=135 surfaceId=135 mass=120.0 kinematic=false lockRotation=false
+[18:34:59.613][DEBUG][SurfaceRegistry] Registered spatial id=136 kind=model name=shot-124 worldPos=(90.054924, -12.020635, -293.64337)
+[18:34:59.617][DEBUG][PhysicsApiImpl] [physics] body created id=136 surfaceId=136 mass=120.0 kinematic=false lockRotation=false
+[18:34:59.847][DEBUG][SurfaceRegistry] Registered spatial id=137 kind=model name=shot-125 worldPos=(89.391266, -12.106975, -292.87897)
+[18:34:59.850][DEBUG][PhysicsApiImpl] [physics] body created id=137 surfaceId=137 mass=120.0 kinematic=false lockRotation=false
+[18:35:00.064][DEBUG][SurfaceRegistry] Registered spatial id=138 kind=model name=shot-126 worldPos=(88.78106, -12.265701, -292.2299)
+[18:35:00.068][DEBUG][PhysicsApiImpl] [physics] body created id=138 surfaceId=138 mass=120.0 kinematic=false lockRotation=false
+[18:35:00.297][DEBUG][SurfaceRegistry] Registered spatial id=139 kind=model name=shot-127 worldPos=(88.22102, -12.362769, -291.53503)
+[18:35:00.301][DEBUG][PhysicsApiImpl] [physics] body created id=139 surfaceId=139 mass=120.0 kinematic=false lockRotation=false
+[18:35:00.513][DEBUG][SurfaceRegistry] Registered spatial id=140 kind=model name=shot-128 worldPos=(87.622696, -12.341642, -290.886)
+[18:35:00.517][DEBUG][PhysicsApiImpl] [physics] body created id=140 surfaceId=140 mass=120.0 kinematic=false lockRotation=false
+[18:35:00.731][DEBUG][SurfaceRegistry] Registered spatial id=141 kind=model name=shot-129 worldPos=(86.97972, -12.508281, -290.21313)
+[18:35:00.735][DEBUG][PhysicsApiImpl] [physics] body created id=141 surfaceId=141 mass=120.0 kinematic=false lockRotation=false
+[18:35:00.947][DEBUG][SurfaceRegistry] Registered spatial id=142 kind=model name=shot-130 worldPos=(86.49035, -12.407047, -289.78696)
+[18:35:00.950][DEBUG][PhysicsApiImpl] [physics] body created id=142 surfaceId=142 mass=120.0 kinematic=false lockRotation=false
+[18:35:01.163][DEBUG][SurfaceRegistry] Registered spatial id=143 kind=model name=shot-131 worldPos=(85.86874, -12.398033, -289.2172)
+[18:35:01.167][DEBUG][PhysicsApiImpl] [physics] body created id=143 surfaceId=143 mass=120.0 kinematic=false lockRotation=false
+[18:35:01.364][DEBUG][SurfaceRegistry] Registered spatial id=144 kind=model name=shot-132 worldPos=(85.38229, -12.523106, -288.67065)
+[18:35:01.368][DEBUG][PhysicsApiImpl] [physics] body created id=144 surfaceId=144 mass=120.0 kinematic=false lockRotation=false
+[18:35:01.580][DEBUG][SurfaceRegistry] Registered spatial id=145 kind=model name=shot-133 worldPos=(85.02564, -12.367959, -288.21353)
+[18:35:01.584][DEBUG][PhysicsApiImpl] [physics] body created id=145 surfaceId=145 mass=120.0 kinematic=false lockRotation=false
+[18:35:01.814][DEBUG][SurfaceRegistry] Registered spatial id=146 kind=model name=shot-134 worldPos=(84.356, -12.447173, -287.51746)
+[18:35:01.817][DEBUG][PhysicsApiImpl] [physics] body created id=146 surfaceId=146 mass=120.0 kinematic=false lockRotation=false
+[18:35:02.030][DEBUG][SurfaceRegistry] Registered spatial id=147 kind=model name=shot-135 worldPos=(83.87595, -12.381415, -287.00296)
+[18:35:02.034][DEBUG][PhysicsApiImpl] [physics] body created id=147 surfaceId=147 mass=120.0 kinematic=false lockRotation=false
+[18:35:02.247][DEBUG][SurfaceRegistry] Registered spatial id=148 kind=model name=shot-136 worldPos=(83.264656, -12.360882, -286.3812)
+[18:35:02.251][DEBUG][PhysicsApiImpl] [physics] body created id=148 surfaceId=148 mass=120.0 kinematic=false lockRotation=false
+[18:35:02.464][DEBUG][SurfaceRegistry] Registered spatial id=149 kind=model name=shot-137 worldPos=(82.609535, -12.601744, -285.75964)
+[18:35:02.468][DEBUG][PhysicsApiImpl] [physics] body created id=149 surfaceId=149 mass=120.0 kinematic=false lockRotation=false
+[18:35:02.664][DEBUG][SurfaceRegistry] Registered spatial id=150 kind=model name=shot-138 worldPos=(82.14005, -12.475923, -285.40475)
+[18:35:02.667][DEBUG][PhysicsApiImpl] [physics] body created id=150 surfaceId=150 mass=120.0 kinematic=false lockRotation=false
+[18:35:02.897][DEBUG][SurfaceRegistry] Registered spatial id=151 kind=model name=shot-139 worldPos=(81.41955, -12.56539, -284.72107)
+[18:35:02.901][DEBUG][PhysicsApiImpl] [physics] body created id=151 surfaceId=151 mass=120.0 kinematic=false lockRotation=false
+[18:35:03.114][DEBUG][SurfaceRegistry] Registered spatial id=152 kind=model name=shot-140 worldPos=(80.78346, -12.664105, -284.2053)
+[18:35:03.118][DEBUG][PhysicsApiImpl] [physics] body created id=152 surfaceId=152 mass=120.0 kinematic=false lockRotation=false
+[18:35:03.330][DEBUG][SurfaceRegistry] Registered spatial id=153 kind=model name=shot-141 worldPos=(80.1346, -12.621572, -283.64896)
+[18:35:03.334][DEBUG][PhysicsApiImpl] [physics] body created id=153 surfaceId=153 mass=120.0 kinematic=false lockRotation=false
+[18:35:03.564][DEBUG][SurfaceRegistry] Registered spatial id=154 kind=model name=shot-142 worldPos=(79.43247, -12.791289, -282.91907)
+[18:35:03.568][DEBUG][PhysicsApiImpl] [physics] body created id=154 surfaceId=154 mass=120.0 kinematic=false lockRotation=false
+[18:35:03.797][DEBUG][SurfaceRegistry] Registered spatial id=155 kind=model name=shot-143 worldPos=(78.79464, -12.700869, -282.513)
+[18:35:03.801][DEBUG][PhysicsApiImpl] [physics] body created id=155 surfaceId=155 mass=120.0 kinematic=false lockRotation=false
+[18:35:04.014][DEBUG][SurfaceRegistry] Registered spatial id=156 kind=model name=shot-144 worldPos=(78.14484, -12.715964, -281.9274)
+[18:35:04.018][DEBUG][PhysicsApiImpl] [physics] body created id=156 surfaceId=156 mass=120.0 kinematic=false lockRotation=false
+[18:35:04.247][DEBUG][SurfaceRegistry] Registered spatial id=157 kind=model name=shot-145 worldPos=(77.45741, -12.919866, -281.27347)
+[18:35:04.251][DEBUG][PhysicsApiImpl] [physics] body created id=157 surfaceId=157 mass=120.0 kinematic=false lockRotation=false
+[18:35:04.497][DEBUG][SurfaceRegistry] Registered spatial id=158 kind=model name=shot-146 worldPos=(76.907524, -12.730579, -280.82455)
+[18:35:04.501][DEBUG][PhysicsApiImpl] [physics] body created id=158 surfaceId=158 mass=120.0 kinematic=false lockRotation=false
+[18:35:04.714][DEBUG][SurfaceRegistry] Registered spatial id=159 kind=model name=shot-147 worldPos=(76.22573, -12.935039, -280.1797)
+[18:35:04.719][DEBUG][PhysicsApiImpl] [physics] body created id=159 surfaceId=159 mass=120.0 kinematic=false lockRotation=false
+[18:35:04.914][DEBUG][SurfaceRegistry] Registered spatial id=160 kind=model name=shot-148 worldPos=(75.665504, -12.88778, -279.6929)
+[18:35:04.918][DEBUG][PhysicsApiImpl] [physics] body created id=160 surfaceId=160 mass=120.0 kinematic=false lockRotation=false
+[18:35:05.164][DEBUG][SurfaceRegistry] Registered spatial id=161 kind=model name=shot-149 worldPos=(74.869225, -12.910378, -278.96878)
+[18:35:05.168][DEBUG][PhysicsApiImpl] [physics] body created id=161 surfaceId=161 mass=120.0 kinematic=false lockRotation=false
+[18:35:05.365][DEBUG][SurfaceRegistry] Registered spatial id=162 kind=model name=shot-150 worldPos=(74.25926, -13.127607, -278.41196)
+[18:35:05.369][DEBUG][PhysicsApiImpl] [physics] body created id=162 surfaceId=162 mass=120.0 kinematic=false lockRotation=false
+[18:35:06.114][DEBUG][SurfaceRegistry] Registered spatial id=163 kind=model name=shot-151 worldPos=(72.10478, -13.183711, -277.21057)
+[18:35:06.118][DEBUG][PhysicsApiImpl] [physics] body created id=163 surfaceId=163 mass=120.0 kinematic=false lockRotation=false
+[18:35:06.531][DEBUG][SurfaceRegistry] Registered spatial id=164 kind=model name=shot-152 worldPos=(70.668106, -13.384093, -276.78082)
+[18:35:06.535][DEBUG][PhysicsApiImpl] [physics] body created id=164 surfaceId=164 mass=120.0 kinematic=false lockRotation=false
+[18:35:06.982][DEBUG][SurfaceRegistry] Registered spatial id=165 kind=model name=shot-153 worldPos=(69.36957, -13.256636, -276.31348)
+[18:35:06.986][DEBUG][PhysicsApiImpl] [physics] body created id=165 surfaceId=165 mass=120.0 kinematic=false lockRotation=false
+[18:35:07.384][DEBUG][SurfaceRegistry] Registered spatial id=166 kind=model name=shot-154 worldPos=(68.688156, -13.2049055, -275.94168)
+[18:35:07.388][DEBUG][PhysicsApiImpl] [physics] body created id=166 surfaceId=166 mass=120.0 kinematic=false lockRotation=false
+[18:35:07.818][DEBUG][SurfaceRegistry] Registered spatial id=167 kind=model name=shot-155 worldPos=(68.53748, -13.219458, -275.56207)
+[18:35:07.822][DEBUG][PhysicsApiImpl] [physics] body created id=167 surfaceId=167 mass=120.0 kinematic=false lockRotation=false
+[18:35:08.169][DEBUG][SurfaceRegistry] Registered spatial id=168 kind=model name=shot-156 worldPos=(68.40251, -13.119543, -275.26788)
+[18:35:08.173][DEBUG][PhysicsApiImpl] [physics] body created id=168 surfaceId=168 mass=120.0 kinematic=false lockRotation=false
+[18:35:08.651][DEBUG][SurfaceRegistry] Registered spatial id=169 kind=model name=shot-157 worldPos=(67.6022, -13.247599, -274.7996)
+[18:35:08.656][DEBUG][PhysicsApiImpl] [physics] body created id=169 surfaceId=169 mass=120.0 kinematic=false lockRotation=false
+[18:35:08.984][DEBUG][SurfaceRegistry] Registered spatial id=170 kind=model name=shot-158 worldPos=(66.79624, -13.117988, -274.49173)
+[18:35:08.988][DEBUG][PhysicsApiImpl] [physics] body created id=170 surfaceId=170 mass=120.0 kinematic=false lockRotation=false
+[18:35:09.318][DEBUG][SurfaceRegistry] Registered spatial id=171 kind=model name=shot-159 worldPos=(65.60533, -13.196332, -274.21408)
+[18:35:09.321][DEBUG][PhysicsApiImpl] [physics] body created id=171 surfaceId=171 mass=120.0 kinematic=false lockRotation=false
+[18:35:09.684][DEBUG][SurfaceRegistry] Registered spatial id=172 kind=model name=shot-160 worldPos=(64.285866, -13.144895, -273.89456)
+[18:35:09.688][DEBUG][PhysicsApiImpl] [physics] body created id=172 surfaceId=172 mass=120.0 kinematic=false lockRotation=false
+[18:35:09.951][DEBUG][SurfaceRegistry] Registered spatial id=173 kind=model name=shot-161 worldPos=(63.237434, -13.135007, -273.6713)
+[18:35:09.955][DEBUG][PhysicsApiImpl] [physics] body created id=173 surfaceId=173 mass=120.0 kinematic=false lockRotation=false
+[18:35:10.185][DEBUG][SurfaceRegistry] Registered spatial id=174 kind=model name=shot-162 worldPos=(62.34613, -13.165713, -273.49435)
+[18:35:10.188][DEBUG][PhysicsApiImpl] [physics] body created id=174 surfaceId=174 mass=120.0 kinematic=false lockRotation=false
+[18:35:10.418][DEBUG][SurfaceRegistry] Registered spatial id=175 kind=model name=shot-163 worldPos=(61.446163, -13.330978, -273.26257)
+[18:35:10.423][DEBUG][PhysicsApiImpl] [physics] body created id=175 surfaceId=175 mass=120.0 kinematic=false lockRotation=false
+[18:35:10.701][DEBUG][SurfaceRegistry] Registered spatial id=176 kind=model name=shot-164 worldPos=(60.80363, -13.2128315, -273.01608)
+[18:35:10.705][DEBUG][PhysicsApiImpl] [physics] body created id=176 surfaceId=176 mass=120.0 kinematic=false lockRotation=false
+[18:35:10.951][DEBUG][SurfaceRegistry] Registered spatial id=177 kind=model name=shot-165 worldPos=(60.105885, -13.201983, -272.8001)
+[18:35:10.955][DEBUG][PhysicsApiImpl] [physics] body created id=177 surfaceId=177 mass=120.0 kinematic=false lockRotation=false
+[18:35:11.902][DEBUG][SurfaceRegistry] Registered spatial id=178 kind=model name=shot-166 worldPos=(56.827927, -13.295728, -272.8285)
+[18:35:11.905][DEBUG][PhysicsApiImpl] [physics] body created id=178 surfaceId=178 mass=120.0 kinematic=false lockRotation=false
+[18:35:12.201][DEBUG][SurfaceRegistry] Registered spatial id=179 kind=model name=shot-167 worldPos=(55.774063, -13.250778, -273.15182)
+[18:35:12.205][DEBUG][PhysicsApiImpl] [physics] body created id=179 surfaceId=179 mass=120.0 kinematic=false lockRotation=false
+[18:35:12.501][DEBUG][SurfaceRegistry] Registered spatial id=180 kind=model name=shot-168 worldPos=(54.808235, -13.296092, -273.46185)
+[18:35:12.505][DEBUG][PhysicsApiImpl] [physics] body created id=180 surfaceId=180 mass=120.0 kinematic=false lockRotation=false
+[18:35:12.773][DEBUG][SurfaceRegistry] Registered spatial id=181 kind=model name=shot-169 worldPos=(53.960358, -13.268897, -273.79474)
+[18:35:12.777][DEBUG][PhysicsApiImpl] [physics] body created id=181 surfaceId=181 mass=120.0 kinematic=false lockRotation=false
+[18:35:12.998][DEBUG][SurfaceRegistry] Registered spatial id=182 kind=model name=shot-170 worldPos=(53.159035, -13.374983, -274.06067)
+[18:35:13.002][DEBUG][PhysicsApiImpl] [physics] body created id=182 surfaceId=182 mass=120.0 kinematic=false lockRotation=false
+[18:35:13.298][DEBUG][SurfaceRegistry] Registered spatial id=183 kind=model name=shot-171 worldPos=(52.29607, -13.268502, -274.45233)
+[18:35:13.302][DEBUG][PhysicsApiImpl] [physics] body created id=183 surfaceId=183 mass=120.0 kinematic=false lockRotation=false
+[18:35:13.531][DEBUG][SurfaceRegistry] Registered spatial id=184 kind=model name=shot-172 worldPos=(51.410866, -13.455015, -274.79434)
+[18:35:13.535][DEBUG][PhysicsApiImpl] [physics] body created id=184 surfaceId=184 mass=120.0 kinematic=false lockRotation=false
+[18:35:13.781][DEBUG][SurfaceRegistry] Registered spatial id=185 kind=model name=shot-173 worldPos=(50.6975, -13.314237, -275.1796)
+[18:35:13.785][DEBUG][PhysicsApiImpl] [physics] body created id=185 surfaceId=185 mass=120.0 kinematic=false lockRotation=false
+[18:35:14.032][DEBUG][SurfaceRegistry] Registered spatial id=186 kind=model name=shot-174 worldPos=(49.726055, -13.431441, -275.5812)
+[18:35:14.035][DEBUG][PhysicsApiImpl] [physics] body created id=186 surfaceId=186 mass=120.0 kinematic=false lockRotation=false
+[18:35:14.282][DEBUG][SurfaceRegistry] Registered spatial id=187 kind=model name=shot-175 worldPos=(49.13452, -13.343597, -275.93704)
+[18:35:14.286][DEBUG][PhysicsApiImpl] [physics] body created id=187 surfaceId=187 mass=120.0 kinematic=false lockRotation=false
+[18:35:14.531][DEBUG][SurfaceRegistry] Registered spatial id=188 kind=model name=shot-176 worldPos=(48.790943, -13.196871, -276.33066)
+[18:35:14.535][DEBUG][PhysicsApiImpl] [physics] body created id=188 surfaceId=188 mass=120.0 kinematic=false lockRotation=false
+[18:35:14.748][DEBUG][SurfaceRegistry] Registered spatial id=189 kind=model name=shot-177 worldPos=(48.56659, -13.170826, -276.68185)
+[18:35:14.752][DEBUG][PhysicsApiImpl] [physics] body created id=189 surfaceId=189 mass=120.0 kinematic=false lockRotation=false
+[18:35:15.081][DEBUG][SurfaceRegistry] Registered spatial id=190 kind=model name=shot-178 worldPos=(47.888123, -13.470488, -277.22476)
+[18:35:15.085][DEBUG][PhysicsApiImpl] [physics] body created id=190 surfaceId=190 mass=120.0 kinematic=false lockRotation=false
+[18:35:15.465][DEBUG][SurfaceRegistry] Registered spatial id=191 kind=model name=shot-179 worldPos=(46.892876, -13.383965, -277.80566)
+[18:35:15.469][DEBUG][PhysicsApiImpl] [physics] body created id=191 surfaceId=191 mass=120.0 kinematic=false lockRotation=false
+[18:35:15.848][DEBUG][SurfaceRegistry] Registered spatial id=192 kind=model name=shot-180 worldPos=(45.470562, -13.607954, -278.41077)
+[18:35:15.852][DEBUG][PhysicsApiImpl] [physics] body created id=192 surfaceId=192 mass=120.0 kinematic=false lockRotation=false
+[18:35:16.332][DEBUG][SurfaceRegistry] Registered spatial id=193 kind=model name=shot-181 worldPos=(43.68633, -13.778236, -279.12665)
+[18:35:16.335][DEBUG][PhysicsApiImpl] [physics] body created id=193 surfaceId=193 mass=120.0 kinematic=false lockRotation=false
+[18:35:16.765][DEBUG][SurfaceRegistry] Registered spatial id=194 kind=model name=shot-182 worldPos=(42.54639, -13.744433, -279.7809)
+[18:35:16.769][DEBUG][PhysicsApiImpl] [physics] body created id=194 surfaceId=194 mass=120.0 kinematic=false lockRotation=false
+[18:35:17.132][DEBUG][SurfaceRegistry] Registered spatial id=195 kind=model name=shot-183 worldPos=(41.338894, -13.865809, -280.33658)
+[18:35:17.135][DEBUG][PhysicsApiImpl] [physics] body created id=195 surfaceId=195 mass=120.0 kinematic=false lockRotation=false
+[18:35:17.598][DEBUG][SurfaceRegistry] Registered spatial id=196 kind=model name=shot-184 worldPos=(40.09788, -13.748605, -281.03973)
+[18:35:17.602][DEBUG][PhysicsApiImpl] [physics] body created id=196 surfaceId=196 mass=120.0 kinematic=false lockRotation=false
+[18:35:18.065][DEBUG][SurfaceRegistry] Registered spatial id=197 kind=model name=shot-185 worldPos=(38.58131, -13.717786, -281.70395)
+[18:35:18.069][DEBUG][PhysicsApiImpl] [physics] body created id=197 surfaceId=197 mass=120.0 kinematic=false lockRotation=false
+[18:35:18.432][DEBUG][SurfaceRegistry] Registered spatial id=198 kind=model name=shot-186 worldPos=(37.447414, -13.782248, -282.25537)
+[18:35:18.435][DEBUG][PhysicsApiImpl] [physics] body created id=198 surfaceId=198 mass=120.0 kinematic=false lockRotation=false
+[18:35:18.865][DEBUG][SurfaceRegistry] Registered spatial id=199 kind=model name=shot-187 worldPos=(36.091755, -13.889597, -282.9068)
+[18:35:18.869][DEBUG][PhysicsApiImpl] [physics] body created id=199 surfaceId=199 mass=120.0 kinematic=false lockRotation=false
+[18:35:19.165][DEBUG][SurfaceRegistry] Registered spatial id=200 kind=model name=shot-188 worldPos=(35.433784, -13.668161, -283.37308)
+[18:35:19.169][DEBUG][PhysicsApiImpl] [physics] body created id=200 surfaceId=200 mass=120.0 kinematic=false lockRotation=false
+[18:35:19.665][DEBUG][SurfaceRegistry] Registered spatial id=201 kind=model name=shot-189 worldPos=(33.91826, -13.62513, -284.10873)
+[18:35:19.669][DEBUG][PhysicsApiImpl] [physics] body created id=201 surfaceId=201 mass=120.0 kinematic=false lockRotation=false
+[18:35:20.065][DEBUG][SurfaceRegistry] Registered spatial id=202 kind=model name=shot-190 worldPos=(32.508076, -13.759884, -284.5512)
+[18:35:20.069][DEBUG][PhysicsApiImpl] [physics] body created id=202 surfaceId=202 mass=120.0 kinematic=false lockRotation=false
+[18:35:20.449][DEBUG][SurfaceRegistry] Registered spatial id=203 kind=model name=shot-191 worldPos=(31.413029, -13.6021, -285.08762)
+[18:35:20.452][DEBUG][PhysicsApiImpl] [physics] body created id=203 surfaceId=203 mass=120.0 kinematic=false lockRotation=false
+[18:35:20.799][DEBUG][SurfaceRegistry] Registered spatial id=204 kind=model name=shot-192 worldPos=(30.454823, -13.563286, -285.2667)
+[18:35:20.802][DEBUG][PhysicsApiImpl] [physics] body created id=204 surfaceId=204 mass=120.0 kinematic=false lockRotation=false
+[18:35:21.165][DEBUG][SurfaceRegistry] Registered spatial id=205 kind=model name=shot-193 worldPos=(29.511196, -13.602882, -285.42175)
+[18:35:21.169][DEBUG][PhysicsApiImpl] [physics] body created id=205 surfaceId=205 mass=120.0 kinematic=false lockRotation=false
+[18:35:21.416][DEBUG][SurfaceRegistry] Registered spatial id=206 kind=model name=shot-194 worldPos=(28.977945, -13.477062, -285.52496)
+[18:35:21.419][DEBUG][PhysicsApiImpl] [physics] body created id=206 surfaceId=206 mass=120.0 kinematic=false lockRotation=false
+[18:35:21.632][DEBUG][SurfaceRegistry] Registered spatial id=207 kind=model name=shot-195 worldPos=(28.435293, -13.419134, -285.62473)
+[18:35:21.636][DEBUG][PhysicsApiImpl] [physics] body created id=207 surfaceId=207 mass=120.0 kinematic=false lockRotation=false
+[18:35:21.898][DEBUG][SurfaceRegistry] Registered spatial id=208 kind=model name=shot-196 worldPos=(27.525751, -13.474536, -285.74478)
+[18:35:21.902][DEBUG][PhysicsApiImpl] [physics] body created id=208 surfaceId=208 mass=120.0 kinematic=false lockRotation=false
+[18:35:23.549][DEBUG][SurfaceRegistry] Registered spatial id=209 kind=model name=shot-197 worldPos=(24.968624, -13.154045, -285.4004)
+[18:35:23.553][DEBUG][PhysicsApiImpl] [physics] body created id=209 surfaceId=209 mass=120.0 kinematic=false lockRotation=false
+[18:35:23.999][DEBUG][SurfaceRegistry] Registered spatial id=210 kind=model name=shot-198 worldPos=(23.474106, -13.152894, -285.19327)
+[18:35:24.003][DEBUG][PhysicsApiImpl] [physics] body created id=210 surfaceId=210 mass=120.0 kinematic=false lockRotation=false
+[18:35:24.299][DEBUG][SurfaceRegistry] Registered spatial id=211 kind=model name=shot-199 worldPos=(22.638317, -12.951731, -285.14816)
+[18:35:24.303][DEBUG][PhysicsApiImpl] [physics] body created id=211 surfaceId=211 mass=120.0 kinematic=false lockRotation=false
+[18:35:24.549][DEBUG][SurfaceRegistry] Registered spatial id=212 kind=model name=shot-200 worldPos=(21.83151, -12.911979, -285.10907)
+[18:35:24.553][DEBUG][PhysicsApiImpl] [physics] body created id=212 surfaceId=212 mass=120.0 kinematic=false lockRotation=false
+[18:35:24.766][DEBUG][SurfaceRegistry] Registered spatial id=213 kind=model name=shot-201 worldPos=(21.12513, -12.922455, -285.14816)
+[18:35:24.769][DEBUG][PhysicsApiImpl] [physics] body created id=213 surfaceId=213 mass=120.0 kinematic=false lockRotation=false
+[18:35:24.965][DEBUG][SurfaceRegistry] Registered spatial id=214 kind=model name=shot-202 worldPos=(20.513372, -12.8477125, -285.12903)
+[18:35:24.969][DEBUG][PhysicsApiImpl] [physics] body created id=214 surfaceId=214 mass=120.0 kinematic=false lockRotation=false
+[18:35:39.950][DEBUG][SurfaceRegistry] Registered spatial id=215 kind=model name=shot-203 worldPos=(2.501758, -13.345037, -282.93857)
+[18:35:39.954][DEBUG][PhysicsApiImpl] [physics] body created id=215 surfaceId=215 mass=120.0 kinematic=false lockRotation=false
+[18:35:41.267][DEBUG][SurfaceRegistry] Registered spatial id=216 kind=model name=shot-204 worldPos=(-1.2514905, -13.135153, -280.13943)
+[18:35:41.271][DEBUG][PhysicsApiImpl] [physics] body created id=216 surfaceId=216 mass=120.0 kinematic=false lockRotation=false
+[18:35:42.384][DEBUG][SurfaceRegistry] Registered spatial id=217 kind=model name=shot-205 worldPos=(-4.3081374, -12.928039, -277.43796)
+[18:35:42.387][DEBUG][PhysicsApiImpl] [physics] body created id=217 surfaceId=217 mass=120.0 kinematic=false lockRotation=false
+[18:35:43.035][DEBUG][SurfaceRegistry] Registered spatial id=218 kind=model name=shot-206 worldPos=(-5.8703737, -12.829658, -275.92374)
+[18:35:43.038][DEBUG][PhysicsApiImpl] [physics] body created id=218 surfaceId=218 mass=120.0 kinematic=false lockRotation=false
+[18:35:43.501][DEBUG][SurfaceRegistry] Registered spatial id=219 kind=model name=shot-207 worldPos=(-7.153556, -12.871608, -274.49332)
+[18:35:43.505][DEBUG][PhysicsApiImpl] [physics] body created id=219 surfaceId=219 mass=120.0 kinematic=false lockRotation=false
+[18:35:43.968][DEBUG][SurfaceRegistry] Registered spatial id=220 kind=model name=shot-208 worldPos=(-8.154292, -12.807723, -273.40805)
+[18:35:43.972][DEBUG][PhysicsApiImpl] [physics] body created id=220 surfaceId=220 mass=120.0 kinematic=false lockRotation=false
+[18:35:44.484][DEBUG][SurfaceRegistry] Registered spatial id=221 kind=model name=shot-209 worldPos=(-9.490922, -12.786414, -272.1734)
+[18:35:44.488][DEBUG][PhysicsApiImpl] [physics] body created id=221 surfaceId=221 mass=120.0 kinematic=false lockRotation=false
+[18:35:45.001][DEBUG][SurfaceRegistry] Registered spatial id=222 kind=model name=shot-210 worldPos=(-10.960774, -12.824182, -270.88437)
+[18:35:45.004][DEBUG][PhysicsApiImpl] [physics] body created id=222 surfaceId=222 mass=120.0 kinematic=false lockRotation=false
+[18:35:45.518][DEBUG][SurfaceRegistry] Registered spatial id=223 kind=model name=shot-211 worldPos=(-12.465815, -12.818262, -269.70847)
+[18:35:45.522][DEBUG][PhysicsApiImpl] [physics] body created id=223 surfaceId=223 mass=120.0 kinematic=false lockRotation=false
+[18:35:45.967][DEBUG][SurfaceRegistry] Registered spatial id=224 kind=model name=shot-212 worldPos=(-13.753925, -12.875544, -268.5999)
+[18:35:45.971][DEBUG][PhysicsApiImpl] [physics] body created id=224 surfaceId=224 mass=120.0 kinematic=false lockRotation=false
+[18:35:46.434][DEBUG][SurfaceRegistry] Registered spatial id=225 kind=model name=shot-213 worldPos=(-15.256567, -13.10554, -267.48315)
+[18:35:46.438][DEBUG][PhysicsApiImpl] [physics] body created id=225 surfaceId=225 mass=120.0 kinematic=false lockRotation=false
+[18:35:46.918][DEBUG][SurfaceRegistry] Registered spatial id=226 kind=model name=shot-214 worldPos=(-16.505028, -13.151052, -266.3259)
+[18:35:46.921][DEBUG][PhysicsApiImpl] [physics] body created id=226 surfaceId=226 mass=120.0 kinematic=false lockRotation=false
+[18:35:47.301][DEBUG][SurfaceRegistry] Registered spatial id=227 kind=model name=shot-215 worldPos=(-17.609026, -12.982412, -265.58798)
+[18:35:47.305][DEBUG][PhysicsApiImpl] [physics] body created id=227 surfaceId=227 mass=120.0 kinematic=false lockRotation=false
+[18:35:48.367][DEBUG][SurfaceRegistry] Registered spatial id=228 kind=model name=shot-216 worldPos=(-20.758041, -12.951456, -266.0774)
+[18:35:48.371][DEBUG][PhysicsApiImpl] [physics] body created id=228 surfaceId=228 mass=120.0 kinematic=false lockRotation=false
+[18:35:48.901][DEBUG][SurfaceRegistry] Registered spatial id=229 kind=model name=shot-217 worldPos=(-22.067762, -13.121654, -267.6913)
+[18:35:48.905][DEBUG][PhysicsApiImpl] [physics] body created id=229 surfaceId=229 mass=120.0 kinematic=false lockRotation=false
+[18:35:49.368][DEBUG][SurfaceRegistry] Registered spatial id=230 kind=model name=shot-218 worldPos=(-23.366915, -12.986196, -269.1721)
+[18:35:49.371][DEBUG][PhysicsApiImpl] [physics] body created id=230 surfaceId=230 mass=120.0 kinematic=false lockRotation=false
+[18:35:49.817][DEBUG][SurfaceRegistry] Registered spatial id=231 kind=model name=shot-219 worldPos=(-24.40188, -12.982103, -270.39645)
+[18:35:49.822][DEBUG][PhysicsApiImpl] [physics] body created id=231 surfaceId=231 mass=120.0 kinematic=false lockRotation=false
+[18:35:50.285][DEBUG][SurfaceRegistry] Registered spatial id=232 kind=model name=shot-220 worldPos=(-25.575502, -12.937195, -271.76416)
+[18:35:50.289][DEBUG][PhysicsApiImpl] [physics] body created id=232 surfaceId=232 mass=120.0 kinematic=false lockRotation=false
+[18:35:50.651][DEBUG][SurfaceRegistry] Registered spatial id=233 kind=model name=shot-221 worldPos=(-26.550356, -12.845568, -272.88004)
+[18:35:50.655][DEBUG][PhysicsApiImpl] [physics] body created id=233 surfaceId=233 mass=120.0 kinematic=false lockRotation=false
+[18:35:50.985][DEBUG][SurfaceRegistry] Registered spatial id=234 kind=model name=shot-222 worldPos=(-27.442892, -12.876374, -273.72507)
+[18:35:50.989][DEBUG][PhysicsApiImpl] [physics] body created id=234 surfaceId=234 mass=120.0 kinematic=false lockRotation=false
+[18:35:52.551][DEBUG][SurfaceRegistry] Registered spatial id=235 kind=model name=shot-223 worldPos=(-32.22439, -12.973287, -276.7935)
+[18:35:52.555][DEBUG][PhysicsApiImpl] [physics] body created id=235 surfaceId=235 mass=120.0 kinematic=false lockRotation=false
+[18:35:53.934][DEBUG][SurfaceRegistry] Registered spatial id=236 kind=model name=shot-224 worldPos=(-36.90651, -12.913835, -277.68735)
+[18:35:53.938][DEBUG][PhysicsApiImpl] [physics] body created id=236 surfaceId=236 mass=120.0 kinematic=false lockRotation=false
+[18:35:56.202][DEBUG][SurfaceRegistry] Registered spatial id=237 kind=model name=shot-225 worldPos=(-44.100224, -12.778247, -279.24747)
+[18:35:56.206][DEBUG][PhysicsApiImpl] [physics] body created id=237 surfaceId=237 mass=120.0 kinematic=false lockRotation=false
+[18:35:57.402][DEBUG][SurfaceRegistry] Registered spatial id=238 kind=model name=shot-226 worldPos=(-46.658966, -12.344431, -279.54282)
+[18:35:57.406][DEBUG][PhysicsApiImpl] [physics] body created id=238 surfaceId=238 mass=120.0 kinematic=false lockRotation=false
+[18:35:58.885][DEBUG][SurfaceRegistry] Registered spatial id=239 kind=model name=shot-227 worldPos=(-49.509857, -11.708466, -279.7047)
+[18:35:58.889][DEBUG][PhysicsApiImpl] [physics] body created id=239 surfaceId=239 mass=120.0 kinematic=false lockRotation=false
+[18:35:59.769][DEBUG][SurfaceRegistry] Registered spatial id=240 kind=model name=shot-228 worldPos=(-51.756912, -11.589386, -279.74887)
+[18:35:59.773][DEBUG][PhysicsApiImpl] [physics] body created id=240 surfaceId=240 mass=120.0 kinematic=false lockRotation=false
+[18:36:01.053][DEBUG][SurfaceRegistry] Registered spatial id=241 kind=model name=shot-229 worldPos=(-56.10112, -11.132764, -279.57867)
+[18:36:01.057][DEBUG][PhysicsApiImpl] [physics] body created id=241 surfaceId=241 mass=120.0 kinematic=false lockRotation=false
+[18:36:01.788][DEBUG][SurfaceRegistry] Registered spatial id=242 kind=model name=shot-230 worldPos=(-57.953583, -10.839015, -279.5664)
+[18:36:01.792][DEBUG][PhysicsApiImpl] [physics] body created id=242 surfaceId=242 mass=120.0 kinematic=false lockRotation=false
+[18:36:04.203][DEBUG][SurfaceRegistry] Registered spatial id=243 kind=model name=shot-231 worldPos=(-62.7578, -10.653619, -279.7139)
+[18:36:04.207][DEBUG][PhysicsApiImpl] [physics] body created id=243 surfaceId=243 mass=120.0 kinematic=false lockRotation=false
+[18:36:07.753][DEBUG][SurfaceRegistry] Registered spatial id=244 kind=model name=shot-232 worldPos=(-62.476265, -10.845194, -279.7049)
+[18:36:07.757][DEBUG][PhysicsApiImpl] [physics] body created id=244 surfaceId=244 mass=120.0 kinematic=false lockRotation=false
+[18:36:08.720][DEBUG][SurfaceRegistry] Registered spatial id=245 kind=model name=shot-233 worldPos=(-62.48017, -10.84516, -279.7156)
+[18:36:08.723][DEBUG][PhysicsApiImpl] [physics] body created id=245 surfaceId=245 mass=120.0 kinematic=false lockRotation=false
+[18:36:10.720][DEBUG][SurfaceRegistry] Registered spatial id=246 kind=model name=shot-234 worldPos=(-62.47772, -10.843357, -279.71722)
+[18:36:10.724][DEBUG][PhysicsApiImpl] [physics] body created id=246 surfaceId=246 mass=120.0 kinematic=false lockRotation=false
+[18:36:11.003][DEBUG][SurfaceRegistry] Registered spatial id=247 kind=model name=shot-235 worldPos=(-62.47772, -10.843357, -279.71722)
+[18:36:11.007][DEBUG][PhysicsApiImpl] [physics] body created id=247 surfaceId=247 mass=120.0 kinematic=false lockRotation=false
+[18:36:11.237][DEBUG][SurfaceRegistry] Registered spatial id=248 kind=model name=shot-236 worldPos=(-62.47772, -10.843357, -279.71722)
+[18:36:11.240][DEBUG][PhysicsApiImpl] [physics] body created id=248 surfaceId=248 mass=120.0 kinematic=false lockRotation=false
+[18:36:11.669][DEBUG][SurfaceRegistry] Registered spatial id=249 kind=model name=shot-237 worldPos=(-62.47772, -10.843357, -279.71722)
+[18:36:11.673][DEBUG][PhysicsApiImpl] [physics] body created id=249 surfaceId=249 mass=120.0 kinematic=false lockRotation=false
+[18:36:20.704][DEBUG][SurfaceRegistry] Registered spatial id=250 kind=model name=shot-238 worldPos=(-77.1642, -10.436817, -277.89838)
+[18:36:20.708][DEBUG][PhysicsApiImpl] [physics] body created id=250 surfaceId=250 mass=120.0 kinematic=false lockRotation=false
+[18:36:20.954][DEBUG][SurfaceRegistry] Registered spatial id=251 kind=model name=shot-239 worldPos=(-78.0887, -10.366652, -278.00348)
+[18:36:20.958][DEBUG][PhysicsApiImpl] [physics] body created id=251 surfaceId=251 mass=120.0 kinematic=false lockRotation=false
+[18:36:21.154][DEBUG][SurfaceRegistry] Registered spatial id=252 kind=model name=shot-240 worldPos=(-78.95551, -10.603273, -278.10498)
+[18:36:21.158][DEBUG][PhysicsApiImpl] [physics] body created id=252 surfaceId=252 mass=120.0 kinematic=false lockRotation=false
+[18:36:21.354][DEBUG][SurfaceRegistry] Registered spatial id=253 kind=model name=shot-241 worldPos=(-79.64282, -10.649178, -278.22708)
+[18:36:21.358][DEBUG][PhysicsApiImpl] [physics] body created id=253 surfaceId=253 mass=120.0 kinematic=false lockRotation=false
+[18:36:21.571][DEBUG][SurfaceRegistry] Registered spatial id=254 kind=model name=shot-242 worldPos=(-80.51105, -10.672735, -278.34122)
+[18:36:21.575][DEBUG][PhysicsApiImpl] [physics] body created id=254 surfaceId=254 mass=120.0 kinematic=false lockRotation=false
+[18:36:21.771][DEBUG][SurfaceRegistry] Registered spatial id=255 kind=model name=shot-243 worldPos=(-81.369415, -10.875734, -278.44226)
+[18:36:21.775][DEBUG][PhysicsApiImpl] [physics] body created id=255 surfaceId=255 mass=120.0 kinematic=false lockRotation=false
+[18:36:22.005][DEBUG][SurfaceRegistry] Registered spatial id=256 kind=model name=shot-244 worldPos=(-81.98681, -10.828758, -278.55212)
+[18:36:22.008][DEBUG][PhysicsApiImpl] [physics] body created id=256 surfaceId=256 mass=120.0 kinematic=false lockRotation=false
+[18:36:22.238][DEBUG][SurfaceRegistry] Registered spatial id=257 kind=model name=shot-245 worldPos=(-82.75637, -10.875583, -278.66733)
+[18:36:22.242][DEBUG][PhysicsApiImpl] [physics] body created id=257 surfaceId=257 mass=120.0 kinematic=false lockRotation=false
+[18:36:22.471][DEBUG][SurfaceRegistry] Registered spatial id=258 kind=model name=shot-246 worldPos=(-83.600365, -10.978545, -278.78314)
+[18:36:22.475][DEBUG][PhysicsApiImpl] [physics] body created id=258 surfaceId=258 mass=120.0 kinematic=false lockRotation=false
+[18:36:22.721][DEBUG][SurfaceRegistry] Registered spatial id=259 kind=model name=shot-247 worldPos=(-84.40475, -10.918367, -278.8945)
+[18:36:22.725][DEBUG][PhysicsApiImpl] [physics] body created id=259 surfaceId=259 mass=120.0 kinematic=false lockRotation=false
+[18:36:22.938][DEBUG][SurfaceRegistry] Registered spatial id=260 kind=model name=shot-248 worldPos=(-85.262245, -11.110019, -278.98077)
+[18:36:22.942][DEBUG][PhysicsApiImpl] [physics] body created id=260 surfaceId=260 mass=120.0 kinematic=false lockRotation=false
+[18:36:23.171][DEBUG][SurfaceRegistry] Registered spatial id=261 kind=model name=shot-249 worldPos=(-85.94043, -10.965084, -279.08316)
+[18:36:23.174][DEBUG][PhysicsApiImpl] [physics] body created id=261 surfaceId=261 mass=120.0 kinematic=false lockRotation=false
+[18:36:23.421][DEBUG][SurfaceRegistry] Registered spatial id=262 kind=model name=shot-250 worldPos=(-86.95937, -11.191666, -279.19092)
+[18:36:23.425][DEBUG][PhysicsApiImpl] [physics] body created id=262 surfaceId=262 mass=120.0 kinematic=false lockRotation=false
+[18:36:23.671][DEBUG][SurfaceRegistry] Registered spatial id=263 kind=model name=shot-251 worldPos=(-87.63888, -11.041394, -279.29987)
+[18:36:23.675][DEBUG][PhysicsApiImpl] [physics] body created id=263 surfaceId=263 mass=120.0 kinematic=false lockRotation=false
+[18:36:23.905][DEBUG][SurfaceRegistry] Registered spatial id=264 kind=model name=shot-252 worldPos=(-88.54316, -11.152823, -279.40576)
+[18:36:23.909][DEBUG][PhysicsApiImpl] [physics] body created id=264 surfaceId=264 mass=120.0 kinematic=false lockRotation=false
+[18:36:24.137][DEBUG][SurfaceRegistry] Registered spatial id=265 kind=model name=shot-253 worldPos=(-89.28378, -11.101861, -279.5152)
+[18:36:24.141][DEBUG][PhysicsApiImpl] [physics] body created id=265 surfaceId=265 mass=120.0 kinematic=false lockRotation=false
+[18:36:24.371][DEBUG][SurfaceRegistry] Registered spatial id=266 kind=model name=shot-254 worldPos=(-90.14564, -11.084141, -279.6217)
+[18:36:24.375][DEBUG][PhysicsApiImpl] [physics] body created id=266 surfaceId=266 mass=120.0 kinematic=false lockRotation=false
+[18:36:24.621][DEBUG][SurfaceRegistry] Registered spatial id=267 kind=model name=shot-255 worldPos=(-91.135414, -11.218848, -279.7565)
+[18:36:24.625][DEBUG][PhysicsApiImpl] [physics] body created id=267 surfaceId=267 mass=120.0 kinematic=false lockRotation=false
+[18:36:24.854][DEBUG][SurfaceRegistry] Registered spatial id=268 kind=model name=shot-256 worldPos=(-91.9548, -11.097333, -279.86078)
+[18:36:24.859][DEBUG][PhysicsApiImpl] [physics] body created id=268 surfaceId=268 mass=120.0 kinematic=false lockRotation=false
+[18:36:25.088][DEBUG][SurfaceRegistry] Registered spatial id=269 kind=model name=shot-257 worldPos=(-92.92739, -11.152783, -279.97015)
+[18:36:25.092][DEBUG][PhysicsApiImpl] [physics] body created id=269 surfaceId=269 mass=120.0 kinematic=false lockRotation=false
+[18:36:25.321][DEBUG][SurfaceRegistry] Registered spatial id=270 kind=model name=shot-258 worldPos=(-93.73753, -11.207405, -280.12247)
+[18:36:25.325][DEBUG][PhysicsApiImpl] [physics] body created id=270 surfaceId=270 mass=120.0 kinematic=false lockRotation=false
+[18:36:27.205][DEBUG][SurfaceRegistry] Registered spatial id=271 kind=model name=shot-259 worldPos=(-95.529366, -11.111067, -283.33774)
+[18:36:27.209][DEBUG][PhysicsApiImpl] [physics] body created id=271 surfaceId=271 mass=120.0 kinematic=false lockRotation=false
+[18:36:27.471][DEBUG][SurfaceRegistry] Registered spatial id=272 kind=model name=shot-260 worldPos=(-94.923706, -11.3175125, -284.24072)
+[18:36:27.475][DEBUG][PhysicsApiImpl] [physics] body created id=272 surfaceId=272 mass=120.0 kinematic=false lockRotation=false
+[18:36:27.738][DEBUG][SurfaceRegistry] Registered spatial id=273 kind=model name=shot-261 worldPos=(-94.442085, -11.148806, -284.9395)
+[18:36:27.743][DEBUG][PhysicsApiImpl] [physics] body created id=273 surfaceId=273 mass=120.0 kinematic=false lockRotation=false
+[18:36:27.988][DEBUG][SurfaceRegistry] Registered spatial id=274 kind=model name=shot-262 worldPos=(-93.83324, -11.317593, -285.80496)
+[18:36:27.991][DEBUG][PhysicsApiImpl] [physics] body created id=274 surfaceId=274 mass=120.0 kinematic=false lockRotation=false
+[18:36:28.188][DEBUG][SurfaceRegistry] Registered spatial id=275 kind=model name=shot-263 worldPos=(-93.39017, -11.115525, -286.42883)
+[18:36:28.192][DEBUG][PhysicsApiImpl] [physics] body created id=275 surfaceId=275 mass=120.0 kinematic=false lockRotation=false
+[18:36:28.538][DEBUG][SurfaceRegistry] Registered spatial id=276 kind=model name=shot-264 worldPos=(-92.521675, -11.303219, -287.63773)
+[18:36:28.543][DEBUG][PhysicsApiImpl] [physics] body created id=276 surfaceId=276 mass=120.0 kinematic=false lockRotation=false
+[18:36:28.788][DEBUG][SurfaceRegistry] Registered spatial id=277 kind=model name=shot-265 worldPos=(-92.061676, -11.110484, -288.31085)
+[18:36:28.792][DEBUG][PhysicsApiImpl] [physics] body created id=277 surfaceId=277 mass=120.0 kinematic=false lockRotation=false
+[18:36:29.021][DEBUG][SurfaceRegistry] Registered spatial id=278 kind=model name=shot-266 worldPos=(-91.460266, -11.28322, -289.11008)
+[18:36:29.025][DEBUG][PhysicsApiImpl] [physics] body created id=278 surfaceId=278 mass=120.0 kinematic=false lockRotation=false
+[18:36:29.288][DEBUG][SurfaceRegistry] Registered spatial id=279 kind=model name=shot-267 worldPos=(-90.9424, -11.058926, -289.81094)
+[18:36:29.292][DEBUG][PhysicsApiImpl] [physics] body created id=279 surfaceId=279 mass=120.0 kinematic=false lockRotation=false
+[18:36:29.555][DEBUG][SurfaceRegistry] Registered spatial id=280 kind=model name=shot-268 worldPos=(-90.22779, -11.227767, -290.71555)
+[18:36:29.558][DEBUG][PhysicsApiImpl] [physics] body created id=280 surfaceId=280 mass=120.0 kinematic=false lockRotation=false
+[18:36:29.788][DEBUG][SurfaceRegistry] Registered spatial id=281 kind=model name=shot-269 worldPos=(-89.833626, -11.035058, -291.2408)
+[18:36:29.792][DEBUG][PhysicsApiImpl] [physics] body created id=281 surfaceId=281 mass=120.0 kinematic=false lockRotation=false
+[18:36:31.138][DEBUG][SurfaceRegistry] Registered spatial id=282 kind=model name=shot-270 worldPos=(-88.7817, -11.186269, -292.41357)
+[18:36:31.142][DEBUG][PhysicsApiImpl] [physics] body created id=282 surfaceId=282 mass=120.0 kinematic=false lockRotation=false
+[18:36:31.555][DEBUG][SurfaceRegistry] Registered spatial id=283 kind=model name=shot-271 worldPos=(-88.302444, -11.018911, -293.068)
+[18:36:31.559][DEBUG][PhysicsApiImpl] [physics] body created id=283 surfaceId=283 mass=120.0 kinematic=false lockRotation=false
+[18:36:31.822][DEBUG][SurfaceRegistry] Registered spatial id=284 kind=model name=shot-272 worldPos=(-87.62795, -11.054801, -293.8353)
+[18:36:31.826][DEBUG][PhysicsApiImpl] [physics] body created id=284 surfaceId=284 mass=120.0 kinematic=false lockRotation=false
+[18:36:32.054][DEBUG][SurfaceRegistry] Registered spatial id=285 kind=model name=shot-273 worldPos=(-87.10216, -11.120917, -294.5192)
+[18:36:32.058][DEBUG][PhysicsApiImpl] [physics] body created id=285 surfaceId=285 mass=120.0 kinematic=false lockRotation=false
+[18:36:32.288][DEBUG][SurfaceRegistry] Registered spatial id=286 kind=model name=shot-274 worldPos=(-86.567894, -10.976814, -295.12723)
+[18:36:32.292][DEBUG][PhysicsApiImpl] [physics] body created id=286 surfaceId=286 mass=120.0 kinematic=false lockRotation=false
+[18:36:32.522][DEBUG][SurfaceRegistry] Registered spatial id=287 kind=model name=shot-275 worldPos=(-85.92957, -11.200062, -295.85168)
+[18:36:32.526][DEBUG][PhysicsApiImpl] [physics] body created id=287 surfaceId=287 mass=120.0 kinematic=false lockRotation=false
+[18:36:32.739][DEBUG][SurfaceRegistry] Registered spatial id=288 kind=model name=shot-276 worldPos=(-85.49833, -11.072351, -296.493)
+[18:36:32.742][DEBUG][PhysicsApiImpl] [physics] body created id=288 surfaceId=288 mass=120.0 kinematic=false lockRotation=false
+[18:36:32.972][DEBUG][SurfaceRegistry] Registered spatial id=289 kind=model name=shot-277 worldPos=(-84.8187, -11.058797, -297.19913)
+[18:36:32.975][DEBUG][PhysicsApiImpl] [physics] body created id=289 surfaceId=289 mass=120.0 kinematic=false lockRotation=false
+[18:36:33.189][DEBUG][SurfaceRegistry] Registered spatial id=290 kind=model name=shot-278 worldPos=(-84.25391, -11.180884, -297.74252)
+[18:36:33.193][DEBUG][PhysicsApiImpl] [physics] body created id=290 surfaceId=290 mass=120.0 kinematic=false lockRotation=false
+[18:36:33.939][DEBUG][SurfaceRegistry] Registered spatial id=291 kind=model name=shot-279 worldPos=(-82.63553, -11.043245, -298.13202)
+[18:36:33.942][DEBUG][PhysicsApiImpl] [physics] body created id=291 surfaceId=291 mass=120.0 kinematic=false lockRotation=false
+[18:36:34.155][DEBUG][SurfaceRegistry] Registered spatial id=292 kind=model name=shot-280 worldPos=(-82.433815, -10.964901, -297.75034)
+[18:36:34.159][DEBUG][PhysicsApiImpl] [physics] body created id=292 surfaceId=292 mass=120.0 kinematic=false lockRotation=false
+[18:36:34.372][DEBUG][SurfaceRegistry] Registered spatial id=293 kind=model name=shot-281 worldPos=(-82.032486, -10.963785, -297.133)
+[18:36:34.376][DEBUG][PhysicsApiImpl] [physics] body created id=293 surfaceId=293 mass=120.0 kinematic=false lockRotation=false
+[18:36:34.606][DEBUG][SurfaceRegistry] Registered spatial id=294 kind=model name=shot-282 worldPos=(-81.43652, -11.018976, -296.56757)
+[18:36:34.609][DEBUG][PhysicsApiImpl] [physics] body created id=294 surfaceId=294 mass=120.0 kinematic=false lockRotation=false
+[18:36:34.805][DEBUG][SurfaceRegistry] Registered spatial id=295 kind=model name=shot-283 worldPos=(-80.963, -10.870327, -296.19626)
+[18:36:34.809][DEBUG][PhysicsApiImpl] [physics] body created id=295 surfaceId=295 mass=120.0 kinematic=false lockRotation=false
+[18:36:35.005][DEBUG][SurfaceRegistry] Registered spatial id=296 kind=model name=shot-284 worldPos=(-80.5336, -10.906591, -295.59998)
+[18:36:35.009][DEBUG][PhysicsApiImpl] [physics] body created id=296 surfaceId=296 mass=120.0 kinematic=false lockRotation=false
+[18:36:35.272][DEBUG][SurfaceRegistry] Registered spatial id=297 kind=model name=shot-285 worldPos=(-80.28998, -10.75752, -294.87164)
+[18:36:35.276][DEBUG][PhysicsApiImpl] [physics] body created id=297 surfaceId=297 mass=120.0 kinematic=false lockRotation=false
+[18:36:35.522][DEBUG][SurfaceRegistry] Registered spatial id=298 kind=model name=shot-286 worldPos=(-80.10498, -10.626652, -294.19595)
+[18:36:35.526][DEBUG][PhysicsApiImpl] [physics] body created id=298 surfaceId=298 mass=120.0 kinematic=false lockRotation=false
+[18:36:35.772][DEBUG][SurfaceRegistry] Registered spatial id=299 kind=model name=shot-287 worldPos=(-79.9689, -10.759606, -293.29443)
+[18:36:35.776][DEBUG][PhysicsApiImpl] [physics] body created id=299 surfaceId=299 mass=120.0 kinematic=false lockRotation=false
+[18:36:36.006][DEBUG][SurfaceRegistry] Registered spatial id=300 kind=model name=shot-288 worldPos=(-79.88247, -10.629354, -292.61728)
+[18:36:36.009][DEBUG][PhysicsApiImpl] [physics] body created id=300 surfaceId=300 mass=120.0 kinematic=false lockRotation=false
+[18:36:36.222][DEBUG][SurfaceRegistry] Registered spatial id=301 kind=model name=shot-289 worldPos=(-79.82367, -10.662222, -291.8187)
+[18:36:36.226][DEBUG][PhysicsApiImpl] [physics] body created id=301 surfaceId=301 mass=120.0 kinematic=false lockRotation=false
+[18:36:36.423][DEBUG][SurfaceRegistry] Registered spatial id=302 kind=model name=shot-290 worldPos=(-79.766495, -10.675192, -291.1706)
+[18:36:36.427][DEBUG][PhysicsApiImpl] [physics] body created id=302 surfaceId=302 mass=120.0 kinematic=false lockRotation=false
+[18:36:36.756][DEBUG][SurfaceRegistry] Registered spatial id=303 kind=model name=shot-291 worldPos=(-79.67832, -10.524701, -290.26053)
+[18:36:36.760][DEBUG][PhysicsApiImpl] [physics] body created id=303 surfaceId=303 mass=120.0 kinematic=false lockRotation=false
+[18:36:37.006][DEBUG][SurfaceRegistry] Registered spatial id=304 kind=model name=shot-292 worldPos=(-79.6328, -10.626203, -289.34497)
+[18:36:37.009][DEBUG][PhysicsApiImpl] [physics] body created id=304 surfaceId=304 mass=120.0 kinematic=false lockRotation=false
+[18:36:37.188][DEBUG][SurfaceRegistry] Registered spatial id=305 kind=model name=shot-293 worldPos=(-79.5843, -10.5117855, -288.72427)
+[18:36:37.192][DEBUG][PhysicsApiImpl] [physics] body created id=305 surfaceId=305 mass=120.0 kinematic=false lockRotation=false
+[18:36:37.406][DEBUG][SurfaceRegistry] Registered spatial id=306 kind=model name=shot-294 worldPos=(-79.52369, -10.48151, -287.8824)
+[18:36:37.409][DEBUG][PhysicsApiImpl] [physics] body created id=306 surfaceId=306 mass=120.0 kinematic=false lockRotation=false
+[18:36:37.655][DEBUG][SurfaceRegistry] Registered spatial id=307 kind=model name=shot-295 worldPos=(-79.49225, -10.654876, -286.8894)
+[18:36:37.659][DEBUG][PhysicsApiImpl] [physics] body created id=307 surfaceId=307 mass=120.0 kinematic=false lockRotation=false
+[18:36:37.889][DEBUG][SurfaceRegistry] Registered spatial id=308 kind=model name=shot-296 worldPos=(-79.44174, -10.498122, -286.16266)
+[18:36:37.893][DEBUG][PhysicsApiImpl] [physics] body created id=308 surfaceId=308 mass=120.0 kinematic=false lockRotation=false
+[18:36:38.122][DEBUG][SurfaceRegistry] Registered spatial id=309 kind=model name=shot-297 worldPos=(-79.37569, -10.659156, -285.20288)
+[18:36:38.126][DEBUG][PhysicsApiImpl] [physics] body created id=309 surfaceId=309 mass=120.0 kinematic=false lockRotation=false
+[18:36:38.489][DEBUG][SurfaceRegistry] Registered spatial id=310 kind=model name=shot-298 worldPos=(-79.28806, -10.520476, -284.03424)
+[18:36:38.493][DEBUG][PhysicsApiImpl] [physics] body created id=310 surfaceId=310 mass=120.0 kinematic=false lockRotation=false
+[18:36:38.756][DEBUG][SurfaceRegistry] Registered spatial id=311 kind=model name=shot-299 worldPos=(-79.209526, -10.672698, -283.0243)
+[18:36:38.761][DEBUG][PhysicsApiImpl] [physics] body created id=311 surfaceId=311 mass=120.0 kinematic=false lockRotation=false
+[18:36:38.989][DEBUG][SurfaceRegistry] Registered spatial id=312 kind=model name=shot-300 worldPos=(-79.10812, -10.533764, -282.42218)
+[18:36:38.993][DEBUG][PhysicsApiImpl] [physics] body created id=312 surfaceId=312 mass=120.0 kinematic=false lockRotation=false
+[18:36:39.206][DEBUG][SurfaceRegistry] Registered spatial id=313 kind=model name=shot-301 worldPos=(-79.00611, -10.64237, -281.6137)
+[18:36:39.210][DEBUG][PhysicsApiImpl] [physics] body created id=313 surfaceId=313 mass=120.0 kinematic=false lockRotation=false
+[18:36:39.439][DEBUG][SurfaceRegistry] Registered spatial id=314 kind=model name=shot-302 worldPos=(-78.91245, -10.588851, -280.9773)
+[18:36:39.444][DEBUG][PhysicsApiImpl] [physics] body created id=314 surfaceId=314 mass=120.0 kinematic=false lockRotation=false
+[18:36:39.672][DEBUG][SurfaceRegistry] Registered spatial id=315 kind=model name=shot-303 worldPos=(-78.80108, -10.570614, -280.26404)
+[18:36:39.676][DEBUG][PhysicsApiImpl] [physics] body created id=315 surfaceId=315 mass=120.0 kinematic=false lockRotation=false
+[18:36:39.889][DEBUG][SurfaceRegistry] Registered spatial id=316 kind=model name=shot-304 worldPos=(-78.69808, -10.688681, -279.485)
+[18:36:39.893][DEBUG][PhysicsApiImpl] [physics] body created id=316 surfaceId=316 mass=120.0 kinematic=false lockRotation=false
+[18:36:40.123][DEBUG][SurfaceRegistry] Registered spatial id=317 kind=model name=shot-305 worldPos=(-78.5868, -10.53639, -278.8983)
+[18:36:40.127][DEBUG][PhysicsApiImpl] [physics] body created id=317 surfaceId=317 mass=120.0 kinematic=false lockRotation=false
+[18:36:40.372][DEBUG][SurfaceRegistry] Registered spatial id=318 kind=model name=shot-306 worldPos=(-78.463615, -10.692197, -277.9547)
+[18:36:40.376][DEBUG][PhysicsApiImpl] [physics] body created id=318 surfaceId=318 mass=120.0 kinematic=false lockRotation=false
+[18:36:40.556][DEBUG][SurfaceRegistry] Registered spatial id=319 kind=model name=shot-307 worldPos=(-78.414314, -10.567631, -277.4619)
+[18:36:40.560][DEBUG][PhysicsApiImpl] [physics] body created id=319 surfaceId=319 mass=120.0 kinematic=false lockRotation=false
+[18:36:40.773][DEBUG][SurfaceRegistry] Registered spatial id=320 kind=model name=shot-308 worldPos=(-78.33695, -10.536263, -276.73248)
+[18:36:40.776][DEBUG][PhysicsApiImpl] [physics] body created id=320 surfaceId=320 mass=120.0 kinematic=false lockRotation=false
+[18:36:41.006][DEBUG][SurfaceRegistry] Registered spatial id=321 kind=model name=shot-309 worldPos=(-78.2785, -10.6281185, -275.84976)
+[18:36:41.009][DEBUG][PhysicsApiImpl] [physics] body created id=321 surfaceId=321 mass=120.0 kinematic=false lockRotation=false
+[18:36:41.223][DEBUG][SurfaceRegistry] Registered spatial id=322 kind=model name=shot-310 worldPos=(-78.21387, -10.491222, -275.09296)
+[18:36:41.226][DEBUG][PhysicsApiImpl] [physics] body created id=322 surfaceId=322 mass=120.0 kinematic=false lockRotation=false
+[18:36:41.439][DEBUG][SurfaceRegistry] Registered spatial id=323 kind=model name=shot-311 worldPos=(-78.15931, -10.638901, -274.15854)
+[18:36:41.443][DEBUG][PhysicsApiImpl] [physics] body created id=323 surfaceId=323 mass=120.0 kinematic=false lockRotation=false
+[18:36:41.706][DEBUG][SurfaceRegistry] Registered spatial id=324 kind=model name=shot-312 worldPos=(-78.097855, -10.464206, -273.2797)
+[18:36:41.710][DEBUG][PhysicsApiImpl] [physics] body created id=324 surfaceId=324 mass=120.0 kinematic=false lockRotation=false
+[18:36:41.923][DEBUG][SurfaceRegistry] Registered spatial id=325 kind=model name=shot-313 worldPos=(-78.05406, -10.579035, -272.35776)
+[18:36:41.927][DEBUG][PhysicsApiImpl] [physics] body created id=325 surfaceId=325 mass=120.0 kinematic=false lockRotation=false
+[18:36:42.139][DEBUG][SurfaceRegistry] Registered spatial id=326 kind=model name=shot-314 worldPos=(-77.995636, -10.57786, -271.71414)
+[18:36:42.143][DEBUG][PhysicsApiImpl] [physics] body created id=326 surfaceId=326 mass=120.0 kinematic=false lockRotation=false
+[18:36:42.339][DEBUG][SurfaceRegistry] Registered spatial id=327 kind=model name=shot-315 worldPos=(-77.96596, -10.484601, -271.18967)
+[18:36:42.343][DEBUG][PhysicsApiImpl] [physics] body created id=327 surfaceId=327 mass=120.0 kinematic=false lockRotation=false
+[18:36:42.539][DEBUG][SurfaceRegistry] Registered spatial id=328 kind=model name=shot-316 worldPos=(-77.94128, -10.6015215, -270.45697)
+[18:36:42.544][DEBUG][PhysicsApiImpl] [physics] body created id=328 surfaceId=328 mass=120.0 kinematic=false lockRotation=false
+[18:36:43.123][DEBUG][SurfaceRegistry] Registered spatial id=329 kind=model name=shot-317 worldPos=(-78.87628, -10.435957, -268.77844)
+[18:36:43.126][DEBUG][PhysicsApiImpl] [physics] body created id=329 surfaceId=329 mass=120.0 kinematic=false lockRotation=false
+[18:36:43.389][DEBUG][SurfaceRegistry] Registered spatial id=330 kind=model name=shot-318 worldPos=(-79.35393, -10.582, -267.87216)
+[18:36:43.393][DEBUG][PhysicsApiImpl] [physics] body created id=330 surfaceId=330 mass=120.0 kinematic=false lockRotation=false
+[18:36:43.639][DEBUG][SurfaceRegistry] Registered spatial id=331 kind=model name=shot-319 worldPos=(-79.70764, -10.456559, -267.0628)
+[18:36:43.643][DEBUG][PhysicsApiImpl] [physics] body created id=331 surfaceId=331 mass=120.0 kinematic=false lockRotation=false
+[18:36:43.823][DEBUG][SurfaceRegistry] Registered spatial id=332 kind=model name=shot-320 worldPos=(-80.123215, -10.543096, -266.38525)
+[18:36:43.827][DEBUG][PhysicsApiImpl] [physics] body created id=332 surfaceId=332 mass=120.0 kinematic=false lockRotation=false
+[18:36:44.039][DEBUG][SurfaceRegistry] Registered spatial id=333 kind=model name=shot-321 worldPos=(-80.530365, -10.541175, -265.71286)
+[18:36:44.043][DEBUG][PhysicsApiImpl] [physics] body created id=333 surfaceId=333 mass=120.0 kinematic=false lockRotation=false
+[18:36:44.256][DEBUG][SurfaceRegistry] Registered spatial id=334 kind=model name=shot-322 worldPos=(-80.995834, -10.470248, -264.96463)
+[18:36:44.260][DEBUG][PhysicsApiImpl] [physics] body created id=334 surfaceId=334 mass=120.0 kinematic=false lockRotation=false
+[18:36:44.473][DEBUG][SurfaceRegistry] Registered spatial id=335 kind=model name=shot-323 worldPos=(-81.42895, -10.634125, -264.1982)
+[18:36:44.477][DEBUG][PhysicsApiImpl] [physics] body created id=335 surfaceId=335 mass=120.0 kinematic=false lockRotation=false
+[18:36:44.706][DEBUG][SurfaceRegistry] Registered spatial id=336 kind=model name=shot-324 worldPos=(-81.84696, -10.4750185, -263.5245)
+[18:36:44.710][DEBUG][PhysicsApiImpl] [physics] body created id=336 surfaceId=336 mass=120.0 kinematic=false lockRotation=false
+[18:36:44.923][DEBUG][SurfaceRegistry] Registered spatial id=337 kind=model name=shot-325 worldPos=(-82.31379, -10.524437, -262.72427)
+[18:36:44.927][DEBUG][PhysicsApiImpl] [physics] body created id=337 surfaceId=337 mass=120.0 kinematic=false lockRotation=false
+[18:36:45.139][DEBUG][SurfaceRegistry] Registered spatial id=338 kind=model name=shot-326 worldPos=(-82.76194, -10.609243, -262.0073)
+[18:36:45.143][DEBUG][PhysicsApiImpl] [physics] body created id=338 surfaceId=338 mass=120.0 kinematic=false lockRotation=false
+[18:36:45.373][DEBUG][SurfaceRegistry] Registered spatial id=339 kind=model name=shot-327 worldPos=(-83.27137, -10.507874, -261.23303)
+[18:36:45.377][DEBUG][PhysicsApiImpl] [physics] body created id=339 surfaceId=339 mass=120.0 kinematic=false lockRotation=false
+[18:36:45.573][DEBUG][SurfaceRegistry] Registered spatial id=340 kind=model name=shot-328 worldPos=(-83.72029, -10.6783285, -260.49103)
+[18:36:45.577][DEBUG][PhysicsApiImpl] [physics] body created id=340 surfaceId=340 mass=120.0 kinematic=false lockRotation=false
+[18:36:45.807][DEBUG][SurfaceRegistry] Registered spatial id=341 kind=model name=shot-329 worldPos=(-84.128975, -10.6093235, -259.86517)
+[18:36:45.811][DEBUG][PhysicsApiImpl] [physics] body created id=341 surfaceId=341 mass=120.0 kinematic=false lockRotation=false
+[18:36:45.973][DEBUG][SurfaceRegistry] Registered spatial id=342 kind=model name=shot-330 worldPos=(-84.49529, -10.637091, -259.2783)
+[18:36:45.977][DEBUG][PhysicsApiImpl] [physics] body created id=342 surfaceId=342 mass=120.0 kinematic=false lockRotation=false
+[18:36:47.490][DEBUG][SurfaceRegistry] Registered spatial id=343 kind=model name=shot-331 worldPos=(-87.41363, -11.010094, -254.37778)
+[18:36:47.494][DEBUG][PhysicsApiImpl] [physics] body created id=343 surfaceId=343 mass=120.0 kinematic=false lockRotation=false
+[18:36:48.407][INFO][ScriptRuntime] Closing ScriptRuntime
+[18:36:48.415][INFO][RuntimeAppState] [Runtime] stopped

@@ -36,7 +36,7 @@ class Index {
             pos: { x: -half, y: 0, z: -half },
 
             // ✅ материал и UV
-            material: MAT.getMaterial("unshaded.grass"),
+            material: ENGINE.material.getMaterial("unshaded.sand"),
             uv: { scale: [50, 50] },
 
             attach: true,

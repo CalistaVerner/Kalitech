@@ -14,13 +14,13 @@ function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 const DEFAULT_CFG = Object.freeze({
     enabled: true,
     model: "Models/sharp-boulder-layered.obj",
-    scale: 0.5,
-    mass: 600.0,
+    scale: 0.12,
+    mass: 120.0,
     lockRotation: false,
-    materialId: "unshaded.grass",
+    materialId: "unshaded.rock",
     spawnOffset: 0.0,
-    speed: 20.0,
-    invertPitch: false,
+    speed: 80.0,
+    invertPitch: true,
     debug: {logShots: false},
     events: {
         fire: "game.shoot.fire",

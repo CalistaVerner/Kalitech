@@ -1,15 +1,43 @@
 {
-  "terrain.lit": {
-    "def": "Common/MatDefs/Terrain/TerrainLighting.j3md",
-    "params": {}
-  },
-  "unshaded.grass": {
+  "unshaded.sand": {
     "def": "Common/MatDefs/Misc/Unshaded.j3md",
     "params": {
       "ColorMap": {
-        "texture": "Textures/Terrain/T_ground_Moss_D.PNG",
+        "texture": "Textures/Terrain/wavy-sand/wavy-sand_albedo.png",
         "wrap": "Repeat",
         "tileWorld": { "x": 1.0, "z": 1.0 },
+        "min": "Trilinear",
+        "mag": "Bilinear",
+        "anisotropy": 8
+      }
+    }
+  },
+  "unshaded.dunes": {
+    "def": "Common/MatDefs/Misc/Unshaded.j3md",
+    "params": {
+      "ColorMap": {
+        "texture": "Textures/Terrain/rocky-dunes/rocky-dunes_albedo.png",
+        "wrap": "Repeat",
+        "tileWorld": {
+          "x": 1.0,
+          "z": 1.0
+        },
+        "min": "Trilinear",
+        "mag": "Bilinear",
+        "anisotropy": 8
+      }
+    }
+  },
+  "unshaded.rock": {
+    "def": "Common/MatDefs/Misc/Unshaded.j3md",
+    "params": {
+      "ColorMap": {
+        "texture": "Textures/sharp-boulder-layered/sharp-boulder-layered-albedo.png",
+        "wrap": "Repeat",
+        "tileWorld": {
+          "x": 1.0,
+          "z": 1.0
+        },
         "min": "Trilinear",
         "mag": "Bilinear",
         "anisotropy": 8
@@ -27,69 +55,6 @@
         "mag": "Bilinear",
         "anisotropy": 8
       }
-    }
-  },
-  "grass.stylized.pbr": {
-    "def": "Common/MatDefs/Light/PBRLighting.j3md",
-    "params": {
-      "BaseColorMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_albedo.png",
-        "wrap": "Repeat"
-      },
-      "NormalMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_normal-ogl.png",
-        "wrap": "Repeat"
-      },
-      "RoughnessMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_roughness.png",
-        "wrap": "Repeat"
-      },
-      "MetallicMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_metallic.png",
-        "wrap": "Repeat"
-      },
-
-      "LightMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_ao.png",
-        "wrap": "Repeat"
-      },
-      "LightMapAsAOMap": false,
-      "AoStrength": 0.0,
-
-      "ParallaxMap": {
-        "texture": "Textures/Terrain/Grass/stylized-grass1_height.png",
-        "wrap": "Repeat"
-      },
-      "ParallaxHeight": 0.04,
-      "SteepParallax": false,
-      "PackedNormalParallax": false,
-
-      "UseSpecGloss": false,
-      "UseSpecularAA": false,
-
-      "NormalType": 1.0,
-      "Metallic": 0.0,
-      "Roughness": 0.85,
-      "BaseColor": [1.0, 0.0, 0.0, 1.0]
-    },
-    "scales": {
-      "BaseColorMap": 4.0,
-      "NormalMap": 4.0,
-      "RoughnessMap": 4.0,
-      "MetallicMap": 4.0,
-      "LightMap": 4.0,
-      "ParallaxMap": 4.0
-    }
-  },
-  "grass.debug": {
-    "def": "Common/MatDefs/Light/PBRLighting.j3md",
-    "params": {
-      "BaseColorMap": "Textures/sharp-boulder-layered/sharp-boulder-layered-albedo.png",
-      "NormalMap": "Textures/sharp-boulder-layered/sharp-boulder-layered-normal-ogl.png",
-      "RoughnessMap": "Textures/sharp-boulder-layered/sharp-boulder-layered-roughness.png",
-      "MetallicMap":  "Textures/sharp-boulder-layered/sharp-boulder-layered-metallic.png",
-      "LightMap": "Textures/sharp-boulder-layered/sharp-boulder-layered-ao.png",
-      "BaseColor": [1,1,1,1]
     }
   }
   }
