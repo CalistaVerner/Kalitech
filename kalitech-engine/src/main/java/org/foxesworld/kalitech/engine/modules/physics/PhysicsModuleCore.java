@@ -9,12 +9,9 @@ import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import java.util.Objects;
 
 /**
- * engine.modules.physics facade.
- * <p>
- * Responsibilities:
- * - compose services (bodies/raycasts/contacts/world)
- * - expose stable public API used by PhysicsApiImpl (JS exports)
- * - keep this file SMALL
+ * engine.modules.physics implementation.
+ *
+ * Not exported to JS. Pure engine-internal module core.
  */
 public final class PhysicsModuleCore {
 
@@ -31,22 +28,11 @@ public final class PhysicsModuleCore {
         Objects.requireNonNull(surfaces, "surfaces");
 
         this.S = new PhysicsState(engine, app, surfaces);
-
         this.contacts = new PhysicsContacts(S);
         this.bodies = new PhysicsBodies(S);
         this.raycasts = new PhysicsRaycasts(S, contacts);
         this.world = new PhysicsWorld(S, contacts);
     }
-
-    public void detach() {
-        // best-effort shutdown
-        try {
-            clearAll();
-        } catch (Throwable ignored) {
-        }
-    }
-
-    // ---------------- bodies ----------------
 
     public PhysicsBodyHandle body(Object cfg) {
         return bodies.body(cfg, contacts);
@@ -66,6 +52,18 @@ public final class PhysicsModuleCore {
 
     public void remove(Object handleOrId) {
         bodies.remove(handleOrId, contacts);
+    }
+
+    public PhysicsRayHit raycast(Object cfg) {
+        return raycasts.raycast(cfg);
+    }
+
+    public Object raycastEx(Object cfg) {
+        return raycasts.raycastEx(cfg);
+    }
+
+    public Object raycastAll(Object cfg) {
+        return raycasts.raycastAll(cfg);
     }
 
     public Object position(Object handleOrId) {
@@ -123,22 +121,6 @@ public final class PhysicsModuleCore {
     public void clearForces(Object handleOrId) {
         bodies.clearForces(handleOrId);
     }
-
-    // ---------------- raycasts ----------------
-
-    public PhysicsRayHit raycast(Object cfg) {
-        return raycasts.raycast(cfg);
-    }
-
-    public Object raycastEx(Object cfg) {
-        return raycasts.raycastEx(cfg);
-    }
-
-    public Object raycastAll(Object cfg) {
-        return raycasts.raycastAll(cfg);
-    }
-
-    // ---------------- world ----------------
 
     public void debug(boolean enabled) {
         world.debug(enabled);

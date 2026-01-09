@@ -43,17 +43,36 @@ final class PhysicsContacts {
 
     /* ========================== emit ========================== */
 
+    private void emit(String topic, long step, float dt, long key, ContactAgg agg) {
+        int aId = keyA(key);
+        int bId = keyB(key);
+
+        PhysicsBodyHandle a = S.byId.get(aId);
+        PhysicsBodyHandle b = S.byId.get(bId);
+        if (a == null || b == null) return;
+
+        Object contact = (agg != null) ? agg.toPayload() : defaultContact();
+
+        S.bus().emit(topic, PhysicsState.evt(
+                "step", step,
+                "dt", dt,
+                "a", PhysicsState.evt("bodyId", a.id, "surfaceId", a.surfaceId),
+                "b", PhysicsState.evt("bodyId", b.id, "surfaceId", b.surfaceId),
+                "contact", contact
+        ));
+    }
+
     static long pairKey(int a, int b) {
         int min = Math.min(a, b);
         int max = Math.max(a, b);
         return ((long) min << 32) | (max & 0xFFFFFFFFL);
     }
 
+    /* ========================== pair utils ========================== */
+
     static int keyA(long k) {
         return (int) (k >>> 32);
     }
-
-    /* ========================== pair utils ========================== */
 
     static int keyB(long k) {
         return (int) k;
@@ -81,22 +100,27 @@ final class PhysicsContacts {
             space.addTickListener(new PhysicsTickListener() {
                 @Override
                 public void prePhysicsTick(PhysicsSpace space, float timeStep) {
-                    currContacts.clear();
-
-                    // apply queued mutations on the physics thread (safe + deterministic)
-                    RigidBodyControl rb;
-                    while ((rb = S.pendingAdd.poll()) != null) {
+                    // All PhysicsSpace mutations must happen on physics thread.
+                    int budget = PhysicsState.FLUSH_MAX_PER_TICK;
+                    while (budget-- > 0) {
+                        RigidBodyControl rb = S.pendingAdd.poll();
+                        if (rb == null) break;
                         try {
                             space.add(rb);
                         } catch (Throwable ignored) {
                         }
                     }
-                    while ((rb = S.pendingRemove.poll()) != null) {
+                    budget = PhysicsState.FLUSH_MAX_PER_TICK;
+                    while (budget-- > 0) {
+                        RigidBodyControl rb = S.pendingRemove.poll();
+                        if (rb == null) break;
                         try {
                             space.remove(rb);
                         } catch (Throwable ignored) {
                         }
                     }
+
+                    currContacts.clear();
                 }
 
                 @Override
@@ -126,25 +150,6 @@ final class PhysicsContacts {
                 }
             });
         }
-    }
-
-    private void emit(String topic, long step, float dt, long key, ContactAgg agg) {
-        int aId = keyA(key);
-        int bId = keyB(key);
-
-        PhysicsBodyHandle a = S.byId.get(aId);
-        PhysicsBodyHandle b = S.byId.get(bId);
-        if (a == null || b == null) return;
-
-        Object contact = (agg != null) ? agg.toPayload() : defaultContact();
-
-        S.bus().emit(topic, PhysicsState.evt(
-                "step", step,
-                "dt", dt,
-                "a", PhysicsState.evt("bodyId", a.id, "surfaceId", a.surfaceId),
-                "b", PhysicsState.evt("bodyId", b.id, "surfaceId", b.surfaceId),
-                "contact", contact
-        ));
     }
 
     /* ========================== ContactAgg ========================== */
@@ -269,15 +274,6 @@ final class PhysicsContacts {
             init(n);
         }
 
-        private static int mix64(long z) {
-            z ^= (z >>> 33);
-            z *= 0xff51afd7ed558ccdL;
-            z ^= (z >>> 33);
-            z *= 0xc4ceb9fe1a85ec53L;
-            z ^= (z >>> 33);
-            return (int) z;
-        }
-
         private void init(int n) {
             keys = new long[n];
             Arrays.fill(keys, EMPTY);
@@ -353,8 +349,6 @@ final class PhysicsContacts {
             }
         }
 
-        /* -------------------- internals -------------------- */
-
         void swapWith(LongContactMap other) {
             long[] tk = this.keys;
             ContactAgg[] tv = this.values;
@@ -374,6 +368,8 @@ final class PhysicsContacts {
             other.mask = tm;
             other.threshold = tt;
         }
+
+        /* -------------------- internals -------------------- */
 
         private int findSlot(long k) {
             if (k == EMPTY) return -1;
@@ -405,6 +401,15 @@ final class PhysicsContacts {
                 if (cur == k) return idx;
                 idx = (idx + 1) & mask;
             }
+        }
+
+        private static int mix64(long z) {
+            z ^= (z >>> 33);
+            z *= 0xff51afd7ed558ccdL;
+            z ^= (z >>> 33);
+            z *= 0xc4ceb9fe1a85ec53L;
+            z ^= (z >>> 33);
+            return (int) z;
         }
 
         private void rehash(int newCap) {

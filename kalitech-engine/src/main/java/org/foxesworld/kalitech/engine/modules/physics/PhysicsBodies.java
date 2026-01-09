@@ -92,6 +92,22 @@ final class PhysicsBodies {
         rb.setFriction((float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "friction"), 0.8));
         rb.setRestitution((float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "restitution"), 0.1));
 
+        // Optional: collision groups at creation (accept both flat and object forms)
+        Object groups = PhysicsValueParsers.member(cfg, "groups");
+        if (groups == null) groups = PhysicsValueParsers.member(cfg, "collision");
+        if (groups == null) groups = PhysicsValueParsers.member(cfg, "filter");
+        int group = PhysicsValueParsers.asInt(PhysicsValueParsers.member(cfg, "group"), -1);
+        int mask = PhysicsValueParsers.asInt(PhysicsValueParsers.member(cfg, "mask"), -1);
+        if (groups != null) {
+            if (group < 0) group = PhysicsValueParsers.asInt(PhysicsValueParsers.member(groups, "group"), group);
+            if (mask < 0) mask = PhysicsValueParsers.asInt(PhysicsValueParsers.member(groups, "mask"), mask);
+            // aliases
+            if (group < 0) group = PhysicsValueParsers.asInt(PhysicsValueParsers.member(groups, "g"), group);
+            if (mask < 0) mask = PhysicsValueParsers.asInt(PhysicsValueParsers.member(groups, "m"), mask);
+        }
+        if (group >= 0) rb.setCollisionGroup(group);
+        if (mask >= 0) rb.setCollideWithGroups(mask);
+
         Object damping = PhysicsValueParsers.member(cfg, "damping");
         if (damping != null) {
             double ld = PhysicsValueParsers.asNum(PhysicsValueParsers.member(damping, "linear"), 0.0);
@@ -105,12 +121,59 @@ final class PhysicsBodies {
         rb.setKinematic(kinematic);
 
         boolean lockRot = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "lockRotation"), false);
+        // Optional: per-axis factors (numbers or vec3)
+        Object linearFactor = PhysicsValueParsers.member(cfg, "linearFactor");
+        if (linearFactor != null) {
+            Vector3f lf = PhysicsValueParsers.vec3(linearFactor, 1f, 1f, 1f);
+            rb.setLinearFactor(lf);
+        }
+
+        Object angularFactor = PhysicsValueParsers.member(cfg, "angularFactor");
+        if (angularFactor != null) {
+            Vector3f af = PhysicsValueParsers.vec3(angularFactor, 1f, 1f, 1f);
+            rb.setAngularFactor(af);
+        }
+
         if (lockRot) rb.setAngularFactor(0f);
 
-        // CCD for dynamics
+        // Optional: per-body gravity / gravityFactor
+        Object gOverride = PhysicsValueParsers.member(cfg, "gravity");
+        if (gOverride != null) {
+            rb.setGravity(PhysicsValueParsers.vec3(gOverride, 0f, -9.81f, 0f));
+        } else {
+            Object gFactor = PhysicsValueParsers.member(cfg, "gravityFactor");
+            if (gFactor != null) {
+                float f = (float) PhysicsValueParsers.asNum(gFactor, 1.0);
+                Vector3f worldG = new Vector3f();
+                try {
+                    // jME usually supports getGravity(Vector3f store)
+                    sp.getGravity(worldG);
+                } catch (Throwable t) {
+                    throw new IllegalStateException("physics.body: gravityFactor requires PhysicsSpace.getGravity(store)", t);
+                }
+                rb.setGravity(worldG.mult(f));
+            }
+        }
+
+        // Optional: sleeping thresholds
+        Object sleep = PhysicsValueParsers.member(cfg, "sleep");
+        if (sleep != null) {
+            float sl = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(sleep, "linear"), 0.0);
+            float sa = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(sleep, "angular"), 0.0);
+            rb.setSleepingThresholds(sl, sa);
+        }
+
+        // CCD for dynamics (flat keys or object form)
         if (dynamic && !kinematic) {
+            Object ccd = PhysicsValueParsers.member(cfg, "ccd");
             float ccdMotionThreshold = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ccdMotionThreshold"), 0.001);
             float ccdRadius = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ccdSweptSphereRadius"), 0.20);
+            if (ccd != null) {
+                ccdMotionThreshold = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(ccd, "motionThreshold"), ccdMotionThreshold);
+                ccdRadius = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(ccd, "radius"), ccdRadius);
+                // aliases
+                ccdMotionThreshold = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(ccd, "threshold"), ccdMotionThreshold);
+            }
             rb.setCcdMotionThreshold(Math.max(0.0f, ccdMotionThreshold));
             rb.setCcdSweptSphereRadius(Math.max(0.0f, ccdRadius));
         }
@@ -177,10 +240,8 @@ final class PhysicsBodies {
         } catch (Throwable ignored) {
         }
 
-        // remove from physics space on physics thread to avoid mid-step mutation
+        // Queue removal; actual PhysicsSpace mutation is flushed in PhysicsContacts.prePhysicsTick()
         S.pendingRemove.add(rb);
-        PhysicsSpace space = S.engine.__getPhysicsSpaceOrNull();
-        if (space != null) contacts.ensureBound(space);
 
         try {
             if (spatial != null) spatial.removeControl(rb);

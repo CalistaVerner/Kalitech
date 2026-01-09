@@ -32,75 +32,49 @@ final class PhysicsState {
 
     static final Logger log = LogManager.getLogger("Physics");
 
-    static final int ADD_FLUSH_MAX_PER_TICK = 128;
+    /**
+     * Hard cap for how many add/remove ops we flush per physics tick.
+     * Prevents stalls if scripts spawn/delete huge batches in one frame.
+     */
+    static final int FLUSH_MAX_PER_TICK = 256;
+
     private static final Field RBC_BODY_FIELD = findRbcBodyField();
+
     final EngineApiImpl engine;
     final SimpleApplication app;
     final SurfaceRegistry surfaces;
+
     final AtomicInteger ids = new AtomicInteger(1);
+
+    // Body registries
     final ConcurrentHashMap<Integer, PhysicsBodyHandle> byId = new ConcurrentHashMap<>(1024);
     final ConcurrentHashMap<Integer, Integer> bodyIdBySurface = new ConcurrentHashMap<>(1024);
     final ConcurrentHashMap<RigidBodyControl, Integer> idByControl = new ConcurrentHashMap<>(1024);
+
+    /**
+     * Maps both RigidBodyControl and its PhysicsRigidBody to bodyId.
+     * Used by raycasts + collision events.
+     */
     final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>(1024);
+
+    // PhysicsSpace mutations must happen on physics thread
     final ConcurrentLinkedQueue<RigidBodyControl> pendingAdd = new ConcurrentLinkedQueue<>();
     final ConcurrentLinkedQueue<RigidBodyControl> pendingRemove = new ConcurrentLinkedQueue<>();
+
+    // Listeners/tick
     final AtomicLong physicsStepCounter = new AtomicLong(0);
     final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
     final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
+
+    // Shape cache
     final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>(256);
+
     volatile float lastDt = 0f;
 
     PhysicsState(EngineApiImpl engine, SimpleApplication app, SurfaceRegistry surfaces) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.app = Objects.requireNonNull(app, "app");
         this.surfaces = Objects.requireNonNull(surfaces, "surfaces");
-    }
-
-    private static PhysicsRigidBody rbcBody(RigidBodyControl rb) {
-        if (rb == null || RBC_BODY_FIELD == null) return null;
-        try {
-            Object o = RBC_BODY_FIELD.get(rb);
-            return (o instanceof PhysicsRigidBody prb) ? prb : null;
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Field findRbcBodyField() {
-        try {
-            Field f = RigidBodyControl.class.getDeclaredField("body");
-            f.setAccessible(true);
-            return f;
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    static Map<String, Object> evt(Object... kv) {
-        HashMap<String, Object> m = new HashMap<>(Math.max(8, kv.length * 2));
-        for (int i = 0; i + 1 < kv.length; i += 2) {
-            Object k = kv[i];
-            if (k == null) continue;
-            m.put(String.valueOf(k), kv[i + 1]);
-        }
-        return m;
-    }
-
-    static Map<String, Object> hitObj(boolean hit, int bodyId, int surfaceId, float fraction, float distance, Vector3f point, Vector3f normal) {
-        PhysicsRayHit.Vec3 p = (point == null) ? new PhysicsRayHit.Vec3(0, 0, 0) : new PhysicsRayHit.Vec3(point.x, point.y, point.z);
-        PhysicsRayHit.Vec3 n;
-        if (normal == null) n = new PhysicsRayHit.Vec3(0, 1, 0);
-        else n = new PhysicsRayHit.Vec3(normal.x, normal.y, normal.z);
-
-        return evt(
-                "hit", hit,
-                "bodyId", bodyId,
-                "surfaceId", surfaceId,
-                "fraction", fraction,
-                "distance", distance,
-                "point", p,
-                "normal", n
-        );
     }
 
     ScriptEventBus bus() {
@@ -125,12 +99,63 @@ final class PhysicsState {
         RigidBodyControl rb = h.__raw();
         if (rb == null) return;
 
-        // 1) Control itself
         bodyIdByCollisionObject.put(rb, h.id);
 
-        // 2) PhysicsRigidBody (preferred): matches rayTest collision objects
         PhysicsRigidBody prb = rbcBody(rb);
         if (prb != null) bodyIdByCollisionObject.put(prb, h.id);
+    }
+
+    static Map<String, Object> evt(Object... kv) {
+        HashMap<String, Object> m = new HashMap<>(Math.max(8, kv.length * 2));
+        for (int i = 0; i + 1 < kv.length; i += 2) {
+            Object k = kv[i];
+            if (k == null) continue;
+            m.put(String.valueOf(k), kv[i + 1]);
+        }
+        return m;
+    }
+
+    static Map<String, Object> hitObj(boolean hit, int bodyId, int surfaceId, float fraction, float distance, Vector3f point, Vector3f normal) {
+        PhysicsRayHit.Vec3 p = (point == null)
+                ? new PhysicsRayHit.Vec3(0, 0, 0)
+                : new PhysicsRayHit.Vec3(point.x, point.y, point.z);
+
+        PhysicsRayHit.Vec3 n = (normal == null)
+                ? new PhysicsRayHit.Vec3(0, 1, 0)
+                : new PhysicsRayHit.Vec3(normal.x, normal.y, normal.z);
+
+        return evt(
+                "hit", hit,
+                "bodyId", bodyId,
+                "surfaceId", surfaceId,
+                "fraction", fraction,
+                "distance", distance,
+                "point", p,
+                "normal", n
+        );
+    }
+
+    private static PhysicsRigidBody rbcBody(RigidBodyControl rb) {
+        if (rb == null || RBC_BODY_FIELD == null) return null;
+        try {
+            Object o = RBC_BODY_FIELD.get(rb);
+            return (o instanceof PhysicsRigidBody prb) ? prb : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    record ShapeKey(Mesh mesh, boolean dynamic) {
+    }
+
+    private static Field findRbcBodyField() {
+        try {
+            Field f = RigidBodyControl.class.getDeclaredField("body");
+            f.setAccessible(true);
+            return f;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     void unindexCollisionObject(PhysicsBodyHandle h) {
@@ -139,10 +164,8 @@ final class PhysicsState {
         if (rb == null) return;
 
         bodyIdByCollisionObject.remove(rb);
+
         PhysicsRigidBody prb = rbcBody(rb);
         if (prb != null) bodyIdByCollisionObject.remove(prb);
-    }
-
-    record ShapeKey(Mesh mesh, boolean dynamic) {
     }
 }
