@@ -56,8 +56,8 @@ final class PhysicsWorld {
         S.shapeCache.clear();
 
         // contacts live in PhysicsContacts (not in PhysicsState)
-        contacts.currContacts.clear();
-        contacts.prevContacts.clear();
+        //contacts.currContacts.clear();
+        //contacts.prevContacts.clear();
         S.bodyIdByCollisionObject.clear();
 
         PhysicsSpace sp = S.engine.__getPhysicsSpaceOrNull();

@@ -14,12 +14,12 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * ScriptEventBus (REDengine-style, AAA-contract) — BACKWARD COMPATIBLE.
  * <p>
- * ✅ Keeps legacy API + behavior:
+ *  Keeps legacy API + behavior:
  * - emit(name, payload) enqueues raw event
  * - on(name, fn) / once(name, fn) => fn(payload?) exactly as before
  * - off(name, id), clear(name), clearAll(), pump(...)
  * <p>
- * ✅ Adds AAA-contract API (envelope):
+ *  Adds AAA-contract API (envelope):
  * - emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)
  * - onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)
  * - onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)

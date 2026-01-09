@@ -49,7 +49,7 @@ public final class EngineApiImpl implements EngineApi {
 
     private final BulletAppState bullet;
 
-    // ✅ API registry / context
+    //  API registry / context
     private final ApiContext apiCtx;
     private final ApiRegistry apiRegistry;
 
@@ -115,7 +115,7 @@ public final class EngineApiImpl implements EngineApi {
 
         this.jmeThread = Thread.currentThread();
 
-        // ✅ registry/bootstrap context (one for all modules)
+        //  registry/bootstrap context (one for all modules)
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
@@ -126,7 +126,7 @@ public final class EngineApiImpl implements EngineApi {
         this.timeApi = apiRegistry.register(new TimeApiImpl());
         this.inputApi = apiRegistry.register(new InputApiImpl());
 
-        // ✅ next wave: material/render/entity/camera
+        //  next wave: material/render/entity/camera
         this.materialApi = apiRegistry.register(new MaterialApiImpl());
         this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
@@ -432,7 +432,7 @@ public final class EngineApiImpl implements EngineApi {
         return ecs;
     }
 
-    // ✅ expose registry internally for diagnostics/tools (не ломаем JS контракт)
+    //  expose registry internally for diagnostics/tools (не ломаем JS контракт)
     public ApiRegistry getApiRegistry() {
         return apiRegistry;
     }

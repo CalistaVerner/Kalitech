@@ -14,7 +14,7 @@ public interface TerrainApi {
     @HostAccess.Export
     SurfaceApi.SurfaceHandle plane(Value cfg);
 
-    // ✅ ECS attach/detach (forward to SurfaceApi)
+    //  ECS attach/detach (forward to SurfaceApi)
     @HostAccess.Export
     void attach(SurfaceApi.SurfaceHandle handle, int entityId);
 

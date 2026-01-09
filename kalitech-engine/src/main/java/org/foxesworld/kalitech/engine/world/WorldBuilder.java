@@ -103,7 +103,7 @@ public final class WorldBuilder {
                 continue;
             }
 
-            // ✅ New world API: order is explicit
+            //  New world API: order is explicit
             world.addSystem(sys, d.order);
 
             log.info("WorldBuilder: added system id={} order={}", d.id, d.order);

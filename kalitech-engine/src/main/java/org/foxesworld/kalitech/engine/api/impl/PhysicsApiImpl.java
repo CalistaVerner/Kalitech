@@ -6,40 +6,52 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.PhysicsModuleCore;
 import org.graalvm.polyglot.HostAccess;
 
 /**
  * Thin JS-facing Physics API facade.
  *
- * <p>All heavy logic lives in {@link PhysicsModuleCore} (engine.modules).</p>
+ * All heavy logic lives in {@link PhysicsModuleCore} (engine.modules).
  */
 public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi {
 
     private PhysicsModuleCore core;
 
     public PhysicsApiImpl() {
-        super("physics", "Physics", "1.2.0");
+        super("physics", "Physics", "1.0.0");
     }
 
-    public PhysicsApiImpl(EngineApiImpl engine) {
+    public PhysicsApiImpl(EngineApiImpl engine, SurfaceRegistry surfaces) {
         this();
         if (engine == null) throw new NullPointerException("engine");
+        if (surfaces == null) throw new NullPointerException("surfaces");
         super.attach(new ApiContext(engine));
-        this.core = new PhysicsModuleCore(engine, engine.getApp(), engine.getSurfaceRegistry());
+        this.core = new PhysicsModuleCore(engine, engine.getApp(), surfaces);
     }
 
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
-        this.core = new PhysicsModuleCore(ctx.engine, ctx.app, ctx.engine.getSurfaceRegistry());
+        if (ctx == null) throw new NullPointerException("ctx");
+        if (ctx.engine == null) throw new IllegalStateException("[physics] ctx.engine is null");
+        if (ctx.app == null) throw new IllegalStateException("[physics] ctx.app is null");
+        SurfaceRegistry surfaces = ctx.engine.getSurfaceRegistry();
+        if (surfaces == null) throw new IllegalStateException("[physics] SurfaceRegistry is not available");
+        this.core = new PhysicsModuleCore(ctx.engine, ctx.app, surfaces);
     }
 
     @Override
     public void detach() {
         PhysicsModuleCore c = this.core;
         this.core = null;
-        if (c != null) c.detach();
+        if (c != null) {
+            try {
+                c.detach();
+            } catch (Throwable ignored) {
+            }
+        }
         super.detach();
     }
 

@@ -31,7 +31,7 @@ public interface EngineApi {
     @HostAccess.Export
     CameraApi camera();
 
-    // ✅ NEW
+    //  NEW
     @HostAccess.Export
     PhysicsApi physics();
 
@@ -44,11 +44,11 @@ public interface EngineApi {
     @HostAccess.Export
     ParticlesApi particles();
 
-    // ✅ new unified surface layer
+    //  new unified surface layer
     @HostAccess.Export
     SurfaceApi surface();
 
-    // ✅ new terrain builder
+    //  new terrain builder
     @HostAccess.Export
     TerrainApi terrain();
 
@@ -56,7 +56,7 @@ public interface EngineApi {
     boolean isJmeThread();
 
 
-    // ✅ new terrain splat layer (separate from builder)
+    //  new terrain splat layer (separate from builder)
     @HostAccess.Export
     TerrainSplatApi terrainSplat();
 

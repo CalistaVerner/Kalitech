@@ -61,7 +61,7 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     /**
-     * ✅ Preferred: dynamic bus resolve.
+     *  Preferred: dynamic bus resolve.
      */
     public SurfaceRegistry(SimpleApplication app, Supplier<ScriptEventBus> busSupplier) {
         this.app = Objects.requireNonNull(app, "app");

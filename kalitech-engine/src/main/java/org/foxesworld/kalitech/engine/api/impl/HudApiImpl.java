@@ -32,7 +32,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
 /**
  * HudApiImpl (thin bridge).
  *
- * ✅ Responsibilities:
+ *  Responsibilities:
  *  - Registry (layers/elements)
  *  - Thread hop (rt -> JME thread)
  *  - Call into engine.modules.hud for math/sizing
@@ -583,7 +583,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
     }
 
     /**
-     * ✅ New: set solid background color (with alpha) for Panel/Container.
+     *  New: set solid background color (with alpha) for Panel/Container.
      * Used by Hud.js v2.5.0 for style.bg + style.border colors.
      *
      * NOTE: add this method to HudApi interface too, or JS won't see it.

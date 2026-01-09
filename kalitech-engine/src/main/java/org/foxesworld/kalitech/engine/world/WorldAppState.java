@@ -26,7 +26,7 @@ public final class WorldAppState extends BaseAppState {
 
     private static final Logger log = LogManager.getLogger(WorldAppState.class);
 
-    private final RuntimeAppState host;     // ✅ keep host to access shared runtime/assets/bus/ecs/etc
+    private final RuntimeAppState host;     //  keep host to access shared runtime/assets/bus/ecs/etc
     private final EngineApiImpl engine;
     private final Map<String, ScriptRuntime> runtimeProfiles = new ConcurrentHashMap<>();
     // Base runtime configured in RuntimeAppState (providers + builtins)
@@ -113,7 +113,7 @@ public final class WorldAppState extends BaseAppState {
 
         this.world = newWorld;
 
-        // ✅ IMPORTANT: always use RuntimeAppState's runtime as base (configured providers)
+        //  IMPORTANT: always use RuntimeAppState's runtime as base (configured providers)
         final ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
 
         this.worldCtx = new SystemContext(
@@ -184,11 +184,11 @@ public final class WorldAppState extends BaseAppState {
         return runtimeProfiles.computeIfAbsent(p, k -> {
             ScriptRuntime rt = new ScriptRuntime();
 
-            // ✅ providers first
+            //  providers first
             rt.setModuleStreamProvider(this::openJsModuleStream);
             // rt.setModuleSourceProvider(this::loadTextAssetOrNull); // if you use it
 
-            // ✅ then builtins
+            //  then builtins
             try {
                 rt.initBuiltIns(engine);
             } catch (Throwable t) {

@@ -51,7 +51,7 @@ public final class TerrainPhysics {
                         Value t = member(c, "type");
                         String type = (t != null && !t.isNull()) ? str(c, "type", "") : "";
 
-                        // ✅ форсим dynamicMesh для TerrainQuad
+                        //  форсим dynamicMesh для TerrainQuad
                         if (isTerrain && "mesh".equalsIgnoreCase(type)) {
                             Map<String, Object> c2 = new HashMap<>();
                             for (String ck : c.getMemberKeys()) c2.put(ck, c.getMember(ck));

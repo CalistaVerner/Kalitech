@@ -93,13 +93,13 @@ public final class PhysicsBodyHandle {
 
     // ----- getters -----
 
-    // ✅ CRITICAL: make id visible to JS in a durable way
+    //  CRITICAL: make id visible to JS in a durable way
     @HostAccess.Export
     public int id() {
         return id;
     }
 
-    // ✅ CRITICAL: make surfaceId visible to JS
+    //  CRITICAL: make surfaceId visible to JS
     @HostAccess.Export
     public int surfaceId() {
         return surfaceId;

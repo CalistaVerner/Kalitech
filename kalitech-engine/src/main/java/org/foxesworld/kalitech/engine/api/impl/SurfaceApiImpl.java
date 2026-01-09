@@ -88,7 +88,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     private ScriptEventBus bus() {
-        return engine.getBus(); // ✅ dynamic resolve (never cached)
+        return engine.getBus(); //  dynamic resolve (never cached)
     }
 
 
