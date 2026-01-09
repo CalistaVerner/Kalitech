@@ -9,7 +9,6 @@ function normalize3_into(x, y, z, out) {
     out.x = x * inv; out.y = y * inv; out.z = z * inv;
     return out;
 }
-
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
 const DEFAULT_CFG = Object.freeze({
@@ -87,6 +86,11 @@ class ShootSystem {
         this._shotsByBody = Object.create(null);
 
         this._subCollision = 0;
+
+        if (this.cfg.enabled) {
+            const bus = this.player.d.bus;
+            if (!bus) throw new Error("[shoot] enabled but domains.bus missing");
+        }
     }
 
     configure(cfg) {
@@ -102,20 +106,19 @@ class ShootSystem {
 
     _bindCollision() {
         if (this._subCollision) return;
+
         const bus = this._bus();
-        if (!bus) return;
+        if (!bus) throw new Error("[shoot] bus missing");
+
         this._subCollision = (bus.on("engine.physics.collision.begin", (payload) => {
-            try {
-                this._onCollisionBegin(payload);
-            } catch (_) {
-            }
+            this._onCollisionBegin(payload);
         }) | 0);
+
+        if (!this._subCollision) throw new Error("[shoot] bus.on(...) returned 0");
     }
 
     _emit(topic, payload) {
-        const bus = this._bus();
-        if (!bus) return;
-        bus.emit(topic, payload);
+        this._bus().emit(topic, payload);
     }
 
     _dirFromYawPitch_into(yaw, pitch, outDir) {
@@ -171,6 +174,9 @@ class ShootSystem {
         const shotIndex = (++this._shotId) | 0;
         const name = "shot-" + shotIndex;
 
+        if (!ENGINE || !ENGINE.mesh || typeof ENGINE.mesh.loadModel !== "function") throw new Error("[shoot] ENGINE.mesh.loadModel required");
+        if (!MAT || typeof MAT.getMaterial !== "function") throw new Error("[shoot] MAT.getMaterial required");
+
         const g = ENGINE.mesh.loadModel(c.model, {
             scale: c.scale,
             name,
@@ -188,7 +194,9 @@ class ShootSystem {
         this._vel.x = this._dir.x * speed;
         this._vel.y = this._dir.y * speed;
         this._vel.z = this._dir.z * speed;
-        if (g && typeof g.velocity === "function") g.velocity(this._vel);
+
+        if (!g || typeof g.velocity !== "function") throw new Error("[shoot] projectile handle must support velocity(v)");
+        g.velocity(this._vel);
 
         const meta = this._registerShot(g, {
             shotIndex,
@@ -222,7 +230,8 @@ class ShootSystem {
     _onCollisionBegin(payload) {
         const c = this.cfg;
         if (!c.enabled) return;
-        if (!payload || !payload.a || !payload.b) return;
+
+        if (!payload || !payload.a || !payload.b) throw new Error("[shoot] collision payload invalid");
 
         const a = payload.a;
         const b = payload.b;
@@ -242,7 +251,7 @@ class ShootSystem {
         } else return;
 
         const shotMeta = this._shotsBySurface[shotSid];
-        if (!shotMeta) return;
+        if (!shotMeta) throw new Error("[shoot] shot meta missing for sid=" + shotSid);
 
         this._emit(c.events.hit, {
             shotIndex: shotMeta.shotIndex,
@@ -265,13 +274,11 @@ class ShootSystem {
     }
 
     destroy() {
+        if (!this.cfg.enabled) return;
         const bus = this._bus();
-        if (bus && typeof bus.off === "function" && this._subCollision) {
-            try {
-                bus.off(this._subCollision | 0);
-            } catch (_) {
-            }
-        }
+        if (typeof bus.off !== "function") throw new Error("[shoot] bus.off(id) required");
+        if (this._subCollision) bus.off(this._subCollision | 0);
+
         this._subCollision = 0;
         this._shotsBySurface = Object.create(null);
         this._shotsByBody = Object.create(null);

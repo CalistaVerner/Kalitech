@@ -17,11 +17,10 @@ function req(v, msg) {
 
 class PlayerPawn {
     constructor(ctx, cfg) {
-        this.ctx = req(ctx, "[PlayerPawn] ctx is required");
+        this.ctx = req(ctx, "[PlayerPawn] ctx required");
         this.cfg = cfg || Object.create(null);
 
         this.d = null;
-
         this.core = null;
 
         this.characterCfg = new CharacterConfig();
@@ -58,8 +57,6 @@ class PlayerPawn {
     init() {
         if (this.alive) return this;
 
-        this.d = resolveDomains(this.ctx);
-
         this.cfg = U.deepMerge({
             character: {radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65},
             spawn: {pos: {x: 129, y: 3, z: -300}, radius: 0.35, height: 1.80, mass: 80.0},
@@ -71,6 +68,8 @@ class PlayerPawn {
             shoot: {}
         }, this.cfg);
 
+        this.d = resolveDomains(this.ctx, this.cfg);
+
         this.inputRouter = new InputRouter(this.d.input, this.cfg.input);
 
         const factory = new PlayerEntityFactory(this);
@@ -79,18 +78,18 @@ class PlayerPawn {
         const body = ent.body || null;
         const bodyAccess = resolveBodyAccess(this.d.physics, body, ent.bodyId | 0);
 
-        // FrameContext ground probe is REQUIRED for player (RED жесткость)
         if (typeof this.frame.probeGroundCapsule !== "function") {
-            throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule is required");
+            throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule required");
         }
 
         this.core = new EntityCore(this.ctx, this.d, this.cfg);
 
         const ch = this.cfg.character;
+        this.characterCfg.loadFrom(this.cfg, this.cfg.movement);
+
         this.core
             .configureShape(ch.mass, ch.radius, ch.height)
             .attach(ent, body, bodyAccess)
-            // grounded is now core responsibility
             .setGroundProbe((core) => {
                 const probe = this.frame.probeGroundCapsule;
                 return (probe.length >= 3)
@@ -119,14 +118,11 @@ class PlayerPawn {
         if (!this.alive) throw new Error("[PlayerPawn] syncPose on dead pawn");
 
         const s = this.core.syncPhysics();
-
-        // keep frame.pose in sync for existing systems
         const pose = this.frame.pose;
 
         pose.x = s.x;
         pose.y = s.y;
         pose.z = s.z;
-
         pose.vx = s.vx;
         pose.vy = s.vy;
         pose.vz = s.vz;
@@ -146,7 +142,7 @@ class PlayerPawn {
 
     endFrame() {
         if (!this.alive) throw new Error("[PlayerPawn] endFrame on dead pawn");
-        if (typeof this.d.input.endFrame !== "function") throw new Error("[PlayerPawn] input.endFrame() is required");
+        if (typeof this.d.input.endFrame !== "function") throw new Error("[PlayerPawn] input.endFrame() required");
         this.d.input.endFrame();
     }
 
@@ -162,7 +158,6 @@ class PlayerPawn {
         this.alive = false;
     }
 
-    //LEGACY
     getModel() {
         return this.core.model();
     }
@@ -178,8 +173,6 @@ class PlayerPawn {
     getSurfaceId() {
         return this.core.surfaceId | 0;
     }
-
-
 }
 
 module.exports = {PlayerPawn};

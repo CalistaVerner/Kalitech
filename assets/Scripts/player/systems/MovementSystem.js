@@ -3,20 +3,17 @@
 const U = require("../util.js");
 
 function hypot2(x, z) { return Math.sqrt(x * x + z * z); }
-
 function moveTowards(cur, target, maxDelta) {
     if (cur < target) return (cur + maxDelta < target) ? (cur + maxDelta) : target;
     if (cur > target) return (cur - maxDelta > target) ? (cur - maxDelta) : target;
     return target;
 }
-
 function rotateByYaw(localX, localZ, yaw, out) {
     const s = Math.sin(yaw), c = Math.cos(yaw);
     out.x = localX * c + localZ * s;
     out.z = localZ * c - localX * s;
     return out;
 }
-
 function norm2(x, z, out) {
     const l2 = x * x + z * z;
     if (l2 < 1e-12) { out.x = 0; out.z = 0; return out; }
@@ -29,7 +26,6 @@ function norm2(x, z, out) {
 function canTeleport(bodyAccess) {
     return !!(bodyAccess && typeof bodyAccess.teleport === "function");
 }
-
 function teleportBody(bodyAccess, x, y, z) {
     bodyAccess.teleport(x, y, z);
 }
@@ -87,15 +83,34 @@ class MovementSystem {
         this._wishDir = { x: 0, z: 0 };
 
         this._stepUpCd = 0;
+        this._stepDownCd = 0;
     }
 
     _raycastEx(frame, fx, fy, fz, tx, ty, tz, ignoreBodyId) {
         const PHYS = frame.physics;
+        if (!PHYS || typeof PHYS.raycastEx !== "function") throw new Error("[move] frame.physics.raycastEx required");
         return PHYS.raycastEx({
             from: [fx, fy, fz],
             to: [tx, ty, tz],
             ignoreBodyId: ignoreBodyId | 0
         });
+    }
+
+    _afterStepUpImpulse(bodyAccess, cc, dt) {
+        const su = cc.stepUp;
+        const snapUpSpeed = U.num(su.snapUpSpeed, 0);
+        if (snapUpSpeed <= 0) return;
+
+        if (bodyAccess.mode === "SET_VEL") {
+            const v = bodyAccess.getVel();
+            const vy = U.vy(v, 0);
+            if (vy < snapUpSpeed) bodyAccess.setVel({x: U.vx(v, 0), y: snapUpSpeed, z: U.vz(v, 0)});
+            return;
+        }
+
+        const m = U.num(cc.mass, 80);
+        const dv = snapUpSpeed;
+        bodyAccess.applyImpulse(0, dv * m * U.clamp(dt, 0.001, 0.05), 0);
     }
 
     _tryStepUp(frame, bodyAccess, cc, wishDirWorld, dt) {
@@ -124,13 +139,14 @@ class MovementSystem {
         const fwd = U.num(su.forwardProbe, 0.35);
         const up = U.num(su.upProbe, 0.60);
         const maxH = U.num(su.maxHeight, 0.40);
-        const minH = Math.max(0, U.num(su.minHeight, 0.04));
+
+        const minH = Math.max(0, U.num(su.minHeight, 0.04));     // главный анти-джиттер
         const minNy = U.num(su.minClearNormalY, 0.25);
 
         const probeX = px + dirx * (r + fwd);
         const probeZ = pz + dirz * (r + fwd);
 
-        const yLow = footY + 0.05;
+        const yLow = footY + 0.06;
         const yHigh = footY + maxH;
 
         const hitLow = this._raycastEx(frame, px, yLow, pz, probeX, yLow, probeZ, ignoreId);
@@ -140,7 +156,7 @@ class MovementSystem {
         if (hitHigh && hitHigh.hit === true) return false;
 
         const downFromY = footY + maxH + up;
-        const downToY = footY - 0.10;
+        const downToY = footY - 0.12;
 
         const hitTop = this._raycastEx(frame, probeX, downFromY, probeZ, probeX, downToY, probeZ, ignoreId);
         if (!hitTop || hitTop.hit !== true) return false;
@@ -152,16 +168,21 @@ class MovementSystem {
         if (!Number.isFinite(dist)) return false;
 
         const hitY = downFromY - dist;
-        const targetFootY = hitY + 0.01;
+        const targetFootY = hitY + 0.012;
         const targetCenterY = targetFootY + ((h * 0.5) - r);
 
         const dy = targetCenterY - py;
-        if (dy <= 0 || dy > (maxH + 0.10)) return false;
+        if (dy <= 0 || dy > (maxH + 0.12)) return false;
+
+        // анти-микро: если высота шага слишком мала — не шагаем (иначе дрожь)
         if (dy < minH) return false;
 
         teleportBody(bodyAccess, px, py + dy, pz);
 
+        this._afterStepUpImpulse(bodyAccess, cc, dt);
+
         this._stepUpCd = U.clamp(U.num(su.warpCooldown, 0.07), 0, 0.25);
+        this._stepDownCd = this._stepUpCd; // важный анти-джиттер: stepDown не сразу после шага
         return true;
     }
 
@@ -234,13 +255,14 @@ class MovementSystem {
             const stepped = this._tryStepUp(frame, body, cc, this._wishWorld, dt);
             if (stepped) {
                 const probe = frame.probeGroundCapsule;
-                if (typeof probe === "function") {
-                    if (probe.length >= 3) probe.call(frame, body, cc, frame.bodyId | 0);
-                    else probe.call(frame, body, cc);
-                    frame.pose.grounded = !!frame.ground.grounded;
-                }
+                if (typeof probe !== "function") throw new Error("[move] frame.probeGroundCapsule required");
+                if (probe.length >= 3) probe.call(frame, body, cc, frame.bodyId | 0);
+                else probe.call(frame, body, cc);
+                frame.pose.grounded = !!frame.ground.grounded;
             }
         }
+
+        if (this._stepDownCd > 0) this._stepDownCd = Math.max(0, this._stepDownCd - dt);
 
         const sd = cc && cc.stepDown ? cc.stepDown : null;
         const stepDownEnabled = sd ? !!sd.enabled : true;
@@ -248,7 +270,14 @@ class MovementSystem {
         const stepDownMax = sd ? U.num(sd.max, 0.28) : 0.28;
         const deadZone = sd ? U.num(sd.deadZone, 0.015) : 0.015;
 
-        const allowStick = stepDownEnabled && grounded && !g.steep && !jumpedThisTick && vy <= 0 && g.hasHit;
+        const allowStick =
+            stepDownEnabled &&
+            grounded &&
+            !g.steep &&
+            !jumpedThisTick &&
+            vy <= 0 &&
+            g.hasHit &&
+            this._stepDownCd <= 0;
 
         if (allowStick) {
             if (vy > -stickVel) vy = -stickVel;
@@ -258,8 +287,7 @@ class MovementSystem {
                 const down = -fd;
                 if (down <= stepDownMax) {
                     const p = body.position();
-                    const px = U.vx(p, 0), py = U.vy(p, 0), pz = U.vz(p, 0);
-                    teleportBody(body, px, py + fd, pz);
+                    teleportBody(body, U.vx(p, 0), U.vy(p, 0) + fd, U.vz(p, 0));
                     vy = -stickVel;
                 }
             }
@@ -273,11 +301,7 @@ class MovementSystem {
 
             const m = (cc && cc.mass != null) ? U.num(cc.mass, 80) : 80;
 
-            const ix = (vx - cvx) * m;
-            const iy = (vy - cvy) * m;
-            const iz = (vz - cvz) * m;
-
-            body.applyImpulse(ix, iy, iz);
+            body.applyImpulse((vx - cvx) * m, (vy - cvy) * m, (vz - cvz) * m);
         }
 
         frame.pose.vx = vx;

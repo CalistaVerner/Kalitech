@@ -1,4 +1,3 @@
-// FILE: Scripts/player/index.js
 "use strict";
 
 const {PlayerController} = require("./PlayerController.js");
@@ -11,10 +10,9 @@ function ensureRegistered() {
     if (_registered) return;
 
     const ENGINE = globalThis.ENGINE;
-    if (!ENGINE || !ENGINE.controllers) throw new Error("[player] ENGINE.controllers is not available");
-
+    if (!ENGINE || !ENGINE.controllers) throw new Error("[player] ENGINE.controllers required");
     if (typeof ENGINE.controllers.registerRegistry !== "function") {
-        throw new Error("[player] ENGINE.controllers.registerRegistry(registry) is required");
+        throw new Error("[player] ENGINE.controllers.registerRegistry(registry) required");
     }
 
     ENGINE.controllers.registerRegistry(createPlayerRegistry());

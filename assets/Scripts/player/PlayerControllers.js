@@ -1,4 +1,3 @@
-// FILE: Scripts/player/PlayerControllers.js
 "use strict";
 
 const {PlayerEventsController} = require("./controllers/PlayerEventsController.js");
@@ -14,33 +13,14 @@ function req(v, msg) {
 function createPlayerRegistry() {
     const ENGINE = req(globalThis.ENGINE, "[PlayerControllers] ENGINE is required");
     const C = req(ENGINE.controllers, "[PlayerControllers] ENGINE.controllers is required");
-
-    if (typeof C.registry !== "function") {
-        throw new Error("[PlayerControllers] ENGINE.controllers.registry(name) is required");
-    }
+    if (typeof C.registry !== "function") throw new Error("[PlayerControllers] ENGINE.controllers.registry(name) required");
 
     const R = C.registry("player");
 
-    // Сначала события/инпут/синхронизация
     R.register("player.events", PlayerEventsController, {order: 10});
-
-    // Геймплей зависит от событий (инпут, action state, etc.)
-    R.register("player.gameplay", PlayerGameplayController, {
-        order: 20,
-        deps: ["player.events"]
-    });
-
-    // Камера зависит от gameplay (поза/aim/third-person state)
-    R.register("player.camera", PlayerCameraController, {
-        order: 30,
-        deps: ["player.gameplay"]
-    });
-
-    // UI обычно самый последний
-    R.register("player.ui", PlayerUIController, {
-        order: 40,
-        deps: ["player.events", "player.gameplay"]
-    });
+    R.register("player.gameplay", PlayerGameplayController, {order: 20, deps: ["player.events"]});
+    R.register("player.camera", PlayerCameraController, {order: 30, deps: ["player.gameplay"]});
+    R.register("player.ui", PlayerUIController, {order: 40, deps: ["player.events", "player.gameplay"]});
 
     return R;
 }

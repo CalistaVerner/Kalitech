@@ -5,8 +5,12 @@ const U = require("./util.js");
 class PlayerEvents {
     constructor(player) {
         this.player = player;
+
         const cfg = (player.cfg && player.cfg.events) || Object.create(null);
         this.enabled = (cfg.enabled !== undefined) ? !!cfg.enabled : true;
+
+        this.bus = this.enabled ? player.d.bus : null;
+        if (this.enabled && !this.bus) throw new Error("[PlayerEvents] enabled but bus missing");
 
         this._subs = [];
         this._wasGrounded = false;
@@ -14,18 +18,14 @@ class PlayerEvents {
 
     on(topic, fn) {
         if (!this.enabled) return 0;
-        const bus = this.player.d.bus;
-        if (!bus) return 0;
-        const id = (bus.on(topic, fn) | 0);
+        const id = (this.bus.on(topic, fn) | 0);
         if (id) this._subs.push(id);
         return id;
     }
 
     emit(topic, payload) {
         if (!this.enabled) return;
-        const bus = this.player.d.bus;
-        if (!bus) return;
-        bus.emit(topic, payload);
+        this.bus.emit(topic, payload);
     }
 
     tick(frame) {
@@ -42,15 +42,9 @@ class PlayerEvents {
     }
 
     destroy() {
-        const bus = this.player.d.bus;
-        if (bus && typeof bus.off === "function") {
-            for (let i = 0; i < this._subs.length; i++) {
-                try {
-                    bus.off(this._subs[i] | 0);
-                } catch (_) {
-                }
-            }
-        }
+        if (!this.enabled) return;
+        if (typeof this.bus.off !== "function") throw new Error("[PlayerEvents] bus.off(id) required");
+        for (let i = 0; i < this._subs.length; i++) this.bus.off(this._subs[i] | 0);
         this._subs.length = 0;
         this._wasGrounded = false;
     }

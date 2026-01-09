@@ -10,6 +10,13 @@ public final class PathNorm {
     private PathNorm() {
     }
 
+    // Supported require() module suffixes (data/code)
+    // IMPORTANT: runtime MUST know how to load each of these.
+    private static final String[] MODULE_EXTS = new String[]{
+            ".js",
+            ".json"
+    };
+
     public static String normalizeId(String moduleId) {
         if (moduleId == null) return "";
         String id = moduleId.trim().replace('\\', '/');
@@ -57,10 +64,18 @@ public final class PathNorm {
     }
 
     /**
-     * Expands a canonical resolved id into candidates following your rule:
+     * Expands a canonical resolved id into candidates.
+     *
+     * Rule:
      * - if id already has extension -> [id]
-     * - else -> [id/index.js, id.js]
-     * <p>
+     * - else -> try directory index + base name for every supported ext
+     *
+     * Example: "@module/manifest" ->
+     *   "@module/manifest/index.js"
+     *   "@module/manifest/index.json"
+     *   "@module/manifest.js"
+     *   "@module/manifest.json"
+     *
      * IMPORTANT: existence check is done by the runtime (I/O layer), not here.
      */
     public static List<String> expandCandidates(String resolvedId) {
@@ -71,9 +86,19 @@ public final class PathNorm {
             return List.of(base);
         }
 
-        List<String> out = new ArrayList<>(2);
-        out.add(join(base, "index.js"));
-        out.add(base + ".js");
+        // 2 * ext count: index.* + base.*
+        List<String> out = new ArrayList<>(MODULE_EXTS.length * 2);
+
+        // 1) directory index.<ext>
+        for (String ext : MODULE_EXTS) {
+            out.add(join(base, "index" + ext));
+        }
+
+        // 2) base.<ext>
+        for (String ext : MODULE_EXTS) {
+            out.add(base + ext);
+        }
+
         return out;
     }
 }
