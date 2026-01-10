@@ -1,4 +1,4 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceRegistry.java
+// FILE: org/foxesworld/kalitech/engine/api/services/SurfaceRegistry.java
 package org.foxesworld.kalitech.engine.api.services;
 
 import com.jme3.app.SimpleApplication;
@@ -8,6 +8,8 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.module.EngineService;
+import org.foxesworld.kalitech.engine.ecs.EntityId;
+import org.foxesworld.kalitech.engine.ecs.EntityUuids;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.Objects;
@@ -27,6 +29,12 @@ public final class SurfaceRegistry implements EngineService {
      * IMPORTANT: bus can be null early-boot; resolve dynamically.
      */
     private Supplier<ScriptEventBus> busSupplier;
+
+    /**
+     * Optional: bound from ApiContext (ECS UUID registry).
+     * If null - UUID-related methods still work only if callers pass entityId.
+     */
+    private EntityUuids uuids;
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
@@ -48,7 +56,7 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     // ---------------------------------------------------------------------
-    // Constructors (kept; no logic changes)
+    // Constructors
     // ---------------------------------------------------------------------
 
     public SurfaceRegistry(SimpleApplication app) {
@@ -61,7 +69,7 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     /**
-     *  Preferred: dynamic bus resolve.
+     * Preferred: dynamic bus resolve.
      */
     public SurfaceRegistry(SimpleApplication app, Supplier<ScriptEventBus> busSupplier) {
         this.app = Objects.requireNonNull(app, "app");
@@ -69,22 +77,22 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     // ---------------------------------------------------------------------
-    // Optional lifecycle hook (does not change behavior)
+    // Lifecycle
     // ---------------------------------------------------------------------
 
     @Override
     public void attach(ApiContext ctx) {
-        // if created via service registry: bind from ctx
         if (ctx != null) {
             this.app = ctx.app;
-            // IMPORTANT: keep dynamic bus resolve (early boot safe)
             this.busSupplier = ctx.engine::getBus;
+            this.uuids = (ctx.ecs != null) ? ctx.ecs.uuids() : null;
         }
         if (log.isDebugEnabled()) {
-            log.debug("[service] attached id='{}' app={} busSupplier={}",
+            log.debug("[service] attached id='{}' app={} busSupplier={} uuids={}",
                     id(),
                     (app != null ? app.getClass().getSimpleName() : "null"),
-                    (busSupplier != null ? busSupplier.getClass().getName() : "null"));
+                    (busSupplier != null ? busSupplier.getClass().getName() : "null"),
+                    (uuids != null));
         }
     }
 
@@ -96,11 +104,12 @@ public final class SurfaceRegistry implements EngineService {
         surfaceToEntity.clear();
         entityToSurface.clear();
         attachFlushScheduled.set(false);
+        uuids = null;
         if (log.isDebugEnabled()) log.debug("[service] detached id='{}'", id());
     }
 
     // ---------------------------------------------------------------------
-    // Original logic below (unchanged)
+    // Registry
     // ---------------------------------------------------------------------
 
     public SurfaceApi.SurfaceHandle register(Spatial spatial, String kind, SurfaceApi api) {
@@ -133,6 +142,29 @@ public final class SurfaceRegistry implements EngineService {
     public Integer attachedEntity(int surfaceId) { return surfaceToEntity.get(surfaceId); }
     public Integer attachedSurface(int entityId) { return entityToSurface.get(entityId); }
 
+    // ---------------------------------------------------------------------
+    // UUID helpers
+    // ---------------------------------------------------------------------
+
+    private int resolveEntityIdFromUuid(String uuid) {
+        if (uuid == null || uuid.isBlank()) return 0;
+        if (uuids == null)
+            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
+        int id = uuids.entityIdOf(uuid);
+        return (id == EntityId.NULL) ? 0 : id;
+    }
+
+    private String uuidOfEntity(int entityId) {
+        if (entityId <= 0) return "";
+        EntityUuids u = uuids;
+        if (u == null) return "";
+        return u.uuidStringOf(entityId);
+    }
+
+    // ---------------------------------------------------------------------
+    // Attach / Detach (entityId core)
+    // ---------------------------------------------------------------------
+
     public void attach(int surfaceId, int entityId) {
         if (entityId <= 0) throw new IllegalArgumentException("attach: entityId must be > 0");
         if (!exists(surfaceId)) throw new IllegalStateException("attach: unknown surfaceId=" + surfaceId);
@@ -142,22 +174,74 @@ public final class SurfaceRegistry implements EngineService {
 
         surfaceToEntity.put(surfaceId, entityId);
 
-        emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId);
+        String uuid = uuidOfEntity(entityId);
+        if (!uuid.isEmpty()) {
+            emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId, "uuid", uuid);
+        } else {
+            emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId);
+        }
+    }
+
+    /**
+     * UUID-first attach (public API). Internally still maps to entityId.
+     */
+    public void attachUuid(int surfaceId, String entityUuid) {
+        int entityId = resolveEntityIdFromUuid(entityUuid);
+        if (entityId <= 0) throw new IllegalArgumentException("attachUuid: cannot resolve entity uuid=" + entityUuid);
+        attach(surfaceId, entityId);
     }
 
     public Integer detachSurface(int surfaceId) {
         Integer ent = surfaceToEntity.remove(surfaceId);
         if (ent != null) entityToSurface.remove(ent);
-        if (ent != null) emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent);
+
+        if (ent != null) {
+            String uuid = uuidOfEntity(ent);
+            if (!uuid.isEmpty()) {
+                emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent, "uuid", uuid);
+            } else {
+                emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent);
+            }
+        }
         return ent;
     }
 
     public Integer detachEntity(int entityId) {
         Integer surf = entityToSurface.remove(entityId);
         if (surf != null) surfaceToEntity.remove(surf);
-        if (surf != null) emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId);
+
+        if (surf != null) {
+            String uuid = uuidOfEntity(entityId);
+            if (!uuid.isEmpty()) {
+                emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId, "uuid", uuid);
+            } else {
+                emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId);
+            }
+        }
         return surf;
     }
+
+    /**
+     * UUID-first detach: remove mapping by UUID.
+     */
+    public Integer detachEntityUuid(String entityUuid) {
+        int entityId = resolveEntityIdFromUuid(entityUuid);
+        if (entityId <= 0) return null;
+        return detachEntity(entityId);
+    }
+
+    /**
+     * Convenience: get attached entity UUID for a surface.
+     */
+    public String attachedEntityUuid(int surfaceId) {
+        Integer ent = attachedEntity(surfaceId);
+        if (ent == null || ent <= 0) return "";
+        return uuidOfEntity(ent);
+    }
+
+    // ---------------------------------------------------------------------
+    // Scene graph ops
+    // ---------------------------------------------------------------------
 
     public void attachToRoot(int id) {
         if (!exists(id)) throw new IllegalArgumentException("attachToRoot: unknown surface id=" + id);
@@ -221,6 +305,10 @@ public final class SurfaceRegistry implements EngineService {
             });
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Events
+    // ---------------------------------------------------------------------
 
     private void emit(String topic, Object... kv) {
         ScriptEventBus bus = null;

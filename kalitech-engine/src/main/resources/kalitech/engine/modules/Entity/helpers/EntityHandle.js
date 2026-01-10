@@ -1,13 +1,15 @@
 // FILE: resources/kalitech/builtin/helpers/entity/EntityHandle.js
 "use strict";
 
-const {req, num, errCtx, subsystem} = require("./EntUtil.js");
+const {req, errCtx, subsystem} = require("./EntUtil.js");
 
 class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
         this.entityId = (ctx.entityId | 0);
+        this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
+
         this.surface = ctx.surface || null;
         this.body = ctx.body || null;
         this.surfaceId = (ctx.surfaceId | 0);
@@ -33,6 +35,14 @@ class EntityHandle {
 
     bodyHandleId() {
         return (this.bodyId | 0);
+    }
+
+    uuidString() {
+        return this.uuid || "";
+    }
+
+    uuid() {
+        return this.uuidString();
     }
 
     valueOf() {
@@ -285,6 +295,8 @@ class EntityHandle {
             }
             this.entityId = 0;
         }
+
+        this.uuid = "";
     }
 
     addDestroyer(fn) {
@@ -315,7 +327,6 @@ class EntityHandle {
         return !!ent.hasComponent(eid, String(type));
     }
 
-    // convenience
     logInfo(msg) {
         this._log.info(String(msg));
         return this;

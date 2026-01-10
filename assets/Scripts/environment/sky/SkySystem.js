@@ -165,9 +165,9 @@ class SkySystem {
 
         const sh = cfg && cfg.shadows ? cfg.shadows : null;
         if (sh) {
-            ms = this.clampInt(sh.mapSize, 0, 8192, 2048);
+            ms = this.clampInt(sh.mapSize, 0, 16384, 16384);
         } else if (forceDefaults) {
-            ms = 2048;
+            ms = 16384;
         }
 
         if (ms !== null) {
@@ -272,7 +272,7 @@ class SkySystem {
             });
 
             on("render:shadows", (p) => {
-                const ms = this.clampInt(p && p.mapSize, 0, 8192, 2048);
+                const ms = this.clampInt(p && p.mapSize, 0, 16384, 16384);
                 this._lastShadowMapSize = null;
                 this.applyRenderCfgIfPresent({ shadows: { mapSize: ms } }, false);
             });

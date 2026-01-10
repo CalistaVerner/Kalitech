@@ -35,12 +35,10 @@ function inferShapeFromCfg(cfg, surfaceCfg, bodyCfg) {
         }
     }
 
-    // sane defaults if caller wants to set later
     return out;
 }
 
 function attachCoreOrProxy(handle, core) {
-    // If handle is extensible – attach directly.
     if (handle && Object.isExtensible(handle)) {
         Object.defineProperty(handle, "core", {
             value: core,
@@ -51,7 +49,6 @@ function attachCoreOrProxy(handle, core) {
         return handle;
     }
 
-    // Otherwise return proxy that exposes .core
     return new Proxy(handle, {
         get(t, p) {
             if (p === "core") return core;
@@ -63,12 +60,34 @@ function attachCoreOrProxy(handle, core) {
     });
 }
 
+function isUuidString(s) {
+    if (typeof s !== "string") return false;
+    const x = s.trim();
+    // fast/cheap UUID v4-ish shape check (accept any hex UUID)
+    return x.length >= 32 && x.indexOf("-") > 0;
+}
+
+function resolveUuidString(entApi, entityId) {
+    if (!entApi || typeof entApi.uuidOf !== "function") return "";
+    const u = entApi.uuidOf(entityId);
+    return (typeof u === "string") ? u : "";
+}
+
+function attachSurfaceSmart(surfApi, surfaceHandle, entityId, uuid) {
+    // Prefer UUID-first attach if available.
+    if (uuid && typeof surfApi.attachEntity === "function") {
+        surfApi.attachEntity(surfaceHandle, uuid);
+        return;
+    }
+    // Fallback: legacy attach(int)
+    surfApi.attach(surfaceHandle, entityId);
+}
+
 class EntApi {
     constructor(engine, K) {
         this.engine = engine;
         this.K = K || (globalThis.__kalitech || Object.create(null));
 
-        // strict dependencies
         req(engine, "[ENT] engine is required");
         subsystem(engine, "entity");
         subsystem(engine, "mesh");
@@ -176,6 +195,7 @@ class EntApi {
 
         const ctx = {
             entityId: 0,
+            uuid: "",
             surface: null,
             body: null,
             surfaceId: 0,
@@ -191,6 +211,10 @@ class EntApi {
         // 1) entity
         const name = String(cfg.name || "entity");
         ctx.entityId = ent.create(name);
+
+        // 1.1) UUID (optional but preferred)
+        // If Java Entity API already provides uuidOf(entityId) - use it.
+        ctx.uuid = resolveUuidString(ent, ctx.entityId);
 
         // 2) surface (optional)
         const surfCfg = cfg.surface || null;
@@ -217,7 +241,7 @@ class EntApi {
 
             const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
             if (attachSurface) {
-                surfApi.attach(ctx.surface, ctx.entityId);
+                attachSurfaceSmart(surfApi, ctx.surface, ctx.entityId, ctx.uuid);
             }
         }
 
@@ -244,6 +268,7 @@ class EntApi {
                 if (typeof v === "function") {
                     data = v({
                         entityId: ctx.entityId,
+                        uuid: ctx.uuid,
                         surface: ctx.surface,
                         body: ctx.body,
                         surfaceId: ctx.surfaceId,
@@ -260,6 +285,7 @@ class EntApi {
             this._log.info(
                 "[ENT] created name=" + name +
                 " entityId=" + (ctx.entityId | 0) +
+                (ctx.uuid ? (" uuid=" + ctx.uuid) : "") +
                 " surfaceId=" + (ctx.surfaceId | 0) +
                 " bodyId=" + (ctx.bodyId | 0)
             );
@@ -280,12 +306,35 @@ class EntApi {
             return attachCoreOrProxy(handle, core);
         }
 
-        // no body -> return handle as-is (core would be meaningless)
         return handle;
     }
 
     idOf(h, kind) {
         return idOf(h, kind);
+    }
+
+    /**
+     * UUID helper:
+     *  - EntityHandle -> handle.uuidString()
+     *  - number(entityId) -> engine.entity().uuidOf(entityId) if exists
+     *  - string(uuid) -> returns as-is (validated lightly)
+     */
+    uuidOf(ref) {
+        if (ref == null) return "";
+
+        if (typeof ref === "string") return isUuidString(ref) ? ref.trim() : "";
+
+        if (typeof ref === "object") {
+            if (typeof ref.uuidString === "function") return String(ref.uuidString() || "");
+            if (typeof ref.uuid === "function") return String(ref.uuid() || "");
+            if (typeof ref.uuid === "string") return String(ref.uuid || "");
+        }
+
+        const id = idOf(ref, "entity") | 0;
+        if (id <= 0) return "";
+
+        const ent = subsystem(this.engine, "entity");
+        return resolveUuidString(ent, id);
     }
 }
 

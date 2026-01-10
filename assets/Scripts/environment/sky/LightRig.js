@@ -269,7 +269,7 @@ class LightRig {
         } catch (_) {
         }
 
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 40; i++) {
             let size = this.randNum(1, 5);
             const density = 4.5;       // базовая плотность
             const weightBias = 0.6;    // насколько "больше = тяжелее"

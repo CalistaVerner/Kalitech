@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.ecs.EntityId;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 
@@ -52,7 +53,11 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
             String safeName = (name == null) ? "" : name.trim();
             if (!safeName.isEmpty()) ecs.components().putByName(id, "Name", safeName);
 
-            emit("engine.entity.create", m("entityId", id, "name", safeName));
+            emit("engine.entity.create", m(
+                    "entityId", id,
+                    "uuid", ecs.uuids().uuidStringOf(id),
+                    "name", safeName
+            ));
             return id;
         });
     }
@@ -63,7 +68,10 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         profiledVoid(() -> {
             if (id <= 0) return;
 
-            emit("engine.entity.destroy.before", m("entityId", id));
+            emit("engine.entity.destroy.before", m(
+                    "entityId", id,
+                    "uuid", ecs.uuids().uuidStringOf(id)
+            ));
 
             try {
                 engine.__surfaceCleanupOnEntityDestroy(id);
@@ -121,6 +129,36 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
             ecs.components().removeByName(id, t);
 
             emit("engine.entity.component.remove", m("entityId", id, "type", t));
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // UUID API (public/stable identifiers)
+    // ---------------------------------------------------------------------
+
+    @HostAccess.Export
+    public String uuidOf(int entityId) {
+        return profiled(() -> {
+            if (entityId <= 0) return "";
+            return ecs.uuids().uuidStringOf(entityId);
+        });
+    }
+
+    @HostAccess.Export
+    public long uuidMsbOf(int entityId) {
+        return profiled(() -> ecs.uuids().msbOf(entityId));
+    }
+
+    @HostAccess.Export
+    public long uuidLsbOf(int entityId) {
+        return profiled(() -> ecs.uuids().lsbOf(entityId));
+    }
+
+    @HostAccess.Export
+    public int entityIdOf(String uuid) {
+        return profiled(() -> {
+            int id = ecs.uuids().entityIdOf(uuid);
+            return (id == EntityId.NULL) ? EntityId.NULL : id;
         });
     }
 }

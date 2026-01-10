@@ -750,6 +750,34 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new Hit[0]);
     }
 
+    @HostAccess.Export
+    public void attachEntity(SurfaceHandle target, Object entityRef) {
+        requireHandle(target);
+        onJmeSyncVoid("attachEntity", () -> {
+            int entityId = resolveEntityId(entityRef);
+            if (entityId <= 0) throw new IllegalArgumentException("surface.attachEntity: cannot resolve entityId");
+
+            registry.attach(target.id(), entityId);
+            engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
+        });
+    }
+
+    @HostAccess.Export
+    public void attachEntity(Object target, Object entityRef) {
+        SurfaceHandle h = requireHandle(target);
+        int entityId = resolveEntityId(entityRef);
+        onJmeSyncVoid("attachEntity", () -> attach(h, entityId));
+    }
+
+    @HostAccess.Export
+    public String attachedEntityUuid(SurfaceHandle target) {
+        requireHandle(target);
+        Integer e = registry.attachedEntity(target.id());
+        if (e == null || e <= 0) return "";
+        return engine.getEcs().uuids().uuidStringOf(e);
+    }
+
+
     @Override
     public Hit[] pickUnderCursor() {
         return new Hit[0];
@@ -802,6 +830,30 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         return out;
     }
+
+    private int resolveEntityId(Object entityRef) {
+        if (entityRef == null) return 0;
+
+        if (entityRef instanceof Integer i) return i;
+        if (entityRef instanceof Long l) return (int) (long) l;
+        if (entityRef instanceof Number n) return n.intValue();
+
+        if (entityRef instanceof String s) {
+            int id = engine.getEcs().uuids().entityIdOf(s);
+            return (id == org.foxesworld.kalitech.engine.ecs.EntityId.NULL) ? 0 : id;
+        }
+
+        if (entityRef instanceof org.graalvm.polyglot.Value v) {
+            if (v.isNumber()) return v.asInt();
+            if (v.isString()) {
+                int id = engine.getEcs().uuids().entityIdOf(v.asString());
+                return (id == org.foxesworld.kalitech.engine.ecs.EntityId.NULL) ? 0 : id;
+            }
+        }
+
+        throw new IllegalArgumentException("surface.attachEntity: entity must be entityId(number) or uuid(string)");
+    }
+
 
     private static String spatialName(Spatial s) {
         if (s == null) return "";

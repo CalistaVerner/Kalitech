@@ -35,15 +35,16 @@ function create(engine, K) {
         presets: api.presets.bind(api),
 
         // utility
-        idOf: api.idOf.bind(api)
+        idOf: api.idOf.bind(api),
+        uuidOf: api.uuidOf.bind(api)
     });
 }
 
 create.META = {
     moduleId: "entity",
     globalName: "ENT",
-    version: "1.2.0",
-    description: "Declarative entity builder (entity + surface + body + components) + EntityCore on handle.core",
+    version: "1.3.0",
+    description: "Declarative entity builder (entity + surface + body + components) + UUID-first surface attach + EntityCore on handle.core",
     engineMin: "0.1.0"
 };
 

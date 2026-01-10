@@ -15,12 +15,20 @@ const DEFAULT_CFG = Object.freeze({
     enabled: true,
     model: "Models/sharp-boulder-layered.obj",
     scale: 0.12,
-    mass: 120.0,
+    mass: 320.0,
     lockRotation: false,
     materialId: "unshaded.rock",
     spawnOffset: 0.0,
-    speed: 80.0,
+    speed: 160.0,
     invertPitch: true,
+
+    radiusMin: 0.05,     // минимальный radius
+    radiusMax: 1.85,     // максимальный radius
+
+    density: 18.0,       // “плотность” для масс (игровая), mass = density * (4/3*pi*r^3)
+
+    massMin: 1.0,
+    massMax: 120.0,
     debug: {logShots: false},
     events: {
         fire: "game.shoot.fire",
@@ -135,6 +143,29 @@ class ShootSystem {
         return normalize3_into(sy * cp, sp, cy * cp, outDir);
     }
 
+    _randBetween(a, b) {
+        a = +a;
+        b = +b;
+        if (!(a >= 0) || !(b >= 0)) return 0.5;
+        if (b < a) {
+            const t = a;
+            a = b;
+            b = t;
+        }
+        return a + Math.random() * (b - a);
+    }
+
+    _clamp(v, a, b) {
+        return v < a ? a : (v > b ? b : v);
+    }
+
+    _massFromRadius(r, density) {
+        // mass = density * volume; volume = 4/3*pi*r^3
+        const rr = r * r * r;
+        return (+density || 1.0) * (4.0 / 3.0) * Math.PI * rr;
+    }
+
+
     _readOrigin_into(frame, outOrigin) {
         outOrigin.x = U.num(frame.pose.x, 0);
         outOrigin.y = U.num(frame.pose.y, 0) + U.num(frame.character.eyeHeight, 1.55);
@@ -153,6 +184,18 @@ class ShootSystem {
         meta.bodyId = bodyId | 0;
         return meta;
     }
+
+    /*
+        const g = ENGINE.mesh.loadModel(c.model, {
+            scale: c.scale,
+            name,
+            pos: [this._spawn.x, this._spawn.y, this._spawn.z],
+            physics: {
+                mass: c.mass,
+                lockRotation: c.lockRotation,
+                collider: { type: "dynamicMesh", halfExtents: [1.2, 0.6, 2.4] }
+            }
+        }); */
 
     _fire(frame, ownerBodyId) {
         const c = this.cfg;
@@ -174,21 +217,28 @@ class ShootSystem {
         const shotIndex = (++this._shotId) | 0;
         const name = "shot-" + shotIndex;
 
-        if (!ENGINE || !ENGINE.mesh || typeof ENGINE.mesh.loadModel !== "function") throw new Error("[shoot] ENGINE.mesh.loadModel required");
+        if (!ENGINE || !ENGINE.mesh || typeof ENGINE.mesh.sphere$ !== "function") throw new Error("[shoot] ENGINE.mesh.sphere$ required");
         if (!MAT || typeof MAT.getMaterial !== "function") throw new Error("[shoot] MAT.getMaterial required");
 
-        const g = ENGINE.mesh.loadModel(c.model, {
-            scale: c.scale,
-            name,
-            pos: [this._spawn.x, this._spawn.y, this._spawn.z],
-            physics: {
-                mass: c.mass,
-                lockRotation: c.lockRotation,
-                collider: { type: "dynamicMesh", halfExtents: [1.2, 0.6, 2.4] }
-            }
-        });
+        // ---------------- gameplay: random radius -> mass from volume ----------------
+        const rMin = (c.radiusMin != null) ? +c.radiusMin : 0.25;
+        const rMax = (c.radiusMax != null) ? +c.radiusMax : 0.85;
 
-        if (g && typeof g.setMaterial === "function") g.setMaterial(MAT.getMaterial(c.materialId));
+        const radius = this._randBetween(rMin, rMax);
+
+        let mass = this._massFromRadius(radius, c.density);
+        if (c.massMin != null) mass = this._clamp(mass, +c.massMin, (c.massMax != null ? +c.massMax : mass));
+        else if (c.massMax != null) mass = this._clamp(mass, 0.0, +c.massMax);
+
+        // ВАЖНО: я считаю, что .size(x) для sphere$ — это именно radius/size шара.
+        // Если у тебя .size ожидает DIAMETER, просто замени radius -> (radius * 2).
+        const g = ENGINE.mesh.sphere$()
+            .size(radius)
+            .name(name)
+            .pos(this._spawn.x, this._spawn.y, this._spawn.z)
+            .material(MAT.getMaterial("box"))
+            .physics(mass, {lockRotation: false})
+            .create();
 
         const speed = c.speed;
         this._vel.x = this._dir.x * speed;
@@ -201,6 +251,8 @@ class ShootSystem {
         const meta = this._registerShot(g, {
             shotIndex,
             name,
+            radius: radius,
+            mass: mass,
             spawn: {x: this._spawn.x, y: this._spawn.y, z: this._spawn.z},
             dir: {x: this._dir.x, y: this._dir.y, z: this._dir.z},
             vel: {x: this._vel.x, y: this._vel.y, z: this._vel.z},
@@ -215,6 +267,8 @@ class ShootSystem {
             surfaceId: meta.surfaceId,
             bodyId: meta.bodyId,
             ownerBodyId: meta.ownerBodyId,
+            radius: meta.radius,
+            mass: meta.mass,
             spawn: meta.spawn,
             dir: meta.dir,
             vel: meta.vel,
@@ -223,9 +277,10 @@ class ShootSystem {
         });
 
         if (c.debug && c.debug.logShots && ENGINE.log && ENGINE.log.info) {
-            ENGINE.log.info("[shoot] " + name + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
+            ENGINE.log.info("[shoot] " + name + " r=" + radius.toFixed(3) + " m=" + mass.toFixed(2) + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
         }
     }
+
 
     _onCollisionBegin(payload) {
         const c = this.cfg;
