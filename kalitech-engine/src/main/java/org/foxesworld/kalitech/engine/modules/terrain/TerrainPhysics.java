@@ -19,9 +19,9 @@ public final class TerrainPhysics {
     private final EngineApiImpl engine;
     private final SurfaceRegistry registry;
 
-    public TerrainPhysics(EngineApiImpl engine, SurfaceRegistry registry) {
+    public TerrainPhysics(EngineApiImpl engine) {
         this.engine = engine;
-        this.registry = registry;
+        this.registry = engine.getSurfaceRegistry();
     }
 
     public Object bind(SurfaceApi.SurfaceHandle surface, Value cfg) {

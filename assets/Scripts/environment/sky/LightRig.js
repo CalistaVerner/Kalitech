@@ -269,21 +269,63 @@ class LightRig {
         } catch (_) {
         }
 
-        for (let i = 0; i < 40; i++) {
-            let size = this.randNum(1, 5);
-            const density = 4.5;       // базовая плотность
-            const weightBias = 0.6;    // насколько "больше = тяжелее"
-            const mass = density * Math.pow(size, 3) * (1 + size * weightBias);
+        const TOTAL = 40;
+        const TOWERS = 5;
+        const BOXES_PER_TOWER = TOTAL / TOWERS;
 
-            ENGINE.mesh
-                .box$()
-                .size(size)
-                .name("box-" + i)
-                .pos(120, 3, -300)
-                .material(MAT.getMaterial("box"))
-                .physics(mass, { lockRotation: false })
-                .create();
+        const BASE_X = 120;
+        const BASE_Z = -300;
+        const TOWER_SPACING = 8;
+
+        const density = 4.5;
+        const weightBias = 0.6;
+
+        let boxId = 0;
+
+        for (let t = 0; t < TOWERS; t++) {
+
+            // позиции башни
+            const x = BASE_X + t * TOWER_SPACING;
+            const z = BASE_Z;
+
+            // генерируем размеры для башни
+            let sizes = [];
+            for (let i = 0; i < BOXES_PER_TOWER; i++) {
+                sizes.push(this.randNum(1, 5));
+            }
+
+            // ВАЖНО: большие вниз, маленькие вверх
+            sizes.sort((a, b) => b - a);
+
+            let y = 0;
+
+            for (let i = 0; i < sizes.length; i++) {
+                const size = sizes[i];
+
+                // корректная высота: половина текущего + половина предыдущего
+                y += size / 2;
+
+                const mass =
+                    density *
+                    Math.pow(size, 3) *
+                    (1 + size * weightBias);
+
+                ENGINE.mesh
+                    .box$()
+                    .size(size)
+                    .name("box-" + boxId++)
+                    .pos(x, y, z)
+                    .material(MAT.getMaterial("box"))
+                    .physics(mass, {
+                        lockRotation: false
+                    })
+                    .create();
+
+                // поднимаемся для следующего блока
+                y += size / 2;
+            }
         }
+
     }
 
     randNum(min, max) {

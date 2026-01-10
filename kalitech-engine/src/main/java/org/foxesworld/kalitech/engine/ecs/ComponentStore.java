@@ -5,15 +5,9 @@ import java.util.function.BiConsumer;
 
 public final class ComponentStore {
 
-    // typed storage: Class -> Object[] (entityId as index)
     private final Map<Class<?>, Object[]> typed = new IdentityHashMap<>();
-
-    // name-keyed storage (JS-friendly): String -> Object[]
     private final Map<String, Object[]> named = new HashMap<>();
-
     private int capacity = 0;
-
-    // ---------------- typed API ----------------
 
     @SuppressWarnings("unchecked")
     public <T> T get(int entity, Class<T> type) {
@@ -40,7 +34,6 @@ public final class ComponentStore {
         arr[entity] = null;
     }
 
-    /** Fast iteration without allocations. */
     @SuppressWarnings("unchecked")
     public <T> void forEach(Class<T> type, BiConsumer<Integer, T> fn) {
         Object[] arr = typed.get(type);
@@ -51,7 +44,6 @@ public final class ComponentStore {
         }
     }
 
-    /** Compatibility/debug snapshot (avoid per frame). */
     @SuppressWarnings("unchecked")
     public <T> Map<Integer, T> view(Class<T> type) {
         Object[] arr = typed.get(type);
@@ -63,8 +55,6 @@ public final class ComponentStore {
         }
         return Collections.unmodifiableMap(out);
     }
-
-    // ---------------- name-keyed API ----------------
 
     public Object getByName(int entity, String type) {
         Object[] arr = named.get(type);
@@ -91,9 +81,8 @@ public final class ComponentStore {
         arr[entity] = null;
     }
 
-    /** Fast iteration for name-keyed components without allocations. */
     public void forEachByName(String type, BiConsumer<Integer, Object> fn) {
-        if (type == null || type.isBlank()) return;
+        if (type == null || type.isBlank()) throw new IllegalArgumentException("type is blank");
         Object[] arr = named.get(type);
         if (arr == null) return;
         for (int e = 1; e < arr.length; e++) {
@@ -102,9 +91,8 @@ public final class ComponentStore {
         }
     }
 
-    /** Optional compatibility/debug snapshot (avoid per frame). */
     public Map<Integer, Object> viewByName(String type) {
-        if (type == null || type.isBlank()) return Map.of();
+        if (type == null || type.isBlank()) throw new IllegalArgumentException("type is blank");
         Object[] arr = named.get(type);
         if (arr == null) return Map.of();
         HashMap<Integer, Object> out = new HashMap<>();
@@ -115,9 +103,8 @@ public final class ComponentStore {
         return Collections.unmodifiableMap(out);
     }
 
-    /** Remove ALL components for an entity (critical for destroyEntity). */
     public void removeAll(int entity) {
-        if (entity <= 0) return;
+        if (entity <= 0) throw new IllegalArgumentException("entity must be > 0");
         for (Object[] arr : typed.values()) {
             if (entity < arr.length) arr[entity] = null;
         }
@@ -126,14 +113,11 @@ public final class ComponentStore {
         }
     }
 
-    /** Full reset for hot-reload rebuilds. */
     public void reset() {
         typed.clear();
         named.clear();
         capacity = 0;
     }
-
-    // ---------------- internals ----------------
 
     private void ensureCapacity(int entityId) {
         if (entityId < capacity) return;

@@ -107,7 +107,7 @@ class PlayerPawn {
 
         this.cfg = U.deepMerge({
             character: {radius: 0.35, height: 1.80, mass: 80.0, eyeHeight: 1.65},
-            spawn: {pos: {x: 129, y: 3, z: -300}, radius: 0.35, height: 1.80, mass: 80.0},
+            spawn: {pos: {x: 135, y: -10, z: -334}, radius: 0.35, height: 1.80, mass: 80.0},
             camera: {type: "third"},
             ui: {},
             events: {enabled: true},

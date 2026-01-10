@@ -7,7 +7,6 @@ import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.audio.KalitechAudioBridge;
 import org.foxesworld.kalitech.engine.KalitechApplication;
 import org.foxesworld.kalitech.engine.api.impl.*;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
@@ -25,13 +24,6 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 
-/**
- * EngineApiImpl
- * Script-driven principles:
- * - No must-have subsystems: world/editor/etc are optional by design.
- * - Stable, high-perf host APIs for JS.
- * - Must NOT interpret game/app semantics (no "worldDesc mode/entities" logic).
- */
 public final class EngineApiImpl implements EngineApi {
 
     private static final Logger LOG = LogManager.getLogger(EngineApiImpl.class);
@@ -49,11 +41,9 @@ public final class EngineApiImpl implements EngineApi {
 
     private final BulletAppState bullet;
 
-    //  API registry / context
     private final ApiContext apiCtx;
     private final ApiRegistry apiRegistry;
 
-    // core apis
     private final LogApi logApi;
     private final AssetsApi assetsApi;
     private final EventsApi eventsApi;
@@ -115,23 +105,22 @@ public final class EngineApiImpl implements EngineApi {
 
         this.jmeThread = Thread.currentThread();
 
-        //  registry/bootstrap context (one for all modules)
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
-        // --- Base APIs ---
         this.logApi = apiRegistry.register(new LogApiImpl());
         this.assetsApi = apiRegistry.register(new AssetsApiImpl());
         this.eventsApi = apiRegistry.register(new EventsApiImpl());
         this.timeApi = apiRegistry.register(new TimeApiImpl());
         this.inputApi = apiRegistry.register(new InputApiImpl());
 
-        //  next wave: material/render/entity/camera
         this.materialApi = apiRegistry.register(new MaterialApiImpl());
         this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
         this.cameraApi = apiRegistry.register(new CameraApiImpl());
-        this.surfaceRegistry = new SurfaceRegistry(this.app, this.bus);
+
+        // ✅ NO legacy ctor
+        this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
 
         this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
         this.surfaceApi = apiRegistry.register(new SurfaceApiImpl());
@@ -157,6 +146,34 @@ public final class EngineApiImpl implements EngineApi {
         if (v.isEmpty()) return def;
         return "1".equals(v) || "true".equalsIgnoreCase(v) || "yes".equalsIgnoreCase(v) || "on".equalsIgnoreCase(v);
     }
+
+    public void __updateTime(double tpf) {
+        __updateFps(tpf);
+
+        perf.beginFrame();
+
+        long t;
+
+        t = perf.begin("time.update");
+        timeApi.update(tpf);
+        perf.end("time.update", t);
+
+        t = perf.begin("camera.flush");
+        if (cameraApi instanceof CameraApiImpl c) c.__flush();
+        perf.end("camera.flush", t);
+
+        t = perf.begin("debug.tick");
+        debugApi.tick(tpf);
+        perf.end("debug.tick", t);
+
+        //try {
+        //    var cam = app.getCamera();
+        //    KalitechAudioBridge.syncListener(cam.getLocation(), cam.getRotation());
+        //} catch (Throwable ignored) {}
+
+        perf.endFrame(tpf);
+    }
+
 
     private static int intProp(String key, int def) {
         String v = System.getProperty(key);
@@ -204,6 +221,18 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export
     @Override
+    public EntityApi entity() {
+        return entityApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public SoundApi sound() {
+        return soundApi;
+    }
+
+    @HostAccess.Export
+    @Override
     public RenderApi render() {
         return renderApi;
     }
@@ -222,6 +251,18 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export
     @Override
+    public LightApi light() {
+        return lightApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public DebugDrawApi debug() {
+        return debugApi;
+    }
+
+    @HostAccess.Export
+    @Override
     public ParticlesApi particles() {
         return particles;
     }
@@ -231,14 +272,20 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export
     @Override
+    public EditorLinesApi editorLines() {
+        return editorLinesApi;
+    }
+
+    @HostAccess.Export
+    @Override
     public MeshApi mesh() {
         return meshApi;
     }
 
     @HostAccess.Export
     @Override
-    public LightApi light() {
-        return lightApi;
+    public HudApi hud() {
+        return hudApi;
     }
     @HostAccess.Export @Override public TimeApi time() { return timeApi; }
     @HostAccess.Export @Override public InputApi input() { return inputApi; }
@@ -247,24 +294,8 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export
     @Override
-    public EntityApi entity() {
-        return entityApi;
-    }
-
-    @HostAccess.Export
-    @Override
-    public SoundApi sound() {
-        return soundApi;
-    }
-
-    @HostAccess.Export
-    @Override
     public String engineVersion() {
-        try {
-            if (app instanceof KalitechApplication ka) return ka.getVersion();
-        } catch (Throwable ignored) {
-        }
-        return "unknown";
+        return app != null ? ((KalitechApplication) app).getVersion() : "unknown";
     }
 
     @HostAccess.Export
@@ -276,47 +307,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public double fps() {
-        final double v = (fpsEma > 0.0) ? fpsEma : fps;
-        return (v > 0.0 && Double.isFinite(v)) ? v : 0.0;
-    }
-
-    public void __updateTime(double tpf) {
-        __updateFps(tpf);
-
-        perf.beginFrame();
-
-        long t;
-
-        t = perf.begin("time.update");
-        timeApi.update(tpf);
-        perf.end("time.update", t);
-
-        t = perf.begin("camera.flush");
-        if (cameraApi instanceof CameraApiImpl c) c.__flush();
-        perf.end("camera.flush", t);
-
-        t = perf.begin("debug.tick");
-        debugApi.tick(tpf);
-        perf.end("debug.tick", t);
-
-        try {
-            var cam = app.getCamera();
-            KalitechAudioBridge.syncListener(cam.getLocation(), cam.getRotation());
-        } catch (Throwable ignored) {}
-
-        perf.endFrame(tpf);
-    }
-
-    public void __endFrameInput() {
-        inputApi.endFrame();
-    }
-
-    public void __setEditorEnabled(boolean enabled) {
-        try {
-            editorApi.setEnabled(enabled);
-        } catch (Throwable t) {
-            LOG.error("__setEditorEnabled failed", t);
-        }
+        return fps;
     }
 
     public void __setPhysicsSpace(PhysicsSpace space) {
@@ -327,19 +318,6 @@ public final class EngineApiImpl implements EngineApi {
         return physicsSpace;
     }
 
-    public void __surfaceCleanupOnEntityDestroy(int entityId) {
-        try {
-            Integer surfaceId = surfaceRegistry.detachEntity(entityId);
-            if (surfaceId != null) {
-                try { physicsApi.__cleanupSurface(surfaceId); } catch (Throwable ignored) {}
-                surfaceRegistry.destroy(surfaceId);
-            }
-            try { ecs.components().removeByName(entityId, "Surface"); } catch (Throwable ignored) {}
-        } catch (Throwable t) {
-            LOG.warn("__surfaceCleanupOnEntityDestroy failed entityId={}", entityId, t);
-        }
-    }
-
     public ScriptRuntime getRuntime() {
         return runtime;
     }
@@ -348,13 +326,39 @@ public final class EngineApiImpl implements EngineApi {
         return surfaceRegistry;
     }
 
-    @HostAccess.Export
-    @Override
-    public HudApi hud() {
-        return hudApi;
+    public AssetManager getAssets() {
+        return assets;
     }
 
-    public AssetManager getAssets() { return assets; }
+    public ScriptEventBus getBus() {
+        return bus;
+    }
+
+    /**
+     * ✅ UUID-only surface cleanup hook.
+     * Call this from ECS when an entity is destroyed.
+     */
+    public void __surfaceCleanupOnEntityDestroy(String entityUuid) {
+        if (entityUuid == null || entityUuid.isBlank()) return;
+
+        try {
+            Integer surfaceId = surfaceRegistry.detachEntity(entityUuid);
+            if (surfaceId != null) {
+                try { physicsApi.__cleanupSurface(surfaceId); } catch (Throwable ignored) {}
+                surfaceRegistry.destroy(surfaceId);
+            }
+
+            // components removal is engine-internal; if you want ZERO entityId usage here too,
+            // do it in ECS layer by uuid (preferred).
+            try {
+                int entityId = ecs.uuids().entityIdOf(entityUuid);
+                if (entityId > 0) ecs.components().removeByName(entityId, "Surface");
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable t) {
+            LOG.warn("__surfaceCleanupOnEntityDestroy failed entityUuid={}", entityUuid, t);
+        }
+    }
 
     private void __updateFps(double tpf) {
         if (!(tpf > 0.0) || !Double.isFinite(tpf)) return;
@@ -382,18 +386,6 @@ public final class EngineApiImpl implements EngineApi {
 
     @HostAccess.Export
     @Override
-    public DebugDrawApi debug() {
-        return debugApi;
-    }
-
-    @HostAccess.Export
-    @Override
-    public EditorLinesApi editorLines() {
-        return editorLinesApi;
-    }
-
-    @HostAccess.Export
-    @Override
     public void runOnMainThread(Value fn) {
         if (fn == null || fn.isNull()) return;
         if (!fn.canExecute()) throw new IllegalArgumentException("runOnMainThread(fn): fn must be executable");
@@ -407,33 +399,14 @@ public final class EngineApiImpl implements EngineApi {
             return null;
         });
     }
-    public ScriptEventBus getBus() { return bus; }
-
-    public void __physicsClearWorld() {
-        try {
-            physicsApi.__clearAll();
-        } catch (Throwable ignored) {
-        }
-    }
 
     public Logger getLog() {
         return LOG;
     }
-
-    public BulletAppState getBullet() {
-        return bullet;
-    }
-
     public SimpleApplication getApp() {
         return app;
     }
-
     public EcsWorld getEcs() {
         return ecs;
-    }
-
-    //  expose registry internally for diagnostics/tools (не ломаем JS контракт)
-    public ApiRegistry getApiRegistry() {
-        return apiRegistry;
     }
 }

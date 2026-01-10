@@ -11,7 +11,7 @@ public final class EntityManager {
     private int[] free = new int[256];
     private int freeSize = 0;
 
-    public int create() {
+    int create() {
         final int id;
         if (freeSize > 0) {
             id = free[--freeSize];
@@ -26,13 +26,12 @@ public final class EntityManager {
         return id > 0 && alive.get(id);
     }
 
-    public void destroy(int id) {
-        if (id <= 0) return;
-        if (!alive.get(id)) return;
+    void destroy(int id) {
+        if (id <= 0) throw new IllegalArgumentException("entityId must be > 0");
+        if (!alive.get(id)) throw new IllegalStateException("entityId is not alive: " + id);
 
         alive.clear(id);
 
-        // push into free-list
         if (freeSize == free.length) {
             int[] n = new int[free.length << 1];
             System.arraycopy(free, 0, n, 0, free.length);
@@ -42,7 +41,7 @@ public final class EntityManager {
     }
 
     /** Full reset for hot-reload rebuilds. */
-    public void reset() {
+    void reset() {
         alive.clear();
         nextId = 1;
         freeSize = 0;

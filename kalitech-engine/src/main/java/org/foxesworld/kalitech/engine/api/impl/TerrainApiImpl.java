@@ -42,12 +42,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         this.engine = ctx.engine;
         this.registry = engine.getSurfaceRegistry();
 
-        this.emitter = new TerrainEmitter(engine.getBus());
+        this.emitter = new TerrainEmitter(engine);
         this.factory = new TerrainFactory(engine.getAssets());
         this.uv = new TerrainUV();
         this.ops = new TerrainOps(engine.getApp().getCamera());
         this.editOps = new TerrainEditOps();
-        this.physics = new TerrainPhysics(engine, registry);
+        this.physics = new TerrainPhysics(engine);
         this.noise = new TerrainNoise();
     }
 
@@ -321,7 +321,7 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     public void detachEntity(SurfaceApi.SurfaceHandle handle) {
         if (handle == null) throw new IllegalArgumentException("terrain.detachEntity: handle is required");
         // new API name (UUID-only)
-        engine.surface().detachFromEntityUuid(handle);
+        engine.surface().detachFromEntity(handle);
         emitter.emit("engine.terrain.detached", "surfaceId", handle.id());
     }
 
@@ -342,7 +342,7 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     @Override
     public void detach(SurfaceApi.SurfaceHandle handle) {
         if (handle == null) throw new IllegalArgumentException("terrain.detach: handle is required");
-        engine.surface().detachFromEntityUuid(handle);
+        engine.surface().detachFromEntity(handle);
         emitter.emit("engine.terrain.detached", "surfaceId", handle.id());
     }
 

@@ -186,7 +186,7 @@ public final class RuntimeAppState extends BaseAppState {
         }
 
         try {
-            engineApi.__endFrameInput();
+            engineApi.input().endFrame();
         } catch (Throwable ignored) {
         }
     }
@@ -197,7 +197,10 @@ public final class RuntimeAppState extends BaseAppState {
 
     private void restartApp() {
         try {
-            try { engineApi.__physicsClearWorld(); } catch (Throwable ignored) {}
+            try {
+                engineApi.physics().__clearAll();
+            } catch (Throwable ignored) {
+            }
 
             runtime.invalidate(entry);
             Value main = runtime.require(entry);

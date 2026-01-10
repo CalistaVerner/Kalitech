@@ -5,18 +5,20 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Stable UUID registry for ECS entities.
- * <p>
+ *
  * Contract:
- * - entityId (int) is internal dense index.
- * - UUID is stable external/public id.
- * <p>
+ * - UUID is the only external/public id.
+ * - int entityId is internal dense index.
+ *
  * Sentinel:
  * - UUID (0,0) is reserved.
  */
 public final class EntityUuids {
 
     private static final long EMPTY = 0L;
+
     private final UuidToIntMap index = new UuidToIntMap(256);
+
     private long[] msbById = new long[0];
     private long[] lsbById = new long[0];
     private int capacity = 0;
@@ -27,10 +29,7 @@ public final class EntityUuids {
         return x;
     }
 
-    /**
-     * Assign random UUID to freshly created entity.
-     */
-    public void onCreate(int entityId) {
+    void onCreate(int entityId) {
         if (entityId <= 0) throw new IllegalArgumentException("entityId must be > 0");
         ensureCapacity(entityId);
 
@@ -40,14 +39,11 @@ public final class EntityUuids {
             lsb = ThreadLocalRandom.current().nextLong();
         } while ((msb == 0L && lsb == 0L) || index.contains(msb, lsb));
 
-        set(entityId, msb, lsb);
+        setInternal(entityId, msb, lsb);
     }
 
-    /**
-     * Remove UUID mapping for destroyed entity.
-     */
-    public void onDestroy(int entityId) {
-        if (entityId <= 0) return;
+    void onDestroy(int entityId) {
+        if (entityId <= 0) throw new IllegalArgumentException("entityId must be > 0");
         if (entityId >= capacity) return;
 
         long msb = msbById[entityId];
@@ -60,50 +56,20 @@ public final class EntityUuids {
     }
 
     /**
-     * Force-set UUID for an entity (scene/save loading).
-     * Throws if UUID is already assigned to some other entity.
+     * Force-set UUID for an entity (save/load).
+     * INTERNAL: not a public "register by id" API.
      */
-    public void set(int entityId, long msb, long lsb) {
+    void setForLoad(int entityId, String uuid) {
         if (entityId <= 0) throw new IllegalArgumentException("entityId must be > 0");
+        if (uuid == null || uuid.isBlank()) throw new IllegalArgumentException("uuid is blank");
+
+        UUID u = UUID.fromString(uuid.trim());
+        long msb = u.getMostSignificantBits();
+        long lsb = u.getLeastSignificantBits();
         if (msb == 0L && lsb == 0L) throw new IllegalArgumentException("UUID 0/0 is reserved");
+
         ensureCapacity(entityId);
-
-        // remove previous mapping
-        long pM = msbById[entityId];
-        long pL = lsbById[entityId];
-        if (pM != EMPTY || pL != EMPTY) {
-            index.remove(pM, pL);
-        }
-
-        int existing = index.get(msb, lsb);
-        if (existing != EntityId.NULL && existing != entityId) {
-            throw new IllegalStateException("UUID already assigned to entityId=" + existing);
-        }
-
-        msbById[entityId] = msb;
-        lsbById[entityId] = lsb;
-        index.put(msb, lsb, entityId);
-    }
-
-    public long msbOf(int entityId) {
-        if (entityId <= 0 || entityId >= capacity) return 0L;
-        return msbById[entityId];
-    }
-
-    public long lsbOf(int entityId) {
-        if (entityId <= 0 || entityId >= capacity) return 0L;
-        return lsbById[entityId];
-    }
-
-    public String uuidStringOf(int entityId) {
-        long msb = msbOf(entityId);
-        long lsb = lsbOf(entityId);
-        if (msb == 0L && lsb == 0L) return "";
-        return new UUID(msb, lsb).toString();
-    }
-
-    public int entityIdOf(long msb, long lsb) {
-        return index.get(msb, lsb);
+        setInternal(entityId, msb, lsb);
     }
 
     public int entityIdOf(String uuid) {
@@ -112,16 +78,19 @@ public final class EntityUuids {
         return index.get(u.getMostSignificantBits(), u.getLeastSignificantBits());
     }
 
-    // ---- internals ----
-
-    /**
-     * Full reset for hot-reload rebuilds.
-     */
     public void reset() {
         msbById = new long[0];
         lsbById = new long[0];
         capacity = 0;
         index.clear();
+    }
+
+    public String uuidStringOf(int entityId) {
+        if (entityId <= 0 || entityId >= capacity) return "";
+        long msb = msbById[entityId];
+        long lsb = lsbById[entityId];
+        if (msb == 0L && lsb == 0L) return "";
+        return new UUID(msb, lsb).toString();
     }
 
     private void ensureCapacity(int entityId) {
@@ -141,5 +110,22 @@ public final class EntityUuids {
         msbById = nM;
         lsbById = nL;
         capacity = newCap;
+    }
+
+    private void setInternal(int entityId, long msb, long lsb) {
+        long pM = msbById[entityId];
+        long pL = lsbById[entityId];
+        if (pM != EMPTY || pL != EMPTY) {
+            index.remove(pM, pL);
+        }
+
+        int existing = index.get(msb, lsb);
+        if (existing != EntityId.NULL && existing != entityId) {
+            throw new IllegalStateException("UUID already assigned to entityId=" + existing);
+        }
+
+        msbById[entityId] = msb;
+        lsbById[entityId] = lsb;
+        index.put(msb, lsb, entityId);
     }
 }

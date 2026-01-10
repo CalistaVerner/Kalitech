@@ -5,145 +5,95 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 /**
- * Surface API
- * <p>
- * UUID-only entity binding:
- * - You can still address surfaces by numeric surfaceId (runtime registry).
- * - Attaching surfaces to entities is UUID-only (no entityId in public API).
- * <p>
- * Notes:
- * - "LEGACY" block remains for compatibility with older scripts, but legacy attach/attachedEntity now throws.
- * - Prefer fluent methods on SurfaceHandle.
+ * Surface API (NO legacy).
+ *
+ * Contract:
+ * - API accepts ONLY SurfaceHandle (no raw ids, no "Object target", no coercion).
+ * - Entity binding is UUID-only (string) in public API.
+ * - World-pick methods stay on API (not handle-scoped).
  */
 public interface SurfaceApi {
 
+    // ------------------------------------------------------------
+    // Core surface operations (handle-scoped)
+    // ------------------------------------------------------------
+
     @HostAccess.Export
-    SurfaceHandle handle(int id);
+    void setMaterial(SurfaceHandle target, Object materialHandleOrCfg);
 
-    // --------------------------------------------------------------------
-    // LEGACY (engine.surface().xxx(handle,...)) — keep for compatibility,
-    // but prefer methods on SurfaceHandle: handle.xxx(...)
-    // --------------------------------------------------------------------
-
-    /** @deprecated use {@code target.setMaterial(materialHandle)} */
-    @Deprecated
-    @HostAccess.Export
-    void setMaterial(SurfaceHandle target, Object materialHandle);
-
-    /** Apply material to all child geometries (Node/model hierarchies).
-     *  @deprecated use {@code target.applyMaterialToChildren(materialHandle)} */
-    @Deprecated
     @HostAccess.Export
     void applyMaterialToChildren(SurfaceHandle target, Object materialHandle);
 
-    /** @deprecated use {@code target.setTransform(cfg)} */
-    @Deprecated
     @HostAccess.Export
     void setTransform(SurfaceHandle target, Value cfg);
 
-    /** @deprecated use {@code target.setShadowMode(mode)} */
-    @Deprecated
     @HostAccess.Export
     void setShadowMode(SurfaceHandle target, String mode); // Off|Receive|Cast|CastAndReceive
 
-    /** @deprecated use {@code target.attachToRoot()} */
-    @Deprecated
     @HostAccess.Export
     void attachToRoot(SurfaceHandle target);
 
-    /** @deprecated use {@code target.detach()} */
-    @Deprecated
     @HostAccess.Export
     void detach(SurfaceHandle target);
 
-    /** @deprecated use {@code target.destroy()} */
-    @Deprecated
     @HostAccess.Export
     void destroy(SurfaceHandle target);
 
-    /** @deprecated use {@code target.exists()} */
-    @Deprecated
     @HostAccess.Export
     boolean exists(SurfaceHandle target);
 
-    /**
-     * LEGACY entityId access is removed in UUID-only mode.
-     * @deprecated use {@code target.attachedEntityUuid()}
-     */
-    @Deprecated
     @HostAccess.Export
-    default int attachedEntity(SurfaceHandle target) {
-        throw new IllegalStateException("SurfaceApi.attachedEntity(entityId) removed (UUID-only). Use attachedEntityUuid(target).");
-    }
+    void setCull(SurfaceHandle target, String hint);
 
-    /**
-     * LEGACY entityId attach is removed in UUID-only mode.
-     * @deprecated use {@code target.attachEntity(uuid)} / {@code attachEntity(target, uuid)}
-     */
-    @Deprecated
     @HostAccess.Export
-    default void attach(SurfaceHandle target, int entityId) {
-        throw new IllegalStateException("SurfaceApi.attach(handle, entityId) removed (UUID-only). Use attachEntity(handle, uuid).");
-    }
+    int attachedBody(int surfaceId);
 
-    /** @deprecated use {@code target.detachFromEntity()} */
-    @Deprecated
     @HostAccess.Export
-    void detachFromEntity(SurfaceHandle target);
+    void setVisible(SurfaceHandle target, boolean visible);
 
-    /** @deprecated use {@code target.getWorldBounds()} */
-    @Deprecated
+    // ------------------------------------------------------------
+    // Bounds / picking (handle-scoped)
+    // ------------------------------------------------------------
+
     @HostAccess.Export
     WorldBounds getWorldBounds(SurfaceHandle target);
 
-    /** @deprecated use {@code target.raycast(cfg)} */
-    @Deprecated
     @HostAccess.Export
     Hit[] raycast(SurfaceHandle target, Value cfg);
 
-    /** @deprecated use {@code target.pickUnderCursor()} */
-    @Deprecated
     @HostAccess.Export
     Hit[] pickUnderCursor(SurfaceHandle target);
 
-    /** @deprecated use {@code target.pickUnderCursorCfg(cfg)} */
-    @Deprecated
     @HostAccess.Export
     Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg);
 
-    // --------------------------------------------------------------------
-    // Modern exports
-    // --------------------------------------------------------------------
+    // ------------------------------------------------------------
+    // World picking (API-scoped)
+    // ------------------------------------------------------------
 
-    // These 2 — stay on API because they are “world pick”, not “handle pick”.
     @HostAccess.Export
     Hit[] pickUnderCursor();
 
     @HostAccess.Export
     Hit[] pickUnderCursorCfg(Value cfg);
 
-    @HostAccess.Export
-    void setCull(SurfaceHandle target, String hint);
-
-    @HostAccess.Export
-    void setVisible(SurfaceHandle target, boolean visible);
-
-    // -------------------------
+    // ------------------------------------------------------------
     // UUID-only entity binding
-    // -------------------------
+    // ------------------------------------------------------------
 
     /**
      * Attach a surface to entity UUID.
-     * Public UUID-only contract. (No entityId accepted.)
+     * (Public UUID-only contract. No entityId accepted.)
      */
     @HostAccess.Export
     void attachEntity(SurfaceHandle target, Object entityUuid);
 
     /**
      * Detach mapping by surface handle (if any).
+     * Kept name for scripts: "detachFromEntity".
      */
     @HostAccess.Export
-    void detachFromEntityUuid(SurfaceHandle target);
+    void detachFromEntity(SurfaceHandle target);
 
     /**
      * Get attached entity UUID, or empty string if none.
@@ -151,32 +101,21 @@ public interface SurfaceApi {
     @HostAccess.Export
     String attachedEntityUuid(SurfaceHandle target);
 
-    // -------------------------
+    // ------------------------------------------------------------
     // Host-safe DTOs for JS
-    // -------------------------
+    // ------------------------------------------------------------
 
     final class SurfaceHandle {
         public final int id;
         private final String kind;
 
-        // not exported, but kept inside host object
+        // host-only reference; required for fluent calls
         final SurfaceApi api;
 
         public SurfaceHandle(int id, String kind, SurfaceApi api) {
             this.id = id;
             this.kind = kind;
             this.api = api;
-        }
-
-        /**
-         * Legacy ctor kept for binary compatibility, but UUID-only fluent ops will throw (api=null).
-         * Prefer: new SurfaceHandle(id, kind, api)
-         */
-        @Deprecated
-        public SurfaceHandle(int id, String kind) {
-            this.id = id;
-            this.kind = kind;
-            this.api = null;
         }
 
         @HostAccess.Export public int id() { return id; }
@@ -187,9 +126,9 @@ public interface SurfaceApi {
         // -------------------------
 
         @HostAccess.Export
-        public SurfaceHandle setMaterial(Object materialHandle) {
+        public SurfaceHandle setMaterial(Object materialHandleOrCfg) {
             requireApi("setMaterial");
-            api.setMaterial(this, materialHandle);
+            api.setMaterial(this, materialHandleOrCfg);
             return this;
         }
 
@@ -241,6 +180,20 @@ public interface SurfaceApi {
             return api.exists(this);
         }
 
+        @HostAccess.Export
+        public SurfaceHandle setCull(String hint) {
+            requireApi("setCull");
+            api.setCull(this, hint);
+            return this;
+        }
+
+        @HostAccess.Export
+        public SurfaceHandle setVisible(boolean visible) {
+            requireApi("setVisible");
+            api.setVisible(this, visible);
+            return this;
+        }
+
         // -------------------------
         // UUID-only entity binding (fluent)
         // -------------------------
@@ -260,32 +213,9 @@ public interface SurfaceApi {
 
         @HostAccess.Export
         public SurfaceHandle detachFromEntity() {
-            // keep name for scripts, but UUID-only internally
-            requireApi("detachFromEntityUuid");
-            api.detachFromEntityUuid(this);
+            requireApi("detachFromEntity");
+            api.detachFromEntity(this);
             return this;
-        }
-
-        // -------------------------
-        // Legacy entityId binding (kept but throws)
-        // -------------------------
-
-        /**
-         * @deprecated removed in UUID-only mode.
-         */
-        @Deprecated
-        @HostAccess.Export
-        public int attachedEntity() {
-            throw new IllegalStateException("SurfaceHandle.attachedEntity(entityId) removed (UUID-only). Use attachedEntityUuid().");
-        }
-
-        /**
-         * @deprecated removed in UUID-only mode.
-         */
-        @Deprecated
-        @HostAccess.Export
-        public SurfaceHandle attach(int entityId) {
-            throw new IllegalStateException("SurfaceHandle.attach(entityId) removed (UUID-only). Use attachEntity(uuid).");
         }
 
         // -------------------------
@@ -316,26 +246,11 @@ public interface SurfaceApi {
             return api.pickUnderCursorCfg(this, cfg);
         }
 
-        @HostAccess.Export
-        public SurfaceHandle setCull(String hint) {
-            requireApi("setCull");
-            api.setCull(this, hint);
-            return this;
-        }
-
-        @HostAccess.Export
-        public SurfaceHandle setVisible(boolean visible) {
-            requireApi("setVisible");
-            api.setVisible(this, visible);
-            return this;
-        }
-
         private void requireApi(String op) {
             if (api == null) {
                 throw new IllegalStateException(
                         "SurfaceHandle." + op + ": api is null. " +
-                                "This handle was created with legacy constructor SurfaceHandle(id,kind) " +
-                                "— update registry/handle creation to pass SurfaceApi reference."
+                                "Handle must be created by registry/api with SurfaceApi reference."
                 );
             }
         }

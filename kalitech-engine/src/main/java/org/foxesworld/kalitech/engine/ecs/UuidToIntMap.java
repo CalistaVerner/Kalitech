@@ -4,24 +4,15 @@ import java.util.Arrays;
 
 import static org.foxesworld.kalitech.engine.ecs.EntityId.NULL;
 
-/**
- * UUID(msb,lsb) -> int entityId
- * <p>
- * Implementation:
- * - Open addressing + Robin Hood linear probing
- * - Early-exit get() using probe-distance ordering
- * - Deletion via backward shift (no tombstones) compatible with Robin Hood invariant
- * <p>
- * Sentinel:
- * - EMPTY key is (0,0) (reserved)
- */
 final class UuidToIntMap {
 
     private static final float DEFAULT_LOAD = 0.75f;
     private final float loadFactor;
+
     private long[] msb;
     private long[] lsb;
     private int[] val;
+
     private int size;
     private int mask;
     private int resizeAt;
@@ -77,10 +68,6 @@ final class UuidToIntMap {
         return (pos - start) & mask;
     }
 
-    int size() {
-        return size;
-    }
-
     void clear() {
         Arrays.fill(msb, 0L);
         Arrays.fill(lsb, 0L);
@@ -112,7 +99,6 @@ final class UuidToIntMap {
 
             int vHome = homeIndex(cm, cl, mk);
             int vPd = distance(vHome, i, mk);
-
             if (vPd < pd) return NULL;
 
             i = (i + 1) & mk;
@@ -204,7 +190,6 @@ final class UuidToIntMap {
 
             int vHome = homeIndex(cm, cl, mk);
             int vPd = distance(vHome, i, mk);
-
             if (vPd < pd) return false;
 
             i = (i + 1) & mk;

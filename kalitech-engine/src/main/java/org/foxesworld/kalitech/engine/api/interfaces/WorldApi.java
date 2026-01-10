@@ -8,15 +8,21 @@ public interface WorldApi {
     /**
      * Spawn entity from prefab.
      * args: { name?: string, prefab: string }
-     * returns entityId
+     * returns entity UUID (string)
      */
-    //@HostAccess.Export int spawn(Object args);
     @HostAccess.Export
-    int spawn(Value args);
+    String spawn(Value args);
 
-    /** Find entityId by Name (stored in ComponentStore byName "Name"). */
-    @HostAccess.Export int findByName(String name);
+    /**
+     * Find entity UUID by Name (stored in ComponentStore byName "Name").
+     * returns "" if not found.
+     */
+    @HostAccess.Export
+    String findByName(String name);
 
-    /** Destroy entity by id. */
-    @HostAccess.Export void destroy(int id);
+    /**
+     * Destroy entity by UUID.
+     */
+    @HostAccess.Export
+    void destroy(String uuid);
 }

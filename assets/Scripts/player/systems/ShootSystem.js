@@ -19,7 +19,7 @@ const DEFAULT_CFG = Object.freeze({
     lockRotation: false,
     materialId: "unshaded.rock",
     spawnOffset: 0.0,
-    speed: 160.0,
+    speed: 460.0,
     invertPitch: true,
 
     radiusMin: 0.05,     // минимальный radius
@@ -28,7 +28,7 @@ const DEFAULT_CFG = Object.freeze({
     density: 18.0,       // “плотность” для масс (игровая), mass = density * (4/3*pi*r^3)
 
     massMin: 1.0,
-    massMax: 120.0,
+    massMax: 1200.0,
     debug: {logShots: false},
     events: {
         fire: "game.shoot.fire",

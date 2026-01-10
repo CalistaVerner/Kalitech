@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/WorldApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.state.AppStateManager;
@@ -21,7 +22,7 @@ import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
@@ -31,10 +32,15 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     private EcsWorld ecs;
 
     public WorldApiImpl() {
-        super("world", "World", "1.0.0");
+        super("world", "World", "2.0.0"); // UUID-only
     }
 
+    // =========================================================================
+    // Strict parsing helpers
+    // =========================================================================
+
     private static Value requireMember(Value obj, String key, String err) {
+        if (obj == null || obj.isNull() || !obj.hasMembers()) throw new IllegalArgumentException(err);
         if (!obj.hasMember(key)) throw new IllegalArgumentException(err);
         final Value v = obj.getMember(key);
         if (v == null || v.isNull()) throw new IllegalArgumentException(err);
@@ -50,6 +56,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     }
 
     private static String readStr(Value obj, String key, String def) {
+        if (obj == null || obj.isNull() || !obj.hasMembers()) return def;
         if (!obj.hasMember(key)) return def;
         final Value v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
@@ -58,11 +65,8 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return (s == null || s.isBlank()) ? def : s;
     }
 
-    // =========================================================================
-    // World create (STRICT, no legacy, no reflection)
-    // =========================================================================
-
     private static boolean readBool(Value obj, String key, boolean def) {
+        if (obj == null || obj.isNull() || !obj.hasMembers()) return def;
         if (!obj.hasMember(key)) return def;
         final Value v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
@@ -71,6 +75,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     }
 
     private static int readInt(Value obj, String key, int def) {
+        if (obj == null || obj.isNull() || !obj.hasMembers()) return def;
         if (!obj.hasMember(key)) return def;
         final Value v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
@@ -79,7 +84,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     }
 
     // =========================================================================
-    // Existing API: spawn/find/destroy (kept stable)
+    // Value -> Proxy (keep stable for JS systems config)
     // =========================================================================
 
     private static Object toProxy(Value v) {
@@ -98,14 +103,16 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
         if (v.hasMembers()) {
             final Map<String, Object> map = new LinkedHashMap<>();
-            for (String k : v.getMemberKeys()) {
-                map.put(k, toProxy(v.getMember(k)));
-            }
+            for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
             return ProxyObject.fromMap(map);
         }
 
         return v;
     }
+
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
 
     @Override
     public void attach(ApiContext ctx) {
@@ -114,31 +121,26 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         this.ecs = Objects.requireNonNull(engine.getEcs(), "engine.ecs");
     }
 
+    @Override
+    public void detach() {
+        this.ecs = null;
+        this.engine = null;
+        super.detach();
+    }
+
     private ScriptEventBus busOrNull() {
-        return engine.getBus();
+        return engine != null ? engine.getBus() : null;
     }
-
-    public static final class EntitySpawned {
-        public final int id;
-        public final String name;
-        public final String prefab;
-
-        public EntitySpawned(int id, String name, String prefab) {
-            this.id = id;
-            this.name = name;
-            this.prefab = prefab;
-        }
-    }
-
-    // =========================================================================
-    // Strict parsing helpers
-    // =========================================================================
 
     private void emit(String name, Object payload) {
         final ScriptEventBus b = busOrNull();
         if (b == null) return;
         b.emit(name, payload);
     }
+
+    // =========================================================================
+    // Events payload (UUID-only)
+    // =========================================================================
 
     /**
      * Contract:
@@ -183,7 +185,9 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
             final String id = requireStr(it, "id", "world.create: systems[" + i + "].id is required");
             if (!"jsSystem".equals(id)) {
-                throw new IllegalArgumentException("world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')");
+                throw new IllegalArgumentException(
+                        "world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')"
+                );
             }
 
             final int order = readInt(it, "order", 0);
@@ -193,7 +197,8 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
                 throw new IllegalArgumentException("world.create: systems[" + i + "].config must be an object");
             }
 
-            final String module = requireStr(cfg, "module", "world.create: systems[" + i + "].config.module is required");
+            final String module = requireStr(cfg, "module",
+                    "world.create: systems[" + i + "].config.module is required");
             final String profile = readStr(cfg, "profile", "world").trim();
 
             final Value inner = (cfg.hasMember("config") ? cfg.getMember("config") : null);
@@ -212,8 +217,43 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         final WorldAppState wa = requireWorldAppState();
         wa.createWorld(world, start);
 
-        emit("world.created", Map.of("name", name, "started", start, "systems", (int) Math.min(n, Integer.MAX_VALUE)));
+        emit("world.created", Map.of(
+                "name", name,
+                "started", start,
+                "systems", (int) Math.min(n, Integer.MAX_VALUE)
+        ));
+
         log.info("[world.create] name={} systems={} start={}", name, n, start);
+    }
+
+    // =========================================================================
+    // World create (STRICT, no legacy)
+    // =========================================================================
+
+    @HostAccess.Export
+    @Override
+    public String spawn(Value args) {
+        if (args == null || args.isNull()) {
+            throw new IllegalArgumentException("world.spawn(args): args is required");
+        }
+
+        final String prefab = requireStr(args, "prefab", "world.spawn({prefab}): prefab is required");
+        final String name = readStr(args, "name", null);
+
+        // UUID-only entity creation
+        final String uuid = ecs.createEntity();
+        final int entityId = ecs.resolveEntityId(uuid); // internal dense id for stores
+
+        if (name != null && !name.isBlank()) {
+            ecs.components().putByName(entityId, "Name", name);
+        }
+
+        ecs.components().put(entityId, ScriptComponent.class, new ScriptComponent(prefab));
+
+        emit("entity.spawned", new EntitySpawned(uuid, name, prefab));
+        log.debug("world.spawn -> uuid={} name='{}' prefab={}", uuid, name, prefab);
+
+        return uuid;
     }
 
     private WorldAppState requireWorldAppState() {
@@ -226,47 +266,45 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return wa;
     }
 
-    @HostAccess.Export
-    @Override
-    public int spawn(Value args) {
-        if (args == null || args.isNull()) {
-            throw new IllegalArgumentException("world.spawn(args): args is required");
-        }
-
-        final String prefab = requireStr(args, "prefab", "world.spawn({prefab}): prefab is required");
-        final String name = readStr(args, "name", null);
-
-        final int id = ecs.createEntity();
-
-        if (name != null && !name.isBlank()) {
-            ecs.components().putByName(id, "Name", name);
-        }
-
-        ecs.components().put(id, ScriptComponent.class, new ScriptComponent(prefab));
-
-        emit("entity.spawned", new EntitySpawned(id, name, prefab));
-        log.debug("world.spawn -> id={} name='{}' prefab={}", id, name, prefab);
-
-        return id;
-    }
+    // =========================================================================
+    // UUID-only entity ops (spawn/find/destroy)
+    // =========================================================================
 
     @HostAccess.Export
     @Override
-    public int findByName(String name) {
-        if (name == null || name.isBlank()) return 0;
+    public String findByName(String name) {
+        if (name == null || name.isBlank()) return "";
 
-        final AtomicInteger found = new AtomicInteger(0);
-        ecs.components().forEachByName("Name", (id, v) -> {
-            if (found.get() != 0) return;
-            if (name.equals(String.valueOf(v))) found.set(id);
+        final AtomicReference<String> found = new AtomicReference<>("");
+
+        ecs.components().forEachByName("Name", (entityId, v) -> {
+            if (!found.get().isEmpty()) return;
+            if (!name.equals(String.valueOf(v))) return;
+
+            String uuid = ecs.uuids().uuidStringOf(entityId);
+            if (uuid != null && !uuid.isBlank()) found.set(uuid);
         });
+
         return found.get();
     }
 
     @HostAccess.Export
     @Override
-    public void destroy(int id) {
-        ecs.destroyEntity(id);
-        emit("entity.destroyed", id);
+    public void destroy(String uuid) {
+        ecs.destroyEntity(uuid);
+        emit("entity.destroyed", Map.of("uuid", uuid));
+        log.debug("world.destroy -> uuid={}", uuid);
+    }
+
+    public static final class EntitySpawned {
+        public final String uuid;
+        public final String name;
+        public final String prefab;
+
+        public EntitySpawned(String uuid, String name, String prefab) {
+            this.uuid = uuid;
+            this.name = name;
+            this.prefab = prefab;
+        }
     }
 }

@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.modules.terrain;
 
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.HashMap;
@@ -7,8 +8,8 @@ import java.util.HashMap;
 public final class TerrainEmitter {
     private final ScriptEventBus bus;
 
-    public TerrainEmitter(ScriptEventBus bus) {
-        this.bus = bus;
+    public TerrainEmitter(EngineApiImpl engineApi) {
+        this.bus = engineApi.getBus();
     }
 
     public void emit(String topic, Object... kv) {
