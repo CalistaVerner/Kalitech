@@ -48,28 +48,9 @@ public final class PhysicsValueParsers {
             return;
         }
 
-        // Allow scalar shorthand: 2.0 -> (2,2,2)
-        if (v instanceof Number n) {
-            float s = n.floatValue();
-            out.set(s, s, s);
-            return;
-        }
-
         if (v instanceof Value val) {
             if (val.isNull()) {
                 out.set(dx, dy, dz);
-                return;
-            }
-
-            if (val.isNumber()) {
-                float s = (float) val.asDouble();
-                out.set(s, s, s);
-                return;
-            }
-
-            if (val.isNumber()) {
-                float s = (float) val.asDouble();
-                out.set(s, s, s);
                 return;
             }
 

@@ -20,10 +20,21 @@ import java.util.Arrays;
  *  - Early-exit contains() using probe-distance ordering
  *  - Deletion via backward shift (no tombstones) compatible with Robin Hood invariant
  */
-public final class LongHashSet {
+public final class LongHashSet implements Iterable<Long> {
 
     private static final long EMPTY = 0L;
-    private static final float DEFAULT_LOAD = 0.65f;
+    /**
+     * Default load factor for open-addressing hash tables.
+     *
+     * <p>Open addressing suffers dramatic performance degradation when the table becomes nearly full.
+     * Authoritative sources on hash tables recommend keeping the load factor well below 1.  In fact,
+     * Wikipedia notes that for open addressing, the acceptable maximum load factor should be around
+     * <em>0.6 to 0.75</em>【159325070506012†L340-L351】, and other research on Robin Hood hashing recommends
+     * avoiding high load factors in favour of approximately 75% occupancy for consistently high
+     * performance【906753401552687†L840-L844】.  Accordingly, this implementation uses a default
+     * load factor of {@code 0.75f}, which strikes a balance between space usage and probing cost.
+     */
+    private static final float DEFAULT_LOAD = 0.75f;
 
     private long[] table;
     private int size;
@@ -49,6 +60,60 @@ public final class LongHashSet {
         this.mask = cap - 1;
         this.resizeAt = (int) (cap * loadFactor);
         this.size = 0;
+    }
+
+    /**
+     * Creates a new set containing all of the given keys.  This is a convenience factory that
+     * pre-allocates the internal table to avoid intermediate resizes.
+     *
+     * @param keys keys to insert into the new set.  Keys equal to {@code 0L} are ignored because 0 is
+     *             reserved as the empty sentinel.
+     * @return a new {@code LongHashSet} containing all non-zero keys.
+     */
+    public static LongHashSet from(long... keys) {
+        if (keys == null || keys.length == 0) {
+            return new LongHashSet(16);
+        }
+        // count non-zero keys
+        int needed = 0;
+        for (long k : keys) {
+            if (k != EMPTY) needed++;
+        }
+        int cap = 1;
+        double required = needed / DEFAULT_LOAD;
+        while (cap < required) cap <<= 1;
+        LongHashSet set = new LongHashSet(cap, DEFAULT_LOAD);
+        for (long k : keys) {
+            if (k != EMPTY) {
+                set.add(k);
+            }
+        }
+        return set;
+    }
+
+    /**
+     * Ensures that the internal table can accommodate {@code expectedSize} elements without
+     * rehashing.  If the current capacity is already sufficient, this method does nothing.
+     *
+     * <p>Unlike {@link #ensureCapacity(int)} which grows relative to the current size,
+     * this variant takes an absolute expected element count.  This is useful when constructing
+     * a set from a known collection of values.
+     *
+     * @param expectedSize the total number of elements this set should be able to hold
+     * @throws IllegalArgumentException if {@code expectedSize} is negative
+     */
+    public void ensureCapacityExact(int expectedSize) {
+        if (expectedSize < 0) {
+            throw new IllegalArgumentException("expectedSize must be >= 0");
+        }
+        int needed = (int) Math.ceil(expectedSize / loadFactor);
+        int cap = table.length;
+        while (cap < needed) {
+            cap <<= 1;
+        }
+        if (cap > table.length) {
+            rehash(cap);
+        }
     }
 
     /**
@@ -228,6 +293,118 @@ public final class LongHashSet {
         for (long k : keys) add(k);
     }
 
+    /**
+     * Removes all keys present in {@code other} from this set.
+     *
+     * @param other the keys to remove
+     * @return {@code true} if this set changed as a result
+     */
+    public boolean removeAll(LongHashSet other) {
+        if (other == null || other.size == 0 || this.size == 0) return false;
+        boolean modified = false;
+        long[] ot = other.table;
+        for (int i = 0; i < ot.length; i++) {
+            long v = ot[i];
+            if (v != EMPTY && remove(v)) {
+                modified = true;
+            }
+        }
+        return modified;
+    }
+
+    /**
+     * Retains only those keys that are also present in {@code other}.
+     *
+     * <p>This operation is equivalent to computing the intersection between this set and the other
+     * set.  It is implemented by building a new set of the surviving keys and swapping it with
+     * {@code this} for optimal performance.
+     *
+     * @param other the set of keys to retain
+     * @return {@code true} if this set changed as a result
+     */
+    public boolean retainAll(LongHashSet other) {
+        if (this.size == 0) {
+            return false;
+        }
+        if (other == null || other.size == 0) {
+            boolean changed = size != 0;
+            if (changed) {
+                clear();
+            }
+            return changed;
+        }
+        LongHashSet result = new LongHashSet(1, this.loadFactor);
+        result.ensureCapacity(this.size);
+        long[] t = this.table;
+        for (long v : t) {
+            if (v != EMPTY && other.containsStrict(v)) {
+                result.add(v);
+            }
+        }
+        if (result.size != this.size) {
+            this.swapWith(result);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} if this set contains every element of the supplied set.
+     *
+     * @param other the set of keys to check for containment
+     * @return {@code true} if {@code other} is a subset of this set, {@code false} otherwise
+     */
+    public boolean containsAll(LongHashSet other) {
+        if (other == null || other.size == 0) return true;
+        if (other.size > this.size) return false;
+        long[] ot = other.table;
+        for (long v : ot) {
+            if (v != EMPTY && !containsStrict(v)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns {@code true} if this set and {@code other} share at least one key.
+     *
+     * @param other the other set to test
+     * @return {@code true} if there is a common element, otherwise {@code false}
+     */
+    public boolean containsAny(LongHashSet other) {
+        if (other == null || other.size == 0 || this.size == 0) return false;
+        long[] ot = other.table;
+        for (long v : ot) {
+            if (v != EMPTY && containsStrict(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Removes all keys satisfying the given predicate.
+     *
+     * @param predicate the predicate to test keys
+     * @return the number of keys removed
+     */
+    public int removeIf(java.util.function.LongPredicate predicate) {
+        if (predicate == null) throw new NullPointerException("predicate");
+        int removed = 0;
+        for (int idx = 0; idx < table.length; ) {
+            long v = table[idx];
+            if (v != EMPTY && predicate.test(v)) {
+                deleteAndShiftRobinHood(idx);
+                size--;
+                removed++;
+                continue;
+            }
+            idx++;
+        }
+        return removed;
+    }
+
     public long[] toArray() {
         long[] out = new long[size];
         copyTo(out, 0);
@@ -235,6 +412,23 @@ public final class LongHashSet {
     }
 
     public void forEach(LongConsumer consumer) {
+        long[] t = table;
+        for (long v : t) {
+            if (v != EMPTY) consumer.accept(v);
+        }
+    }
+
+    /**
+     * Performs the given action for each key of this set using JDK {@link java.util.function.LongConsumer}.
+     *
+     * <p>This overload exists to avoid ambiguity when using lambdas that match both this class's
+     * internal {@link LongConsumer} and {@link java.util.function.LongConsumer}.  Use this method
+     * when you want to interoperate with JDK functional interfaces.
+     *
+     * @param consumer the action to be performed for each key
+     */
+    public void forEachLong(java.util.function.LongConsumer consumer) {
+        if (consumer == null) throw new NullPointerException("consumer");
         long[] t = table;
         for (int i = 0; i < t.length; i++) {
             long v = t[i];
@@ -248,8 +442,7 @@ public final class LongHashSet {
 
         int p = offset;
         long[] t = table;
-        for (int i = 0; i < t.length; i++) {
-            long v = t[i];
+        for (long v : t) {
             if (v != EMPTY) {
                 if (p >= out.length) throw new IndexOutOfBoundsException("out too small");
                 out[p++] = v;
@@ -288,6 +481,240 @@ public final class LongHashSet {
         while (cap < need) cap <<= 1;
         if (cap < minCap) cap = minCap;
         if (cap < table.length) rehash(cap);
+    }
+
+    /**
+     * Returns an iterator over the elements in this set.  The returned iterator does not allocate
+     * any additional state and iterates over the internal table directly.  Removal through the
+     * iterator is supported and will remove the last returned element from the set.
+     *
+     * <p>The order of iteration is unspecified and will correspond to the probing order in the
+     * underlying hash table.  No guarantees are made as to ordering between iterations.
+     *
+     * @return an {@link java.util.PrimitiveIterator.OfLong} over the elements of the set
+     */
+    @Override
+    public java.util.PrimitiveIterator.OfLong iterator() {
+        return new Itr();
+    }
+
+    /**
+     * Returns a {@link java.util.Spliterator.OfLong} over the elements in this set.  The
+     * spliterator reports {@link java.util.Spliterator#DISTINCT}, {@link java.util.Spliterator#NONNULL}
+     * and {@link java.util.Spliterator#SIZED} characteristics.  The returned spliterator is
+     * fail-fast only in the sense that structural modifications made through the set's APIs
+     * after obtaining the spliterator may or may not be reflected; however, since this set is
+     * not thread-safe, concurrent modifications from other threads will produce undefined results.
+     *
+     * <p>The spliterator traverses the backing table directly and does not allocate auxiliary
+     * collections.
+     *
+     * @return a spliterator over the elements of this set
+     */
+    @Override
+    public java.util.Spliterator.OfLong spliterator() {
+        return new Split(0, table.length);
+    }
+
+    /**
+     * Returns a string representation of this set.  The representation consists of a comma-
+     * separated list of the set's elements enclosed in square brackets.  The elements are
+     * returned in the order encountered during iteration, which is unspecified.
+     *
+     * @return a string representation of this set
+     */
+    @Override
+    public String toString() {
+        if (size == 0) return "[]";
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        boolean first = true;
+        long[] t = table;
+        for (long v : t) {
+            if (v != EMPTY) {
+                if (!first) sb.append(',').append(' ');
+                sb.append(v);
+                first = false;
+            }
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    /**
+     * Compares the specified object with this set for equality.  Returns {@code true} if and
+     * only if the specified object is also a {@code LongHashSet}, both sets have the same
+     * size, and each element of the specified set is contained in this set.
+     *
+     * @param obj object to be compared for equality with this set
+     * @return {@code true} if the specified object is equal to this set
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof LongHashSet)) return false;
+        LongHashSet other = (LongHashSet) obj;
+        if (this.size != other.size) return false;
+        return this.containsAll(other);
+    }
+
+    /**
+     * Returns the hash code value for this set.  The hash code of a set is defined to be the
+     * sum of the hash codes of the elements in the set, where the hash code of a long value is
+     * computed as {@link java.lang.Long#hashCode(long)}.  This ensures that {@code x.equals(y)}
+     * implies {@code x.hashCode() == y.hashCode()} for any two sets {@code x} and {@code y}.
+     *
+     * @return the hash code value for this set
+     */
+    @Override
+    public int hashCode() {
+        int h = 0;
+        long[] t = table;
+        for (int i = 0; i < t.length; i++) {
+            long v = t[i];
+            if (v != EMPTY) h += Long.hashCode(v);
+        }
+        return h;
+    }
+
+    // -----------------------------------------------------------------------
+    // Iterator and Spliterator implementations
+    // -----------------------------------------------------------------------
+
+    /**
+     * Iterator over the set that directly traverses the backing array.  Supports element
+     * removal via the iterator's {@link java.util.Iterator#remove()} method.
+     */
+    private final class Itr implements java.util.PrimitiveIterator.OfLong {
+        private int index;
+        private long next;
+        private boolean hasNext;
+        private long current;
+        private boolean canRemove;
+
+        Itr() {
+            this.index = -1;
+            advance();
+        }
+
+        /**
+         * Advances to the next non-empty slot and updates next/hasNext.
+         */
+        private void advance() {
+            long[] t = table;
+            int len = t.length;
+            while (++index < len) {
+                long v = t[index];
+                if (v != EMPTY) {
+                    next = v;
+                    hasNext = true;
+                    return;
+                }
+            }
+            hasNext = false;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return hasNext;
+        }
+
+        @Override
+        public long nextLong() {
+            if (!hasNext) throw new java.util.NoSuchElementException();
+            current = next;
+            canRemove = true;
+            advance();
+            return current;
+        }
+
+        @Override
+        public Long next() {
+            return nextLong();
+        }
+
+        @Override
+        public void remove() {
+            if (!canRemove) throw new IllegalStateException();
+            // Remove via hash-based removal to maintain Robin Hood invariant.
+            LongHashSet.this.remove(current);
+            // reset iterator state: we removed current, so start searching from previous index
+            // (decrement index to revisit shifted entries).
+            index -= 1;
+            canRemove = false;
+            // Recompute next; but note that remove calls may shrink size and shift elements.
+            advance();
+        }
+    }
+
+    /**
+     * Spliterator over the elements of the set.  Splits roughly in half by dividing the
+     * underlying array range.  The spliterator is designed for use in parallel streams and
+     * supports the {@link java.util.Spliterator#DISTINCT}, {@link java.util.Spliterator#NONNULL},
+     * and {@link java.util.Spliterator#SIZED} characteristics.
+     */
+    private final class Split implements java.util.Spliterator.OfLong {
+        private final int fence;
+        private int index;
+        private int est;
+
+        Split(int origin, int fence) {
+            this.index = origin;
+            this.fence = fence;
+            this.est = LongHashSet.this.size;
+        }
+
+        @Override
+        public java.util.Spliterator.OfLong trySplit() {
+            int lo = index;
+            int mid = (lo + fence) >>> 1;
+            if (lo >= mid) return null;
+            // Move mid forward to avoid splitting inside a cluster of EMPTYs; this is heuristic
+            int i = mid;
+            long[] t = table;
+            while (i < fence && t[i] == EMPTY) {
+                i++;
+            }
+            int splitPos = (i < fence) ? i : mid;
+            Split split = new Split(lo, splitPos);
+            this.index = splitPos;
+            return split;
+        }
+
+        @Override
+        public boolean tryAdvance(java.util.function.LongConsumer action) {
+            if (action == null) throw new NullPointerException();
+            long[] t = table;
+            while (index < fence) {
+                long v = t[index++];
+                if (v != EMPTY) {
+                    action.accept(v);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public void forEachRemaining(java.util.function.LongConsumer action) {
+            if (action == null) throw new NullPointerException();
+            long[] t = table;
+            for (int i = index; i < fence; i++) {
+                long v = t[i];
+                if (v != EMPTY) action.accept(v);
+            }
+            index = fence;
+        }
+
+        @Override
+        public long estimateSize() {
+            return est < 0 ? LongHashSet.this.size : est;
+        }
+
+        @Override
+        public int characteristics() {
+            return java.util.Spliterator.DISTINCT | java.util.Spliterator.NONNULL | java.util.Spliterator.SIZED;
+        }
     }
 
     private void rehash(int newCap) {
