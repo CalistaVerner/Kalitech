@@ -35,7 +35,7 @@ class PlayerEntityFactory {
                 height,
                 pos,
                 attach: true,
-                physics: { mass, lockRotation: true }
+                physics: {mass, lockRotation: false}
             },
             body: {
                 mass,
@@ -46,8 +46,9 @@ class PlayerEntityFactory {
                 damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95}
             },
             components: {
+                // UUID-only: ctx.uuid provided by Entity module create context
                 Player: (ctx) => ({
-                    entityId: ctx.entityId,
+                    uuid: ctx.uuid,
                     surfaceId: ctx.surfaceId,
                     bodyId: ctx.bodyId,
                     capsule: { radius, height, mass },
@@ -57,6 +58,9 @@ class PlayerEntityFactory {
         });
 
         if (!h || !h.core) throw new Error("[player] ENT.create() must return {core}");
+        if (typeof h.core.uuid !== "string" || !h.core.uuid) {
+            throw new Error("[player] ENT.create() must return core.uuid (UUID-only)");
+        }
         if ((h.core.bodyId | 0) <= 0) throw new Error("[player] ENT.create() returned invalid core.bodyId");
         if (!h.core.bodyAccess) throw new Error("[player] ENT.create() must provide core.bodyAccess (engine-filled)");
 

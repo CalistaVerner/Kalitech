@@ -1,7 +1,7 @@
 // FILE: resources/kalitech/builtin/helpers/entity/IdExtractor.js
 "use strict";
 
-function idOf(h, kind /* "body"|"surface"|"entity" */) {
+function idOf(h, kind /* "body"|"surface" */) {
     if (h == null) return 0;
     if (typeof h === "number") return h | 0;
 
@@ -13,13 +13,11 @@ function idOf(h, kind /* "body"|"surface"|"entity" */) {
     if (typeof h.id === "number") return h.id | 0;
     if (typeof h.bodyId === "number") return h.bodyId | 0;
     if (typeof h.surfaceId === "number") return h.surfaceId | 0;
-    if (typeof h.entityId === "number") return h.entityId | 0;
 
     const bodyFns = ["id", "getId", "bodyId", "getBodyId", "handle"];
     const surfFns = ["id", "getId", "surfaceId", "getSurfaceId", "handle"];
-    const entFns = ["id", "getId", "entityId", "getEntityId"];
 
-    const fnNames = kind === "body" ? bodyFns : (kind === "surface" ? surfFns : entFns);
+    const fnNames = (kind === "body") ? bodyFns : surfFns;
 
     for (let i = 0; i < fnNames.length; i++) {
         const n = fnNames[i];

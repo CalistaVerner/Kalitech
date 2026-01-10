@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetManager;
@@ -25,6 +26,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
+import org.foxesworld.kalitech.engine.ecs.EntityId;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
@@ -34,14 +36,23 @@ import java.util.*;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
-
+/**
+ * Surface API (UUID-only entity binding).
+ * <p>
+ * Rules:
+ * - Surface IDs are still numeric (runtime registry).
+ * - Entity binding is UUID-only in JS/public API.
+ * - Dense entityId exists internally (ECS), but never exposed in events/payloads.
+ */
 public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceApi {
 
     private static final Logger log = LogManager.getLogger(SurfaceApiImpl.class);
 
     private SurfaceRegistry registry;
     private static final String UD_UV_SCALE = "__kt_uvScale";
+
     private AssetManager assets;
+
     @SuppressWarnings("unused")
     private MeshApi meshApi;
     @SuppressWarnings("unused")
@@ -50,32 +61,66 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     private MaterialApi materialApi;
 
     public SurfaceApiImpl() {
-        super("surface", "Surface", "1.0.0");
+        super("surface", "Surface", "2.0.0"); // UUID-only
     }
-
-
 
     public SurfaceApiImpl(EngineApiImpl engine, SurfaceRegistry registry) {
         this();
         if (engine == null) throw new NullPointerException("engine");
         if (registry == null) throw new NullPointerException("registry");
-        super.attach(new ApiContext(engine));
+
+        ApiContext ctx = new ApiContext(engine);
+        super.attach(ctx);
+
         this.registry = registry;
+        this.registry.attach(ctx); // ✅ чтобы uuid registry был bound сразу
+
         this.assets = engine.getAssets();
         this.physicsApi = engine.physics();
         this.meshApi = engine.mesh();
         this.materialApi = engine.material();
     }
 
-    @Override
-    public void attach(ApiContext ctx) {
-        super.attach(ctx);
-        this.registry = ctx.engine.getSurfaceRegistry();
-        this.assets = ctx.assets;
-        this.physicsApi = ctx.engine.physics();
-        this.meshApi = ctx.engine.mesh();
-        this.materialApi = ctx.engine.material();
+    private static void applyTileWorldToGeometryIfAny(Geometry g, Value materialCfg) {
+        if (g == null || materialCfg == null || materialCfg.isNull()) return;
+
+        Value params = member(materialCfg, "params");
+        if (params == null || params.isNull() || !params.hasMembers()) return;
+
+        MaterialUtils.TextureDesc td;
+
+        td = tryTex(params, "BaseColorMap");
+        if (td == null) td = tryTex(params, "ColorMap");
+
+        if (td == null) {
+            for (String k : params.getMemberKeys()) {
+                td = MaterialUtils.parseTextureDesc(params.getMember(k));
+                if (td != null && td.tileWorld() != null) break;
+                td = null;
+            }
+        }
+
+        if (td == null || td.tileWorld() == null) return;
+
+        BoundingVolume bv = g.getWorldBound();
+        if (!(bv instanceof BoundingBox bb)) return;
+
+        float worldX = bb.getXExtent() * 2f;
+        float worldZ = bb.getZExtent() * 2f;
+
+        if (worldZ < 1e-4f) worldZ = bb.getYExtent() * 2f;
+        if (worldX < 1e-4f || worldZ < 1e-4f) return;
+
+        float tileX = td.tileWorld().x();
+        float tileZ = td.tileWorld().z();
+        if (tileX <= 0f || tileZ <= 0f) return;
+
+        float u = worldX / tileX;
+        float v = worldZ / tileZ;
+
+        applyUvScaleNonAccumulating(g, u, v);
     }
+
 
     @Override
     public void detach() {
@@ -87,10 +132,39 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         super.detach();
     }
 
-    private ScriptEventBus bus() {
-        return engine.getBus(); //  dynamic resolve (never cached)
-    }
+    private static void applyUvScaleNonAccumulating(Geometry g, float u, float v) {
+        if (u <= 0f || v <= 0f) return;
 
+        Mesh mesh = g.getMesh();
+        if (mesh == null) return;
+
+        // Meshes are often shared. UV scaling mutates mesh buffers, so clone per-geometry once.
+        Boolean cloned = g.getUserData("__kt_meshCloned");
+        if (cloned == null || !cloned) {
+            try {
+                Mesh clonedMesh = mesh.clone();
+                g.setMesh(clonedMesh);
+                mesh = clonedMesh;
+                g.setUserData("__kt_meshCloned", Boolean.TRUE);
+            } catch (Throwable ignored) {
+                // fallback: mutate shared mesh (legacy behavior)
+            }
+        }
+
+        VertexBuffer vb = mesh.getBuffer(VertexBuffer.Type.TexCoord);
+        if (vb == null) return;
+
+        Vector2f prev = g.getUserData(UD_UV_SCALE);
+        if (prev == null) prev = new Vector2f(1f, 1f);
+
+        float ru = u / prev.x;
+        float rv = v / prev.y;
+
+        if (Math.abs(ru - 1f) < 1e-6f && Math.abs(rv - 1f) < 1e-6f) return;
+
+        mesh.scaleTextureCoordinates(new Vector2f(ru, rv));
+        g.setUserData(UD_UV_SCALE, new Vector2f(u, v));
+    }
 
     // ------------------------------------------------------------
     // Events
@@ -112,7 +186,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ------------------------------------------------------------
-    // Handle coercion (legacy JS passing raw ids)
+    // Handle coercion (surface legacy: allow raw ids from JS)
     // ------------------------------------------------------------
 
     private int idOf(Object handleOrId) {
@@ -178,6 +252,26 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return h;
     }
 
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+
+        this.registry = ctx.engine.getSurfaceRegistry();
+        if (this.registry == null) throw new IllegalStateException("surface: SurfaceRegistry missing");
+
+        // UUIDs init
+        this.registry.attach(ctx);
+
+        this.assets = ctx.assets;
+        this.physicsApi = ctx.engine.physics();
+        this.meshApi = ctx.engine.mesh();
+        this.materialApi = ctx.engine.material();
+    }
+
+    private ScriptEventBus bus() {
+        return engine.getBus(); // dynamic resolve (never cached)
+    }
+
     // ------------------------------------------------------------
     // SurfaceApi exports
     // ------------------------------------------------------------
@@ -188,7 +282,8 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!registry.exists(id)) throw new IllegalArgumentException("surface.handle: unknown id=" + id);
         return new SurfaceHandle(id, registry.kind(id));
     }
-// --- Overloads to accept raw ids from JS (LEGACY compatibility) ---
+
+    // --- Overloads to accept raw surface ids from JS ---
 
     @HostAccess.Export
     public void setMaterial(Object target, Object materialHandleOrCfg) {
@@ -244,7 +339,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return 0;
     }
 
-
     @HostAccess.Export
     public void setVisible(Object target, boolean visible) {
         SurfaceHandle h = requireHandle(target);
@@ -293,16 +387,39 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return h != null && registry.exists(h.id());
     }
 
-    @HostAccess.Export
-    public int attachedEntity(Object target) {
-        SurfaceHandle h = requireHandle(target);
-        return attachedEntity(h);
+    // ------------------------------------------------------------
+    // UUID-only entity binding (PUBLIC)
+    // ------------------------------------------------------------
+
+    private Spatial requireSpatial(SurfaceHandle h) {
+        requireHandle(h);
+        Spatial s = registry.get(h.id());
+        if (s == null) throw new IllegalStateException("surface: missing spatial for id=" + h.id());
+        return s;
+    }
+
+    private void requireHandle(SurfaceHandle h) {
+        if (h == null) throw new IllegalArgumentException("surface: handle is null");
+        if (!registry.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
     }
 
     @HostAccess.Export
-    public void attach(Object target, int entityId) {
+    public String attachedEntityUuid(Object target) {
         SurfaceHandle h = requireHandle(target);
-        onJmeSyncVoid("attach", () -> attach(h, entityId));
+        return attachedEntityUuid(h);
+    }
+
+    @HostAccess.Export
+    public String attachedEntityUuid(SurfaceHandle target) {
+        requireHandle(target);
+        // registry enforces uuid-only and will throw if UUID registry not bound
+        return registry.attachedEntityUuid(target.id());
+    }
+
+    @HostAccess.Export
+    public void attachEntity(Object target, Object entityUuid) {
+        SurfaceHandle h = requireHandle(target);
+        onJmeSyncVoid("attachEntity", () -> attachEntity(h, entityUuid));
     }
 
     @HostAccess.Export
@@ -312,31 +429,68 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     @HostAccess.Export
-    public WorldBounds getWorldBounds(Object target) {
-        SurfaceHandle h = requireHandle(target);
-        return onJmeSync("getWorldBounds", () -> getWorldBounds(h), new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
-    }
+    public void attachEntity(SurfaceHandle target, Object entityUuid) {
+        requireHandle(target);
+        onJmeSyncVoid("attachEntity", () -> {
+            String uuid = requireUuid(entityUuid);
 
-    @HostAccess.Export
-    public Hit[] raycast(Object target, Value cfg) {
-        SurfaceHandle h = requireHandle(target);
-        return onJmeSync("raycast", () -> raycast(h, cfg), new Hit[0]);
-    }
+            // registry maps to dense-id internally, but public contract is UUID-only
+            registry.attachUuid(target.id(), uuid);
 
-    @HostAccess.Export
-    public Hit[] pickUnderCursor(Object target) {
-        SurfaceHandle h = requireHandle(target);
-        return onJmeSync("pickUnderCursor", () -> pickUnderCursor(h), new Hit[0]);
-    }
+            // we still store component by dense-id internally (ECS speed)
+            int entityId = entityIdFromUuidStrict(uuid);
+            engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
 
-    @HostAccess.Export
-    public Hit[] pickUnderCursorCfg(Object target, Value cfg) {
-        SurfaceHandle h = requireHandle(target);
-        return onJmeSync("pickUnderCursorCfg", () -> pickUnderCursorCfg(h, cfg), new Hit[0]);
+            emit("engine.surface.attachEntity", "surfaceId", target.id(), "uuid", uuid);
+        });
     }
 
     // ------------------------------------------------------------
-    // Interface methods (kept, but now always JME-thread safe)
+    // Legacy entityId binding (REMOVED)
+    // ------------------------------------------------------------
+
+    @Override
+    public void detachFromEntityUuid(SurfaceHandle target) {
+
+    }
+
+    @HostAccess.Export
+    @Override
+    public void detachFromEntity(SurfaceHandle target) {
+        requireHandle(target);
+        onJmeSyncVoid("detachFromEntity", () -> {
+            // registry emits engine.surface.detached (UUID-only) itself.
+            // detachSurface returns uuid of detached entity (or "").
+            String uuid = registry.detachSurface(target.id());
+            if (uuid == null || uuid.isBlank()) return;
+
+            int entityId = entityIdFromUuidStrict(uuid);
+            engine.getEcs().components().removeByName(entityId, "Surface");
+
+            emit("engine.surface.detachFromEntity", "surfaceId", target.id(), "uuid", uuid);
+        });
+    }
+
+    /**
+     * UUID-only mode: legacy entityId access is forbidden.
+     * Keep interface compatibility but fail loudly if called.
+     */
+    @Deprecated
+    @HostAccess.Export
+    @Override
+    public int attachedEntity(SurfaceHandle target) {
+        throw new IllegalStateException("surface.attachedEntity(entityId) is removed (UUID-only mode). Use attachedEntityUuid(handle).");
+    }
+
+    @Deprecated
+    @HostAccess.Export
+    @Override
+    public void attach(SurfaceHandle target, int entityId) {
+        throw new IllegalStateException("surface.attach(handle, entityId) is removed (UUID-only mode). Use attachEntity(handle, uuid).");
+    }
+
+    // ------------------------------------------------------------
+    // Core interface methods
     // ------------------------------------------------------------
 
     @HostAccess.Export
@@ -405,44 +559,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }
     }
 
-    private static void applyTileWorldToGeometryIfAny(Geometry g, Value materialCfg) {
-        if (g == null || materialCfg == null || materialCfg.isNull()) return;
-
-        Value params = member(materialCfg, "params");
-        if (params == null || params.isNull() || !params.hasMembers()) return;
-
-        MaterialUtils.TextureDesc td = null;
-
-        td = tryTex(params, "BaseColorMap");
-        if (td == null) td = tryTex(params, "ColorMap");
-
-        if (td == null) {
-            for (String k : params.getMemberKeys()) {
-                td = MaterialUtils.parseTextureDesc(params.getMember(k));
-                if (td != null && td.tileWorld() != null) break;
-                td = null;
-            }
-        }
-
-        if (td == null || td.tileWorld() == null) return;
-
-        BoundingVolume bv = g.getWorldBound();
-        if (!(bv instanceof BoundingBox bb)) return;
-
-        float worldX = bb.getXExtent() * 2f;
-        float worldZ = bb.getZExtent() * 2f;
-
-        if (worldZ < 1e-4f) worldZ = bb.getYExtent() * 2f;
-        if (worldX < 1e-4f || worldZ < 1e-4f) return;
-
-        float tileX = td.tileWorld().x();
-        float tileZ = td.tileWorld().z();
-        if (tileX <= 0f || tileZ <= 0f) return;
-
-        float u = worldX / tileX;
-        float v = worldZ / tileZ;
-
-        applyUvScaleNonAccumulating(g, u, v);
+    @Deprecated
+    @HostAccess.Export
+    public int attachedEntity(Object target) {
+        throw new IllegalStateException("surface.attachedEntity(entityId) is removed (UUID-only mode). Use attachedEntityUuid(handle).");
     }
 
     private static MaterialUtils.TextureDesc tryTex(Value params, String name) {
@@ -451,39 +571,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return (td != null && td.tileWorld() != null) ? td : null;
     }
 
-    @SuppressWarnings("unchecked")
-    private static void applyUvScaleNonAccumulating(Geometry g, float u, float v) {
-        if (u <= 0f || v <= 0f) return;
-
-        Mesh mesh = g.getMesh();
-        if (mesh == null) return;
-
-        // IMPORTANT: meshes are often shared. UV scaling mutates mesh buffers, so clone per-geometry once.
-        Boolean cloned = g.getUserData("__kt_meshCloned");
-        if (cloned == null || !cloned) {
-            try {
-                Mesh clonedMesh = mesh.clone();
-                g.setMesh(clonedMesh);
-                mesh = clonedMesh;
-                g.setUserData("__kt_meshCloned", Boolean.TRUE);
-            } catch (Throwable ignored) {
-                // fallback: mutate shared mesh (legacy behavior)
-            }
-        }
-
-        VertexBuffer vb = mesh.getBuffer(VertexBuffer.Type.TexCoord);
-        if (vb == null) return;
-
-        Vector2f prev = g.getUserData(UD_UV_SCALE);
-        if (prev == null) prev = new Vector2f(1f, 1f);
-
-        float ru = u / prev.x;
-        float rv = v / prev.y;
-
-        if (Math.abs(ru - 1f) < 1e-6f && Math.abs(rv - 1f) < 1e-6f) return;
-
-        mesh.scaleTextureCoordinates(new Vector2f(ru, rv));
-        g.setUserData(UD_UV_SCALE, new Vector2f(u, v));
+    @Deprecated
+    @HostAccess.Export
+    public void attach(Object target, int entityId) {
+        throw new IllegalStateException("surface.attach(handle, entityId) is removed (UUID-only mode). Use attachEntity(handle, uuid).");
     }
 
     @HostAccess.Export
@@ -553,11 +644,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @Override
-    public Hit[] pickUnderCursorCfg(Value cfg) {
-        return new Hit[0];
-    }
-
     @HostAccess.Export
     public void setScale(SurfaceHandle target, Object scale) {
         Objects.requireNonNull(target, "target");
@@ -602,7 +688,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     @Override
     public void attachToRoot(SurfaceHandle target) {
         requireHandle(target);
-        // registry already enqueues attach flush; still keep sync hop for "sync" JS semantics.
         onJmeSyncVoid("attachToRoot", () -> registry.attachToRoot(target.id()));
     }
 
@@ -627,40 +712,39 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-
     @HostAccess.Export
     @Override
     public boolean exists(SurfaceHandle target) {
         return target != null && registry.exists(target.id());
     }
 
+    // ------------------------------------------------------------
+    // World bounds / picking
+    // ------------------------------------------------------------
+
     @HostAccess.Export
-    @Override
-    public int attachedEntity(SurfaceHandle target) {
-        requireHandle(target);
-        Integer e = registry.attachedEntity(target.id());
-        return (e == null) ? 0 : e;
+    public WorldBounds getWorldBounds(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("getWorldBounds", () -> getWorldBounds(h),
+                new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
     }
 
     @HostAccess.Export
-    @Override
-    public void attach(SurfaceHandle target, int entityId) {
-        requireHandle(target);
-        onJmeSyncVoid("attach", () -> {
-            registry.attach(target.id(), entityId);
-            engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
-        });
+    public Hit[] raycast(Object target, Value cfg) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("raycast", () -> raycast(h, cfg), new Hit[0]);
     }
 
     @HostAccess.Export
-    @Override
-    public void detachFromEntity(SurfaceHandle target) {
-        requireHandle(target);
-        onJmeSyncVoid("detachFromEntity", () -> {
-            Integer entityId = registry.attachedEntity(target.id());
-            registry.detachSurface(target.id());
-            if (entityId != null && entityId > 0) engine.getEcs().components().removeByName(entityId, "Surface");
-        });
+    public Hit[] pickUnderCursor(Object target) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("pickUnderCursor", () -> pickUnderCursor(h), new Hit[0]);
+    }
+
+    @HostAccess.Export
+    public Hit[] pickUnderCursorCfg(Object target, Value cfg) {
+        SurfaceHandle h = requireHandle(target);
+        return onJmeSync("pickUnderCursorCfg", () -> pickUnderCursorCfg(h, cfg), new Hit[0]);
     }
 
     @HostAccess.Export
@@ -729,7 +813,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             Camera cam = engine.getApp().getCamera();
             if (cam == null) return new Hit[0];
 
-            // cfg: {x,y} in pixels, default: center
             float x = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "x", cam.getWidth() * 0.5) : cam.getWidth() * 0.5f;
             float y = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "y", cam.getHeight() * 0.5) : cam.getHeight() * 0.5f;
 
@@ -750,38 +833,57 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new Hit[0]);
     }
 
+    @Override
     @HostAccess.Export
-    public void attachEntity(SurfaceHandle target, Object entityRef) {
-        requireHandle(target);
-        onJmeSyncVoid("attachEntity", () -> {
-            int entityId = resolveEntityId(entityRef);
-            if (entityId <= 0) throw new IllegalArgumentException("surface.attachEntity: cannot resolve entityId");
-
-            registry.attach(target.id(), entityId);
-            engine.getEcs().components().putByName(entityId, "Surface", new SurfaceComponent(target.id(), target.kind()));
-        });
+    public Hit[] pickUnderCursor() {
+        return pickUnderCursorCfg((Value) null);
     }
-
-    @HostAccess.Export
-    public void attachEntity(Object target, Object entityRef) {
-        SurfaceHandle h = requireHandle(target);
-        int entityId = resolveEntityId(entityRef);
-        onJmeSyncVoid("attachEntity", () -> attach(h, entityId));
-    }
-
-    @HostAccess.Export
-    public String attachedEntityUuid(SurfaceHandle target) {
-        requireHandle(target);
-        Integer e = registry.attachedEntity(target.id());
-        if (e == null || e <= 0) return "";
-        return engine.getEcs().uuids().uuidStringOf(e);
-    }
-
 
     @Override
-    public Hit[] pickUnderCursor() {
-        return new Hit[0];
+    @HostAccess.Export
+    public Hit[] pickUnderCursorCfg(Value cfg) {
+        return onJmeSync("pickUnderCursorCfg(world)", () -> {
+            Camera cam = engine.getApp().getCamera();
+            if (cam == null) return new Hit[0];
+
+            // pick root = вся сцена
+            Spatial root = engine.getApp().getRootNode();
+            if (root == null) return new Hit[0];
+
+            // cfg: {x,y} в пикселях, default = центр экрана
+            float x = (cfg != null && !cfg.isNull())
+                    ? (float) num(cfg, "x", cam.getWidth() * 0.5)
+                    : cam.getWidth() * 0.5f;
+
+            float y = (cfg != null && !cfg.isNull())
+                    ? (float) num(cfg, "y", cam.getHeight() * 0.5)
+                    : cam.getHeight() * 0.5f;
+
+            Vector3f origin = cam.getWorldCoordinates(new Vector2f(x, y), 0f);
+            Vector3f far = cam.getWorldCoordinates(new Vector2f(x, y), 1f);
+            Vector3f dir = far.subtract(origin);
+            if (dir.lengthSquared() < 1e-8f) return new Hit[0];
+            dir.normalizeLocal();
+
+            float max = (cfg != null && !cfg.isNull())
+                    ? (float) num(cfg, "max", 10_000.0)
+                    : 10_000.0f;
+
+            int limit = (cfg != null && !cfg.isNull())
+                    ? clampInt(num(cfg, "limit", 16.0), 1, 256)
+                    : 16;
+
+            boolean onlyClosest = (cfg != null && !cfg.isNull())
+                    ? bool(cfg, "onlyClosest", true)
+                    : true;
+
+            Ray ray = new Ray(origin, dir);
+            ray.setLimit(max);
+
+            return collide(root, ray, onlyClosest, limit);
+        }, new Hit[0]);
     }
+
 
     // ------------------------------------------------------------
     // Collisions / picking
@@ -831,34 +933,41 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return out;
     }
 
-    private int resolveEntityId(Object entityRef) {
-        if (entityRef == null) return 0;
-
-        if (entityRef instanceof Integer i) return i;
-        if (entityRef instanceof Long l) return (int) (long) l;
-        if (entityRef instanceof Number n) return n.intValue();
-
-        if (entityRef instanceof String s) {
-            int id = engine.getEcs().uuids().entityIdOf(s);
-            return (id == org.foxesworld.kalitech.engine.ecs.EntityId.NULL) ? 0 : id;
-        }
-
-        if (entityRef instanceof org.graalvm.polyglot.Value v) {
-            if (v.isNumber()) return v.asInt();
-            if (v.isString()) {
-                int id = engine.getEcs().uuids().entityIdOf(v.asString());
-                return (id == org.foxesworld.kalitech.engine.ecs.EntityId.NULL) ? 0 : id;
-            }
-        }
-
-        throw new IllegalArgumentException("surface.attachEntity: entity must be entityId(number) or uuid(string)");
-    }
-
-
     private static String spatialName(Spatial s) {
         if (s == null) return "";
         String n = s.getName();
         return (n == null) ? "" : n;
+    }
+
+    // ------------------------------------------------------------
+    // UUID helpers (STRICT)
+    // ------------------------------------------------------------
+
+    private String requireUuid(Object ref) {
+        if (ref == null) throw new IllegalArgumentException("surface: uuid is required");
+
+        if (ref instanceof String s) {
+            String x = s.trim();
+            if (x.isEmpty()) throw new IllegalArgumentException("surface: uuid is blank");
+            return x;
+        }
+
+        if (ref instanceof Value v) {
+            if (v.isNull()) throw new IllegalArgumentException("surface: uuid is null");
+            if (v.isString()) {
+                String x = v.asString().trim();
+                if (x.isEmpty()) throw new IllegalArgumentException("surface: uuid is blank");
+                return x;
+            }
+        }
+
+        throw new IllegalArgumentException("surface: entity must be uuid(string)");
+    }
+
+    private int entityIdFromUuidStrict(String uuid) {
+        int id = engine.getEcs().uuids().entityIdOf(uuid);
+        if (id == EntityId.NULL) throw new IllegalArgumentException("surface: unknown entity uuid=" + uuid);
+        return id;
     }
 
     // ------------------------------------------------------------
@@ -1072,27 +1181,17 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return x;
     }
 
+    // ------------------------------------------------------------
+    // Types
+    // ------------------------------------------------------------
+
     public static final class SurfaceComponent {
         @HostAccess.Export public final int surfaceId;
         @HostAccess.Export public final String kind;
+
         public SurfaceComponent(int surfaceId, String kind) {
             this.surfaceId = surfaceId;
             this.kind = kind;
         }
-    }
-
-    // --------------------------
-    // Legacy helper kept for internal use
-    // --------------------------
-    private Spatial requireSpatial(SurfaceHandle h) {
-        requireHandle(h);
-        Spatial s = registry.get(h.id());
-        if (s == null) throw new IllegalStateException("surface: missing spatial for id=" + h.id());
-        return s;
-    }
-
-    private void requireHandle(SurfaceHandle h) {
-        if (h == null) throw new IllegalArgumentException("surface: handle is null");
-        if (!registry.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
     }
 }

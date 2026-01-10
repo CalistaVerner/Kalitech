@@ -31,16 +31,17 @@ public final class SurfaceRegistry implements EngineService {
     private Supplier<ScriptEventBus> busSupplier;
 
     /**
-     * Optional: bound from ApiContext (ECS UUID registry).
-     * If null - UUID-related methods still work only if callers pass entityId.
+     * Internal mapping uses dense entityId for speed, but PUBLIC API / EVENTS / LOGS are UUID-only.
      */
-    private EntityUuids uuids;
+    private final ConcurrentHashMap<Integer, Integer> surfaceToEntity = new ConcurrentHashMap<>();
 
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> kindById = new ConcurrentHashMap<>();
-
-    private final ConcurrentHashMap<Integer, Integer> surfaceToEntity = new ConcurrentHashMap<>();
+    /**
+     * Bound from ApiContext (ECS UUID registry). Required for UUID-only behavior.
+     */
+    private EntityUuids uuids;
     private final ConcurrentHashMap<Integer, Integer> entityToSurface = new ConcurrentHashMap<>();
 
     private final ConcurrentLinkedQueue<Integer> pendingAttach = new ConcurrentLinkedQueue<>();
@@ -82,17 +83,17 @@ public final class SurfaceRegistry implements EngineService {
 
     @Override
     public void attach(ApiContext ctx) {
-        if (ctx != null) {
-            this.app = ctx.app;
-            this.busSupplier = ctx.engine::getBus;
-            this.uuids = (ctx.ecs != null) ? ctx.ecs.uuids() : null;
-        }
+        if (ctx == null) throw new NullPointerException("ctx");
+
+        this.app = ctx.app;
+        this.busSupplier = ctx.engine::getBus;
+
+        if (ctx.ecs == null) throw new IllegalStateException("SurfaceRegistry: ctx.ecs is null");
+        this.uuids = ctx.ecs.uuids();
+        if (this.uuids == null) throw new IllegalStateException("SurfaceRegistry: ctx.ecs.uuids() is null");
+
         if (log.isDebugEnabled()) {
-            log.debug("[service] attached id='{}' app={} busSupplier={} uuids={}",
-                    id(),
-                    (app != null ? app.getClass().getSimpleName() : "null"),
-                    (busSupplier != null ? busSupplier.getClass().getName() : "null"),
-                    (uuids != null));
+            log.debug("[service] attached id='{}' uuidsBound=true", id());
         }
     }
 
@@ -124,10 +125,10 @@ public final class SurfaceRegistry implements EngineService {
 
         if (log.isDebugEnabled()) {
             try {
-                log.debug("Registered spatial id={} kind={} name={} worldPos={}",
+                log.debug("[surface] registered surfaceId={} kind={} name={} worldPos={}",
                         id, k, spatial.getName(), spatial.getWorldTranslation());
             } catch (Throwable ignored) {
-                log.debug("Registered spatial id={} kind={} name={}", id, k, spatial.getName());
+                log.debug("[surface] registered surfaceId={} kind={} name={}", id, k, spatial.getName());
             }
         }
 
@@ -139,32 +140,47 @@ public final class SurfaceRegistry implements EngineService {
     public String kind(int id) { return kindById.get(id); }
     public boolean exists(int id) { return byId.containsKey(id); }
 
-    public Integer attachedEntity(int surfaceId) { return surfaceToEntity.get(surfaceId); }
+    /**
+     * Internal only (dense-id).
+     */
+    public Integer attachedEntity(int surfaceId) { return surfaceToEntity.get(surfaceId);
+    }
+
+    /** Internal only (dense-id). */
     public Integer attachedSurface(int entityId) { return entityToSurface.get(entityId); }
 
     // ---------------------------------------------------------------------
-    // UUID helpers
+    // UUID helpers (STRICT)
     // ---------------------------------------------------------------------
 
-    private int resolveEntityIdFromUuid(String uuid) {
-        if (uuid == null || uuid.isBlank()) return 0;
-        if (uuids == null)
-            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
-        int id = uuids.entityIdOf(uuid);
-        return (id == EntityId.NULL) ? 0 : id;
-    }
-
-    private String uuidOfEntity(int entityId) {
-        if (entityId <= 0) return "";
+    private int requireEntityIdFromUuid(String uuid) {
+        if (uuid == null || uuid.isBlank()) throw new IllegalArgumentException("uuid is blank");
         EntityUuids u = uuids;
-        if (u == null) return "";
-        return u.uuidStringOf(entityId);
+        if (u == null)
+            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
+        int id = u.entityIdOf(uuid);
+        if (id == EntityId.NULL) throw new IllegalArgumentException("unknown entity uuid=" + uuid);
+        return id;
+    }
+
+    private String requireUuidOfEntity(int entityId) {
+        if (entityId <= 0) throw new IllegalArgumentException("entityId must be > 0");
+        EntityUuids u = uuids;
+        if (u == null)
+            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
+        String uuid = u.uuidStringOf(entityId);
+        if (uuid == null || uuid.isBlank()) throw new IllegalStateException("no uuid for entityId=" + entityId);
+        return uuid;
     }
 
     // ---------------------------------------------------------------------
-    // Attach / Detach (entityId core)
+    // Attach / Detach
     // ---------------------------------------------------------------------
 
+    /**
+     * INTERNAL attach by dense entityId (engine-internal).
+     * Events & logs are UUID-only.
+     */
     public void attach(int surfaceId, int entityId) {
         if (entityId <= 0) throw new IllegalArgumentException("attach: entityId must be > 0");
         if (!exists(surfaceId)) throw new IllegalStateException("attach: unknown surfaceId=" + surfaceId);
@@ -174,69 +190,79 @@ public final class SurfaceRegistry implements EngineService {
 
         surfaceToEntity.put(surfaceId, entityId);
 
-        String uuid = uuidOfEntity(entityId);
-        if (!uuid.isEmpty()) {
-            emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId, "uuid", uuid);
-        } else {
-            emit("engine.surface.attached", "surfaceId", surfaceId, "entityId", entityId);
+        String uuid = requireUuidOfEntity(entityId);
+
+        if (log.isDebugEnabled()) {
+            log.debug("[surface] attached surfaceId={} uuid={}", surfaceId, uuid);
         }
+
+        emit("engine.surface.attached", "surfaceId", surfaceId, "uuid", uuid);
     }
 
     /**
-     * UUID-first attach (public API). Internally still maps to entityId.
+     * PUBLIC attach: UUID-only.
      */
     public void attachUuid(int surfaceId, String entityUuid) {
-        int entityId = resolveEntityIdFromUuid(entityUuid);
-        if (entityId <= 0) throw new IllegalArgumentException("attachUuid: cannot resolve entity uuid=" + entityUuid);
+        int entityId = requireEntityIdFromUuid(entityUuid);
         attach(surfaceId, entityId);
     }
 
-    public Integer detachSurface(int surfaceId) {
+    /**
+     * Detach mapping by surface id.
+     * Event payload & logs are UUID-only.
+     */
+    public String detachSurface(int surfaceId) {
         Integer ent = surfaceToEntity.remove(surfaceId);
         if (ent != null) entityToSurface.remove(ent);
 
         if (ent != null) {
-            String uuid = uuidOfEntity(ent);
-            if (!uuid.isEmpty()) {
-                emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent, "uuid", uuid);
-            } else {
-                emit("engine.surface.detached", "surfaceId", surfaceId, "entityId", ent);
+            String uuid = requireUuidOfEntity(ent);
+
+            if (log.isDebugEnabled()) {
+                log.debug("[surface] detached surfaceId={} uuid={}", surfaceId, uuid);
             }
+
+            emit("engine.surface.detached", "surfaceId", surfaceId, "uuid", uuid);
+            return uuid;
         }
-        return ent;
+        return "";
     }
 
+    /**
+     * INTERNAL detach by dense entityId (engine-internal).
+     * Event payload & logs are UUID-only.
+     */
     public Integer detachEntity(int entityId) {
         Integer surf = entityToSurface.remove(entityId);
         if (surf != null) surfaceToEntity.remove(surf);
 
         if (surf != null) {
-            String uuid = uuidOfEntity(entityId);
-            if (!uuid.isEmpty()) {
-                emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId, "uuid", uuid);
-            } else {
-                emit("engine.surface.detached", "surfaceId", surf, "entityId", entityId);
+            String uuid = requireUuidOfEntity(entityId);
+
+            if (log.isDebugEnabled()) {
+                log.debug("[surface] detached surfaceId={} uuid={}", surf, uuid);
             }
+
+            emit("engine.surface.detached", "surfaceId", surf, "uuid", uuid);
         }
         return surf;
     }
 
     /**
-     * UUID-first detach: remove mapping by UUID.
+     * PUBLIC detach: UUID-only.
      */
     public Integer detachEntityUuid(String entityUuid) {
-        int entityId = resolveEntityIdFromUuid(entityUuid);
-        if (entityId <= 0) return null;
+        int entityId = requireEntityIdFromUuid(entityUuid);
         return detachEntity(entityId);
     }
 
     /**
-     * Convenience: get attached entity UUID for a surface.
+     * PUBLIC query: UUID-only.
      */
     public String attachedEntityUuid(int surfaceId) {
         Integer ent = attachedEntity(surfaceId);
         if (ent == null || ent <= 0) return "";
-        return uuidOfEntity(ent);
+        return requireUuidOfEntity(ent);
     }
 
     // ---------------------------------------------------------------------
@@ -291,7 +317,14 @@ public final class SurfaceRegistry implements EngineService {
     public void destroy(int id) {
         final Spatial s = byId.remove(id);
         kindById.remove(id);
+
+        // detach mapping first (emits+logs detached if there was one)
         detachSurface(id);
+
+        if (log.isDebugEnabled()) {
+            log.debug("[surface] destroyed surfaceId={}", id);
+        }
+
         emit("engine.surface.destroyed", "surfaceId", id);
 
         if (s != null) {
@@ -311,10 +344,12 @@ public final class SurfaceRegistry implements EngineService {
     // ---------------------------------------------------------------------
 
     private void emit(String topic, Object... kv) {
-        ScriptEventBus bus = null;
+        ScriptEventBus bus;
         try {
-            bus = busSupplier.get();
-        } catch (Throwable ignored) {}
+            bus = (busSupplier != null) ? busSupplier.get() : null;
+        } catch (Throwable ignored) {
+            return;
+        }
         if (bus == null) return;
 
         try {

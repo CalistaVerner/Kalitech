@@ -7,6 +7,7 @@ class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
+        // entityId теперь может быть 0 (UUID-only)
         this.entityId = (ctx.entityId | 0);
         this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
 
@@ -23,10 +24,19 @@ class EntityHandle {
         req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
         this._log = engine.log();
         req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
+
+        if (!this.uuid) throw new Error("[ENT] EntityHandle missing uuid (UUID-only)");
     }
 
     id() {
         return (this.entityId | 0);
+    } // optional
+    uuidString() {
+        return this.uuid || "";
+    }
+
+    uuid() {
+        return this.uuidString();
     }
 
     surfaceHandleId() {
@@ -37,30 +47,22 @@ class EntityHandle {
         return (this.bodyId | 0);
     }
 
-    uuidString() {
-        return this.uuid || "";
-    }
-
-    uuid() {
-        return this.uuidString();
-    }
-
     valueOf() {
         return (this.entityId | 0);
     }
 
     toString() {
-        return String(this.entityId | 0);
+        return this.uuidString();
     }
 
     [Symbol.toPrimitive](hint) {
         if (hint === "number") return (this.entityId | 0);
-        return String(this.entityId | 0);
+        return this.uuidString();
     }
 
     setVisible(v) {
         const sid = this.surfaceId | 0;
-        if (!sid) throw new Error("[ENT] setVisible: surfaceId=0 entityId=" + (this.entityId | 0));
+        if (!sid) throw new Error("[ENT] setVisible: surfaceId=0 uuid=" + this.uuid);
 
         const s = subsystem(this._engine, "surface");
         req(typeof s.setVisible === "function", "[ENT] setVisible: engine.surface().setVisible(surfaceId,bool) missing");
@@ -71,7 +73,7 @@ class EntityHandle {
 
     setCull(hint) {
         const sid = this.surfaceId | 0;
-        if (!sid) throw new Error("[ENT] setCull: surfaceId=0 entityId=" + (this.entityId | 0));
+        if (!sid) throw new Error("[ENT] setCull: surfaceId=0 uuid=" + this.uuid);
 
         const s = subsystem(this._engine, "surface");
         req(typeof s.setCull === "function", "[ENT] setCull: engine.surface().setCull(surfaceId,string) missing");
@@ -86,7 +88,7 @@ class EntityHandle {
 
     requireBodyId(opName) {
         const id = (this.bodyId | 0);
-        if (id <= 0) throw new Error("[ENT] " + opName + ": entity has no bodyId (entityId=" + (this.entityId | 0) + ")");
+        if (id <= 0) throw new Error("[ENT] " + opName + ": entity has no bodyId (uuid=" + this.uuid + ")");
         return id;
     }
 
@@ -126,127 +128,9 @@ class EntityHandle {
         return this._bodyRef;
     }
 
-    position(v) {
-        const id = this.requireBodyId("position()");
-        const phys = this.physApi();
-        try {
-            if (v === undefined) return phys.position(id);
-            return (typeof phys.teleport === "function" ? phys.teleport(id, v) : phys.warp(id, v));
-        } catch (e) {
-            throw new Error(errCtx("[ENT] position failed bodyId=" + id, e));
-        }
-    }
-
-    warp(pos) {
-        const id = this.requireBodyId("warp()");
-        const phys = this.physApi();
-        try {
-            return (typeof phys.teleport === "function" ? phys.teleport(id, pos) : phys.warp(id, pos));
-        } catch (e) {
-            throw new Error(errCtx("[ENT] warp failed bodyId=" + id, e));
-        }
-    }
-
-    velocity(v) {
-        const id = this.requireBodyId("velocity()");
-        const phys = this.physApi();
-        try {
-            if (v === undefined) return phys.velocity(id);
-            return phys.velocity(id, v);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] velocity failed bodyId=" + id, e));
-        }
-    }
-
-    yaw(yawRad) {
-        const id = this.requireBodyId("yaw()");
-        const phys = this.physApi();
-        try {
-            return phys.yaw(id, +yawRad || 0);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] yaw failed bodyId=" + id, e));
-        }
-    }
-
-    applyImpulse(impulse) {
-        const id = this.requireBodyId("applyImpulse()");
-        const phys = this.physApi();
-        try {
-            return phys.applyImpulse(id, impulse);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] applyImpulse failed bodyId=" + id, e));
-        }
-    }
-
-    applyCentralForce(force) {
-        const id = this.requireBodyId("applyCentralForce()");
-        const phys = this.physApi();
-        try {
-            return phys.applyCentralForce(id, force);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] applyCentralForce failed bodyId=" + id, e));
-        }
-    }
-
-    applyTorque(torque) {
-        const id = this.requireBodyId("applyTorque()");
-        const phys = this.physApi();
-        try {
-            return phys.applyTorque(id, torque);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] applyTorque failed bodyId=" + id, e));
-        }
-    }
-
-    angularVelocity(v) {
-        const id = this.requireBodyId("angularVelocity()");
-        const phys = this.physApi();
-        try {
-            if (v === undefined) return phys.angularVelocity(id);
-            return phys.angularVelocity(id, v);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] angularVelocity failed bodyId=" + id, e));
-        }
-    }
-
-    clearForces() {
-        const id = this.requireBodyId("clearForces()");
-        const phys = this.physApi();
-        try {
-            return phys.clearForces(id);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] clearForces failed bodyId=" + id, e));
-        }
-    }
-
-    lockRotation(lock = true) {
-        const id = this.requireBodyId("lockRotation()");
-        const phys = this.physApi();
-        try {
-            return phys.lockRotation(id, !!lock);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] lockRotation failed bodyId=" + id, e));
-        }
-    }
-
-    collisionGroups(group, mask) {
-        const id = this.requireBodyId("collisionGroups()");
-        const phys = this.physApi();
-        try {
-            return phys.collisionGroups(id, group | 0, mask | 0);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] collisionGroups failed bodyId=" + id, e));
-        }
-    }
-
-    raycast(cfg) {
-        const phys = this.physApi();
-        try {
-            return phys.raycast(cfg);
-        } catch (e) {
-            throw new Error(errCtx("[ENT] raycast failed", e));
-        }
-    }
+    // ---------------------
+    // Entity ops (UUID-only)
+    // ---------------------
 
     destroy() {
         const engine = this._engine;
@@ -255,6 +139,7 @@ class EntityHandle {
         const surf = subsystem(engine, "surface");
         const phys = subsystem(engine, "physics");
 
+        const uuid = this.uuid;
         const eid = (this.entityId | 0);
         const sid = (this.surfaceId | 0);
         const bid = (this.bodyId | 0);
@@ -288,14 +173,20 @@ class EntityHandle {
             this.surface = null;
         }
 
-        if (eid > 0) {
+        // ✅ prefer destroy(uuid)
+        if (uuid && typeof ent.destroy === "function") {
+            try {
+                ent.destroy(uuid);
+            } catch (_) {
+            }
+        } else if (eid > 0 && typeof ent.destroy === "function") {
             try {
                 ent.destroy(eid);
             } catch (_) {
             }
-            this.entityId = 0;
         }
 
+        this.entityId = 0;
         this.uuid = "";
     }
 
@@ -307,24 +198,27 @@ class EntityHandle {
 
     setComponent(type, value) {
         const ent = subsystem(this._engine, "entity");
-        const eid = (this.entityId | 0);
-        if (!eid) throw new Error("[ENT] setComponent: entityId=0");
-        ent.setComponent(eid, String(type), value);
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] setComponent: uuid empty");
+        req(typeof ent.setComponent === "function", "[ENT] setComponent(uuid,type,value) missing");
+        ent.setComponent(uuid, String(type), value);
         return this;
     }
 
     getComponent(type) {
         const ent = subsystem(this._engine, "entity");
-        const eid = (this.entityId | 0);
-        if (!eid) throw new Error("[ENT] getComponent: entityId=0");
-        return ent.getComponent(eid, String(type));
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] getComponent: uuid empty");
+        req(typeof ent.getComponent === "function", "[ENT] getComponent(uuid,type) missing");
+        return ent.getComponent(uuid, String(type));
     }
 
     hasComponent(type) {
         const ent = subsystem(this._engine, "entity");
-        const eid = (this.entityId | 0);
-        if (!eid) throw new Error("[ENT] hasComponent: entityId=0");
-        return !!ent.hasComponent(eid, String(type));
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] hasComponent: uuid empty");
+        req(typeof ent.hasComponent === "function", "[ENT] hasComponent(uuid,type) missing");
+        return !!ent.hasComponent(uuid, String(type));
     }
 
     logInfo(msg) {

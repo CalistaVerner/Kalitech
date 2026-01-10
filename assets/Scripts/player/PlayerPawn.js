@@ -53,6 +53,14 @@ function buildDomains(ctx) {
     });
 }
 
+function readUuidFromHandle(h) {
+    if (!h) return "";
+    if (typeof h.uuidString === "function") return String(h.uuidString() || "");
+    if (typeof h.uuid === "function") return String(h.uuid() || "");
+    if (typeof h.uuid === "string") return String(h.uuid || "");
+    return "";
+}
+
 class PlayerPawn {
     constructor(ctx, cfg) {
         this.ctx = req(ctx, "[PlayerPawn] ctx required");
@@ -74,16 +82,16 @@ class PlayerPawn {
         return this.handle;
     }
 
+    get uuid() {
+        return readUuidFromHandle(this.handle);
+    }
+
     get bodyAccess() {
         return this.core.bodyAccess;
     }
 
     get bodyId() {
         return this.core.bodyId | 0;
-    }
-
-    get entityId() {
-        return this.core.entityId | 0;
     }
 
     get surfaceId() {
@@ -115,25 +123,30 @@ class PlayerPawn {
         const factory = new PlayerEntityFactory(this);
         this.handle = factory.create(this.cfg.spawn);
 
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[PlayerPawn] player uuid missing (UUID-only)");
+
         this.core = this.handle.core;
         if (!this.core) throw new Error("[PlayerPawn] ENT.create() must return {core}");
         if (!this.core.bodyAccess) throw new Error("[PlayerPawn] core.bodyAccess missing (engine must fill EntityCore)");
         if ((this.core.bodyId | 0) <= 0) throw new Error("[PlayerPawn] invalid core.bodyId");
 
+        // keep convenience (some controllers may read core.uuid)
+        this.core.uuid = uuid;
+
         if (typeof this.frame.probeGroundCapsule !== "function") {
             throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule required");
         }
 
-        // Character tuning
         this.characterCfg.loadFrom(this.cfg, this.cfg.movement);
 
-        // Bind ground probe once (engine uses it for grounded/step systems if needed)
-        // keep signature compatibility with existing FrameContext implementation
-        this.core.setGroundProbe(() => {
+        // Ground probe contract: EntityCore.syncPhysics calls probe(core)
+        this.core.setGroundProbe((core) => {
             const probe = this.frame.probeGroundCapsule;
+            // probe signature variants kept compatible
             return (probe.length >= 3)
-                ? probe.call(this.frame, this.core.bodyAccess, this.characterCfg, this.core.bodyId | 0)
-                : probe.call(this.frame, this.core.bodyAccess, this.characterCfg);
+                ? probe.call(this.frame, core.bodyAccess, this.characterCfg, core.bodyId | 0)
+                : probe.call(this.frame, core.bodyAccess, this.characterCfg);
         });
 
         this.alive = true;
@@ -206,12 +219,12 @@ class PlayerPawn {
         return this.core.bodyId | 0;
     }
 
-    getEntityId() {
-        return this.core.entityId | 0;
-    }
-
     getSurfaceId() {
         return this.core.surfaceId | 0;
+    }
+
+    getUuid() {
+        return this.uuid;
     }
 }
 

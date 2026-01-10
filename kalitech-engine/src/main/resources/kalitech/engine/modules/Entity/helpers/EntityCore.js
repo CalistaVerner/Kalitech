@@ -1,22 +1,6 @@
 // FILE: resources/kalitech/builtin/helpers/entity/EntityCore.js
 "use strict";
 
-/**
- * EntityCore (builtin) — attached to EntityHandle as handle.core
- *
- * Responsibilities:
- *  - cached ids
- *  - position/rotation
- *  - linear/angular velocity
- *  - grounded (via pluggable ground-probe)
- *
- * Contract requirements for bodyAccess:
- *  - position() -> {x,y,z}
- *  - getVel()   -> {x,y,z}
- *  - (optional) rotation()/getRotation()/... -> quat-like {x,y,z,w}
- *  - (optional) getAngVel()/... -> {x,y,z}
- */
-
 function req(v, msg) {
     if (v == null) throw new Error(msg);
     return v;
@@ -33,7 +17,8 @@ class EntityCore {
         this.body = null;
         this.bodyAccess = null;
 
-        this.entityId = 0;
+        this.uuid = "";     // ✅ UUID-only
+        this.entityId = 0;  // optional internal
         this.surfaceId = 0;
         this.bodyId = 0;
 
@@ -47,6 +32,7 @@ class EntityCore {
         this.state = {
             alive: false,
 
+            uuid: "",        // ✅ mirrored into state for convenience
             mass: 0,
             radius: 0,
             height: 0,
@@ -85,7 +71,14 @@ class EntityCore {
         this.body = body || null;
         this.bodyAccess = req(bodyAccess, "[EntityCore] bodyAccess is required");
 
-        this.entityId = (handle.entityId | 0) || 0;
+        // ✅ UUID-only core
+        const u =
+            (typeof handle.uuidString === "function" ? handle.uuidString() : handle.uuid) || "";
+
+        this.uuid = String(u || "");
+        if (!this.uuid) throw new Error("[EntityCore] missing uuid (UUID-only)");
+
+        this.entityId = (handle.entityId | 0) || 0; // optional internal (may be 0)
         this.surfaceId = (handle.surfaceId | 0) || 0;
         this.bodyId = (handle.bodyId | 0) || 0;
 
@@ -97,6 +90,7 @@ class EntityCore {
         this._getRot = this._resolveRotationAccessor(this.bodyAccess);
         this._getAngVel = this._resolveAngularVelocityAccessor(this.bodyAccess);
 
+        this.state.uuid = this.uuid;
         this.state.alive = true;
         return this;
     }
@@ -152,13 +146,13 @@ class EntityCore {
     destroy() {
         if (!this.state.alive) return;
 
-        // destruction is handle responsibility (body + surface + entity)
         this.handle.destroy();
 
         this.handle = null;
         this.body = null;
         this.bodyAccess = null;
 
+        this.uuid = "";
         this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
@@ -170,6 +164,7 @@ class EntityCore {
 
         this._groundProbe = null;
 
+        this.state.uuid = "";
         this.state.alive = false;
     }
 
@@ -259,8 +254,6 @@ class EntityCore {
     }
 
     _qw(q) {
-        if (q == null) return 1;
-        if (q.w === undefined && typeof q.w !== "function") return 1;
         return this._comp(q, "w");
     }
 }

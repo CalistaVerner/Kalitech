@@ -1,164 +1,136 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/EntityApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.EntityId;
-import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.foxesworld.kalitech.engine.ecs.EntityUuids;
 import org.graalvm.polyglot.HostAccess;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
 
 public final class EntityApiImpl extends AbstractApiModule implements EntityApi {
 
+    private static final Logger log = LogManager.getLogger(EntityApiImpl.class);
+
     private EcsWorld ecs;
+    private EntityUuids uuids;
 
     public EntityApiImpl() {
-        super("entity", "Entity", "1.0.0");
-    }
-
-    private static Map<String, Object> m(Object... kv) {
-        Map<String, Object> out = new HashMap<>();
-        if (kv == null) return out;
-        for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
-        return out;
-    }
-
-    private ScriptEventBus bus() {
-        return engine.getBus();
-    }
-
-    private void emit(String topic, Map<String, Object> payload) {
-        ScriptEventBus b = bus();
-        if (b == null) return;
-        try {
-            b.emit(topic, payload);
-        } catch (Throwable ignored) {
-        }
+        super("entity", "Entity", "2.1.0"); // UUID-only + components
     }
 
     @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+    public void attach(ApiContext ctx) {
         super.attach(ctx);
-        this.ecs = ctx.ecs;
+        this.ecs = Objects.requireNonNull(ctx.ecs, "ctx.ecs");
+        this.uuids = Objects.requireNonNull(ctx.ecs.uuids(), "ecs.uuids()");
+    }
+
+    @Override
+    public void detach() {
+        this.uuids = null;
+        this.ecs = null;
+        super.detach();
+    }
+
+    // -------------------------
+    // lifecycle
+    // -------------------------
+
+    @HostAccess.Export
+    @Override
+    public String create(String name) {
+        final String n = (name == null || name.isBlank()) ? "entity" : name.trim();
+
+        final int id = ecs.createEntity();
+        final String uuid = uuids.uuidStringOf(id);
+
+        if (uuid == null || uuid.isEmpty()) {
+            throw new IllegalStateException("[entity] create: UUID was not assigned for entityId=" + id);
+        }
+
+        if (log.isDebugEnabled()) log.debug("[entity] created uuid={} name='{}'", uuid, n);
+        return uuid;
     }
 
     @HostAccess.Export
     @Override
-    public int create(String name) {
-        return profiled(() -> {
-            int id = ecs.createEntity();
-
-            String safeName = (name == null) ? "" : name.trim();
-            if (!safeName.isEmpty()) ecs.components().putByName(id, "Name", safeName);
-
-            emit("engine.entity.create", m(
-                    "entityId", id,
-                    "uuid", ecs.uuids().uuidStringOf(id),
-                    "name", safeName
-            ));
-            return id;
-        });
+    public void destroy(String uuid) {
+        final int id = entityIdOf(uuid);
+        if (id == EntityId.NULL) return;
+        ecs.destroyEntity(id);
+        if (log.isDebugEnabled()) log.debug("[entity] destroyed uuid={}", uuid);
     }
 
     @HostAccess.Export
     @Override
-    public void destroy(int id) {
-        profiledVoid(() -> {
-            if (id <= 0) return;
-
-            emit("engine.entity.destroy.before", m(
-                    "entityId", id,
-                    "uuid", ecs.uuids().uuidStringOf(id)
-            ));
-
-            try {
-                engine.__surfaceCleanupOnEntityDestroy(id);
-            } catch (Throwable ignored) {
-            }
-
-            ecs.destroyEntity(id);
-
-            emit("engine.entity.destroy.after", m("entityId", id));
-        });
+    public boolean exists(String uuid) {
+        final int id = entityIdOf(uuid);
+        return id != EntityId.NULL && ecs.entities().isAlive(id);
     }
+
+    // -------------------------
+    // bridge
+    // -------------------------
 
     @HostAccess.Export
     @Override
-    public void setComponent(int id, String type, Object data) {
-        profiledVoid(() -> {
-            if (id <= 0) return;
-            if (type == null || type.isBlank()) return;
-
-            String t = type.trim();
-            ecs.components().putByName(id, t, data);
-
-            emit("engine.entity.component.set", m("entityId", id, "type", t, "data", data));
-        });
-    }
-
-    @HostAccess.Export
-    @Override
-    public Object getComponent(int id, String type) {
-        return profiled(() -> {
-            if (id <= 0) return null;
-            if (type == null || type.isBlank()) return null;
-            return ecs.components().getByName(id, type.trim());
-        });
-    }
-
-    @HostAccess.Export
-    @Override
-    public boolean hasComponent(int id, String type) {
-        return profiled(() -> {
-            if (id <= 0) return false;
-            if (type == null || type.isBlank()) return false;
-            return ecs.components().hasByName(id, type.trim());
-        });
-    }
-
-    @HostAccess.Export
-    @Override
-    public void removeComponent(int id, String type) {
-        profiledVoid(() -> {
-            if (id <= 0) return;
-            if (type == null || type.isBlank()) return;
-
-            String t = type.trim();
-            ecs.components().removeByName(id, t);
-
-            emit("engine.entity.component.remove", m("entityId", id, "type", t));
-        });
-    }
-
-    // ---------------------------------------------------------------------
-    // UUID API (public/stable identifiers)
-    // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    public String uuidOf(int entityId) {
-        return profiled(() -> {
-            if (entityId <= 0) return "";
-            return ecs.uuids().uuidStringOf(entityId);
-        });
-    }
-
-    @HostAccess.Export
-    public long uuidMsbOf(int entityId) {
-        return profiled(() -> ecs.uuids().msbOf(entityId));
-    }
-
-    @HostAccess.Export
-    public long uuidLsbOf(int entityId) {
-        return profiled(() -> ecs.uuids().lsbOf(entityId));
-    }
-
-    @HostAccess.Export
     public int entityIdOf(String uuid) {
-        return profiled(() -> {
-            int id = ecs.uuids().entityIdOf(uuid);
-            return (id == EntityId.NULL) ? EntityId.NULL : id;
-        });
+        if (uuid == null || uuid.isBlank()) return EntityId.NULL;
+        return uuids.entityIdOf(uuid);
+    }
+
+    @HostAccess.Export
+    @Override
+    public String uuidOf(int entityId) {
+        if (entityId <= 0) return "";
+        final String u = uuids.uuidStringOf(entityId);
+        return (u == null) ? "" : u;
+    }
+
+    // -------------------------
+    // components (UUID-only)
+    // -------------------------
+
+    @HostAccess.Export
+    @Override
+    public void setComponent(String uuid, String type, Object value) {
+        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] setComponent: type is blank");
+        final int id = entityIdOf(uuid);
+        if (id == EntityId.NULL) throw new IllegalArgumentException("[entity] setComponent: unknown uuid=" + uuid);
+        ecs.components().putByName(id, type, value);
+    }
+
+    @HostAccess.Export
+    @Override
+    public Object getComponent(String uuid, String type) {
+        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] getComponent: type is blank");
+        final int id = entityIdOf(uuid);
+        if (id == EntityId.NULL) return null;
+        return ecs.components().getByName(id, type);
+    }
+
+    @HostAccess.Export
+    @Override
+    public boolean hasComponent(String uuid, String type) {
+        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] hasComponent: type is blank");
+        final int id = entityIdOf(uuid);
+        if (id == EntityId.NULL) return false;
+        return ecs.components().hasByName(id, type);
+    }
+
+    @HostAccess.Export
+    @Override
+    public void removeComponent(String uuid, String type) {
+        if (type == null || type.isBlank())
+            throw new IllegalArgumentException("[entity] removeComponent: type is blank");
+        final int id = entityIdOf(uuid);
+        if (id == EntityId.NULL) return;
+        ecs.components().removeByName(id, type);
     }
 }

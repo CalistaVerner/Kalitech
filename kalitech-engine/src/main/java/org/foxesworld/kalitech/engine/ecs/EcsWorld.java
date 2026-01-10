@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/ecs/EcsWorld.java
 package org.foxesworld.kalitech.engine.ecs;
 
 public final class EcsWorld {
@@ -19,13 +20,33 @@ public final class EcsWorld {
         return id;
     }
 
+    public String createEntityUuid() {
+        int id = createEntity();
+        return uuids.uuidStringOf(id);
+    }
+
     public void destroyEntity(int id) {
         uuids.onDestroy(id);
         entities.destroy(id);
-        components.removeAll(id); // IMPORTANT: prevent leaks & stale data
+        components.removeAll(id);
     }
 
-    /** Full reset for hot-reload rebuilds. */
+    public void destroyEntityUuid(String uuid) {
+        int id = uuids.entityIdOf(uuid);
+        if (id == EntityId.NULL) return;
+        destroyEntity(id);
+    }
+
+    public boolean isAliveUuid(String uuid) {
+        int id = uuids.entityIdOf(uuid);
+        return id != EntityId.NULL && entities.isAlive(id);
+    }
+
+    public int entityIdOfUuid(String uuid) {
+        int id = uuids.entityIdOf(uuid);
+        return (id == EntityId.NULL) ? 0 : id;
+    }
+
     public void reset() {
         entities.reset();
         components.reset();

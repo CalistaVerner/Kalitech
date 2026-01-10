@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/TerrainApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.scene.Geometry;
@@ -31,7 +32,7 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     private TerrainNoise noise;
 
     public TerrainApiImpl() {
-        super("terrain", "Terrain", "2.0.0");
+        super("terrain", "Terrain", "3.0.0"); // UUID-only binding
     }
 
     @Override
@@ -48,6 +49,20 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         this.editOps = new TerrainEditOps();
         this.physics = new TerrainPhysics(engine, registry);
         this.noise = new TerrainNoise();
+    }
+
+    @Override
+    public void detach() {
+        this.noise = null;
+        this.physics = null;
+        this.editOps = null;
+        this.ops = null;
+        this.uv = null;
+        this.factory = null;
+        this.emitter = null;
+        this.registry = null;
+        this.engine = null;
+        super.detach();
     }
 
     // ---------------------------------------------------------------------
@@ -282,19 +297,53 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     // ---------------------------------------------------------------------
-    // ATTACH / DETACH
+    // ATTACH / DETACH (UUID-only)
     // ---------------------------------------------------------------------
 
+    /**
+     * UUID-only attach helper for JS:
+     * terrain.attachEntity(handle, uuid)
+     * or
+     * terrain.attachEntity(handle, someEntity.uuid)
+     */
+    @HostAccess.Export
+    public void attachEntity(SurfaceApi.SurfaceHandle handle, Object entityUuid) {
+        if (handle == null) throw new IllegalArgumentException("terrain.attachEntity: handle is required");
+        engine.surface().attachEntity(handle, entityUuid);
+        // SurfaceApiImpl emits engine.surface.* events; we also emit terrain-scoped signal.
+        emitter.emit("engine.terrain.attached", "surfaceId", handle.id(), "uuid", String.valueOf(entityUuid));
+    }
+
+    /**
+     * UUID-only detach helper for JS.
+     */
+    @HostAccess.Export
+    public void detachEntity(SurfaceApi.SurfaceHandle handle) {
+        if (handle == null) throw new IllegalArgumentException("terrain.detachEntity: handle is required");
+        // new API name (UUID-only)
+        engine.surface().detachFromEntityUuid(handle);
+        emitter.emit("engine.terrain.detached", "surfaceId", handle.id());
+    }
+
+    /**
+     * Interface legacy method: entityId is forbidden.
+     * Keep override to compile, but fail loudly.
+     */
     @HostAccess.Export
     @Override
     public void attach(SurfaceApi.SurfaceHandle handle, int entityId) {
-        engine.surface().attach(handle, entityId);
+        throw new IllegalStateException("terrain.attach(handle, entityId) removed (UUID-only). Use terrain.attachEntity(handle, uuid).");
     }
 
+    /**
+     * Interface detach stays meaningful (no entityId involved): detach terrain from entity (UUID-only under the hood).
+     */
     @HostAccess.Export
     @Override
     public void detach(SurfaceApi.SurfaceHandle handle) {
-        engine.surface().detachFromEntity(handle);
+        if (handle == null) throw new IllegalArgumentException("terrain.detach: handle is required");
+        engine.surface().detachFromEntityUuid(handle);
+        emitter.emit("engine.terrain.detached", "surfaceId", handle.id());
     }
 
     // ---------------------------------------------------------------------
