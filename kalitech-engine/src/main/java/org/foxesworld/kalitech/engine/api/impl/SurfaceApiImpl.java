@@ -27,6 +27,7 @@ import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.ecs.EntityId;
+import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
@@ -87,7 +88,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         Value params = member(materialCfg, "params");
         if (params == null || params.isNull() || !params.hasMembers()) return;
 
-        MaterialUtils.TextureDesc td;
+        MaterialTypes.TextureDesc td;
 
         td = tryTex(params, "BaseColorMap");
         if (td == null) td = tryTex(params, "ColorMap");
@@ -565,9 +566,9 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         throw new IllegalStateException("surface.attachedEntity(entityId) is removed (UUID-only mode). Use attachedEntityUuid(handle).");
     }
 
-    private static MaterialUtils.TextureDesc tryTex(Value params, String name) {
+    private static MaterialTypes.TextureDesc tryTex(Value params, String name) {
         if (params == null || params.isNull() || !params.hasMember(name)) return null;
-        MaterialUtils.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
+        MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
         return (td != null && td.tileWorld() != null) ? td : null;
     }
 

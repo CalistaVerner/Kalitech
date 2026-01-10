@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -194,7 +195,7 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
             }
 
             if (v.isString()) {
-                MaterialUtils.ParsedTex pt = MaterialUtils.parseTextureShorthand(v.asString());
+                MaterialTypes.ParsedTex pt = MaterialUtils.parseTextureShorthand(v.asString());
                 if (pt.path() != null && !pt.path().isBlank()) {
                     String wrap = (pt.wrap() == null) ? "" : pt.wrap().name();
                     return Objects.hash("tex", pt.path().trim(), wrap);
@@ -213,7 +214,7 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
 
             if (v.hasMembers()) {
                 if (v.hasMember("texture")) {
-                    MaterialUtils.TextureDesc td = MaterialUtils.parseTextureDesc(v);
+                    MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(v);
                     if (td != null) {
                         return Objects.hash(
                                 "texo",

@@ -21,7 +21,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     private EntityUuids uuids;
 
     public EntityApiImpl() {
-        super("entity", "Entity", "2.1.0"); // UUID-only + components
+        super("entity", "Entity", "3.0.0"); // UUID-only, no bridges, no legacy
     }
 
     @Override
@@ -58,39 +58,19 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         return uuid;
     }
 
+    private static String requireType(String type, String op) {
+        if (type == null || type.isBlank()) {
+            throw new IllegalArgumentException(op + ": type is blank");
+        }
+        return type.trim();
+    }
+
     @HostAccess.Export
     @Override
     public void destroy(String uuid) {
-        final int id = entityIdOf(uuid);
-        if (id == EntityId.NULL) return;
+        final int id = requireEntityId(uuid, "[entity] destroy");
         ecs.destroyEntity(id);
         if (log.isDebugEnabled()) log.debug("[entity] destroyed uuid={}", uuid);
-    }
-
-    @HostAccess.Export
-    @Override
-    public boolean exists(String uuid) {
-        final int id = entityIdOf(uuid);
-        return id != EntityId.NULL && ecs.entities().isAlive(id);
-    }
-
-    // -------------------------
-    // bridge
-    // -------------------------
-
-    @HostAccess.Export
-    @Override
-    public int entityIdOf(String uuid) {
-        if (uuid == null || uuid.isBlank()) return EntityId.NULL;
-        return uuids.entityIdOf(uuid);
-    }
-
-    @HostAccess.Export
-    @Override
-    public String uuidOf(int entityId) {
-        if (entityId <= 0) return "";
-        final String u = uuids.uuidStringOf(entityId);
-        return (u == null) ? "" : u;
     }
 
     // -------------------------
@@ -99,38 +79,63 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
 
     @HostAccess.Export
     @Override
+    public boolean exists(String uuid) {
+        final int id = entityIdOrNull(uuid);
+        return id != EntityId.NULL && ecs.entities().isAlive(id);
+    }
+
+    @HostAccess.Export
+    @Override
     public void setComponent(String uuid, String type, Object value) {
-        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] setComponent: type is blank");
-        final int id = entityIdOf(uuid);
-        if (id == EntityId.NULL) throw new IllegalArgumentException("[entity] setComponent: unknown uuid=" + uuid);
-        ecs.components().putByName(id, type, value);
+        final String t = requireType(type, "[entity] setComponent");
+        final int id = requireEntityId(uuid, "[entity] setComponent");
+        ecs.components().putByName(id, t, value);
     }
 
     @HostAccess.Export
     @Override
     public Object getComponent(String uuid, String type) {
-        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] getComponent: type is blank");
-        final int id = entityIdOf(uuid);
+        final String t = requireType(type, "[entity] getComponent");
+        final int id = entityIdOrNull(uuid);
         if (id == EntityId.NULL) return null;
-        return ecs.components().getByName(id, type);
+        return ecs.components().getByName(id, t);
     }
 
     @HostAccess.Export
     @Override
     public boolean hasComponent(String uuid, String type) {
-        if (type == null || type.isBlank()) throw new IllegalArgumentException("[entity] hasComponent: type is blank");
-        final int id = entityIdOf(uuid);
+        final String t = requireType(type, "[entity] hasComponent");
+        final int id = entityIdOrNull(uuid);
         if (id == EntityId.NULL) return false;
-        return ecs.components().hasByName(id, type);
+        return ecs.components().hasByName(id, t);
     }
+
+    // -------------------------
+    // internals (NO EXPORT)
+    // -------------------------
 
     @HostAccess.Export
     @Override
     public void removeComponent(String uuid, String type) {
-        if (type == null || type.isBlank())
-            throw new IllegalArgumentException("[entity] removeComponent: type is blank");
-        final int id = entityIdOf(uuid);
+        final String t = requireType(type, "[entity] removeComponent");
+        final int id = entityIdOrNull(uuid);
         if (id == EntityId.NULL) return;
-        ecs.components().removeByName(id, type);
+        ecs.components().removeByName(id, t);
+    }
+
+    private int entityIdOrNull(String uuid) {
+        if (uuid == null || uuid.isBlank()) return EntityId.NULL;
+        return uuids.entityIdOf(uuid);
+    }
+
+    private int requireEntityId(String uuid, String op) {
+        if (uuid == null || uuid.isBlank()) {
+            throw new IllegalArgumentException(op + ": uuid is blank");
+        }
+        final int id = uuids.entityIdOf(uuid);
+        if (id == EntityId.NULL) {
+            throw new IllegalArgumentException(op + ": unknown uuid=" + uuid);
+        }
+        return id;
     }
 }
