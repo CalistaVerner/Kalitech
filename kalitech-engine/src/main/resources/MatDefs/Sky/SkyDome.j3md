@@ -1,9 +1,12 @@
 MaterialDef SkyDome {
     MaterialParameters {
-        // Textures
-        Texture2D      SkyTex
-        TextureCubeMap SkyCube
+        // Textures (AAA crossfade: A/B + SkyBlend)
+        Texture2D      SkyTexA
+        Texture2D      SkyTexB
+        TextureCubeMap SkyCubeA
+        TextureCubeMap SkyCubeB
         Boolean        UseCube
+        Float          SkyBlend
 
         Float TexBlend
         Float TexExposure

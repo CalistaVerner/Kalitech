@@ -12,10 +12,8 @@ import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.BloomFilter;
 import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
-import com.jme3.renderer.ViewPort;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
-import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Sphere;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
@@ -26,6 +24,10 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.modules.render.LightRigModule;
+import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
+import org.foxesworld.kalitech.engine.modules.render.ShadowModule;
+import org.foxesworld.kalitech.engine.modules.render.ViewportContract;
 import org.foxesworld.kalitech.engine.render.post.TonemapFilter;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -40,17 +42,16 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     private static final float DEFAULT_SHADOW_LAMBDA = 0.65f;
     private static final float DEFAULT_SHADOW_INTENSITY = 0.65f;
 
-    // --- Fog safety bounds ---
     private static final double FOG_DENSITY_MIN = 0.0;
     private static final double FOG_DENSITY_MAX = 0.03;
     private static final double FOG_DISTANCE_MIN = 25.0;
 
-    private double _fogBaseR = 0.70;
-    private double _fogBaseG = 0.78;
-    private double _fogBaseB = 0.90;
+    private double fogBaseR = 0.70;
+    private double fogBaseG = 0.78;
+    private double fogBaseB = 0.90;
 
-    private double _fogDensity = 0.006;
-    private double _fogDistance = 250.0;
+    private double fogDensity = 0.006;
+    private double fogDistance = 250.0;
 
     private SimpleApplication app;
     private AssetManager assets;
@@ -59,170 +60,53 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     private volatile boolean sceneReady = false;
 
-    private AmbientLight ambient;
+    // Modules
+    private ViewportContract viewport;
+    private LightRigModule lights;
+    private ShadowModule shadows;
 
-    // --- two directionals: sun + moon ---
-    private DirectionalLight sun;
-    private DirectionalLight moon;
-
-    // --- which one casts shadows right now ---
-    private String primaryDirectional = "sun"; // "sun" | "moon"
-
-    private DirectionalLightShadowRenderer sunShadow;
-
+    // Post/Fog (оставил здесь, но можно так же вынести в PostModule по аналогии)
     private FilterPostProcessor fpp;
     private FogFilter fog;
     private FXAAFilter fxaa;
     private BloomFilter bloom;
     private TonemapFilter tonemap;
 
-    private float _sunDx = Float.NaN, _sunDy = Float.NaN, _sunDz = Float.NaN;
-    private float _sunR = Float.NaN, _sunG = Float.NaN, _sunB = Float.NaN, _sunI = Float.NaN;
+    // Caches (минимально)
+    private float ambR = Float.NaN, ambG = Float.NaN, ambB = Float.NaN, ambI = Float.NaN;
+    private float sunDx = Float.NaN, sunDy = Float.NaN, sunDz = Float.NaN;
+    private float sunR = Float.NaN, sunG = Float.NaN, sunB = Float.NaN, sunI = Float.NaN;
+    private float moonDx = Float.NaN, moonDy = Float.NaN, moonDz = Float.NaN;
+    private float moonR = Float.NaN, moonG = Float.NaN, moonB = Float.NaN, moonI = Float.NaN;
 
-    private float _moonDx = Float.NaN, _moonDy = Float.NaN, _moonDz = Float.NaN;
-    private float _moonR = Float.NaN, _moonG = Float.NaN, _moonB = Float.NaN, _moonI = Float.NaN;
-
-    private float _ambR = Float.NaN, _ambG = Float.NaN, _ambB = Float.NaN, _ambI = Float.NaN;
-
-    // --- legacy skybox (still supported, but SkyDome will remove it) ---
+    // Legacy skybox
     private Spatial skybox;
     private String skyboxAsset = "";
 
-    // --- SkyDome (procedural) ---
+    // SkyDome (procedural)
     private Spatial skydome;
     private Material skydomeMat;
+    private Boolean sdUseCube = null;
 
-    private float _sdSunDx = Float.NaN, _sdSunDy = Float.NaN, _sdSunDz = Float.NaN;
-    private float _sdMoonDx = Float.NaN, _sdMoonDy = Float.NaN, _sdMoonDz = Float.NaN;
+    // SkyDome cached params (минимум)
+    private float sdSunDx = Float.NaN, sdSunDy = Float.NaN, sdSunDz = Float.NaN;
+    private float sdMoonDx = Float.NaN, sdMoonDy = Float.NaN, sdMoonDz = Float.NaN;
+    private float sdSunR = Float.NaN, sdSunG = Float.NaN, sdSunB = Float.NaN, sdSunI = Float.NaN;
+    private float sdMoonR = Float.NaN, sdMoonG = Float.NaN, sdMoonB = Float.NaN, sdMoonI = Float.NaN;
+    private float sdZenR = Float.NaN, sdZenG = Float.NaN, sdZenB = Float.NaN;
+    private float sdHorR = Float.NaN, sdHorG = Float.NaN, sdHorB = Float.NaN;
+    private float sdHaze = Float.NaN, sdSunDisk = Float.NaN, sdMoonDisk = Float.NaN, sdExposure = Float.NaN;
 
-    private float _sdSunR = Float.NaN, _sdSunG = Float.NaN, _sdSunB = Float.NaN, _sdSunI = Float.NaN;
-    private float _sdMoonR = Float.NaN, _sdMoonG = Float.NaN, _sdMoonB = Float.NaN, _sdMoonI = Float.NaN;
-
-    private float _sdZenR = Float.NaN, _sdZenG = Float.NaN, _sdZenB = Float.NaN;
-    private float _sdHorR = Float.NaN, _sdHorG = Float.NaN, _sdHorB = Float.NaN;
-
-    private float _sdHaze = Float.NaN;
-    private float _sdSunDisk = Float.NaN;
-    private float _sdMoonDisk = Float.NaN;
-    private float _sdExposure = Float.NaN;
-
-    // shadows runtime cfg (base)
-    private int _shMapSize = -1;
-    private int _shSplits = -1;
-    private float _shLambda = Float.NaN;
-    private float _shIntensity = Float.NaN;
-
-    // shadows runtime cfg (softness/penumbra knobs - cached for future shader binding)
-    private float _shSoftness = Float.NaN;
-    private int _shPcfSamples = -1;
-    private boolean _shPcss = false;
-    private float _shLightRadius = Float.NaN;
-
-    // post runtime cfg cache
-    private boolean _postEnabled = true;
-    private float _postExposure = Float.NaN;
-    private float _postWhitePoint = Float.NaN;
-    private float _postShoulder = Float.NaN;
-    private float _postToe = Float.NaN;
-    private float _postSaturation = Float.NaN;
+    // Post runtime cfg cache
+    private boolean postEnabled = true;
+    private float postExposure = Float.NaN;
+    private float postWhitePoint = Float.NaN;
+    private float postShoulder = Float.NaN;
+    private float postToe = Float.NaN;
+    private float postSaturation = Float.NaN;
 
     public RenderApiImpl() {
         super("render", "Render", "1.0.0");
-    }
-
-    // ------------------------------------------------------------
-    // Strict cfg readers (NO silent try/catch)
-    // ------------------------------------------------------------
-
-    private static Value member(Value v, String key) {
-        if (v == null || v.isNull()) return null;
-        if (!v.hasMember(key)) return null;
-        Value m = v.getMember(key);
-        if (m == null || m.isNull()) return null;
-        return m;
-    }
-
-    private static boolean bool(Value v, String key, boolean def) {
-        Value m = member(v, key);
-        if (m == null) return def;
-        if (!m.isBoolean()) {
-            throw new IllegalArgumentException("[render] cfg '" + key + "' must be boolean");
-        }
-        return m.asBoolean();
-    }
-
-    private static double num(Value v, String key, double def) {
-        Value m = member(v, key);
-        if (m == null) return def;
-        if (!m.fitsInDouble()) {
-            throw new IllegalArgumentException("[render] cfg '" + key + "' must be number");
-        }
-        return m.asDouble();
-    }
-
-    private static double numPath(Value cfg, String objKey, String key, double def) {
-        Value o = member(cfg, objKey);
-        if (o == null) return def;
-        return num(o, key, def);
-    }
-
-    private static float vec3x(Value v, float def) {
-        if (v == null || v.isNull()) return def;
-        if (v.hasMember("x")) {
-            Value m = v.getMember("x");
-            if (m != null && !m.isNull()) return (float) m.asDouble();
-        }
-        if (v.hasArrayElements() && v.getArraySize() > 0) {
-            return (float) v.getArrayElement(0).asDouble();
-        }
-        return def;
-    }
-
-    private static float vec3y(Value v, float def) {
-        if (v == null || v.isNull()) return def;
-        if (v.hasMember("y")) {
-            Value m = v.getMember("y");
-            if (m != null && !m.isNull()) return (float) m.asDouble();
-        }
-        if (v.hasArrayElements() && v.getArraySize() > 1) {
-            return (float) v.getArrayElement(1).asDouble();
-        }
-        return def;
-    }
-
-    private static float vec3z(Value v, float def) {
-        if (v == null || v.isNull()) return def;
-        if (v.hasMember("z")) {
-            Value m = v.getMember("z");
-            if (m != null && !m.isNull()) return (float) m.asDouble();
-        }
-        if (v.hasArrayElements() && v.getArraySize() > 2) {
-            return (float) v.getArrayElement(2).asDouble();
-        }
-        return def;
-    }
-
-    private static boolean approx(float a, float b) {
-        if (Float.isNaN(a) || Float.isNaN(b)) return false;
-        return Math.abs(a - b) <= 1e-6f;
-    }
-
-    private static boolean approx3(float ax, float ay, float az, float bx, float by, float bz) {
-        if (Float.isNaN(ax) || Float.isNaN(ay) || Float.isNaN(az)) return false;
-        if (Float.isNaN(bx) || Float.isNaN(by) || Float.isNaN(bz)) return false;
-        return Math.abs(ax - bx) <= 1e-6f && Math.abs(ay - by) <= 1e-6f && Math.abs(az - bz) <= 1e-6f;
-    }
-
-    private static float clamp01(float v) {
-        if (v < 0f) return 0f;
-        if (v > 1f) return 1f;
-        return v;
-    }
-
-    private static float clamp(float v, float min, float max) {
-        if (v < min) return min;
-        if (v > max) return max;
-        return v;
     }
 
     @Override
@@ -231,6 +115,10 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         this.app = ctx.app;
         this.assets = ctx.assets;
         this.ecs = ctx.ecs;
+
+        this.viewport = new ViewportContract(app, log);
+        this.lights = new LightRigModule(app.getRootNode(), log);
+        this.shadows = new ShadowModule(app, assets, log, lights);
     }
 
     private void onJme(Runnable r) {
@@ -241,33 +129,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    private void ensureViewportContract(String where) {
-        ViewPort main = app.getViewPort();
-        ViewPort gui = app.getGuiViewPort();
-        if (main == null || gui == null) return;
-
-        Node root = app.getRootNode();
-        Node guiNode = app.getGuiNode();
-
-        if (!main.getScenes().contains(root)) {
-            main.attachScene(root);
-            log.info("RenderApi: {} attach rootNode to MAIN", where);
-        }
-        if (main.getScenes().contains(guiNode)) {
-            main.detachScene(guiNode);
-            log.warn("RenderApi: {} detached guiNode from MAIN (fix)", where);
-        }
-
-        if (!gui.getScenes().contains(guiNode)) {
-            gui.attachScene(guiNode);
-            log.info("RenderApi: {} attach guiNode to GUI", where);
-        }
-        if (gui.getScenes().contains(root)) {
-            gui.detachScene(root);
-            log.warn("RenderApi: {} detached rootNode from GUI (fix)", where);
-        }
-    }
-
     private void ensureMainFpp(String where) {
         if (fpp != null) return;
         fpp = new FilterPostProcessor(assets);
@@ -275,62 +136,15 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         log.info("RenderApi: {} main FPP created", where);
     }
 
-    private void ensureAmbientExists() {
-        if (ambient != null) return;
-        ambient = new AmbientLight();
-        ambient.setColor(new ColorRGBA(0.25f, 0.28f, 0.35f, 1f));
-        app.getRootNode().addLight(ambient);
-        log.info("RenderApi: ambient created");
-    }
-
-    private void ensureSunExists() {
-        if (sun != null) return;
-        sun = new DirectionalLight();
-        sun.setDirection(new Vector3f(-1, -1, -0.3f).normalizeLocal());
-        sun.setColor(new ColorRGBA(1f, 0.98f, 0.90f, 1f).mult(1.2f));
-        app.getRootNode().addLight(sun);
-        log.info("RenderApi: sun created");
-    }
-
-    private void ensureMoonExists() {
-        if (moon != null) return;
-        moon = new DirectionalLight();
-        moon.setDirection(new Vector3f(1, -1, 0.3f).normalizeLocal());
-        moon.setColor(new ColorRGBA(0.45f, 0.55f, 0.85f, 1f).mult(0.0f)); // start off
-        app.getRootNode().addLight(moon);
-        log.info("RenderApi: moon created");
-    }
-
-    private DirectionalLight primaryLight() {
-        if ("moon".equals(primaryDirectional)) return (moon != null ? moon : sun);
-        return sun;
-    }
-
     private void ensureFogExists() {
         if (fog != null) return;
         ensureMainFpp("ensureFogExists");
         fog = new FogFilter();
-        fog.setFogColor(new ColorRGBA((float) _fogBaseR, (float) _fogBaseG, (float) _fogBaseB, 1f));
-        fog.setFogDensity((float) _fogDensity);
-        fog.setFogDistance((float) _fogDistance);
+        fog.setFogColor(new ColorRGBA((float) fogBaseR, (float) fogBaseG, (float) fogBaseB, 1f));
+        fog.setFogDensity((float) fogDensity);
+        fog.setFogDistance((float) fogDistance);
         fpp.addFilter(fog);
         log.info("RenderApi: fog filter created");
-    }
-
-    private void ensureFxaaExists() {
-        if (fxaa != null) return;
-        ensureMainFpp("ensureFxaaExists");
-        fxaa = new FXAAFilter();
-        fpp.addFilter(fxaa);
-        log.info("RenderApi: FXAA created");
-    }
-
-    private void ensureBloomExists() {
-        if (bloom != null) return;
-        ensureMainFpp("ensureBloomExists");
-        bloom = new BloomFilter(BloomFilter.GlowMode.Scene);
-        fpp.addFilter(bloom);
-        log.info("RenderApi: Bloom created");
     }
 
     private void ensureTonemapExists() {
@@ -344,7 +158,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     private void ensureSkyDomeExists() {
         if (skydome != null && skydomeMat != null) return;
 
-        // AAA policy: SkyDome and SkyBox are mutually exclusive
         if (skybox != null) {
             skybox.removeFromParent();
             skybox = null;
@@ -352,7 +165,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             log.info("RenderApi: skybox removed (switch to skydome)");
         }
 
-        Sphere sphere = new Sphere(48, 48, 1000f, false, true); // interior view
+        Sphere sphere = new Sphere(48, 48, 1000f, false, true);
         Geometry g = new Geometry("SkyDome", sphere);
         g.setQueueBucket(RenderQueue.Bucket.Sky);
         g.setCullHint(Spatial.CullHint.Never);
@@ -377,29 +190,28 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             sceneReady = true;
 
             onJme(() -> {
-                ensureViewportContract("ensureScene");
-                ensureAmbientExists();
-                ensureSunExists();
-                ensureMoonExists();
+                viewport.ensure("ensureScene");
+                lights.ensure();
                 ensureMainFpp("ensureScene");
                 log.info("RenderApi: scene ensured");
             });
         });
     }
 
-    // ---------- skydome ----------
+    // --------------------- sky dome ---------------------
 
     @HostAccess.Export
     public void skyDomeClear() {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("skyDomeClear");
+                viewport.ensure("skyDomeClear");
                 if (skydome != null) {
                     skydome.removeFromParent();
                     skydome = null;
                 }
                 skydomeMat = null;
+                sdUseCube = null;
                 log.info("RenderApi: skydome cleared");
             });
         });
@@ -410,82 +222,89 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("skyDomeCfg");
+                viewport.ensure("skyDomeCfg");
                 ensureSkyDomeExists();
 
-                Value sunDir = member(cfg, "sunDir");
-                Value moonDir = member(cfg, "moonDir");
-                Value sunCol = member(cfg, "sunColor");
-                Value moonCol = member(cfg, "moonColor");
-                Value zen = member(cfg, "zenithColor");
-                Value hor = member(cfg, "horizonColor");
+                Value sunDir = RenderCfg.member(cfg, "sunDir");
+                Value moonDir = RenderCfg.member(cfg, "moonDir");
+                Value sunCol = RenderCfg.member(cfg, "sunColor");
+                Value moonCol = RenderCfg.member(cfg, "moonColor");
+                Value zen = RenderCfg.member(cfg, "zenithColor");
+                Value hor = RenderCfg.member(cfg, "horizonColor");
 
-                float sdx = vec3x(sunDir, -1f), sdy = vec3y(sunDir, -1f), sdz = vec3z(sunDir, -0.3f);
-                float mdx = vec3x(moonDir, 1f), mdy = vec3y(moonDir, -1f), mdz = vec3z(moonDir, 0.3f);
+                float sdx = RenderCfg.vec3x(sunDir, -1f), sdy = RenderCfg.vec3y(sunDir, -1f), sdz = RenderCfg.vec3z(sunDir, -0.3f);
+                float mdx = RenderCfg.vec3x(moonDir, 1f), mdy = RenderCfg.vec3y(moonDir, -1f), mdz = RenderCfg.vec3z(moonDir, 0.3f);
 
-                float sr = vec3x(sunCol, 1f), sg = vec3y(sunCol, 0.98f), sb = vec3z(sunCol, 0.90f);
-                float mr = vec3x(moonCol, 0.45f), mg = vec3y(moonCol, 0.55f), mb = vec3z(moonCol, 0.85f);
+                float sr = RenderCfg.vec3x(sunCol, 1f), sg = RenderCfg.vec3y(sunCol, 0.98f), sb = RenderCfg.vec3z(sunCol, 0.90f);
+                float mr = RenderCfg.vec3x(moonCol, 0.45f), mg = RenderCfg.vec3y(moonCol, 0.55f), mb = RenderCfg.vec3z(moonCol, 0.85f);
 
-                float sunI = (float) Math.max(0.0, num(cfg, "sunIntensity", 1.0));
-                float moonI = (float) Math.max(0.0, num(cfg, "moonIntensity", 0.0));
+                float sunInt = (float) Math.max(0.0, RenderCfg.num(cfg, "sunIntensity", 1.0));
+                float moonInt = (float) Math.max(0.0, RenderCfg.num(cfg, "moonIntensity", 0.0));
 
-                float zr = vec3x(zen, 0.10f), zg = vec3y(zen, 0.17f), zb = vec3z(zen, 0.32f);
-                float hr = vec3x(hor, 0.65f), hg = vec3y(hor, 0.72f), hb = vec3z(hor, 0.82f);
+                float zr = RenderCfg.vec3x(zen, 0.10f), zg = RenderCfg.vec3y(zen, 0.17f), zb = RenderCfg.vec3z(zen, 0.32f);
+                float hr = RenderCfg.vec3x(hor, 0.65f), hg = RenderCfg.vec3y(hor, 0.72f), hb = RenderCfg.vec3z(hor, 0.82f);
 
-                float haze = clamp01((float) num(cfg, "haze", 0.55));
-                float sunDisk = clamp((float) num(cfg, "sunDisk", 45.0), 0.5f, 500f);
-                float moonDisk = clamp((float) num(cfg, "moonDisk", 120.0), 0.5f, 2000f);
-                float exposure = clamp((float) num(cfg, "exposure", 1.0), 0.05f, 10f);
-                float texBlend = clamp01((float) num(cfg, "texBlend", 0.0));
-                float texExposure = clamp((float) num(cfg, "texExposure", 8.0), 0.001f, 100.0f);
+                float haze = RenderCfg.clamp01((float) RenderCfg.num(cfg, "haze", 0.55));
+                float sunDisk = RenderCfg.clamp((float) RenderCfg.num(cfg, "sunDisk", 45.0), 0.5f, 500f);
+                float moonDisk = RenderCfg.clamp((float) RenderCfg.num(cfg, "moonDisk", 120.0), 0.5f, 2000f);
+                float exposure = RenderCfg.clamp((float) RenderCfg.num(cfg, "exposure", 1.0), 0.05f, 10f);
+                float texBlend = RenderCfg.clamp01((float) RenderCfg.num(cfg, "texBlend", 0.0));
+                float texExposure = RenderCfg.clamp((float) RenderCfg.num(cfg, "texExposure", 8.0), 0.001f, 100.0f);
 
-                // If no texture bound -> TexBlend must be 0 (avoid black dome)
-                boolean hasTex = skydomeMat.getParam("SkyTex") != null || skydomeMat.getParam("SkyCube") != null;
+                boolean hasTex =
+                        skydomeMat.getParam("SkyTex") != null ||
+                                skydomeMat.getParam("SkyCube") != null ||
+                                skydomeMat.getParam("SkyTexA") != null ||
+                                skydomeMat.getParam("SkyTexB") != null ||
+                                skydomeMat.getParam("SkyCubeA") != null ||
+                                skydomeMat.getParam("SkyCubeB") != null;
+
                 if (!hasTex) texBlend = 0.0f;
 
                 skydomeMat.setFloat("TexBlend", texBlend);
                 skydomeMat.setFloat("TexExposure", texExposure);
+
                 boolean changed =
-                        !approx3(sdx, sdy, sdz, _sdSunDx, _sdSunDy, _sdSunDz) ||
-                                !approx3(mdx, mdy, mdz, _sdMoonDx, _sdMoonDy, _sdMoonDz) ||
-                                !approx(sr, _sdSunR) || !approx(sg, _sdSunG) || !approx(sb, _sdSunB) || !approx(sunI, _sdSunI) ||
-                                !approx(mr, _sdMoonR) || !approx(mg, _sdMoonG) || !approx(mb, _sdMoonB) || !approx(moonI, _sdMoonI) ||
-                                !approx(zr, _sdZenR) || !approx(zg, _sdZenG) || !approx(zb, _sdZenB) ||
-                                !approx(hr, _sdHorR) || !approx(hg, _sdHorG) || !approx(hb, _sdHorB) ||
-                                !approx(haze, _sdHaze) ||
-                                !approx(sunDisk, _sdSunDisk) ||
-                                !approx(moonDisk, _sdMoonDisk) ||
-                                !approx(exposure, _sdExposure);
+                        !RenderCfg.approx3(sdx, sdy, sdz, sdSunDx, sdSunDy, sdSunDz) ||
+                                !RenderCfg.approx3(mdx, mdy, mdz, sdMoonDx, sdMoonDy, sdMoonDz) ||
+                                !RenderCfg.approx(sr, sdSunR) || !RenderCfg.approx(sg, sdSunG) || !RenderCfg.approx(sb, sdSunB) || !RenderCfg.approx(sunInt, sdSunI) ||
+                                !RenderCfg.approx(mr, sdMoonR) || !RenderCfg.approx(mg, sdMoonG) || !RenderCfg.approx(mb, sdMoonB) || !RenderCfg.approx(moonInt, sdMoonI) ||
+                                !RenderCfg.approx(zr, sdZenR) || !RenderCfg.approx(zg, sdZenG) || !RenderCfg.approx(zb, sdZenB) ||
+                                !RenderCfg.approx(hr, sdHorR) || !RenderCfg.approx(hg, sdHorG) || !RenderCfg.approx(hb, sdHorB) ||
+                                !RenderCfg.approx(haze, sdHaze) ||
+                                !RenderCfg.approx(sunDisk, sdSunDisk) ||
+                                !RenderCfg.approx(moonDisk, sdMoonDisk) ||
+                                !RenderCfg.approx(exposure, sdExposure);
 
                 if (!changed) return;
 
-                _sdSunDx = sdx;
-                _sdSunDy = sdy;
-                _sdSunDz = sdz;
-                _sdMoonDx = mdx;
-                _sdMoonDy = mdy;
-                _sdMoonDz = mdz;
+                sdSunDx = sdx;
+                sdSunDy = sdy;
+                sdSunDz = sdz;
+                sdMoonDx = mdx;
+                sdMoonDy = mdy;
+                sdMoonDz = mdz;
 
-                _sdSunR = sr;
-                _sdSunG = sg;
-                _sdSunB = sb;
-                _sdSunI = sunI;
-                _sdMoonR = mr;
-                _sdMoonG = mg;
-                _sdMoonB = mb;
-                _sdMoonI = moonI;
+                sdSunR = sr;
+                sdSunG = sg;
+                sdSunB = sb;
+                sdSunI = sunInt;
+                sdMoonR = mr;
+                sdMoonG = mg;
+                sdMoonB = mb;
+                sdMoonI = moonInt;
 
-                _sdZenR = zr;
-                _sdZenG = zg;
-                _sdZenB = zb;
-                _sdHorR = hr;
-                _sdHorG = hg;
-                _sdHorB = hb;
+                sdZenR = zr;
+                sdZenG = zg;
+                sdZenB = zb;
+                sdHorR = hr;
+                sdHorG = hg;
+                sdHorB = hb;
 
-                _sdHaze = haze;
-                _sdSunDisk = sunDisk;
-                _sdMoonDisk = moonDisk;
-                _sdExposure = exposure;
+                sdHaze = haze;
+                sdSunDisk = sunDisk;
+                sdMoonDisk = moonDisk;
+                sdExposure = exposure;
 
                 Vector3f sdir = new Vector3f(sdx, sdy, sdz);
                 if (sdir.lengthSquared() < 1e-6f) sdir.set(-1, -1, -1);
@@ -499,10 +318,10 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 skydomeMat.setVector3("MoonDir", mdir);
 
                 skydomeMat.setColor("SunColor", new ColorRGBA(sr, sg, sb, 1f));
-                skydomeMat.setFloat("SunIntensity", sunI);
+                skydomeMat.setFloat("SunIntensity", sunInt);
 
                 skydomeMat.setColor("MoonColor", new ColorRGBA(mr, mg, mb, 1f));
-                skydomeMat.setFloat("MoonIntensity", moonI);
+                skydomeMat.setFloat("MoonIntensity", moonInt);
 
                 skydomeMat.setColor("ZenithColor", new ColorRGBA(zr, zg, zb, 1f));
                 skydomeMat.setColor("HorizonColor", new ColorRGBA(hr, hg, hb, 1f));
@@ -515,14 +334,105 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // ---------- skybox (legacy) ----------
+    @HostAccess.Export
+    public void skyDomeTexA(String asset) {
+        profiledVoid(() -> {
+            ensureScene();
+            if (asset == null || asset.isBlank())
+                throw new IllegalArgumentException("[render] skyDomeTexA: asset is blank");
+            final String a = asset.trim();
+
+            onJme(() -> {
+                viewport.ensure("skyDomeTexA");
+                ensureSkyDomeExists();
+
+                Texture t = assets.loadTexture(a);
+                final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
+
+                if (sdUseCube == null) sdUseCube = useCube;
+                if (sdUseCube.booleanValue() != useCube) {
+                    throw new IllegalStateException("[render] SkyDome A/B type mismatch: A is " +
+                            (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
+                }
+
+                if (useCube) {
+                    skydomeMat.setTexture("SkyCubeA", t);
+                    skydomeMat.setBoolean("UseCube", true);
+                    skydomeMat.clearParam("SkyTexA");
+                    return;
+                }
+
+                skydomeMat.setTexture("SkyTexA", t);
+                skydomeMat.setBoolean("UseCube", false);
+                skydomeMat.clearParam("SkyCubeA");
+            });
+        });
+    }
+
+    @HostAccess.Export
+    public void skyDomeTexB(String asset) {
+        profiledVoid(() -> {
+            ensureScene();
+            if (asset == null || asset.isBlank())
+                throw new IllegalArgumentException("[render] skyDomeTexB: asset is blank");
+            final String a = asset.trim();
+
+            onJme(() -> {
+                viewport.ensure("skyDomeTexB");
+                ensureSkyDomeExists();
+
+                Texture t = assets.loadTexture(a);
+                final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
+
+                if (sdUseCube == null) sdUseCube = useCube;
+                if (sdUseCube.booleanValue() != useCube) {
+                    throw new IllegalStateException("[render] SkyDome A/B type mismatch: B is " +
+                            (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
+                }
+
+                if (useCube) {
+                    skydomeMat.setTexture("SkyCubeB", t);
+                    skydomeMat.setBoolean("UseCube", true);
+                    skydomeMat.clearParam("SkyTexB");
+                    return;
+                }
+
+                skydomeMat.setTexture("SkyTexB", t);
+                skydomeMat.setBoolean("UseCube", false);
+                skydomeMat.clearParam("SkyCubeB");
+            });
+        });
+    }
+
+    @HostAccess.Export
+    public void skyDomeTexClear() {
+        profiledVoid(() -> {
+            ensureScene();
+            onJme(() -> {
+                viewport.ensure("skyDomeTexClear");
+                ensureSkyDomeExists();
+
+                skydomeMat.clearParam("SkyTex");
+                skydomeMat.clearParam("SkyCube");
+                skydomeMat.clearParam("SkyTexA");
+                skydomeMat.clearParam("SkyTexB");
+                skydomeMat.clearParam("SkyCubeA");
+                skydomeMat.clearParam("SkyCubeB");
+                sdUseCube = null;
+
+                log.info("RenderApi: skydome texture cleared");
+            });
+        });
+    }
+
+    // --------------------- skybox (legacy) ---------------------
 
     @HostAccess.Export
     public void skyboxClear() {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("skyboxClear");
+                viewport.ensure("skyboxClear");
                 if (skybox != null) {
                     skybox.removeFromParent();
                     skybox = null;
@@ -543,13 +453,13 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             }
             final String a = asset.trim();
             onJme(() -> {
-                ensureViewportContract("skyboxCube");
+                viewport.ensure("skyboxCube");
 
-                // If skydome exists - you are explicitly choosing skybox now, so remove skydome.
                 if (skydome != null) {
                     skydome.removeFromParent();
                     skydome = null;
                     skydomeMat = null;
+                    sdUseCube = null;
                     log.info("RenderApi: skydome removed (switch to skybox)");
                 }
 
@@ -575,7 +485,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // ---------- ambient ----------
+    // --------------------- ambient ---------------------
 
     @HostAccess.Export
     @Override
@@ -583,29 +493,31 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("ambientCfg");
-                ensureAmbientExists();
+                viewport.ensure("ambientCfg");
+                lights.ensureAmbient();
 
-                double r = num(cfg, "r", numPath(cfg, "color", "r", 0.25));
-                double g = num(cfg, "g", numPath(cfg, "color", "g", 0.28));
-                double b = num(cfg, "b", numPath(cfg, "color", "b", 0.35));
-                double intensity = num(cfg, "intensity", 1.0);
+                double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", 0.25));
+                double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", 0.28));
+                double b = RenderCfg.num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", 0.35));
+                double intensity = RenderCfg.num(cfg, "intensity", 1.0);
 
                 float fr = (float) r, fg = (float) g, fb = (float) b;
                 float fi = (float) Math.max(0.0, intensity);
 
-                if (approx(fr, _ambR) && approx(fg, _ambG) && approx(fb, _ambB) && approx(fi, _ambI)) return;
-                _ambR = fr;
-                _ambG = fg;
-                _ambB = fb;
-                _ambI = fi;
+                if (RenderCfg.approx(fr, ambR) && RenderCfg.approx(fg, ambG) && RenderCfg.approx(fb, ambB) && RenderCfg.approx(fi, ambI))
+                    return;
+                ambR = fr;
+                ambG = fg;
+                ambB = fb;
+                ambI = fi;
 
-                ambient.setColor(new ColorRGBA(fr, fg, fb, 1f).mult(fi));
+                AmbientLight a = lights.ambient();
+                a.setColor(new ColorRGBA(fr, fg, fb, 1f).mult(fi));
             });
         });
     }
 
-    // ---------- primary directional selector ----------
+    // --------------------- primary directional ---------------------
 
     @HostAccess.Export
     public void setPrimaryDirectional(String which) {
@@ -617,23 +529,19 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("setPrimaryDirectional");
-                ensureSunExists();
-                ensureMoonExists();
+                viewport.ensure("setPrimaryDirectional");
+                lights.ensure();
+                if (w.equals(lights.primaryDirectional())) return;
 
-                if (w.equals(primaryDirectional)) return;
-                primaryDirectional = w;
+                lights.setPrimaryDirectional(w);
+                shadows.refreshPrimaryLightBinding();
 
-                if (sunShadow != null) {
-                    sunShadow.setLight(primaryLight());
-                }
-
-                log.info("RenderApi: primaryDirectional={}", primaryDirectional);
+                log.info("RenderApi: primaryDirectional={}", w);
             });
         });
     }
 
-    // ---------- sun ----------
+    // --------------------- sun / moon ---------------------
 
     @HostAccess.Export
     @Override
@@ -641,103 +549,100 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("sunCfg");
-                ensureSunExists();
+                viewport.ensure("sunCfg");
+                lights.ensureSun();
 
-                Value dir = member(cfg, "dir");
-                Value col = member(cfg, "color");
+                Value dir = RenderCfg.member(cfg, "dir");
+                Value col = RenderCfg.member(cfg, "color");
 
-                float dx = vec3x(dir, -1f);
-                float dy = vec3y(dir, -1f);
-                float dz = vec3z(dir, -0.3f);
+                float dx = RenderCfg.vec3x(dir, -1f);
+                float dy = RenderCfg.vec3y(dir, -1f);
+                float dz = RenderCfg.vec3z(dir, -0.3f);
 
-                float r = vec3x(col, 1f);
-                float g = vec3y(col, 0.98f);
-                float b = vec3z(col, 0.9f);
+                float r = RenderCfg.vec3x(col, 1f);
+                float g = RenderCfg.vec3y(col, 0.98f);
+                float b = RenderCfg.vec3z(col, 0.9f);
 
-                float intensity = (float) Math.max(0.0, num(cfg, "intensity", 1.2));
+                float intensity = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 1.2));
 
-                if (approx(dx, _sunDx) && approx(dy, _sunDy) && approx(dz, _sunDz) &&
-                        approx(r, _sunR) && approx(g, _sunG) && approx(b, _sunB) && approx(intensity, _sunI)) {
+                if (RenderCfg.approx(dx, sunDx) && RenderCfg.approx(dy, sunDy) && RenderCfg.approx(dz, sunDz) &&
+                        RenderCfg.approx(r, sunR) && RenderCfg.approx(g, sunG) && RenderCfg.approx(b, sunB) && RenderCfg.approx(intensity, sunI)) {
                     return;
                 }
-                _sunDx = dx;
-                _sunDy = dy;
-                _sunDz = dz;
-                _sunR = r;
-                _sunG = g;
-                _sunB = b;
-                _sunI = intensity;
+
+                sunDx = dx;
+                sunDy = dy;
+                sunDz = dz;
+                sunR = r;
+                sunG = g;
+                sunB = b;
+                sunI = intensity;
 
                 Vector3f v = new Vector3f(dx, dy, dz);
                 if (v.lengthSquared() < 1e-6f) v.set(-1, -1, -1);
                 v.normalizeLocal();
 
+                DirectionalLight sun = lights.sun();
                 sun.setDirection(v);
                 sun.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
-                if (sunShadow != null && "sun".equals(primaryDirectional)) {
-                    sunShadow.setLight(sun);
-                }
+                if ("sun".equals(lights.primaryDirectional())) shadows.refreshPrimaryLightBinding();
             });
         });
     }
-
-    // ---------- moon ----------
 
     @HostAccess.Export
     public void moonCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("moonCfg");
-                ensureMoonExists();
+                viewport.ensure("moonCfg");
+                lights.ensureMoon();
 
-                Value dir = member(cfg, "dir");
-                Value col = member(cfg, "color");
+                Value dir = RenderCfg.member(cfg, "dir");
+                Value col = RenderCfg.member(cfg, "color");
 
-                float dx = vec3x(dir, 1f);
-                float dy = vec3y(dir, -1f);
-                float dz = vec3z(dir, 0.3f);
+                float dx = RenderCfg.vec3x(dir, 1f);
+                float dy = RenderCfg.vec3y(dir, -1f);
+                float dz = RenderCfg.vec3z(dir, 0.3f);
 
-                float r = vec3x(col, 0.45f);
-                float g = vec3y(col, 0.55f);
-                float b = vec3z(col, 0.85f);
+                float r = RenderCfg.vec3x(col, 0.45f);
+                float g = RenderCfg.vec3y(col, 0.55f);
+                float b = RenderCfg.vec3z(col, 0.85f);
 
-                float intensity = (float) Math.max(0.0, num(cfg, "intensity", 0.0));
+                float intensity = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 0.0));
 
-                if (approx(dx, _moonDx) && approx(dy, _moonDy) && approx(dz, _moonDz) &&
-                        approx(r, _moonR) && approx(g, _moonG) && approx(b, _moonB) && approx(intensity, _moonI)) {
+                if (RenderCfg.approx(dx, moonDx) && RenderCfg.approx(dy, moonDy) && RenderCfg.approx(dz, moonDz) &&
+                        RenderCfg.approx(r, moonR) && RenderCfg.approx(g, moonG) && RenderCfg.approx(b, moonB) && RenderCfg.approx(intensity, moonI)) {
                     return;
                 }
-                _moonDx = dx;
-                _moonDy = dy;
-                _moonDz = dz;
-                _moonR = r;
-                _moonG = g;
-                _moonB = b;
-                _moonI = intensity;
+
+                moonDx = dx;
+                moonDy = dy;
+                moonDz = dz;
+                moonR = r;
+                moonG = g;
+                moonB = b;
+                moonI = intensity;
 
                 Vector3f v = new Vector3f(dx, dy, dz);
                 if (v.lengthSquared() < 1e-6f) v.set(1, -1, 0);
                 v.normalizeLocal();
 
+                DirectionalLight moon = lights.moon();
                 moon.setDirection(v);
                 moon.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
-                if (sunShadow != null && "moon".equals(primaryDirectional)) {
-                    sunShadow.setLight(moon);
-                }
+                if ("moon".equals(lights.primaryDirectional())) shadows.refreshPrimaryLightBinding();
             });
         });
     }
 
-    // ---------- shadows ----------
+    // --------------------- shadows ---------------------
 
     @HostAccess.Export
     @Override
     public void sunShadows(int mapSize) {
-        // backward-compat: keep signature, but default splits/lambda/intensity
         sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
     }
 
@@ -746,171 +651,45 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("sunShadowsEx");
-                ensureSunExists();
-                ensureMoonExists();
-
-                // 0 = выключить тени
-                if (mapSize <= 0) {
-                    if (sunShadow != null) {
-                        app.getViewPort().removeProcessor(sunShadow);
-                        sunShadow = null;
-                    }
-                    _shMapSize = 0;
-                    log.info("RenderApi: shadows disabled");
-                    return;
-                }
-
-                // clamp
-                int ms = Math.max(256, Math.min(mapSize, 8192));
-                int sp = Math.max(1, Math.min(splits, 4));
-                float lam = (float) Math.max(0.0, Math.min(lambda, 1.0));
-                float inten = (float) Math.max(0.0, Math.min(intensity, 1.0));
-
-                // ✅ If renderer exists and map/splits unchanged — update only params
-                if (sunShadow != null && _shMapSize == ms && _shSplits == sp) {
-                    _shLambda = lam;
-                    _shIntensity = inten;
-
-                    sunShadow.setLight(primaryLight());
-                    sunShadow.setLambda(lam);
-                    sunShadow.setShadowIntensity(inten);
-                    return;
-                }
-
-                // heavy recreate
-                if (sunShadow != null) {
-                    app.getViewPort().removeProcessor(sunShadow);
-                    sunShadow = null;
-                }
-
-                _shMapSize = ms;
-                _shSplits = sp;
-                _shLambda = lam;
-                _shIntensity = inten;
-
-                sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
-                sunShadow.setLight(primaryLight());
-                sunShadow.setLambda(lam);
-                sunShadow.setShadowIntensity(inten);
-
-                app.getViewPort().addProcessor(sunShadow);
-
-                log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={} intensity={} primary={}",
-                        ms, sp, lam, inten, primaryDirectional);
+                viewport.ensure("sunShadowsEx");
+                lights.ensure();
+                shadows.enable(mapSize, splits, lambda, intensity);
             });
         });
     }
-
-    @HostAccess.Export
-    public void skyDomeTex(String asset) {
-        profiledVoid(() -> {
-            ensureScene();
-            if (asset == null || asset.isBlank()) {
-                throw new IllegalArgumentException("[render] skyDomeTex: asset is blank");
-            }
-            final String a = asset.trim();
-
-            onJme(() -> {
-                ensureViewportContract("skyDomeTex");
-                ensureSkyDomeExists();
-
-                Texture t = assets.loadTexture(a);
-
-                if (t instanceof com.jme3.texture.TextureCubeMap) {
-                    skydomeMat.setTexture("SkyCube", t);
-                    skydomeMat.setBoolean("UseCube", true);
-                    skydomeMat.clearParam("SkyTex");
-                    log.info("RenderApi: skydome texture set asset='{}' type=TextureCubeMap", a);
-                    return;
-                }
-
-                // 2D (HDRI / pano / png)
-                skydomeMat.setTexture("SkyTex", t);
-                skydomeMat.setBoolean("UseCube", false);
-                skydomeMat.clearParam("SkyCube");
-
-                skydomeMat.setBoolean("UseCube", false);
-                skydomeMat.setFloat("TexBlend", 0f);
-                skydomeMat.setFloat("TexExposure", 1f);
-
-                log.info("RenderApi: skydome texture set asset='{}' type={}", a, t.getClass().getSimpleName());
-            });
-        });
-    }
-
-
-    @HostAccess.Export
-    public void skyDomeTexClear() {
-        profiledVoid(() -> {
-            ensureScene();
-            onJme(() -> {
-                ensureViewportContract("skyDomeTexClear");
-                ensureSkyDomeExists();
-                skydomeMat.clearParam("SkyTex");
-                log.info("RenderApi: skydome texture cleared");
-            });
-        });
-    }
-
 
     @HostAccess.Export
     @Override
     public void sunShadowsCfg(Value cfg) {
-        // base
         int map = intClampR(cfg, "mapSize", 2048, 0, 16384);
         int splits = intClampR(cfg, "splits", DEFAULT_SHADOW_SPLITS, 1, 8);
-        double lambda = num(cfg, "lambda", DEFAULT_SHADOW_LAMBDA);
-        double intensity = num(cfg, "intensity", DEFAULT_SHADOW_INTENSITY);
+        double lambda = RenderCfg.num(cfg, "lambda", DEFAULT_SHADOW_LAMBDA);
+        double intensity = RenderCfg.num(cfg, "intensity", DEFAULT_SHADOW_INTENSITY);
 
-        // new knobs (accepted by contract; applied if renderer supports)
-        double softness = num(cfg, "softness", 0.0);
-        int pcfSamples = intClampR(cfg, "pcfSamples", 16, 1, 64);
-        boolean pcss = bool(cfg, "pcss", false);
-        double lightRadius = num(cfg, "lightRadius", 0.0);
+        boolean snap = RenderCfg.bool(cfg, "snap", true);
 
-        // creates/updates renderer
-        sunShadowsEx(map, splits, lambda, intensity);
+        // cache-only knobs for future (оставляем контракт)
+        RenderCfg.num(cfg, "softness", 0.0);
+        intClampR(cfg, "pcfSamples", 16, 1, 64);
+        RenderCfg.bool(cfg, "pcss", false);
+        RenderCfg.num(cfg, "lightRadius", 0.0);
 
-        if (map <= 0) return;
+        profiledVoid(() -> {
+            ensureScene();
+            onJme(() -> {
+                viewport.ensure("sunShadowsCfg");
+                lights.ensure();
 
-        profiledVoid(() -> onJme(() -> {
-            if (sunShadow == null) return;
+                shadows.setSnapEnabled(snap);
+                shadows.enable(map, splits, lambda, intensity);
 
-            float s = clamp01((float) softness);
-            float lr = clamp((float) lightRadius, 0f, 10f);
-
-            boolean changed =
-                    !approx(s, _shSoftness) ||
-                            _shPcfSamples != pcfSamples ||
-                            _shPcss != pcss ||
-                            !approx(lr, _shLightRadius);
-
-            if (!changed) return;
-
-            _shSoftness = s;
-            _shPcfSamples = pcfSamples;
-            _shPcss = pcss;
-            _shLightRadius = lr;
-
-            // NOTE:
-            // Stock JME DirectionalLightShadowRenderer does not provide PCSS/penumbra controls out of the box.
-            // We ACCEPT and CACHE these values as part of the modern contract, so you can bind them into your
-            // custom shadow material/shader without changing JS side later.
-            //
-            // If your JME build exposes something like setEdgesThickness, you can enable it here.
-            //
-            // Example (only if exists in your fork/version):
-            // sunShadow.setEdgesThickness(s);
-
-            if (pcss || lr > 0f) {
-                log.debug("RenderApi: shadow pcss/lightRadius requested but not implemented in DLSR (pcss={}, lightRadius={})",
-                        pcss, lr);
-            }
-        }));
+                DirectionalLightShadowRenderer r = shadows.renderer();
+                if (r != null) r.setLight(lights.primaryLight());
+            });
+        });
     }
 
-    // ---------- fog ----------
+    // --------------------- fog ---------------------
 
     @HostAccess.Export
     @Override
@@ -918,25 +697,25 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("fogCfg");
+                viewport.ensure("fogCfg");
                 ensureFogExists();
 
-                double r = num(cfg, "r", numPath(cfg, "color", "r", _fogBaseR));
-                double g = num(cfg, "g", numPath(cfg, "color", "g", _fogBaseG));
-                double b = num(cfg, "b", numPath(cfg, "color", "b", _fogBaseB));
+                double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", fogBaseR));
+                double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", fogBaseG));
+                double b = RenderCfg.num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", fogBaseB));
 
-                double density = num(cfg, "density", _fogDensity);
-                double distance = num(cfg, "distance", _fogDistance);
+                double density = RenderCfg.num(cfg, "density", fogDensity);
+                double distance = RenderCfg.num(cfg, "distance", fogDistance);
 
-                _fogBaseR = r;
-                _fogBaseG = g;
-                _fogBaseB = b;
+                fogBaseR = r;
+                fogBaseG = g;
+                fogBaseB = b;
 
                 density = Math.max(FOG_DENSITY_MIN, Math.min(density, FOG_DENSITY_MAX));
                 distance = Math.max(FOG_DISTANCE_MIN, distance);
 
-                _fogDensity = density;
-                _fogDistance = distance;
+                fogDensity = density;
+                fogDistance = distance;
 
                 fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
                 fog.setFogDensity((float) density);
@@ -945,7 +724,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // ---------- post (exposure/tonemap) ----------
+    // --------------------- post ---------------------
 
     @HostAccess.Export
     @Override
@@ -953,16 +732,13 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("postCfg");
+                viewport.ensure("postCfg");
                 ensureMainFpp("postCfg");
 
-                boolean enabled = bool(cfg, "enabled", true);
-                if (enabled != _postEnabled) {
-                    _postEnabled = enabled;
-                }
+                boolean enabled = RenderCfg.bool(cfg, "enabled", true);
+                if (enabled != postEnabled) postEnabled = enabled;
 
-                // Gate (strict): when disabled, remove tonemap filter deterministically
-                if (!_postEnabled) {
+                if (!postEnabled) {
                     if (tonemap != null) {
                         fpp.removeFilter(tonemap);
                         tonemap = null;
@@ -971,33 +747,31 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                     return;
                 }
 
-                // Create chain (you can gate FXAA/Bloom separately later if you want)
                 ensureTonemapExists();
 
-                float exposure = (float) Math.max(0.0, num(cfg, "exposure", 1.0));
+                float exposure = (float) Math.max(0.0, RenderCfg.num(cfg, "exposure", 1.0));
 
-                Value tm = member(cfg, "tonemap");
-                float whitePoint = (float) Math.max(0.01, num(tm, "whitePoint", 11.2));
-                float shoulder = clamp01((float) num(tm, "shoulder", 0.22));
-                float toe = clamp01((float) num(tm, "toe", 0.08));
+                Value tm = RenderCfg.member(cfg, "tonemap");
+                float whitePoint = (float) Math.max(0.01, RenderCfg.num(tm, "whitePoint", 11.2));
+                float shoulder = RenderCfg.clamp01((float) RenderCfg.num(tm, "shoulder", 0.22));
+                float toe = RenderCfg.clamp01((float) RenderCfg.num(tm, "toe", 0.08));
 
-                float saturation = (float) Math.max(0.0, num(cfg, "saturation", 1.0));
+                float saturation = (float) Math.max(0.0, RenderCfg.num(cfg, "saturation", 1.0));
 
-                if (approx(exposure, _postExposure) &&
-                        approx(whitePoint, _postWhitePoint) &&
-                        approx(shoulder, _postShoulder) &&
-                        approx(toe, _postToe) &&
-                        approx(saturation, _postSaturation)) {
+                if (RenderCfg.approx(exposure, postExposure) &&
+                        RenderCfg.approx(whitePoint, postWhitePoint) &&
+                        RenderCfg.approx(shoulder, postShoulder) &&
+                        RenderCfg.approx(toe, postToe) &&
+                        RenderCfg.approx(saturation, postSaturation)) {
                     return;
                 }
 
-                _postExposure = exposure;
-                _postWhitePoint = whitePoint;
-                _postShoulder = shoulder;
-                _postToe = toe;
-                _postSaturation = saturation;
+                postExposure = exposure;
+                postWhitePoint = whitePoint;
+                postShoulder = shoulder;
+                postToe = toe;
+                postSaturation = saturation;
 
-                // TonemapFilter contract (adjust if your filter uses different method names)
                 tonemap.setExposure(exposure);
                 tonemap.setWhitePoint(whitePoint);
                 tonemap.setShoulder(shoulder);

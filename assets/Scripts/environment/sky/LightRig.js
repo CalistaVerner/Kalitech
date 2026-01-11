@@ -191,6 +191,15 @@ class LightRig {
         req(engine, "[LightRig] engine is required");
         this.render = req(engine.render(), "[LightRig] engine.render() is required");
 
+        this.render.sunShadowsCfg({
+            mapSize: this.shadows.mapSizeDay,
+            splits: this.shadows.splits,
+            lambda: this.shadows.lambda,
+            intensity: this.shadows.intensityDay,
+            snap: true
+        });
+
+
         // required render API
         req(this.render.ensureScene, "[LightRig] render.ensureScene() is required");
         req(this.render.sunCfg, "[LightRig] render.sunCfg(cfg) is required");

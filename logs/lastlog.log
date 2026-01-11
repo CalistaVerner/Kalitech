@@ -1,186 +1,213 @@
-[09:51:52.175][INFO][KalitechApplication] KALITECH CORE 0.2.7-SNAPSHOT
-[09:51:52.177][INFO][KalitechApplication] Java: 17.0.15
-[09:51:52.177][INFO][KalitechApplication] OS: Windows 10 10.0
-[09:51:52.189][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@4aed94a7
-[09:51:52.196][INFO][GuiGlobals] Lemur build date:20220405
-[09:51:52.197][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[09:51:53.112][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[09:51:53.723][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[09:51:53.767][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
-[09:51:53.769][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
-[09:51:53.770][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
-[09:51:53.770][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
-[09:51:53.771][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
-[09:51:53.798][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
-[09:51:53.807][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
-[09:51:53.807][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
-[09:51:53.810][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
-[09:51:53.810][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
-[09:51:53.812][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
-[09:51:53.817][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
-[09:51:53.818][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' uuidsBound=true
-[09:51:53.818][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
-[09:51:53.823][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
-[09:51:53.824][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
-[09:51:53.824][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
-[09:51:53.826][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
-[09:51:53.826][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
-[09:51:53.826][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
-[09:51:53.827][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
-[09:51:53.828][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
-[09:51:53.829][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
-[09:51:53.830][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[09:51:53.897][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[09:51:54.089][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[09:51:54.090][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
-[09:51:54.091][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
-[09:51:54.092][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
-[09:51:54.093][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
-[09:51:54.843][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
-[09:51:54.845][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
-[09:51:54.945][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
-[09:51:55.049][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
-[09:51:55.053][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
-[09:51:55.056][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
-[09:51:55.076][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
-[09:51:55.080][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
-[09:51:55.087][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
-[09:51:55.092][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
-[09:51:55.095][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
-[09:51:55.183][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
-[09:51:55.197][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
-[09:51:55.340][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
-[09:51:55.343][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
-[09:51:55.358][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
-[09:51:55.360][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
-[09:51:55.364][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
-[09:51:55.375][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
-[09:51:55.390][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
-[09:51:55.393][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
-[09:51:55.398][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
-[09:51:55.407][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
-[09:51:55.409][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
-[09:51:55.413][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
-[09:51:55.422][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
-[09:51:55.426][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
-[09:51:55.434][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
-[09:51:55.444][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
-[09:51:55.447][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
-[09:51:55.454][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
-[09:51:55.456][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
-[09:51:55.458][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
-[09:51:55.467][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
-[09:51:55.482][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
-[09:51:55.482][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
-[09:51:55.494][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
-[09:51:55.495][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
-[09:51:55.504][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
-[09:51:55.505][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
-[09:51:55.509][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
-[09:51:55.510][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
-[09:51:55.517][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
-[09:51:55.520][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
-[09:51:55.528][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
-[09:51:55.528][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
-[09:51:55.530][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
-[09:51:55.533][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
-[09:51:55.538][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
-[09:51:55.541][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
-[09:51:55.546][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
-[09:51:55.551][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
-[09:51:55.551][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
-[09:51:55.556][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
-[09:51:55.559][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
-[09:51:55.563][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
-[09:51:55.565][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
-[09:51:55.570][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.3' from='@module/Controllers/Controllers'
-[09:51:55.571][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (727 ms)
-[09:51:55.574][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
-[09:51:55.578][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[09:51:55.579][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
-[09:51:55.579][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
-[09:51:55.583][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
-[09:51:55.583][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
-[09:51:55.584][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
-[09:51:55.584][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
-[09:51:55.585][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera
-[09:51:55.585][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera\modes
-[09:51:55.585][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
-[09:51:55.586][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
-[09:51:55.586][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
-[09:51:55.586][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
-[09:51:55.587][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
-[09:51:55.587][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
-[09:51:55.588][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
-[09:51:55.588][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
-[09:51:55.588][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
-[09:51:55.589][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
-[09:51:55.589][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
-[09:51:55.589][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
-[09:51:55.589][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
-[09:51:55.590][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
-[09:51:55.590][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
-[09:51:55.590][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
-[09:51:55.591][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
-[09:51:55.591][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
-[09:51:55.591][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[09:51:55.594][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[09:51:55.596][INFO][PhysicsApiImpl] [physics] cleared all bodies
-[09:51:55.622][INFO][WorldAppState] [World] created 'main'
-[09:51:55.666][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
-[09:51:55.686][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
-[09:51:55.705][DEBUG][EngineApiImpl] [sky][skydome] applyCfg default='Textures/Sky/sunrise_1k.hdr' day='Textures/Sky/sunrise_1k.hdr' sunset='Textures/Sky/sunrise_1k.hdr' night='Textures/Sky/sunrise_1k.hdr' texBlendDay=0.550 texBlendNight=0.350 texExposureDay=1.800 texExposureNight=0.650
-[09:51:55.708][DEBUG][EngineApiImpl] [sky][fog] applyCfg color=(0.7,0.78,0.9) densityDay=1.1 densityNight=1.35 distance=250
-[09:51:55.709][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
-[09:51:55.711][INFO][RenderApiImpl] RenderApi: ambient created
-[09:51:55.711][INFO][RenderApiImpl] RenderApi: sun created
-[09:51:55.711][INFO][RenderApiImpl] RenderApi: moon created
-[09:51:55.712][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
-[09:51:55.713][INFO][RenderApiImpl] RenderApi: scene ensured
-[09:51:55.713][DEBUG][EngineApiImpl] [sky] render contract OK (SkyDome)
-[09:51:55.715][INFO][RenderApiImpl] RenderApi: fog filter created
-[09:51:55.716][DEBUG][EngineApiImpl] [sky][fog] init applied
-[09:51:55.722][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
-[09:51:55.738][INFO][RenderApiImpl] RenderApi: shadows enabled mapSize=8192 splits=4 lambda=0.65 intensity=0.65 primary=sun
-[09:51:55.742][DEBUG][RenderApiImpl] RenderApi: shadow pcss/lightRadius requested but not implemented in DLSR (pcss=true, lightRadius=0.9)
-[09:51:55.743][DEBUG][EngineApiImpl] [sky][skydome] switch tex='Textures/Sky/sunrise_1k.hdr' dayFactor=1.0000
-[09:51:55.749][INFO][RenderApiImpl] RenderApi: skydome created
-[09:51:56.848][INFO][RenderApiImpl] RenderApi: skydome texture set asset='Textures/Sky/sunrise_1k.hdr' type=Texture2D
-[09:51:56.857][DEBUG][EngineApiImpl] [sky][fog] APPLY density=1.1000 distance=250.0 dayFactor=1.0000
-[09:51:56.866][DEBUG][EngineApiImpl] [sky] EVENTS wired
-[09:51:56.871][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
-[09:51:56.872][INFO][EngineApiImpl] [scene] init
-[09:51:57.429][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrain name=proc worldPos=(0.0, 0.0, 0.0)
-[09:51:57.457][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
-[09:51:57.484][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=0.0 kinematic=false lockRotation=false
-[09:51:57.541][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
-[09:51:57.571][DEBUG][EntityApiImpl] [entity] created uuid=834c0f1d-a6d5-e991-49a7-f8b187463aad name='player'
-[09:51:57.575][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box worldPos=(135.0, -10.0, -334.0)
-[09:51:57.578][DEBUG][SurfaceRegistry] [surface] attached surfaceId=2 entityUuid=834c0f1d-a6d5-e991-49a7-f8b187463aad
-[09:51:57.593][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=80.0 kinematic=false lockRotation=false
-[09:51:57.619][INFO][WorldApiImpl] [world.create] name=main systems=3 start=true
-[09:51:57.620][INFO][RuntimeAppState] [Runtime] app started
-[09:51:57.871][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2534
-[09:51:57.877][DEBUG][EngineApiImpl] [sky] tick time01=0.2534 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:51:58.855][DEBUG][EngineApiImpl] [sky] tick time01=0.2543 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:51:59.856][DEBUG][EngineApiImpl] [sky] tick time01=0.2551 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:00.855][DEBUG][EngineApiImpl] [sky] tick time01=0.2559 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:01.871][DEBUG][EngineApiImpl] [sky] tick time01=0.2568 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:02.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2576 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:03.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2584 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:04.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2593 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:05.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2601 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:06.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2609 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:07.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2618 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:08.872][DEBUG][EngineApiImpl] [sky] tick time01=0.2626 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:09.889][DEBUG][EngineApiImpl] [sky] tick time01=0.2635 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:10.889][DEBUG][EngineApiImpl] [sky] tick time01=0.2643 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:11.889][DEBUG][EngineApiImpl] [sky] tick time01=0.2651 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:12.890][DEBUG][EngineApiImpl] [sky] tick time01=0.2660 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:13.889][DEBUG][EngineApiImpl] [sky] tick time01=0.2668 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:14.906][DEBUG][EngineApiImpl] [sky] tick time01=0.2676 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[09:52:15.640][INFO][ScriptRuntime] Closing ScriptRuntime
-[09:52:15.648][INFO][RuntimeAppState] [Runtime] stopped
-[09:52:15.653][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/sky/index.js
-[09:52:15.654][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/world/world.js
-[09:52:15.654][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/player/index.js
+[11:17:23.133][INFO][KalitechApplication] KALITECH CORE 0.2.7-SNAPSHOT
+[11:17:23.135][INFO][KalitechApplication] Java: 17.0.15
+[11:17:23.136][INFO][KalitechApplication] OS: Windows 10 10.0
+[11:17:23.147][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@4aed94a7
+[11:17:23.153][INFO][GuiGlobals] Lemur build date:20220405
+[11:17:23.154][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[11:17:24.104][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[11:17:24.750][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[11:17:24.792][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
+[11:17:24.794][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
+[11:17:24.795][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
+[11:17:24.795][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
+[11:17:24.796][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
+[11:17:24.826][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
+[11:17:24.836][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
+[11:17:24.836][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
+[11:17:24.840][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
+[11:17:24.841][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
+[11:17:24.842][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
+[11:17:24.848][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
+[11:17:24.850][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' uuidsBound=true
+[11:17:24.850][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
+[11:17:24.855][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
+[11:17:24.856][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
+[11:17:24.857][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
+[11:17:24.858][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
+[11:17:24.859][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
+[11:17:24.859][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
+[11:17:24.859][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
+[11:17:24.861][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
+[11:17:24.861][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
+[11:17:24.863][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[11:17:24.938][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[11:17:25.150][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[11:17:25.150][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
+[11:17:25.151][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
+[11:17:25.152][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
+[11:17:25.153][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
+[11:17:25.917][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
+[11:17:25.919][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
+[11:17:26.034][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
+[11:17:26.122][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
+[11:17:26.126][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
+[11:17:26.130][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
+[11:17:26.152][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
+[11:17:26.156][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
+[11:17:26.165][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
+[11:17:26.170][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
+[11:17:26.173][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
+[11:17:26.264][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
+[11:17:26.280][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
+[11:17:26.431][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
+[11:17:26.434][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
+[11:17:26.448][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
+[11:17:26.450][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
+[11:17:26.453][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
+[11:17:26.464][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
+[11:17:26.473][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
+[11:17:26.475][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
+[11:17:26.479][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
+[11:17:26.487][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
+[11:17:26.489][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
+[11:17:26.492][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
+[11:17:26.502][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
+[11:17:26.504][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
+[11:17:26.510][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
+[11:17:26.520][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
+[11:17:26.523][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
+[11:17:26.530][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
+[11:17:26.532][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
+[11:17:26.534][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
+[11:17:26.544][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
+[11:17:26.556][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
+[11:17:26.556][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
+[11:17:26.569][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
+[11:17:26.569][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
+[11:17:26.579][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
+[11:17:26.580][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
+[11:17:26.584][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
+[11:17:26.585][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
+[11:17:26.592][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
+[11:17:26.595][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
+[11:17:26.603][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
+[11:17:26.604][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
+[11:17:26.606][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
+[11:17:26.609][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
+[11:17:26.614][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
+[11:17:26.618][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
+[11:17:26.623][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
+[11:17:26.628][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
+[11:17:26.629][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
+[11:17:26.634][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
+[11:17:26.637][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
+[11:17:26.643][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
+[11:17:26.646][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
+[11:17:26.651][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.3' from='@module/Controllers/Controllers'
+[11:17:26.652][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (735 ms)
+[11:17:26.655][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
+[11:17:26.659][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[11:17:26.660][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
+[11:17:26.661][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
+[11:17:26.661][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
+[11:17:26.662][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
+[11:17:26.662][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
+[11:17:26.662][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
+[11:17:26.663][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera
+[11:17:26.663][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\Camera\modes
+[11:17:26.663][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
+[11:17:26.664][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
+[11:17:26.664][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
+[11:17:26.664][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
+[11:17:26.665][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
+[11:17:26.665][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
+[11:17:26.666][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
+[11:17:26.666][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
+[11:17:26.666][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
+[11:17:26.666][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
+[11:17:26.667][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
+[11:17:26.667][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
+[11:17:26.668][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
+[11:17:26.668][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
+[11:17:26.668][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
+[11:17:26.669][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
+[11:17:26.669][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
+[11:17:26.669][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
+[11:17:26.669][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[11:17:26.672][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[11:17:26.675][INFO][PhysicsApiImpl] [physics] cleared all bodies
+[11:17:26.702][INFO][WorldAppState] [World] created 'main'
+[11:17:26.735][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[11:17:26.753][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[11:17:26.768][DEBUG][EngineApiImpl] [sky][fog] applyCfg color=(0.7,0.78,0.9) densityDay=1.1 densityNight=1.35 distance=250
+[11:17:26.768][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[11:17:26.770][INFO][RenderApiImpl] RenderApi: ambient created
+[11:17:26.771][INFO][RenderApiImpl] RenderApi: sun created
+[11:17:26.771][INFO][RenderApiImpl] RenderApi: moon created
+[11:17:26.772][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
+[11:17:26.772][INFO][RenderApiImpl] RenderApi: scene ensured
+[11:17:26.773][DEBUG][EngineApiImpl] [sky] render contract OK (SkyDome)
+[11:17:26.783][INFO][RenderApiImpl] RenderApi: shadows enabled mapSize=8192 splits=4 lambda=0.65 intensity=0.65 primary=sun snap=true
+[11:17:26.786][INFO][RenderApiImpl] RenderApi: fog filter created
+[11:17:26.787][DEBUG][EngineApiImpl] [sky][fog] init applied
+[11:17:26.797][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[11:17:26.809][INFO][RenderApiImpl] RenderApi: skydome created
+[11:18:04.698][DEBUG][EngineApiImpl] [sky][fog] APPLY density=1.1000 distance=250.0 dayFactor=1.0000
+[11:18:04.705][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[11:18:04.708][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[11:18:04.708][INFO][EngineApiImpl] [scene] init
+[11:18:05.217][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrain name=proc worldPos=(0.0, 0.0, 0.0)
+[11:18:05.242][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
+[11:18:05.268][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=0.0 kinematic=false lockRotation=false
+[11:18:05.319][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[11:18:05.350][DEBUG][EntityApiImpl] [entity] created uuid=b807fc60-0de8-cd4b-39ec-fd0d3cdca407 name='player'
+[11:18:05.354][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box worldPos=(135.0, -10.0, -334.0)
+[11:18:05.357][DEBUG][SurfaceRegistry] [surface] attached surfaceId=2 entityUuid=b807fc60-0de8-cd4b-39ec-fd0d3cdca407
+[11:18:05.375][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=80.0 kinematic=false lockRotation=false
+[11:18:05.403][INFO][WorldApiImpl] [world.create] name=main systems=3 start=true
+[11:18:05.404][INFO][RuntimeAppState] [Runtime] app started
+[11:18:05.801][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2842
+[11:18:05.806][DEBUG][EngineApiImpl] [sky] tick time01=0.2842 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:06.781][DEBUG][EngineApiImpl] [sky] tick time01=0.2850 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:07.780][DEBUG][EngineApiImpl] [sky] tick time01=0.2858 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:08.796][DEBUG][EngineApiImpl] [sky] tick time01=0.2867 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:09.813][DEBUG][EngineApiImpl] [sky] tick time01=0.2875 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:10.814][DEBUG][EngineApiImpl] [sky] tick time01=0.2884 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:11.830][DEBUG][EngineApiImpl] [sky] tick time01=0.2892 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:12.830][DEBUG][EngineApiImpl] [sky] tick time01=0.2901 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:13.830][DEBUG][EngineApiImpl] [sky] tick time01=0.2909 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:14.831][DEBUG][EngineApiImpl] [sky] tick time01=0.2917 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:15.830][DEBUG][EngineApiImpl] [sky] tick time01=0.2926 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:16.847][DEBUG][EngineApiImpl] [sky] tick time01=0.2934 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:17.847][DEBUG][EngineApiImpl] [sky] tick time01=0.2942 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:18.848][DEBUG][EngineApiImpl] [sky] tick time01=0.2951 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:19.848][DEBUG][EngineApiImpl] [sky] tick time01=0.2959 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:20.865][DEBUG][EngineApiImpl] [sky] tick time01=0.2968 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:21.864][DEBUG][EngineApiImpl] [sky] tick time01=0.2976 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:22.865][DEBUG][EngineApiImpl] [sky] tick time01=0.2984 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:23.881][DEBUG][EngineApiImpl] [sky] tick time01=0.2993 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:24.882][DEBUG][EngineApiImpl] [sky] tick time01=0.3001 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:25.882][DEBUG][EngineApiImpl] [sky] tick time01=0.3009 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:26.882][DEBUG][EngineApiImpl] [sky] tick time01=0.3018 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:27.882][DEBUG][EngineApiImpl] [sky] tick time01=0.3026 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:28.899][DEBUG][EngineApiImpl] [sky] tick time01=0.3034 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:29.898][DEBUG][EngineApiImpl] [sky] tick time01=0.3043 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:30.899][DEBUG][EngineApiImpl] [sky] tick time01=0.3051 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:31.898][DEBUG][EngineApiImpl] [sky] tick time01=0.3059 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:32.899][DEBUG][EngineApiImpl] [sky] tick time01=0.3068 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:33.916][DEBUG][EngineApiImpl] [sky] tick time01=0.3076 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:34.916][DEBUG][EngineApiImpl] [sky] tick time01=0.3085 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:35.916][DEBUG][EngineApiImpl] [sky] tick time01=0.3093 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:36.933][DEBUG][EngineApiImpl] [sky] tick time01=0.3101 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:37.934][DEBUG][EngineApiImpl] [sky] tick time01=0.3110 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:38.933][DEBUG][EngineApiImpl] [sky] tick time01=0.3118 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:39.933][DEBUG][EngineApiImpl] [sky] tick time01=0.3126 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:40.949][DEBUG][EngineApiImpl] [sky] tick time01=0.3135 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:41.949][DEBUG][EngineApiImpl] [sky] tick time01=0.3143 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:42.950][DEBUG][EngineApiImpl] [sky] tick time01=0.3152 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:43.967][DEBUG][EngineApiImpl] [sky] tick time01=0.3160 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:44.967][DEBUG][EngineApiImpl] [sky] tick time01=0.3168 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:45.967][DEBUG][EngineApiImpl] [sky] tick time01=0.3177 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:46.984][DEBUG][EngineApiImpl] [sky] tick time01=0.3185 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:47.984][DEBUG][EngineApiImpl] [sky] tick time01=0.3193 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:48.984][DEBUG][EngineApiImpl] [sky] tick time01=0.3202 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:49.984][DEBUG][EngineApiImpl] [sky] tick time01=0.3210 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:50.984][DEBUG][EngineApiImpl] [sky] tick time01=0.3219 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:52.000][DEBUG][EngineApiImpl] [sky] tick time01=0.3227 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:53.001][DEBUG][EngineApiImpl] [sky] tick time01=0.3235 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:54.018][DEBUG][EngineApiImpl] [sky] tick time01=0.3244 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[11:18:54.435][INFO][ScriptRuntime] Closing ScriptRuntime
+[11:18:54.441][INFO][RuntimeAppState] [Runtime] stopped
+[11:18:54.446][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/sky/index.js
+[11:18:54.446][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/world/world.js
+[11:18:54.446][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/player/index.js

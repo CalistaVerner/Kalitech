@@ -9,39 +9,27 @@ const worldSystems = [
             module: "Scripts/environment/sky/index.js",
 
             enabled: true,
-            dayLengthSec: 1200,   // 20 minutes default
-            startTime01: 0.25,    // morning
+            dayLengthSec: 1200,
+            startTime01: 0.25,
             azimuthDeg: 35,
 
-            // ----------------------------------------------------------------
-            // SkyDome (AAA) — replaces SkyBox
-            //  - equirect pano textures (optional)
-            //  - procedural gradient + sun/moon discs always work
-            // ----------------------------------------------------------------
-
-            // Optional: texture set (SkyBox-style switching)
-            // If you want only one texture -> use skyDomeTex only.
-            skyDomeTex: "Textures/Sky/sunrise_1k.hdr",
-            skyDomeTexDay: "Textures/Sky/sunrise_1k.hdr",
-            skyDomeTexSunset: "Textures/Sky/sunrise_1k.hdr",
-            skyDomeTexNight: "Textures/Sky/sunrise_1k.hdr",
-
-            // If you don't want textures at all, remove the keys above
-            // and set texBlendDay/Night to 0 in skyDome below.
+            // AAA crossfade textures
+            skyDomeTexDay: "Textures/Sky/sunrise_4k.hdr",
+            skyDomeTexNight: "Textures/Sky/sunset_4k.hdr",
 
             skyDome: {
                 texBlendDay: 0.55,
                 texBlendNight: 0.35,
-
-                texExposureDay: 1.8,
+                texExposureDay: 1.80,
                 texExposureNight: 0.65,
+
+                // optional: twilight band for texture crossfade
+                crossfade: {enabled: true, start: 0.10, end: 0.35},
 
                 exposureDay: 1.05,
                 exposureNight: 0.55,
-
                 hazeDay: 0.60,
                 hazeNight: 0.28,
-
                 zenithColor: {r: 0.08, g: 0.14, b: 0.30},
                 horizonColor: {r: 0.65, g: 0.72, b: 0.82}
             },

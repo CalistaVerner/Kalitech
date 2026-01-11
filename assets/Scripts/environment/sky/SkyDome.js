@@ -1,4 +1,3 @@
-// FILE: Scripts/environment/sky/SkyDome.js
 "use strict";
 
 const SkyMath = require("./SkyMath.js");
@@ -22,31 +21,40 @@ class SkyDome {
         this.exposureDay = 1.10;
         this.exposureNight = 0.55;
 
-        // textures (SkyBox-style switching)
-        this.defaultAsset = null;
-        this.dayAsset = null;
-        this.sunsetAsset = null;
-        this.nightAsset = null;
+        // AAA: two textures always present (A=Day, B=Night) + SkyBlend 0..1
+        this.texA = null; // day
+        this.texB = null; // night
 
         // keep procedural contribution (avoid flat look)
         this.texBlendDay = 0.55;
         this.texBlendNight = 0.35;
 
-        // HDR scale: 10.0 is way too hot for most HDRIs
+        // HDR scale for bound sky textures
         this.texExposureDay = 1.80;
         this.texExposureNight = 0.65;
 
-        this.lastAsset = "";
+        // optional artistic crossfade shaping (dayFactor -> dayBlend)
+        // dayBlend=0 => fully night, dayBlend=1 => fully day
+        this.crossfade = {
+            enabled: true,
+            start: 0.10, // below: fully night
+            end: 0.35    // above: fully day
+        };
+
+        this._lastTexA = "";
+        this._lastTexB = "";
         this._lastKey = "";
     }
 
     applyCfg(cfg) {
         if (!cfg) return;
 
-        if (cfg.skyDomeTex != null) this.defaultAsset = String(cfg.skyDomeTex);
-        if (cfg.skyDomeTexDay != null) this.dayAsset = String(cfg.skyDomeTexDay);
-        if (cfg.skyDomeTexSunset != null) this.sunsetAsset = String(cfg.skyDomeTexSunset);
-        if (cfg.skyDomeTexNight != null) this.nightAsset = String(cfg.skyDomeTexNight);
+        // Accept either explicit A/B keys or day/night keys.
+        if (cfg.skyDomeTexA != null) this.texA = String(cfg.skyDomeTexA);
+        if (cfg.skyDomeTexB != null) this.texB = String(cfg.skyDomeTexB);
+
+        if (cfg.skyDomeTexDay != null) this.texA = String(cfg.skyDomeTexDay);
+        if (cfg.skyDomeTexNight != null) this.texB = String(cfg.skyDomeTexNight);
 
         if (cfg.skyDome) {
             const d = cfg.skyDome;
@@ -78,57 +86,63 @@ class SkyDome {
 
             if (d.texExposureDay != null) this.texExposureDay = +d.texExposureDay;
             if (d.texExposureNight != null) this.texExposureNight = +d.texExposureNight;
+
+            if (d.crossfade) {
+                const x = d.crossfade;
+                if (x.enabled != null) this.crossfade.enabled = !!x.enabled;
+                if (x.start != null) this.crossfade.start = +x.start;
+                if (x.end != null) this.crossfade.end = +x.end;
+            }
         }
-
-        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
-        if (log && log.debug) {
-            log.debug(
-                "[sky][skydome] applyCfg" +
-                (this.defaultAsset ? (" default='" + this.defaultAsset + "'") : " default=<null>") +
-                (this.dayAsset ? (" day='" + this.dayAsset + "'") : "") +
-                (this.sunsetAsset ? (" sunset='" + this.sunsetAsset + "'") : "") +
-                (this.nightAsset ? (" night='" + this.nightAsset + "'") : "") +
-                " texBlendDay=" + Number(this.texBlendDay).toFixed(3) +
-                " texBlendNight=" + Number(this.texBlendNight).toFixed(3) +
-                " texExposureDay=" + Number(this.texExposureDay).toFixed(3) +
-                " texExposureNight=" + Number(this.texExposureNight).toFixed(3)
-            );
-        }
-    }
-
-    pickAsset(dayFactor) {
-        const d = (typeof dayFactor === "number") ? dayFactor : 1.0;
-
-        if (!this.dayAsset && !this.sunsetAsset && !this.nightAsset) return this.defaultAsset;
-
-        if (d < 0.10) return this.nightAsset || this.defaultAsset;
-        if (d < 0.35) return this.sunsetAsset || this.dayAsset || this.defaultAsset;
-        return this.dayAsset || this.defaultAsset;
     }
 
     update(render, celEval) {
         req(render, "[skydome] render is required");
-        req(render.skyDomeCfg, "[skydome] render.skyDomeCfg(cfg) is required");
-        req(render.skyDomeTex, "[skydome] render.skyDomeTex(asset) is required");
 
-        const df = req(celEval && celEval.dayFactor, "[skydome] celEval.dayFactor is required");
+        req(render.skyDomeCfg, "[skydome] render.skyDomeCfg(cfg) is required");
+
+        // AAA: no swapping, two samplers always present
+        req(render.skyDomeTexA, "[skydome] render.skyDomeTexA(asset) is required");
+        req(render.skyDomeTexB, "[skydome] render.skyDomeTexB(asset) is required");
+
+        req(celEval && typeof celEval.dayFactor === "number", "[skydome] celEval.dayFactor is required");
+        const df = celEval.dayFactor;
+
         const s = req(celEval && celEval.sun, "[skydome] celEval.sun is required");
         const m = req(celEval && celEval.moon, "[skydome] celEval.moon is required");
 
-        const asset = this.pickAsset(df);
-        if (asset && asset !== this.lastAsset) {
-            const log = ENGINE && ENGINE.log ? ENGINE.log : null;
-            if (log && log.debug) log.debug("[sky][skydome] switch tex='" + asset + "' dayFactor=" + Number(df).toFixed(4));
-            render.skyDomeTex(asset);
-            this.lastAsset = asset;
+        const a = req(this.texA, "[skydome] skyDomeTexDay/skyDomeTexA is required (day texture)");
+        const b = req(this.texB, "[skydome] skyDomeTexNight/skyDomeTexB is required (night texture)");
+
+        if (a !== this._lastTexA) {
+            render.skyDomeTexA(a);
+            this._lastTexA = a;
+        }
+        if (b !== this._lastTexB) {
+            render.skyDomeTexB(b);
+            this._lastTexB = b;
         }
 
         const haze = SkyMath.lerp(this.hazeNight, this.hazeDay, df);
         const exposure = SkyMath.lerp(this.exposureNight, this.exposureDay, df);
 
-        // clamp “artist knobs” to sane ranges (no silent fallback: deterministic clamp)
+        // procedural vs texture mix
         const texBlend = Math.max(0, Math.min(1, SkyMath.lerp(this.texBlendNight, this.texBlendDay, df)));
         const texExposure = Math.max(0.001, SkyMath.lerp(this.texExposureNight, this.texExposureDay, df));
+
+        // dayBlend (0..1): night->day curve
+        let dayBlend = SkyMath.clamp(df, 0, 1);
+        if (this.crossfade.enabled) {
+            const s0 = Number(this.crossfade.start);
+            const s1 = Number(this.crossfade.end);
+            const e0 = Number.isFinite(s0) ? s0 : 0.10;
+            const e1 = Number.isFinite(s1) ? s1 : 0.35;
+            dayBlend = SkyMath.smoothstep(Math.min(e0, e1), Math.max(e0, e1), dayBlend);
+        }
+
+        // Shader mixes A->B by SkyBlend, where A=day, B=night:
+        // SkyBlend=0 => day(A), SkyBlend=1 => night(B)
+        const skyBlend = 1.0 - dayBlend;
 
         const key =
             df.toFixed(4) + "|" +
@@ -136,6 +150,7 @@ class SkyDome {
             exposure.toFixed(4) + "|" +
             texBlend.toFixed(4) + "|" +
             texExposure.toFixed(4) + "|" +
+            skyBlend.toFixed(4) + "|" +
             this.sunDisk.toFixed(2) + "|" +
             this.moonDisk.toFixed(2) + "|" +
             s.rayDir.x.toFixed(4) + "|" + s.rayDir.y.toFixed(4) + "|" + s.rayDir.z.toFixed(4) + "|" +
@@ -167,7 +182,10 @@ class SkyDome {
             exposure,
 
             texBlend,
-            texExposure
+            texExposure,
+
+            // AAA crossfade A/B
+            skyBlend
         });
     }
 }
