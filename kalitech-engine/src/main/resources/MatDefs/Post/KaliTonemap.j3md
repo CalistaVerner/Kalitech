@@ -1,0 +1,34 @@
+MaterialDef KaliTonemap {
+    MaterialParameters {
+        Texture2D Texture;
+
+        // Keep this: some pipelines clear/set it, and missing param causes exceptions.
+        Int NumSamples;
+
+        // Optional, but leave for compatibility
+        Texture2D DepthTexture;
+
+        // IMPORTANT: FPP may set this for scaling the valid region of the scene RT
+        Vector2 TexCoordScale;
+
+        // Base
+        Float Exposure;
+        Float Gamma;
+        Color Tint;
+
+        // Filmic knobs (LightRig contract)
+        Float WhitePoint;
+        Float Shoulder;
+        Float Toe;
+        Float Saturation;
+    }
+
+    Technique {
+        VertexShader GLSL100:   MatDefs/Post/KaliTonemap.vert
+        FragmentShader GLSL100: MatDefs/Post/KaliTonemap.frag
+
+        Defines {
+            NUM_SAMPLES : NumSamples
+        }
+    }
+}

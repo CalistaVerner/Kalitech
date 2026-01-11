@@ -13,31 +13,76 @@ const worldSystems = [
             startTime01: 0.25,    // morning
             azimuthDeg: 35,
 
-            skybox: "Textures/Sky/skyBox.dds",
+            // ----------------------------------------------------------------
+            // SkyDome (AAA) — replaces SkyBox
+            //  - equirect pano textures (optional)
+            //  - procedural gradient + sun/moon discs always work
+            // ----------------------------------------------------------------
 
+            // Optional: texture set (SkyBox-style switching)
+            // If you want only one texture -> use skyDomeTex only.
+            skyDomeTex: "Textures/Sky/skyBox.dds",
+            skyDomeTexDay: "Textures/Sky/skyBox.dds",
+            skyDomeTexSunset: "Textures/Sky/skyBox.dds",
+            skyDomeTexNight: "Textures/Sky/skyBox.dds",
+
+            // If you don't want textures at all, remove the keys above
+            // and set texBlendDay/Night to 0 in skyDome below.
+
+            skyDome: {
+                // procedural gradient (used as base + also when texBlend < 1)
+                zenithColor: {r: 0.08, g: 0.14, b: 0.30},
+                horizonColor: {r: 0.65, g: 0.72, b: 0.82},
+
+                hazeDay: 0.62,
+                hazeNight: 0.28,
+
+                // disc sharpness (bigger => smaller/tighter disc)
+                sunDisk: 45.0,
+                moonDisk: 120.0,
+
+                // Sky shader exposure (NOT the post exposure)
+                exposureDay: 1.15,
+                exposureNight: 0.65,
+
+                // NEW: texture overlay strength (0..1)
+                texBlendDay: 1.0,
+                texBlendNight: 1.0
+            },
+
+            // ----------------------------------------------------------------
             // Sun (Kelvin pipeline)
+            // ----------------------------------------------------------------
             sunDayIntensity: 1.35,
             sunNightIntensity: 0.0,
             sunKelvinNoon: 6500,
             sunKelvinHorizon: 2200,
             baseSun: {r: 1.0, g: 1.0, b: 1.0},
 
+            // ----------------------------------------------------------------
             // Moon
+            // ----------------------------------------------------------------
             moonIntensity: 0.14,
             moonColor: {r: 0.45, g: 0.55, b: 0.85},
 
+            // ----------------------------------------------------------------
             // Primary switch
-            daySwitch: 0.10,  // if you want just one knob
+            // ----------------------------------------------------------------
+            daySwitch: 0.10,
             // OR explicit hysteresis:
             // dayOn: 0.12,
             // dayOff: 0.08,
 
+            // ----------------------------------------------------------------
             // Ambient
+            // ----------------------------------------------------------------
             minAmbient: 0.20,
             ambientDay: {r: 0.25, g: 0.28, b: 0.35, intensity: 0.55},
             ambientNight: {r: 0.10, g: 0.12, b: 0.18, intensity: 0.12},
 
+            // ----------------------------------------------------------------
             // Shadows (dynamic day/night)
+            // ----------------------------------------------------------------
             shadows: {
                 enabled: true,
                 mapSizeDay: 16384,
@@ -45,10 +90,20 @@ const worldSystems = [
                 splits: 4,
                 lambda: 0.65,
                 intensityDay: 0.65,
-                intensityNight: 0.35
+                intensityNight: 0.35,
+
+                // softness / penumbra knobs
+                softnessDay: 0.35,     // 0..1
+                softnessNight: 0.20,   // 0..1
+                pcfSamples: 16,        // 1/4/9/16/25...
+                pcss: true,            // if your shadow impl supports PCSS
+                lightRadiusDay: 0.9,   // PCSS disk size
+                lightRadiusNight: 0.35
             },
 
+            // ----------------------------------------------------------------
             // Sun rays / god rays (if render supports render.sunRaysCfg)
+            // ----------------------------------------------------------------
             sunRays: {
                 enabled: true,
                 strengthDay: 0.85,
@@ -56,11 +111,34 @@ const worldSystems = [
                 dayResponse: 1.0
             },
 
+            // ----------------------------------------------------------------
+            // Fog
+            // ----------------------------------------------------------------
             fog: {
                 color: { r: 0.70, g: 0.78, b: 0.90 },
                 densityDay: 1.10,
                 densityNight: 1.35,
                 distance: 250
+            },
+
+            // ----------------------------------------------------------------
+            // Post (if enabled, LightRig should drive render.postCfg per dayFactor)
+            // ----------------------------------------------------------------
+            post: {
+                enabled: false,
+
+                exposureDay: 1.05,
+                exposureNight: 0.25,
+                exposureCurve: 1.25,
+
+                whitePointDay: 11.2,
+                whitePointNight: 6.5,
+                shoulderDay: 0.22,
+                shoulderNight: 0.12,
+                toeDay: 0.08,
+                toeNight: 0.18,
+                saturationDay: 1.05,
+                saturationNight: 0.85
             },
 
             debug: {

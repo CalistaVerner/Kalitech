@@ -1,9 +1,10 @@
+// FILE: Scripts/environment/sky/SkySystem.js
 "use strict";
 
 const SkyClock = require("./SkyClock.js");
 const CelestialModel = require("./CelestialModel.js");
 const LightRig = require("./LightRig.js");
-const SkyBox = require("./SkyBox.js");
+const SkyDome = require("./SkyDome.js");
 const FogController = require("./FogController.js");
 
 function req(v, msg) {
@@ -64,7 +65,7 @@ class SkySystem {
         this.clock = new SkyClock();
         this.celestial = new CelestialModel();
         this.lights = new LightRig();
-        this.skybox = new SkyBox();
+        this.skydome = new SkyDome();
         this.fog = new FogController();
 
         this._cfgRef = null;
@@ -165,7 +166,7 @@ class SkySystem {
         }
 
         this.lights.update(this.engine, cel, dt);
-        this.skybox.update(this.render, cel.dayFactor);
+        this.skydome.update(this.render, cel);
         this.fog.update(this.render, cel);
     }
 
@@ -176,7 +177,7 @@ class SkySystem {
         this.clock.applyCfg(cfg);
         this.celestial.applyCfg(cfg);
         this.lights.applyCfg(cfg);
-        this.skybox.applyCfg(cfg);
+        this.skydome.applyCfg(cfg);
         this.fog.applyCfg(cfg);
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
@@ -265,7 +266,9 @@ class SkySystem {
         req(r.sunCfg, "[sky] render.sunCfg(cfg) is required");
         req(r.ambientCfg, "[sky] render.ambientCfg(cfg) is required");
         req(r.fogCfg, "[sky] render.fogCfg(cfg) is required");
-        req(r.skyboxCube, "[sky] render.skyboxCube(asset) is required");
+
+        // AAA: SkyDome mandatory (no SkyBox here)
+        req(r.skyDomeCfg, "[sky] render.skyDomeCfg(cfg) is required");
 
         if (!isFn(r.sunShadowsCfg) && !isFn(r.sunShadows)) {
             throw new Error("[sky] render.sunShadowsCfg(cfg) or render.sunShadows(mapSize) is required");
@@ -282,7 +285,7 @@ class SkySystem {
         r.ensureScene();
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
-        if (log && log.debug) log.debug("[sky] render contract OK");
+        if (log && log.debug) log.debug("[sky] render contract OK (SkyDome)");
     }
 
     wireEventsOnce() {

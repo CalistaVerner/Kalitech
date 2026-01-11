@@ -40,7 +40,7 @@ class PlayerEntityFactory {
             body: {
                 mass,
                 lockRotation: false,
-                collider: {type: "box", radius, height},
+                collider: {type: "dynamicMesh", radius, height},
                 friction: (cfg.friction != null) ? cfg.friction : 0.9,
                 restitution: (cfg.restitution != null) ? cfg.restitution : 0.0,
                 damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95}

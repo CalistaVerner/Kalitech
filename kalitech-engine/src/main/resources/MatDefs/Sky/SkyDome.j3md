@@ -1,0 +1,34 @@
+MaterialDef SkyDome {
+    MaterialParameters {
+        // NEW
+        Texture2D SkyTex
+        Float TexBlend
+
+        Vector3 SunDir
+        Vector3 MoonDir
+
+        Color SunColor
+        Float SunIntensity
+
+        Color MoonColor
+        Float MoonIntensity
+
+        Color ZenithColor
+        Color HorizonColor
+
+        Float Haze
+        Float SunDisk
+        Float MoonDisk
+        Float Exposure
+    }
+
+    Technique {
+        VertexShader   GLSL150:   MatDefs/Sky/SkyDome.vert
+        FragmentShader GLSL150:   MatDefs/Sky/SkyDome.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            CameraPosition
+        }
+    }
+}
