@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/LightApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -54,7 +55,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
     @HostAccess.Export
     @Override
     public LightHandle create(Value cfg) {
-        //engine.render().ensureScene();
+        // engine.render().ensureScene();
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("light.create(cfg): cfg is null");
 
         String type = str(cfg, "type", null);

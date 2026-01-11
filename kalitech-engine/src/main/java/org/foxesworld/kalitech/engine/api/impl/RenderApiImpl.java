@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/RenderApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -10,7 +11,6 @@ import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.BloomFilter;
 import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
-import com.jme3.post.filters.ToneMapFilter;
 import com.jme3.renderer.ViewPort;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Node;
@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.render.post.TonemapFilter;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -34,11 +35,18 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     private static final int   DEFAULT_SHADOW_SPLITS = 3;
     private static final float DEFAULT_SHADOW_LAMBDA = 0.65f;
+    private static final float DEFAULT_SHADOW_INTENSITY = 0.65f;
+
+    // --- Fog safety bounds ---
+    private static final double FOG_DENSITY_MIN = 0.0;
+    private static final double FOG_DENSITY_MAX = 0.03;
+    private static final double FOG_DISTANCE_MIN = 25.0;
 
     private double _fogBaseR = 0.70;
     private double _fogBaseG = 0.78;
     private double _fogBaseB = 0.90;
-    private double _fogDensity = 1.2;
+
+    private double _fogDensity = 0.006;
     private double _fogDistance = 250.0;
 
     private SimpleApplication app;
@@ -49,28 +57,38 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     private volatile boolean sceneReady = false;
 
     private AmbientLight ambient;
+
+    // --- two directionals: sun + moon ---
     private DirectionalLight sun;
+    private DirectionalLight moon;
+
+    // --- which one casts shadows right now ---
+    private String primaryDirectional = "sun"; // "sun" | "moon"
+
     private DirectionalLightShadowRenderer sunShadow;
 
     private FilterPostProcessor fpp;
     private FogFilter fog;
     private FXAAFilter fxaa;
     private BloomFilter bloom;
-    private ToneMapFilter tonemap;
-
-    private Object ssao;
+    private TonemapFilter tonemap;
 
     private float _sunDx = Float.NaN, _sunDy = Float.NaN, _sunDz = Float.NaN;
     private float _sunR = Float.NaN, _sunG = Float.NaN, _sunB = Float.NaN, _sunI = Float.NaN;
-    private float _ambR = Float.NaN, _ambG = Float.NaN, _ambB = Float.NaN, _ambI = Float.NaN;
 
-    private boolean _fxaaEnabled = false;
-    private boolean _bloomEnabled = false;
-    private boolean _tonemapEnabled = false;
-    private boolean _ssaoEnabled = false;
+    private float _moonDx = Float.NaN, _moonDy = Float.NaN, _moonDz = Float.NaN;
+    private float _moonR = Float.NaN, _moonG = Float.NaN, _moonB = Float.NaN, _moonI = Float.NaN;
+
+    private float _ambR = Float.NaN, _ambG = Float.NaN, _ambB = Float.NaN, _ambI = Float.NaN;
 
     private Spatial skybox;
     private String skyboxAsset = "";
+
+    // shadows runtime cfg
+    private int _shMapSize = -1;
+    private int _shSplits = -1;
+    private float _shLambda = Float.NaN;
+    private float _shIntensity = Float.NaN;
 
     public RenderApiImpl() {
         super("render", "Render", "1.0.0");
@@ -125,6 +143,47 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         } catch (Throwable ignored) {
         }
         return def;
+    }
+
+    private static float vec3y(Value v, float def) {
+        try {
+            if (v == null || v.isNull()) return def;
+            if (v.hasMember("y")) return (float) v.getMember("y").asDouble();
+            if (v.hasArrayElements() && v.getArraySize() > 1) return (float) v.getArrayElement(1).asDouble();
+        } catch (Throwable ignored) {
+        }
+        return def;
+    }
+
+    private static float vec3z(Value v, float def) {
+        try {
+            if (v == null || v.isNull()) return def;
+            if (v.hasMember("z")) return (float) v.getMember("z").asDouble();
+            if (v.hasArrayElements() && v.getArraySize() > 2) return (float) v.getArrayElement(2).asDouble();
+        } catch (Throwable ignored) {
+        }
+        return def;
+    }
+
+    private static boolean approx(float a, float b) {
+        if (Float.isNaN(a) || Float.isNaN(b)) return false;
+        return Math.abs(a - b) <= 1e-6f;
+    }
+
+    @Override
+    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+        super.attach(ctx);
+        this.app = ctx.app;
+        this.assets = ctx.assets;
+        this.ecs = ctx.ecs;
+    }
+
+    private void onJme(Runnable r) {
+        if (engine.isJmeThread()) r.run();
+        else app.enqueue(() -> {
+            r.run();
+            return null;
+        });
     }
 
     private void ensureViewportContract(String where) {
@@ -182,6 +241,20 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         log.info("RenderApi: sun created");
     }
 
+    private void ensureMoonExists() {
+        if (moon != null) return;
+        moon = new DirectionalLight();
+        moon.setDirection(new Vector3f(1, -1, 0.3f).normalizeLocal());
+        moon.setColor(new ColorRGBA(0.45f, 0.55f, 0.85f, 1f).mult(0.0f)); // start off
+        app.getRootNode().addLight(moon);
+        log.info("RenderApi: moon created");
+    }
+
+    private DirectionalLight primaryLight() {
+        if ("moon".equals(primaryDirectional)) return moon != null ? moon : sun;
+        return sun;
+    }
+
     private void ensureFogExists() {
         if (fog != null) return;
         ensureMainFpp("ensureFogExists");
@@ -191,44 +264,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         fog.setFogDistance((float) _fogDistance);
         fpp.addFilter(fog);
         log.info("RenderApi: fog filter created");
-    }
-
-    private static float vec3y(Value v, float def) {
-        try {
-            if (v == null || v.isNull()) return def;
-            if (v.hasMember("y")) return (float) v.getMember("y").asDouble();
-            if (v.hasArrayElements() && v.getArraySize() > 1) return (float) v.getArrayElement(1).asDouble();
-        } catch (Throwable ignored) {
-        }
-        return def;
-    }
-
-    private static float vec3z(Value v, float def) {
-        try {
-            if (v == null || v.isNull()) return def;
-            if (v.hasMember("z")) return (float) v.getMember("z").asDouble();
-            if (v.hasArrayElements() && v.getArraySize() > 2) return (float) v.getArrayElement(2).asDouble();
-        } catch (Throwable ignored) {
-        }
-        return def;
-    }
-
-    private static boolean approx(float a, float b) {
-        if (Float.isNaN(a) || Float.isNaN(b)) return false;
-        return Math.abs(a - b) <= 1e-6f;
-    }
-
-    @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
-        super.attach(ctx);
-        this.app = ctx.app;
-        this.assets = ctx.assets;
-        this.ecs = ctx.ecs;
-    }
-
-    private void onJme(Runnable r) {
-        if (engine.isJmeThread()) r.run();
-        else app.enqueue(() -> { r.run(); return null; });
     }
 
     @HostAccess.Export
@@ -241,40 +276,15 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             onJme(() -> {
                 ensureViewportContract("ensureScene");
                 ensureAmbientExists();
+                ensureSunExists();
+                ensureMoonExists();
                 ensureMainFpp("ensureScene");
                 log.info("RenderApi: scene ensured");
             });
         });
     }
 
-    // ---------- Post helpers ----------
-
-    private void addFilterOnce(Object filter) {
-        if (filter == null) return;
-        ensureMainFpp("addFilterOnce");
-
-        if (filter instanceof com.jme3.post.Filter f) {
-            if (!fpp.getFilterList().contains(f)) fpp.addFilter(f);
-            return;
-        }
-        try {
-            var m = fpp.getClass().getMethod("addFilter", com.jme3.post.Filter.class);
-            m.invoke(fpp, filter);
-        } catch (Throwable ignored) {}
-    }
-
-    private void removeFilterSafe(Object filter) {
-        if (filter == null || fpp == null) return;
-
-        if (filter instanceof com.jme3.post.Filter f) {
-            try { fpp.removeFilter(f); } catch (Throwable ignored) {}
-            return;
-        }
-        try {
-            var m = fpp.getClass().getMethod("removeFilter", com.jme3.post.Filter.class);
-            m.invoke(fpp, filter);
-        } catch (Throwable ignored) {}
-    }
+    // ---------- skybox ----------
 
     @HostAccess.Export
     public void skyboxClear() {
@@ -294,8 +304,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             });
         });
     }
-
-    // ---------- Utils (kept from original style) ----------
 
     @HostAccess.Export
     public void skyboxCube(String asset) {
@@ -321,7 +329,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
                 try {
                     Texture tex = assets.loadTexture(a);
-
                     Spatial s = SkyFactory.createSky(assets, tex, SkyFactory.EnvMapType.CubeMap);
                     s.setQueueBucket(RenderQueue.Bucket.Sky);
                     s.setCullHint(Spatial.CullHint.Never);
@@ -340,6 +347,8 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             });
         });
     }
+
+    // ---------- ambient ----------
 
     @HostAccess.Export
     @Override
@@ -368,6 +377,34 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             });
         });
     }
+
+    // ---------- primary directional selector ----------
+
+    @HostAccess.Export
+    public void setPrimaryDirectional(String which) {
+        final String w = (which == null ? "" : which.trim().toLowerCase());
+        if (!w.equals("sun") && !w.equals("moon")) return;
+
+        profiledVoid(() -> {
+            ensureScene();
+            onJme(() -> {
+                ensureViewportContract("setPrimaryDirectional");
+                ensureSunExists();
+                ensureMoonExists();
+
+                if (w.equals(primaryDirectional)) return;
+                primaryDirectional = w;
+
+                if (sunShadow != null) {
+                    sunShadow.setLight(primaryLight());
+                }
+
+                log.info("RenderApi: primaryDirectional={}", primaryDirectional);
+            });
+        });
+    }
+
+    // ---------- sun ----------
 
     @HostAccess.Export
     @Override
@@ -410,20 +447,115 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 sun.setDirection(v);
                 sun.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
-                if (sunShadow != null) sunShadow.setLight(sun);
+                if (sunShadow != null && "sun".equals(primaryDirectional)) {
+                    sunShadow.setLight(sun);
+                }
             });
         });
     }
 
+    // ---------- moon (NEW) ----------
+
     @HostAccess.Export
-    @Override
-    public void sunShadows(int mapSize) {
+    public void moonCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                ensureViewportContract("sunShadows");
-                ensureSunExists();
+                ensureViewportContract("moonCfg");
+                ensureMoonExists();
 
+                Value dir = member(cfg, "dir");
+                Value col = member(cfg, "color");
+
+                float dx = vec3x(dir, 1f);
+                float dy = vec3y(dir, -1f);
+                float dz = vec3z(dir, 0.3f);
+
+                float r = vec3x(col, 0.45f);
+                float g = vec3y(col, 0.55f);
+                float b = vec3z(col, 0.85f);
+
+                float intensity = (float) Math.max(0.0, num(cfg, "intensity", 0.0));
+
+                if (approx(dx, _moonDx) && approx(dy, _moonDy) && approx(dz, _moonDz) &&
+                        approx(r, _moonR) && approx(g, _moonG) && approx(b, _moonB) && approx(intensity, _moonI)) {
+                    return;
+                }
+                _moonDx = dx;
+                _moonDy = dy;
+                _moonDz = dz;
+                _moonR = r;
+                _moonG = g;
+                _moonB = b;
+                _moonI = intensity;
+
+                Vector3f v = new Vector3f(dx, dy, dz);
+                if (v.lengthSquared() < 1e-6f) v.set(1, -1, 0);
+                v.normalizeLocal();
+
+                moon.setDirection(v);
+                moon.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
+
+                if (sunShadow != null && "moon".equals(primaryDirectional)) {
+                    sunShadow.setLight(moon);
+                }
+            });
+        });
+    }
+
+    // ---------- shadows ----------
+
+    @HostAccess.Export
+    @Override
+    public void sunShadows(int mapSize) {
+        // backward-compat: keep signature, but default splits/lambda/intensity
+        sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
+    }
+
+    @HostAccess.Export
+    public void sunShadowsEx(int mapSize, int splits, double lambda, double intensity) {
+        profiledVoid(() -> {
+            ensureScene();
+            onJme(() -> {
+                ensureViewportContract("sunShadowsEx");
+                ensureSunExists();
+                ensureMoonExists();
+
+                // 0 = выключить тени
+                if (mapSize <= 0) {
+                    if (sunShadow != null) {
+                        try {
+                            app.getViewPort().removeProcessor(sunShadow);
+                        } catch (Throwable ignored) {
+                        }
+                        sunShadow = null;
+                    }
+                    _shMapSize = 0;
+                    log.info("RenderApi: shadows disabled");
+                    return;
+                }
+
+                // 🔥 КРИТИЧЕСКИЙ CLAMP: 16384 почти всегда overkill и часто убивает FPS
+                // Для AAA-стартового пресета лучше 4096/8192 максимум.
+                int ms = Math.max(256, Math.min(mapSize, 8192));
+                int sp = Math.max(1, Math.min(splits, 4));
+                float lam = (float) Math.max(0.0, Math.min(lambda, 1.0));
+                float inten = (float) Math.max(0.0, Math.min(intensity, 1.0));
+
+                // ✅ Если renderer уже есть и параметры карты не менялись — НЕ пересоздаём!
+                if (sunShadow != null && _shMapSize == ms && _shSplits == sp) {
+                    _shLambda = lam;
+                    _shIntensity = inten;
+
+                    sunShadow.setLight(primaryLight());
+                    sunShadow.setLambda(lam);
+                    sunShadow.setShadowIntensity(inten);
+
+                    // лог спамить не надо
+                    return;
+                }
+
+                // иначе — пересоздаём (это тяжёлая операция)
                 if (sunShadow != null) {
                     try {
                         app.getViewPort().removeProcessor(sunShadow);
@@ -432,30 +564,38 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                     sunShadow = null;
                 }
 
-                if (mapSize <= 0) {
-                    log.info("RenderApi: shadows disabled");
-                    return;
-                }
+                _shMapSize = ms;
+                _shSplits = sp;
+                _shLambda = lam;
+                _shIntensity = inten;
 
-                int ms = Math.max(256, Math.min(mapSize, 8192));
-
-                sunShadow = new DirectionalLightShadowRenderer(assets, ms, DEFAULT_SHADOW_SPLITS);
-                sunShadow.setLight(sun);
-                sunShadow.setLambda(DEFAULT_SHADOW_LAMBDA);
-                sunShadow.setShadowIntensity(0.65f);
+                sunShadow = new DirectionalLightShadowRenderer(assets, ms, sp);
+                sunShadow.setLight(primaryLight());
+                sunShadow.setLambda(lam);
+                sunShadow.setShadowIntensity(inten);
 
                 app.getViewPort().addProcessor(sunShadow);
-                log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={}", ms, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA);
+
+                log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={} intensity={} primary={}",
+                        ms, sp, lam, inten, primaryDirectional);
             });
         });
     }
+
 
     @HostAccess.Export
     @Override
     public void sunShadowsCfg(Value cfg) {
         int map = intClampR(cfg, "mapSize", 2048, 0, 16384);
-        sunShadows(map);
+
+        int splits = intClampR(cfg, "splits", DEFAULT_SHADOW_SPLITS, 1, 8);
+        double lambda = num(cfg, "lambda", DEFAULT_SHADOW_LAMBDA);
+        double intensity = num(cfg, "intensity", DEFAULT_SHADOW_INTENSITY);
+
+        sunShadowsEx(map, splits, lambda, intensity);
     }
+
+    // ---------- fog ----------
 
     @HostAccess.Export
     @Override
@@ -464,6 +604,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             ensureScene();
             onJme(() -> {
                 ensureViewportContract("fogCfg");
+                ensureFogExists();
 
                 double r = num(cfg, "r", numPath(cfg, "color", "r", _fogBaseR));
                 double g = num(cfg, "g", numPath(cfg, "color", "g", _fogBaseG));
@@ -472,132 +613,25 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 double density = num(cfg, "density", _fogDensity);
                 double distance = num(cfg, "distance", _fogDistance);
 
-                if (density <= 0.0 || distance <= 0.0) {
-                    if (fog != null && fpp != null) {
-                        try {
-                            fpp.removeFilter(fog);
-                        } catch (Throwable ignored) {
-                        }
-                        fog = null;
-                        log.info("RenderApi: fog disabled");
-                    }
-                    _fogDensity = density;
-                    _fogDistance = distance;
-                    _fogBaseR = r;
-                    _fogBaseG = g;
-                    _fogBaseB = b;
-                    return;
-                }
+                _fogBaseR = r;
+                _fogBaseG = g;
+                _fogBaseB = b;
 
-                ensureFogExists();
+                density = Math.max(FOG_DENSITY_MIN, Math.min(density, FOG_DENSITY_MAX));
+                distance = Math.max(FOG_DISTANCE_MIN, distance);
 
-                boolean changed = false;
+                _fogDensity = density;
+                _fogDistance = distance;
 
-                if (Math.abs(r - _fogBaseR) > 1e-4 || Math.abs(g - _fogBaseG) > 1e-4 || Math.abs(b - _fogBaseB) > 1e-4) {
-                    fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
-                    _fogBaseR = r;
-                    _fogBaseG = g;
-                    _fogBaseB = b;
-                    changed = true;
-                }
-                if (Math.abs(density - _fogDensity) > 1e-4) {
-                    fog.setFogDensity((float) density);
-                    _fogDensity = density;
-                    changed = true;
-                }
-                if (Math.abs(distance - _fogDistance) > 1e-3) {
-                    fog.setFogDistance((float) distance);
-                    _fogDistance = distance;
-                    changed = true;
-                }
-
-                if (changed && log.isDebugEnabled()) {
-                    log.debug("RenderApi: fog updated (density={}, distance={})", _fogDensity, _fogDistance);
-                }
+                fog.setFogColor(new ColorRGBA((float) r, (float) g, (float) b, 1f));
+                fog.setFogDensity((float) density);
+                fog.setFogDistance((float) distance);
             });
         });
     }
 
-    @HostAccess.Export
     @Override
     public void postCfg(Value cfg) {
-        profiledVoid(() -> {
-            ensureScene();
-            onJme(() -> {
-                ensureViewportContract("postCfg");
-                ensureMainFpp("postCfg");
 
-                boolean fx = bool(cfg, "fxaa", false);
-                boolean bl = bool(cfg, "bloom", false);
-                boolean tm = bool(cfg, "tonemap", false);
-                boolean ao = bool(cfg, "ssao", false);
-
-                if (fx != _fxaaEnabled) {
-                    _fxaaEnabled = fx;
-                    if (fx) {
-                        if (fxaa == null) fxaa = new FXAAFilter();
-                        addFilterOnce(fxaa);
-                        log.info("RenderApi: FXAA enabled");
-                    } else {
-                        removeFilterSafe(fxaa);
-                        log.info("RenderApi: FXAA disabled");
-                    }
-                }
-
-                if (bl != _bloomEnabled) {
-                    _bloomEnabled = bl;
-                    if (bl) {
-                        if (bloom == null) bloom = new BloomFilter();
-                        bloom.setBloomIntensity((float) num(cfg, "bloomIntensity", 1.2));
-                        bloom.setExposurePower((float) num(cfg, "bloomExposure", 2.0));
-                        addFilterOnce(bloom);
-                        log.info("RenderApi: Bloom enabled");
-                    } else {
-                        removeFilterSafe(bloom);
-                        log.info("RenderApi: Bloom disabled");
-                    }
-                } else if (bl && bloom != null) {
-                    bloom.setBloomIntensity((float) num(cfg, "bloomIntensity", bloom.getBloomIntensity()));
-                    bloom.setExposurePower((float) num(cfg, "bloomExposure", bloom.getExposurePower()));
-                }
-
-                if (tm != _tonemapEnabled) {
-                    _tonemapEnabled = tm;
-                    if (tm) {
-                        if (tonemap == null) tonemap = new ToneMapFilter();
-                        addFilterOnce(tonemap);
-                        log.info("RenderApi: ToneMap enabled");
-                    } else {
-                        removeFilterSafe(tonemap);
-                        log.info("RenderApi: ToneMap disabled");
-                    }
-                }
-
-                if (ao != _ssaoEnabled) {
-                    _ssaoEnabled = ao;
-                    if (ao) {
-                        if (ssao == null) ssao = createSsaoIfAvailable();
-                        if (ssao != null) {
-                            addFilterOnce(ssao);
-                            log.info("RenderApi: SSAO enabled");
-                        } else {
-                            log.warn("RenderApi: SSAO requested but filter not available on classpath");
-                        }
-                    } else {
-                        removeFilterSafe(ssao);
-                        log.info("RenderApi: SSAO disabled");
-                    }
-                }
-            });
-        });
-    }
-
-    private Object createSsaoIfAvailable() {
-        try {
-            Class<?> c = Class.forName("com.jme3.post.ssao.SSAOFilter");
-            return c.getConstructor().newInstance();
-        } catch (Throwable ignored) {
-            return null;
-        }
     }
 }
