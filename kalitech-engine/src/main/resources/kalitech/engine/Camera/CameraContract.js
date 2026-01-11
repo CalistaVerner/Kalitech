@@ -1,8 +1,16 @@
 "use strict";
 
-function fail(msg) { throw new Error(msg); }
-function isFn(x) { return typeof x === "function"; }
-function isObj(x) { return x && typeof x === "object"; }
+function fail(msg) {
+    throw new Error(msg);
+}
+
+function isFn(x) {
+    return typeof x === "function";
+}
+
+function isObj(x) {
+    return x && typeof x === "object";
+}
 
 function req(v, msg) {
     if (v == null) fail(msg);
@@ -13,10 +21,12 @@ function asBool(v, name) {
     if (typeof v !== "boolean") fail("[camera] " + name + " must be boolean");
     return v;
 }
+
 function asInt(v, name) {
     if (!Number.isFinite(v) || (v | 0) !== v) fail("[camera] " + name + " must be int");
     return v | 0;
 }
+
 function asStr(v, name) {
     if (typeof v !== "string" || !v.trim()) fail("[camera] " + name + " must be non-empty string");
     return v.trim();
@@ -45,7 +55,7 @@ function validatePlayer(player) {
 function validateMeta(meta) {
     if (!isObj(meta)) fail("[camera] mode.meta required");
 
-    const allowed = { supportsZoom: 1, hasCollision: 1, numRays: 1, playerModelVisible: 1 };
+    const allowed = {supportsZoom: 1, hasCollision: 1, numRays: 1, playerModelVisible: 1};
     for (const k in meta) if (!allowed[k]) fail("[camera] mode.meta has unknown key: " + k);
 
     return {

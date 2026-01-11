@@ -1,16 +1,28 @@
 "use strict";
 
-const CameraOrchestrator = require("../Camera/CameraOrchestrator.js");
+function requireEngineCamera() {
+    const E = globalThis.ENGINE;
+    if (!E) throw new Error("[PlayerCamera] global ENGINE is not available");
+
+    const cam = E.camera;
+    if (!cam) throw new Error("[PlayerCamera] ENGINE.camera is not registered (camera module missing in manifest)");
+    if (typeof cam.createOrchestrator !== "function") {
+        throw new Error("[PlayerCamera] ENGINE.camera.createOrchestrator(player) is required");
+    }
+    return cam;
+}
 
 class PlayerCamera {
     constructor(player) {
+        if (!player) throw new Error("[PlayerCamera] player is required");
         this.player = player;
         this.orch = null;
     }
 
     attach() {
-        if (!this.orch) this.orch = new CameraOrchestrator(this.player);
-        //this.orch.setTerrainHandle(ENGINE.terrain. TERRAIN, true);
+        if (this.orch) return;
+        const cam = requireEngineCamera();
+        this.orch = cam.createOrchestrator(this.player);
     }
 
     getType() {
@@ -26,7 +38,7 @@ class PlayerCamera {
     }
 
     update(frame) {
-        if (this.orch) this.orch.update(frame.dt, frame);
+        if (this.orch && frame) this.orch.update(frame.dt, frame);
     }
 
     destroy() {

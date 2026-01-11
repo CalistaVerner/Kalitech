@@ -81,7 +81,7 @@ class CameraOrchestrator {
             look: this.look,
             zoom: this.zoom,
 
-            target: { x: 0, y: 0, z: 0 },
+            target: {x: 0, y: 0, z: 0},
             outPos: {x: 0, y: 0, z: 0},
 
             zoneState: null,
@@ -179,7 +179,10 @@ class CameraOrchestrator {
 
         const cur = this._active;
         let idx = 0;
-        for (let i = 0; i < n; i++) if (this._modes[i] === cur) { idx = i; break; }
+        for (let i = 0; i < n; i++) if (this._modes[i] === cur) {
+            idx = i;
+            break;
+        }
         this.setType(this._modes[(idx + 1) % n].id, false);
     }
 

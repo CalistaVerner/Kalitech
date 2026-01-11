@@ -86,9 +86,17 @@ class CameraZoomController {
         return this;
     }
 
-    value() { return this.current; }
-    targetValue() { return this.target; }
-    stepIndex() { return this.index; }
+    value() {
+        return this.current;
+    }
+
+    targetValue() {
+        return this.target;
+    }
+
+    stepIndex() {
+        return this.index;
+    }
 
     setIndex(idx, snap) {
         this.index = clamp(idx | 0, this.minIndex, this.maxIndex) | 0;

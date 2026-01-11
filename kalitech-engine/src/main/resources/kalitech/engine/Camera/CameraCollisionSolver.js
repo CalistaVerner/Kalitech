@@ -3,7 +3,9 @@
 
 const U = require("./camUtil.js");
 
-function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function clamp(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
 
 function invSqrt(x) {
     return (x > 0) ? (1.0 / Math.sqrt(x)) : 0;
@@ -79,9 +81,11 @@ function orthonormalBasisFromDir(dx, dy, dz) {
 function dbgSphere(dbg, p, r, col, ttl, depth, a, seg) {
     if (dbg && typeof dbg.sphere === "function") dbg.sphere(p, r, col, ttl, depth, a, seg || 10);
 }
+
 function dbgLine(dbg, a, b, col, ttl, depth, alpha) {
     if (dbg && typeof dbg.line === "function") dbg.line(a, b, col, ttl, depth, alpha);
 }
+
 function dbgRay(dbg, o, d, len, col, ttl, depth, alpha, arrow, arrowLen) {
     if (dbg && typeof dbg.ray === "function") dbg.ray(o, d, len, col, ttl, depth, alpha, !!arrow, (arrowLen != null ? arrowLen : 0.12));
 }
