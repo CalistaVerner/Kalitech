@@ -436,7 +436,15 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 float sunDisk = clamp((float) num(cfg, "sunDisk", 45.0), 0.5f, 500f);
                 float moonDisk = clamp((float) num(cfg, "moonDisk", 120.0), 0.5f, 2000f);
                 float exposure = clamp((float) num(cfg, "exposure", 1.0), 0.05f, 10f);
+                float texBlend = clamp01((float) num(cfg, "texBlend", 0.0));
+                float texExposure = clamp((float) num(cfg, "texExposure", 8.0), 0.001f, 100.0f);
 
+                // If no texture bound -> TexBlend must be 0 (avoid black dome)
+                boolean hasTex = skydomeMat.getParam("SkyTex") != null || skydomeMat.getParam("SkyCube") != null;
+                if (!hasTex) texBlend = 0.0f;
+
+                skydomeMat.setFloat("TexBlend", texBlend);
+                skydomeMat.setFloat("TexExposure", texExposure);
                 boolean changed =
                         !approx3(sdx, sdy, sdz, _sdSunDx, _sdSunDy, _sdSunDz) ||
                                 !approx3(mdx, mdy, mdz, _sdMoonDx, _sdMoonDy, _sdMoonDz) ||
@@ -808,12 +816,29 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 ensureSkyDomeExists();
 
                 Texture t = assets.loadTexture(a);
-                skydomeMat.setTexture("SkyTex", t);
 
-                log.info("RenderApi: skydome texture set asset='{}'", a);
+                if (t instanceof com.jme3.texture.TextureCubeMap) {
+                    skydomeMat.setTexture("SkyCube", t);
+                    skydomeMat.setBoolean("UseCube", true);
+                    skydomeMat.clearParam("SkyTex");
+                    log.info("RenderApi: skydome texture set asset='{}' type=TextureCubeMap", a);
+                    return;
+                }
+
+                // 2D (HDRI / pano / png)
+                skydomeMat.setTexture("SkyTex", t);
+                skydomeMat.setBoolean("UseCube", false);
+                skydomeMat.clearParam("SkyCube");
+
+                skydomeMat.setBoolean("UseCube", false);
+                skydomeMat.setFloat("TexBlend", 0f);
+                skydomeMat.setFloat("TexExposure", 1f);
+
+                log.info("RenderApi: skydome texture set asset='{}' type={}", a, t.getClass().getSimpleName());
             });
         });
     }
+
 
     @HostAccess.Export
     public void skyDomeTexClear() {

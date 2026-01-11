@@ -8,45 +8,46 @@ function req(v, msg) {
     return v;
 }
 
-function isFn(f) {
-    return typeof f === "function";
-}
-
 class SkyDome {
     constructor() {
-        // Artistic baseline (procedural fallback)
         this.zenith = {r: 0.08, g: 0.14, b: 0.30};
         this.horizon = {r: 0.65, g: 0.72, b: 0.82};
 
-        this.hazeDay = 0.55;
-        this.hazeNight = 0.30;
+        this.hazeDay = 0.60;
+        this.hazeNight = 0.28;
 
         this.sunDisk = 45.0;
         this.moonDisk = 120.0;
 
-        this.exposureDay = 1.15;
-        this.exposureNight = 0.65;
+        this.exposureDay = 1.10;
+        this.exposureNight = 0.55;
 
-        // --- Texture like SkyBox ---
-        this.defaultAsset = null;      // skyDomeTex
-        this.dayAsset = null;          // skyDomeTexDay
-        this.sunsetAsset = null;       // skyDomeTexSunset
-        this.nightAsset = null;        // skyDomeTexNight
+        // textures (SkyBox-style switching)
+        this.defaultAsset = null;
+        this.dayAsset = null;
+        this.sunsetAsset = null;
+        this.nightAsset = null;
 
-        // how much texture overrides procedural (0..1)
-        this.texBlendDay = 1.0;
-        this.texBlendNight = 1.0;
+        // keep procedural contribution (avoid flat look)
+        this.texBlendDay = 0.55;
+        this.texBlendNight = 0.35;
+
+        // HDR scale: 10.0 is way too hot for most HDRIs
+        this.texExposureDay = 1.80;
+        this.texExposureNight = 0.65;
 
         this.lastAsset = "";
-
-        // cfg -> render.skyDomeCfg cache
         this._lastKey = "";
     }
 
     applyCfg(cfg) {
         if (!cfg) return;
 
-        // --- procedural ---
+        if (cfg.skyDomeTex != null) this.defaultAsset = String(cfg.skyDomeTex);
+        if (cfg.skyDomeTexDay != null) this.dayAsset = String(cfg.skyDomeTexDay);
+        if (cfg.skyDomeTexSunset != null) this.sunsetAsset = String(cfg.skyDomeTexSunset);
+        if (cfg.skyDomeTexNight != null) this.nightAsset = String(cfg.skyDomeTexNight);
+
         if (cfg.skyDome) {
             const d = cfg.skyDome;
 
@@ -72,26 +73,25 @@ class SkyDome {
             if (d.exposureDay != null) this.exposureDay = +d.exposureDay;
             if (d.exposureNight != null) this.exposureNight = +d.exposureNight;
 
-            // texture blending
             if (d.texBlendDay != null) this.texBlendDay = +d.texBlendDay;
             if (d.texBlendNight != null) this.texBlendNight = +d.texBlendNight;
+
+            if (d.texExposureDay != null) this.texExposureDay = +d.texExposureDay;
+            if (d.texExposureNight != null) this.texExposureNight = +d.texExposureNight;
         }
 
-        // --- texture assets (SkyBox-style naming, but with SkyDome prefix) ---
-        if (cfg.skyDomeTex != null) this.defaultAsset = String(cfg.skyDomeTex);
-        if (cfg.skyDomeTexDay != null) this.dayAsset = String(cfg.skyDomeTexDay);
-        if (cfg.skyDomeTexSunset != null) this.sunsetAsset = String(cfg.skyDomeTexSunset);
-        if (cfg.skyDomeTexNight != null) this.nightAsset = String(cfg.skyDomeTexNight);
-
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug(
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+        if (log && log.debug) {
+            log.debug(
                 "[sky][skydome] applyCfg" +
                 (this.defaultAsset ? (" default='" + this.defaultAsset + "'") : " default=<null>") +
                 (this.dayAsset ? (" day='" + this.dayAsset + "'") : "") +
                 (this.sunsetAsset ? (" sunset='" + this.sunsetAsset + "'") : "") +
                 (this.nightAsset ? (" night='" + this.nightAsset + "'") : "") +
                 " texBlendDay=" + Number(this.texBlendDay).toFixed(3) +
-                " texBlendNight=" + Number(this.texBlendNight).toFixed(3)
+                " texBlendNight=" + Number(this.texBlendNight).toFixed(3) +
+                " texExposureDay=" + Number(this.texExposureDay).toFixed(3) +
+                " texExposureNight=" + Number(this.texExposureNight).toFixed(3)
             );
         }
     }
@@ -99,12 +99,8 @@ class SkyDome {
     pickAsset(dayFactor) {
         const d = (typeof dayFactor === "number") ? dayFactor : 1.0;
 
-        // If no special assets configured -> use default (may be null)
-        if (!this.dayAsset && !this.sunsetAsset && !this.nightAsset) {
-            return this.defaultAsset;
-        }
+        if (!this.dayAsset && !this.sunsetAsset && !this.nightAsset) return this.defaultAsset;
 
-        // Same thresholds as SkyBox
         if (d < 0.10) return this.nightAsset || this.defaultAsset;
         if (d < 0.35) return this.sunsetAsset || this.dayAsset || this.defaultAsset;
         return this.dayAsset || this.defaultAsset;
@@ -113,38 +109,33 @@ class SkyDome {
     update(render, celEval) {
         req(render, "[skydome] render is required");
         req(render.skyDomeCfg, "[skydome] render.skyDomeCfg(cfg) is required");
+        req(render.skyDomeTex, "[skydome] render.skyDomeTex(asset) is required");
 
         const df = req(celEval && celEval.dayFactor, "[skydome] celEval.dayFactor is required");
         const s = req(celEval && celEval.sun, "[skydome] celEval.sun is required");
         const m = req(celEval && celEval.moon, "[skydome] celEval.moon is required");
 
-        // --- texture switch (SkyBox style) ---
         const asset = this.pickAsset(df);
-        if (asset) {
-            if (!isFn(render.skyDomeTex)) {
-                throw new Error("[skydome] render.skyDomeTex(asset) is required when skyDomeTex* configured");
-            }
-            if (asset !== this.lastAsset) {
-                if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-                    ENGINE.log.debug(
-                        "[sky][skydome] switch tex='" + asset + "' dayFactor=" + Number(df).toFixed(4)
-                    );
-                }
-                render.skyDomeTex(asset);
-                this.lastAsset = asset;
-            }
+        if (asset && asset !== this.lastAsset) {
+            const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+            if (log && log.debug) log.debug("[sky][skydome] switch tex='" + asset + "' dayFactor=" + Number(df).toFixed(4));
+            render.skyDomeTex(asset);
+            this.lastAsset = asset;
         }
 
-        // --- procedural uniforms (plus TexBlend) ---
         const haze = SkyMath.lerp(this.hazeNight, this.hazeDay, df);
         const exposure = SkyMath.lerp(this.exposureNight, this.exposureDay, df);
-        const texBlend = SkyMath.lerp(this.texBlendNight, this.texBlendDay, df);
+
+        // clamp “artist knobs” to sane ranges (no silent fallback: deterministic clamp)
+        const texBlend = Math.max(0, Math.min(1, SkyMath.lerp(this.texBlendNight, this.texBlendDay, df)));
+        const texExposure = Math.max(0.001, SkyMath.lerp(this.texExposureNight, this.texExposureDay, df));
 
         const key =
             df.toFixed(4) + "|" +
             haze.toFixed(4) + "|" +
             exposure.toFixed(4) + "|" +
             texBlend.toFixed(4) + "|" +
+            texExposure.toFixed(4) + "|" +
             this.sunDisk.toFixed(2) + "|" +
             this.moonDisk.toFixed(2) + "|" +
             s.rayDir.x.toFixed(4) + "|" + s.rayDir.y.toFixed(4) + "|" + s.rayDir.z.toFixed(4) + "|" +
@@ -175,8 +166,8 @@ class SkyDome {
             moonDisk: this.moonDisk,
             exposure,
 
-            // NEW
-            texBlend
+            texBlend,
+            texExposure
         });
     }
 }

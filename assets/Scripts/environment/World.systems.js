@@ -21,33 +21,29 @@ const worldSystems = [
 
             // Optional: texture set (SkyBox-style switching)
             // If you want only one texture -> use skyDomeTex only.
-            skyDomeTex: "Textures/Sky/skyBox.dds",
-            skyDomeTexDay: "Textures/Sky/skyBox.dds",
-            skyDomeTexSunset: "Textures/Sky/skyBox.dds",
-            skyDomeTexNight: "Textures/Sky/skyBox.dds",
+            skyDomeTex: "Textures/Sky/sunrise_1k.hdr",
+            skyDomeTexDay: "Textures/Sky/sunrise_1k.hdr",
+            skyDomeTexSunset: "Textures/Sky/sunrise_1k.hdr",
+            skyDomeTexNight: "Textures/Sky/sunrise_1k.hdr",
 
             // If you don't want textures at all, remove the keys above
             // and set texBlendDay/Night to 0 in skyDome below.
 
             skyDome: {
-                // procedural gradient (used as base + also when texBlend < 1)
-                zenithColor: {r: 0.08, g: 0.14, b: 0.30},
-                horizonColor: {r: 0.65, g: 0.72, b: 0.82},
+                texBlendDay: 0.55,
+                texBlendNight: 0.35,
 
-                hazeDay: 0.62,
+                texExposureDay: 1.8,
+                texExposureNight: 0.65,
+
+                exposureDay: 1.05,
+                exposureNight: 0.55,
+
+                hazeDay: 0.60,
                 hazeNight: 0.28,
 
-                // disc sharpness (bigger => smaller/tighter disc)
-                sunDisk: 45.0,
-                moonDisk: 120.0,
-
-                // Sky shader exposure (NOT the post exposure)
-                exposureDay: 1.15,
-                exposureNight: 0.65,
-
-                // NEW: texture overlay strength (0..1)
-                texBlendDay: 1.0,
-                texBlendNight: 1.0
+                zenithColor: {r: 0.08, g: 0.14, b: 0.30},
+                horizonColor: {r: 0.65, g: 0.72, b: 0.82}
             },
 
             // ----------------------------------------------------------------

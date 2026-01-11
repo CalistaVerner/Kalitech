@@ -1,8 +1,12 @@
 MaterialDef SkyDome {
     MaterialParameters {
-        // NEW
-        Texture2D SkyTex
+        // Textures
+        Texture2D      SkyTex
+        TextureCubeMap SkyCube
+        Boolean        UseCube
+
         Float TexBlend
+        Float TexExposure
 
         Vector3 SunDir
         Vector3 MoonDir
@@ -23,8 +27,8 @@ MaterialDef SkyDome {
     }
 
     Technique {
-        VertexShader   GLSL150:   MatDefs/Sky/SkyDome.vert
-        FragmentShader GLSL150:   MatDefs/Sky/SkyDome.frag
+        VertexShader   GLSL150: MatDefs/Sky/SkyDome.vert
+        FragmentShader GLSL150: MatDefs/Sky/SkyDome.frag
 
         WorldParameters {
             WorldViewProjectionMatrix
