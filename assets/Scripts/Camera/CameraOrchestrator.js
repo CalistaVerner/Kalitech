@@ -1,4 +1,3 @@
-// FILE: Scripts/player/CameraOrchestrator.js
 "use strict";
 
 const U = require("./camUtil.js");
@@ -8,13 +7,11 @@ const CameraCollisionSolver = require("./CameraCollisionSolver.js");
 const CameraVolumeZones = require("./CameraVolumeZones.js");
 
 function arrHas(arr, code) {
-    const n = arr.length | 0;
-    for (let i = 0; i < n; i++) if ((arr[i] | 0) === code) return true;
+    for (let i = 0, n = arr.length | 0; i < n; i++) if ((arr[i] | 0) === code) return true;
     return false;
 }
 
 function smoothstep01(t) {
-    // clamp + cubic smoothstep
     t = t < 0 ? 0 : (t > 1 ? 1 : t);
     return t * t * (3 - 2 * t);
 }
@@ -31,17 +28,11 @@ class CameraOrchestrator {
         this._active = null;
 
         this._keyV = this.d.input.keyCode("V") | 0;
-        this._vDownPrev = false;
+        this._vPrev = false;
         this._switchCd = 0.0;
         this._switchCdTime = 0.18;
 
-        // transition between camera modes
-        this._tr = {
-            active: false,
-            t: 0.0,
-            dur: 0.22,
-            fromX: 0, fromY: 0, fromZ: 0
-        };
+        this._tr = {active: false, t: 0.0, dur: 0.22, fromX: 0, fromY: 0, fromZ: 0};
 
         this.look = {
             yaw: 0,
@@ -61,12 +52,14 @@ class CameraOrchestrator {
             max: 60.0
         });
 
+        this._zoomBaseMin = this.zoom.min;
+        this._zoomBaseMax = this.zoom.max;
+
         this.collision = new CameraCollisionSolver();
 
         this.zones = new CameraVolumeZones(player);
         this._lastZonesCfgRef = null;
 
-        // post-solve smoothing (third-person only)
         this.postSmooth = 22.0;
         this._sm = {x: 0, y: 0, z: 0};
         this._smInit = false;
@@ -76,22 +69,25 @@ class CameraOrchestrator {
             mode: null,
             cam: this.d.camera,
             physics: this.d.physics,
+            terrain: null,
+
             dt: 0,
             snap: null,
+            input: null,
+
             bodyId: 0,
             bodyPos: null,
+
             look: this.look,
             zoom: this.zoom,
-            input: null,
+
             target: { x: 0, y: 0, z: 0 },
             outPos: {x: 0, y: 0, z: 0},
+
             zoneState: null,
             zoneOverrides: null,
 
-            // collision publishes this each frame (min allowed camera Y after clamp)
-            _camMinY: -Infinity,
-
-            terrain: null
+            _camMinY: -Infinity
         };
 
         this.register(require("./modes/first.js"));
@@ -101,6 +97,25 @@ class CameraOrchestrator {
             ? String(player.cfg.camera.type)
             : "third";
         this.setType(initial, true);
+    }
+
+    destroy() {
+        this._active = null;
+        this._modes.length = 0;
+        this._byId = Object.create(null);
+
+        this._ctx.mode = null;
+        this._ctx.snap = null;
+        this._ctx.input = null;
+        this._ctx.bodyPos = null;
+        this._ctx.zoneState = null;
+        this._ctx.zoneOverrides = null;
+        this._ctx.terrain = null;
+
+        this._smInit = false;
+
+        this.player = null;
+        this.d = null;
     }
 
     register(modeOrCtor) {
@@ -126,18 +141,15 @@ class CameraOrchestrator {
         const id = String(type || "").trim().toLowerCase();
         const next = this._byId[id];
         if (!next) throw new Error("[camera] unknown mode: " + type);
-
         if (this._active === next) return;
 
         const cam = this.d.camera;
 
-        // start transition FROM current camera location (unless instant)
         if (!instant && cam && typeof cam.location === "function") {
             const p = cam.location();
             if (p) {
                 this._tr.active = true;
                 this._tr.t = 0.0;
-                // you can tune this per feel (0.16..0.28)
                 this._tr.dur = 0.22;
                 this._tr.fromX = U.vx(p, 0);
                 this._tr.fromY = U.vy(p, 0);
@@ -151,13 +163,13 @@ class CameraOrchestrator {
 
         this._active = next;
 
-        if (this.player.cfg) {
-            if (!this.player.cfg.camera) this.player.cfg.camera = {};
-            this.player.cfg.camera.type = next.id;
+        const cfg = this.player && this.player.cfg;
+        if (cfg) {
+            const c = cfg.camera || (cfg.camera = {});
+            c.type = next.id;
         }
-        if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
+        if (this.player && this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
-        // reset post smoothing so it doesn't "fight" the transition
         this._smInit = false;
     }
 
@@ -181,8 +193,28 @@ class CameraOrchestrator {
         this._ctx.terrain = src;
     }
 
+    setTerrainHandle(terrainApi, terrainHandle, world) {
+        if (!terrainApi || typeof terrainApi.heightAt !== "function") {
+            throw new Error("[camera] setTerrainHandle: terrainApi.heightAt(handle,x,z,world) is required");
+        }
+        if (typeof terrainApi.normalAt !== "function") {
+            throw new Error("[camera] setTerrainHandle: terrainApi.normalAt(handle,x,z,world) is required");
+        }
+        if (!terrainHandle) throw new Error("[camera] setTerrainHandle: terrainHandle is required");
+
+        const useWorld = (world !== false);
+
+        this._ctx.terrain = Object.freeze({
+            heightAt: (x, z) => terrainApi.heightAt(terrainHandle, x, z, useWorld),
+            normalAt: (x, z) => {
+                const m = terrainApi.normalAt(terrainHandle, x, z, useWorld);
+                return {x: +m.x, y: +m.y, z: +m.z};
+            }
+        });
+    }
+
     _zonesCfgRef() {
-        const c = this.player.cfg && this.player.cfg.camera ? this.player.cfg.camera : null;
+        const c = this.player && this.player.cfg && this.player.cfg.camera ? this.player.cfg.camera : null;
         return c ? c.volumeZones : null;
     }
 
@@ -196,16 +228,14 @@ class CameraOrchestrator {
     _applyLook(snap) {
         let dx = U.num(snap.dx, 0);
         let dy = U.num(snap.dy, 0);
-
         if (this.look.invertX) dx = -dx;
         if (this.look.invertY) dy = -dy;
-
         this.look.yaw -= dx * this.look.sensitivity;
         this.look.pitch -= dy * this.look.sensitivity;
     }
 
     _smoothOutPos(out, dt, enabled, minY) {
-        if (!enabled || this.postSmooth <= 0) {
+        if (!enabled || !(this.postSmooth > 0)) {
             this._smInit = false;
             if (Number.isFinite(minY)) out.y = Math.max(out.y, minY);
             return out;
@@ -230,7 +260,7 @@ class CameraOrchestrator {
         const tr = this._tr;
         if (!tr.active) return pos;
 
-        tr.t += Math.max(0, dt);
+        tr.t += dt > 0 ? dt : 0;
         const a = smoothstep01(tr.t / Math.max(1e-6, tr.dur));
 
         const x = tr.fromX + (pos.x - tr.fromX) * a;
@@ -238,11 +268,55 @@ class CameraOrchestrator {
         const z = tr.fromZ + (pos.z - tr.fromZ) * a;
 
         if (a >= 0.999) tr.active = false;
-
-        // IMPORTANT: don't pollute smoother state during transition
         this._smInit = false;
 
         return {x, y, z};
+    }
+
+    _applyPitchLimits(zoneOverrides) {
+        const baseMin = -this.look.pitchLimit;
+        const baseMax = +this.look.pitchLimit;
+
+        const minPitch = (zoneOverrides && zoneOverrides.minPitch != null) ? +zoneOverrides.minPitch : baseMin;
+        const maxPitch = (zoneOverrides && zoneOverrides.maxPitch != null) ? +zoneOverrides.maxPitch : baseMax;
+
+        const lo = Math.min(minPitch, maxPitch);
+        const hi = Math.max(minPitch, maxPitch);
+        this.look.pitch = U.clamp(this.look.pitch, lo, hi);
+    }
+
+    _applyZoomLimits(zoneOverrides) {
+        // restore baseline every frame (so zones can't "stick")
+        this.zoom.min = this._zoomBaseMin;
+        this.zoom.max = this._zoomBaseMax;
+
+        if (!zoneOverrides) return;
+
+        const hasMin = (zoneOverrides.zoomMin != null);
+        const hasMax = (zoneOverrides.zoomMax != null);
+        if (!hasMin && !hasMax) return;
+
+        const zmin = hasMin ? +zoneOverrides.zoomMin : this.zoom.min;
+        const zmax = hasMax ? +zoneOverrides.zoomMax : this.zoom.max;
+
+        this.zoom.min = zmin;
+        this.zoom.max = Math.max(zmin, zmax);
+    }
+
+    _handleModeSwitch(dt, snap) {
+        this._switchCd = Math.max(0, this._switchCd - dt);
+
+        const kd = snap.keysDown;
+        if (!kd) throw new Error("[camera] snap.keysDown required");
+
+        const vDown = (this._keyV > 0) && arrHas(kd, this._keyV);
+        const pressed = (this._switchCd === 0) && vDown && !this._vPrev;
+        this._vPrev = vDown;
+
+        if (pressed) {
+            this._switchCd = this._switchCdTime;
+            this.next();
+        }
     }
 
     update(dt, frame) {
@@ -250,12 +324,10 @@ class CameraOrchestrator {
 
         dt = U.clamp(U.num(dt, 1 / 60), 0, 0.05);
 
-        const cam = this.d.camera;
-        const phys = this.d.physics;
         const snap = frame.snap;
-
         this._applyLook(snap);
 
+        const phys = this.d.physics;
         const bodyId = this.player.getBodyId() | 0;
         const bodyPos = phys.position(bodyId);
         if (!bodyPos) throw new Error("[camera] physics.position(bodyId) returned null bodyId=" + bodyId);
@@ -264,27 +336,12 @@ class CameraOrchestrator {
         const zoneState = this.zones.update(bodyPos);
         const zoneOverrides = this.zones.blendedOverrides(null);
 
-        const baseMinPitch = -this.look.pitchLimit;
-        const baseMaxPitch = +this.look.pitchLimit;
-        const minPitch = (zoneOverrides && zoneOverrides.minPitch != null) ? +zoneOverrides.minPitch : baseMinPitch;
-        const maxPitch = (zoneOverrides && zoneOverrides.maxPitch != null) ? +zoneOverrides.maxPitch : baseMaxPitch;
+        this._applyPitchLimits(zoneOverrides);
 
-        this.look.pitch = U.clamp(this.look.pitch, Math.min(minPitch, maxPitch), Math.max(minPitch, maxPitch));
+        const cam = this.d.camera;
         cam.setYawPitch(this.look.yaw, this.look.pitch);
 
-        this._switchCd = Math.max(0, this._switchCd - dt);
-
-        const kd = snap.keysDown;
-        if (!kd) throw new Error("[camera] snap.keysDown required");
-
-        const vDown = (this._keyV > 0) && arrHas(kd, this._keyV);
-        const pressedV = (this._switchCd === 0) && vDown && !this._vDownPrev;
-        this._vDownPrev = vDown;
-
-        if (pressedV) {
-            this._switchCd = this._switchCdTime;
-            this.next();
-        }
+        this._handleModeSwitch(dt, snap);
 
         const mode = this._active;
         const ctx = this._ctx;
@@ -292,57 +349,31 @@ class CameraOrchestrator {
         ctx.mode = mode;
         ctx.dt = dt;
         ctx.snap = snap;
+        ctx.input = frame.input;
+
         ctx.bodyId = bodyId;
         ctx.bodyPos = bodyPos;
-        ctx.input = frame.input;
+
         ctx.zoneState = zoneState;
         ctx.zoneOverrides = zoneOverrides;
 
-        // reset published clamp each frame
         ctx._camMinY = -Infinity;
 
         if (mode.meta.supportsZoom) {
-            if (zoneOverrides && (zoneOverrides.zoomMin != null || zoneOverrides.zoomMax != null)) {
-                const zmin = (zoneOverrides.zoomMin != null) ? +zoneOverrides.zoomMin : this.zoom.min;
-                const zmax = (zoneOverrides.zoomMax != null) ? +zoneOverrides.zoomMax : this.zoom.max;
-                this.zoom.min = zmin;
-                this.zoom.max = Math.max(zmin, zmax);
-            }
+            this._applyZoomLimits(zoneOverrides);
             this.zoom.update(dt, ctx);
+        } else {
+            // keep zoom stable even in non-zoom modes
+            this._applyZoomLimits(null);
         }
 
         mode.update(ctx);
-
-        const modeId = mode && mode.id ? mode.id : "??";
-        const hasCol = !!(mode && mode.meta && mode.meta.hasCollision);
-        const colEnabled = !!(this.collision && this.collision.enabled);
-
-        if (!hasCol || !colEnabled) {
-            if (typeof LOG !== "undefined" && LOG && typeof LOG.debug === "function") {
-                LOG.debug(
-                    "[camera][collision] SKIP mode=" + modeId +
-                    " hasCollision=" + hasCol +
-                    " solverEnabled=" + colEnabled
-                );
-            }
-        } else {
-            if (typeof LOG !== "undefined" && LOG && typeof LOG.debug === "function") {
-                LOG.debug("[camera][collision] RUN mode=" + modeId);
-            }
-        }
-
-        if (hasCol && colEnabled) {
-            this.collision.solve(ctx);
-        }
 
         if (mode.meta.hasCollision && this.collision.enabled) {
             this.collision.solve(ctx);
         }
 
-        // 1) post smoothing (third only)
         const sm = this._smoothOutPos(ctx.outPos, dt, mode.id === "third", ctx._camMinY);
-
-        // 2) transition blend (works for both directions)
         const p = this._applyTransition(sm, dt);
 
         cam.setLocation(p.x, p.y, p.z);
