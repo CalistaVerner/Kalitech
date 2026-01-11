@@ -1,8 +1,10 @@
 "use strict";
 
+const U = require("./camUtil.js");
+const C = require("./CameraContract.js");
 const CameraZoomController = require("./CameraZoomController.js");
 const CameraCollisionSolver = require("./CameraCollisionSolver.js");
-const U = require("./camUtil.js");
+const CameraVolumeZones = require("./CameraVolumeZones.js");
 
 function arrHas(arr, code) {
     const n = arr.length | 0;
@@ -16,16 +18,18 @@ function smoothstep01(t) {
 
 class CameraOrchestrator {
     constructor(player) {
+        C.validatePlayer(player);
+
         this.player = player;
         this.d = player.d;
 
-        this._modes = [];
         this._byId = Object.create(null);
+        this._modes = [];
         this._active = null;
 
         this._keyV = this.d.input.keyCode("V") | 0;
         this._vDownPrev = false;
-        this._switchCd = 0;
+        this._switchCd = 0.0;
         this._switchCdTime = 0.18;
 
         this.look = {
@@ -46,8 +50,11 @@ class CameraOrchestrator {
             max: 60.0
         });
 
-        this._zoomStateByMode = Object.create(null);
         this.collision = new CameraCollisionSolver();
+        this.zones = new CameraVolumeZones(player);
+
+        // config pointer cache (no per-frame rebuild)
+        this._lastZonesCfgRef = null;
 
         this.transition = {
             enabled: true,
@@ -57,9 +64,6 @@ class CameraOrchestrator {
             from: { x: 0, y: 0, z: 0 },
             to: { x: 0, y: 0, z: 0 }
         };
-
-        this._tmpFrom = { x: 0, y: 0, z: 0 };
-        this._tmpTo = { x: 0, y: 0, z: 0 };
 
         this._ctx = {
             orchestrator: this,
@@ -74,25 +78,26 @@ class CameraOrchestrator {
             zoom: this.zoom,
             input: null,
             target: { x: 0, y: 0, z: 0 },
-            outPos: { x: 0, y: 0, z: 0 }
+            outPos: {x: 0, y: 0, z: 0},
+            zoneState: null,
+            zoneOverrides: null
         };
 
         this.register(require("./modes/first.js"));
         this.register(require("./modes/third.js"));
 
-        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type) ? String(player.cfg.camera.type) : "third";
+        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type)
+            ? String(player.cfg.camera.type)
+            : "third";
         this.setType(initial);
     }
 
-    destroy() {
-    }
-
     register(modeOrCtor) {
-        const mode = (typeof modeOrCtor === "function") ? new modeOrCtor(this) : modeOrCtor;
-        const id = String(mode.id || "").trim().toLowerCase();
-        if (!id) throw new Error("[camera] mode.id required");
+        const m = (typeof modeOrCtor === "function") ? new modeOrCtor(this) : modeOrCtor;
+        const mode = C.validateMode(m);
+
+        const id = String(mode.id).trim().toLowerCase();
         if (this._byId[id]) throw new Error("[camera] duplicate mode id: " + id);
-        if (typeof mode.update !== "function") throw new Error("[camera] mode.update(ctx) required");
 
         this._byId[id] = mode;
         this._modes.push(mode);
@@ -109,13 +114,7 @@ class CameraOrchestrator {
         const next = this._byId[id];
         if (!next) throw new Error("[camera] unknown mode: " + type);
 
-        const prev = this._active;
-        if (prev === next) return;
-
-        if (prev && prev.meta && prev.meta.supportsZoom) {
-            this._zoomStateByMode[prev.id] = { index: this.zoom.stepIndex(), current: this.zoom.value() };
-        }
-
+        if (this._active === next) return;
         this._active = next;
 
         if (this.player.cfg) {
@@ -124,40 +123,45 @@ class CameraOrchestrator {
         }
         if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
-        if (next.meta && next.meta.supportsZoom) {
-            const st = this._zoomStateByMode[next.id];
-            if (st) {
-                this.zoom.setIndex(st.index, true);
-                this.zoom.reset(st.current);
-            }
-        }
-
         this.transition.active = false;
-        this.collision.enabled = !(next.meta && next.meta.hasCollision === false);
 
         const model = this.player.getModel();
-        if (model && typeof model.setVisible === "function" && next.meta) {
+        if (model && typeof model.setVisible === "function") {
             model.setVisible(!!next.meta.playerModelVisible);
         }
     }
 
     next() {
         const n = this._modes.length | 0;
-        if (n === 0) return;
+        if (n <= 1) return;
 
         const cur = this._active;
         let idx = 0;
         for (let i = 0; i < n; i++) if (this._modes[i] === cur) { idx = i; break; }
-
         this.setType(this._modes[(idx + 1) % n].id);
     }
 
-    _startTransition(from, to) {
-        const tr = this.transition;
-        tr.active = true;
-        tr.t = 0;
-        tr.from.x = from.x; tr.from.y = from.y; tr.from.z = from.z;
-        tr.to.x = to.x; tr.to.y = to.y; tr.to.z = to.z;
+    _zonesCfgRef() {
+        const c = this.player.cfg && this.player.cfg.camera ? this.player.cfg.camera : null;
+        return c ? c.volumeZones : null;
+    }
+
+    _syncZonesIfNeeded() {
+        const ref = this._zonesCfgRef();
+        if (ref === this._lastZonesCfgRef) return;
+        this._lastZonesCfgRef = ref;
+        this.zones.configureFromPlayerCfg(); // strict validation inside
+    }
+
+    _applyLook(dt, snap) {
+        let dx = U.num(snap.dx, 0);
+        let dy = U.num(snap.dy, 0);
+
+        if (this.look.invertX) dx = -dx;
+        if (this.look.invertY) dy = -dy;
+
+        this.look.yaw -= dx * this.look.sensitivity;
+        this.look.pitch -= dy * this.look.sensitivity;
     }
 
     _tickTransition(dt) {
@@ -189,22 +193,26 @@ class CameraOrchestrator {
         const cam = this.d.camera;
         const phys = this.d.physics;
 
-        let dx = U.num(frame.snap.dx, 0);
-        let dy = U.num(frame.snap.dy, 0);
-
-        if (this.look.invertX) dx = -dx;
-        if (this.look.invertY) dy = -dy;
-
-        this.look.yaw -= dx * this.look.sensitivity;
-        this.look.pitch -= dy * this.look.sensitivity;
-        this.look.pitch = U.clamp(this.look.pitch, -this.look.pitchLimit, this.look.pitchLimit);
-
-        cam.setYawPitch(this.look.yaw, this.look.pitch);
+        this._applyLook(dt, frame.snap);
 
         const bodyId = this.player.getBodyId() | 0;
         const bodyPos = phys.position(bodyId);
         if (!bodyPos) throw new Error("[camera] physics.position(bodyId) returned null bodyId=" + bodyId);
 
+        this._syncZonesIfNeeded();
+        const zoneState = this.zones.update(bodyPos);
+        const zoneOverrides = this.zones.blendedOverrides(null);
+
+        // pitch limits (zone override, else base)
+        const baseMinPitch = -this.look.pitchLimit;
+        const baseMaxPitch = +this.look.pitchLimit;
+        const minPitch = (zoneOverrides && zoneOverrides.minPitch != null) ? +zoneOverrides.minPitch : baseMinPitch;
+        const maxPitch = (zoneOverrides && zoneOverrides.maxPitch != null) ? +zoneOverrides.maxPitch : baseMaxPitch;
+
+        this.look.pitch = U.clamp(this.look.pitch, Math.min(minPitch, maxPitch), Math.max(minPitch, maxPitch));
+        cam.setYawPitch(this.look.yaw, this.look.pitch);
+
+        // mode switch
         this._switchCd = Math.max(0, this._switchCd - dt);
 
         const kd = frame.snap.keysDown;
@@ -218,32 +226,11 @@ class CameraOrchestrator {
             this._switchCd = this._switchCdTime;
 
             const loc = cam.location();
-            this._tmpFrom.x = U.vx(loc, 0);
-            this._tmpFrom.y = U.vy(loc, 0);
-            this._tmpFrom.z = U.vz(loc, 0);
+            this.transition.from.x = U.vx(loc, 0);
+            this.transition.from.y = U.vy(loc, 0);
+            this.transition.from.z = U.vz(loc, 0);
 
             this.next();
-
-            const mode = this._active;
-            const ctx = this._ctx;
-
-            ctx.mode = mode;
-            ctx.dt = dt;
-            ctx.snap = frame.snap;
-            ctx.bodyId = bodyId;
-            ctx.bodyPos = bodyPos;
-            ctx.input = frame.input;
-
-            if (mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
-            mode.update(ctx);
-
-            this._tmpTo.x = ctx.outPos.x; this._tmpTo.y = ctx.outPos.y; this._tmpTo.z = ctx.outPos.z;
-
-            if (this.transition.enabled) {
-                this._startTransition(this._tmpFrom, this._tmpTo);
-                cam.setLocation(this._tmpFrom.x, this._tmpFrom.y, this._tmpFrom.z);
-                return;
-            }
         }
 
         if (this.transition.active) {
@@ -251,8 +238,9 @@ class CameraOrchestrator {
             return;
         }
 
-        const mode = this._active;
+        // build ctx once
         const ctx = this._ctx;
+        const mode = this._active;
 
         ctx.mode = mode;
         ctx.dt = dt;
@@ -260,13 +248,41 @@ class CameraOrchestrator {
         ctx.bodyId = bodyId;
         ctx.bodyPos = bodyPos;
         ctx.input = frame.input;
+        ctx.zoneState = zoneState;
+        ctx.zoneOverrides = zoneOverrides;
 
-        if (mode.meta && mode.meta.supportsZoom) this.zoom.update(dt, ctx);
+        // zoom (zone clamps)
+        if (mode.meta.supportsZoom) {
+            if (zoneOverrides && (zoneOverrides.zoomMin != null || zoneOverrides.zoomMax != null)) {
+                const zmin = (zoneOverrides.zoomMin != null) ? +zoneOverrides.zoomMin : this.zoom.min;
+                const zmax = (zoneOverrides.zoomMax != null) ? +zoneOverrides.zoomMax : this.zoom.max;
+                this.zoom.min = zmin;
+                this.zoom.max = Math.max(zmin, zmax);
+            }
+            this.zoom.update(dt, ctx);
+        }
+
+        // mode computes target/outPos (third keeps target centered on player)
         mode.update(ctx);
 
-        cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
+        // collision (strict)
+        if (mode.meta.hasCollision && this.collision.enabled) {
+            this.collision.solve(ctx);
+        }
 
-        //if (this.collision.enabled && mode.meta && mode.meta.hasCollision) this.collision.solve(ctx);
+        if (pressedV && this.transition.enabled) {
+            this.transition.to.x = ctx.outPos.x;
+            this.transition.to.y = ctx.outPos.y;
+            this.transition.to.z = ctx.outPos.z;
+
+            this.transition.active = true;
+            this.transition.t = 0;
+
+            cam.setLocation(this.transition.from.x, this.transition.from.y, this.transition.from.z);
+            return;
+        }
+
+        cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
     }
 }
 

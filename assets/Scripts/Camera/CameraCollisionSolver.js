@@ -1,133 +1,103 @@
 "use strict";
 
+const U = require("./camUtil.js");
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-function num(v, fb) {
-    const n = +v;
-    return Number.isFinite(n) ? n : fb;
-}
+class CameraCollisionSolver {
+    constructor() {
+        this.enabled = true;
 
-function expSmooth(cur, target, smooth, dt) {
-    const s = smooth > 0 ? smooth : 0;
-    if (s === 0) return target;
-    const a = 1 - Math.exp(-s * dt);
-    return cur + (target - cur) * a;
-}
+        // base tuning (не "fallback": это базовые свойства solver'а)
+        this.radius = 0.25;
+        this.surfacePadding = 0.08;
+        this.floorPadding = 0.20;
+        this.maxRayLenDown = 3.0;
 
-class CameraZoomController {
-    constructor(cfg) {
-        cfg = cfg || Object.create(null);
-
-        const steps = Array.isArray(cfg.steps) && cfg.steps.length ? cfg.steps : [2, 4, 8, 16, 32];
-        this.steps = steps.slice();
-
-        this.minIndex = clamp((cfg.minIndex | 0) || 0, 0, this.steps.length - 1) | 0;
-        this.maxIndex = (cfg.maxIndex !== undefined) ? (cfg.maxIndex | 0) : (this.steps.length - 1);
-        this.maxIndex = clamp(this.maxIndex, this.minIndex, this.steps.length - 1) | 0;
-
-        const mid = (this.steps.length / 2) | 0;
-        this.index = (cfg.index !== undefined) ? (cfg.index | 0) : mid;
-        this.index = clamp(this.index, this.minIndex, this.maxIndex) | 0;
-
-        this.min = num(cfg.min, 1.2);
-        this.max = Math.max(this.min, num(cfg.max, 120.0));
-
-        this.target = clamp(num(cfg.target, num(this.steps[this.index], 8)), this.min, this.max);
-        this.current = clamp(num(cfg.current, this.target), this.min, this.max);
-
-        this.smooth = num(cfg.smooth, 18.0);
-        this.cooldown = Math.max(0, num(cfg.cooldown, 0.08));
-        this._cd = 0;
-
-        this.invertWheel = !!cfg.invertWheel;
-        this.stepStride = Math.max(1, (cfg.stepStride | 0) || 1);
+        this.smooth = 18.0;
     }
 
-    configure(cfg) {
-        if (!cfg) return this;
+    /**
+     * ctx:
+     *  - physics.raycast(ox,oy,oz, dx,dy,dz, len) -> {hit:boolean, x,y,z, normal:{x,y,z}} (contract outside)
+     *  - target: pivot point
+     *  - outPos: desired camera pos (modified in-place)
+     *  - dt
+     *  - zoneOverrides (optional): camRadius, surfacePadding, floorPadding, collisionEnabled
+     */
+    solve(ctx) {
+        if (!this.enabled) return;
 
-        if (Array.isArray(cfg.steps) && cfg.steps.length) {
-            this.steps = cfg.steps.slice();
-            this.minIndex = clamp(this.minIndex, 0, this.steps.length - 1) | 0;
-            this.maxIndex = clamp(this.maxIndex, this.minIndex, this.steps.length - 1) | 0;
-            this.index = clamp(this.index, this.minIndex, this.maxIndex) | 0;
+        const phys = ctx.physics;
+        if (!phys || typeof phys.raycast !== "function") {
+            throw new Error("[camera][collision] physics.raycast() is required");
         }
 
-        if (cfg.minIndex !== undefined) this.minIndex = clamp(cfg.minIndex | 0, 0, this.steps.length - 1) | 0;
-        if (cfg.maxIndex !== undefined) this.maxIndex = clamp(cfg.maxIndex | 0, this.minIndex, this.steps.length - 1) | 0;
-        if (cfg.index !== undefined) this.index = clamp(cfg.index | 0, this.minIndex, this.maxIndex) | 0;
+        const zo = ctx.zoneOverrides || null;
+        const collisionEnabled = (zo && zo.collisionEnabled != null) ? !!zo.collisionEnabled : true;
+        if (!collisionEnabled) return;
 
-        if (cfg.smooth !== undefined) this.smooth = num(cfg.smooth, this.smooth);
-        if (cfg.cooldown !== undefined) this.cooldown = Math.max(0, num(cfg.cooldown, this.cooldown));
-        if (cfg.invertWheel !== undefined) this.invertWheel = !!cfg.invertWheel;
+        const radius = (zo && zo.camRadius != null) ? +zo.camRadius : this.radius;
+        const pad = (zo && zo.surfacePadding != null) ? +zo.surfacePadding : this.surfacePadding;
+        const floorPad = (zo && zo.floorPadding != null) ? +zo.floorPadding : this.floorPadding;
 
-        if (cfg.min !== undefined) this.min = num(cfg.min, this.min);
-        if (cfg.max !== undefined) this.max = Math.max(this.min, num(cfg.max, this.max));
+        const from = ctx.target;
+        const to = ctx.outPos;
 
-        if (cfg.stepStride !== undefined) this.stepStride = Math.max(1, cfg.stepStride | 0);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const dz = to.z - from.z;
 
-        this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
-        this.current = clamp(this.current, this.min, this.max);
+        const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (len < 1e-6) return;
 
-        return this;
-    }
+        const inv = 1.0 / len;
+        const dirx = dx * inv;
+        const diry = dy * inv;
+        const dirz = dz * inv;
 
-    reset(value) {
-        if (value !== undefined) {
-            const v = +value;
-            if (Number.isFinite(v)) {
-                this.current = clamp(v, this.min, this.max);
-                this.target = this.current;
+        // 1) sweep pivot -> camera
+        const hit = phys.raycast(from.x, from.y, from.z, dirx, diry, dirz, len + radius);
+
+        if (hit && hit.hit) {
+            if (!hit.normal) throw new Error("[camera][collision] raycast hit must provide normal");
+
+            const nx = +hit.normal.x;
+            const ny = +hit.normal.y;
+            const nz = +hit.normal.z;
+
+            // project desired movement onto surface plane (slide)
+            const dot = dx * nx + dy * ny + dz * nz;
+            const sx = dx - nx * dot;
+            const sy = dy - ny * dot;
+            const sz = dz - nz * dot;
+
+            // place near contact point with padding
+            const cx = (+hit.x) - nx * pad;
+            const cy = (+hit.y) - ny * pad;
+            const cz = (+hit.z) - nz * pad;
+
+            // small slide (prevents "stuck", feels AAA)
+            to.x = cx + sx * 0.25;
+            to.y = cy + sy * 0.25;
+            to.z = cz + sz * 0.25;
+        }
+
+        // 2) terrain/floor clamp (down ray from camera)
+        const down = phys.raycast(to.x, to.y + 0.5, to.z, 0, -1, 0, this.maxRayLenDown);
+        if (down && down.hit) {
+            const minY = (+down.y) + floorPad;
+            if (to.y < minY) {
+                // smooth lift (no jitter)
+                const dt = clamp(U.num(ctx.dt, 1 / 60), 0, 0.05);
+                const a = 1 - Math.exp(-(this.smooth > 0 ? this.smooth : 0) * dt);
+                to.y = lerp(to.y, minY, a);
             }
         }
-        this._cd = 0;
-        return this;
-    }
-
-    value() {
-        return this.current;
-    }
-
-    targetValue() {
-        return this.target;
-    }
-
-    stepIndex() {
-        return this.index;
-    }
-
-    setIndex(idx, snap) {
-        this.index = clamp(idx | 0, this.minIndex, this.maxIndex) | 0;
-        this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
-        if (snap) this.current = this.target;
-        return this;
-    }
-
-    update(dt, ctx) {
-        dt = clamp(num(dt, 1 / 60), 0, 0.05);
-        this._cd = Math.max(0, this._cd - dt);
-
-        let want = 0;
-
-        const inp = ctx && ctx.input;
-        if (inp) {
-            const w = num(inp.wheel, 0);
-            if (w !== 0) want += (this.invertWheel ? -w : w) > 0 ? 1 : -1;
-
-            if (inp.zoomIn) want += 1;
-            if (inp.zoomOut) want -= 1;
-        }
-
-        if (want !== 0 && this._cd === 0) {
-            const dir = (want > 0) ? -1 : 1;
-            this.index = clamp(this.index + dir * this.stepStride, this.minIndex, this.maxIndex) | 0;
-            this.target = clamp(num(this.steps[this.index], this.target), this.min, this.max);
-            this._cd = this.cooldown;
-        }
-
-        this.current = expSmooth(this.current, this.target, this.smooth, dt);
-        return this;
     }
 }
 
-module.exports = CameraZoomController;
+module.exports = CameraCollisionSolver;
