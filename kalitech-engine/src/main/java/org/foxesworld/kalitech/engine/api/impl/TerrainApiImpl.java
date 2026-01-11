@@ -286,6 +286,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         return normalAt(handle, x, z, true);
     }
 
+    private DebugDrawApiImpl requireDebugDraw() {
+        Object d = engine.debug(); // <- подставь твой реальный getter, если название другое
+        if (d instanceof DebugDrawApiImpl dbg) return dbg;
+        return null;
+    }
+
     // ---------------------------------------------------------------------
     // PHYSICS
     // ---------------------------------------------------------------------

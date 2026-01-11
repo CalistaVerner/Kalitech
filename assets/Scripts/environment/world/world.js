@@ -47,7 +47,6 @@ class Index {
             // (опционально) если Java поддерживает:
             // autoCenter: true, // 0..1 -> -0.5..+0.5 автоматически
         });
-        console.log(TERRAIN.heightAt(12, 12));
     }
 
 

@@ -118,7 +118,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
         this.viewport = new ViewportContract(app, log);
         this.lights = new LightRigModule(app.getRootNode(), log);
-        this.shadows = new ShadowModule(app, assets, log, lights);
+        this.shadows = new ShadowModule(app, assets, log, viewport, lights);
     }
 
     private void onJme(Runnable r) {

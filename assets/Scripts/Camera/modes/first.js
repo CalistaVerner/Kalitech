@@ -5,7 +5,7 @@ const U = require("../camUtil.js");
 class FirstPersonCameraMode {
     constructor() {
         this.id = "first";
-        this.meta = {supportsZoom: false, hasCollision: false, numRays: 0, playerModelVisible: false};
+        this.meta = {supportsZoom: true, hasCollision: true, numRays: 0, playerModelVisible: false};
         this.headOffset = { x: 0.0, y: 1.65, z: 0.0 };
     }
 

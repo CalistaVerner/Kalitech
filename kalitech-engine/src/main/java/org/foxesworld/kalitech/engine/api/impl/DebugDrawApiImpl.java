@@ -531,6 +531,34 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         drawCircle(center, normal, r, seg, col, ttl, dt);
     }
 
+
+// --------------------------------------------------------------------
+// INTERNAL FAST PATH (Java-only, package-private)
+// Used by api.impl modules (TerrainApiImpl etc.)
+// Not exported to JS.
+// IMPORTANT: matches this DebugDrawApiImpl implementation (two-layer batching).
+// --------------------------------------------------------------------
+
+    void lineFast(Vector3f a, Vector3f b, ColorRGBA c, float ttl, boolean depthTest) {
+        if (!enabled) return;
+        if (a == null || b == null || c == null) return;
+        addLine(a, b, c, ttl, depthTest);
+    }
+
+    void pointFast(Vector3f p, float radius, ColorRGBA c, float ttl, boolean depthTest) {
+        if (!enabled) return;
+        if (p == null || c == null) return;
+
+        float r = Math.max(0.01f, radius);
+
+        // tiny cross (3 lines)
+        lineFast(new Vector3f(p.x - r, p.y, p.z), new Vector3f(p.x + r, p.y, p.z), c, ttl, depthTest);
+        lineFast(new Vector3f(p.x, p.y - r, p.z), new Vector3f(p.x, p.y + r, p.z), c, ttl, depthTest);
+        lineFast(new Vector3f(p.x, p.y, p.z - r), new Vector3f(p.x, p.y, p.z + r), c, ttl, depthTest);
+    }
+
+
+
     /**
      * cfg:
      * - points: array of vec3 (>=2)

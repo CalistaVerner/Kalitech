@@ -100,6 +100,7 @@ public final class RuntimeAppState extends BaseAppState {
 
         // --- Physics (optional) ---
         bullet = new BulletAppState();
+        bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("physicsDebug", "false").toLowerCase()));
         app.getStateManager().attach(bullet);
         physicsSpace = bullet.getPhysicsSpace();
         if (physicsSpace != null) {

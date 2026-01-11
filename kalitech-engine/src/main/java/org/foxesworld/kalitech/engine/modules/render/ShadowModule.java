@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.modules.render;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
+import com.jme3.renderer.ViewPort;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import org.apache.logging.log4j.Logger;
 
@@ -16,9 +17,16 @@ public final class ShadowModule {
     private final AssetManager assets;
     private final Logger log;
 
+    private final ViewportContract viewport;
     private final LightRigModule lights;
 
     private DirectionalLightShadowRenderer dlsr;
+
+    /**
+     * ViewPort we are currently attached to. Default = MAIN.
+     * If you render gameplay in a custom viewport, set it via setTargetViewport().
+     */
+    private ViewPort targetVp;
 
     private int mapSize = -1;
     private int splits = -1;
@@ -27,11 +35,24 @@ public final class ShadowModule {
 
     private boolean snapEnabled = true;
 
-    public ShadowModule(SimpleApplication app, AssetManager assets, Logger log, LightRigModule lights) {
+    public ShadowModule(SimpleApplication app, AssetManager assets, Logger log, ViewportContract viewport, LightRigModule lights) {
         this.app = app;
         this.assets = assets;
         this.log = log;
+        this.viewport = viewport;
         this.lights = lights;
+    }
+
+    public void setTargetViewport(ViewPort vp) {
+        this.targetVp = vp;
+        if (dlsr != null) {
+            rebindProcessor("setTargetViewport");
+        }
+    }
+
+    public ViewPort targetViewport() {
+        if (targetVp != null) return targetVp;
+        return viewport != null ? viewport.main() : app.getViewPort();
     }
 
     public DirectionalLightShadowRenderer renderer() {
@@ -50,12 +71,13 @@ public final class ShadowModule {
     }
 
     public void enable(int mapSize, int splits, double lambda, double intensity) {
+        if (viewport != null) viewport.ensure("shadows.enable");
         lights.ensure();
 
         // disable shadows
         if (mapSize <= 0) {
             if (dlsr != null) {
-                app.getViewPort().removeProcessor(dlsr);
+                targetViewport().removeProcessor(dlsr);
                 dlsr = null;
             }
             this.mapSize = 0;
@@ -81,7 +103,7 @@ public final class ShadowModule {
 
         // recreate
         if (dlsr != null) {
-            app.getViewPort().removeProcessor(dlsr);
+            targetViewport().removeProcessor(dlsr);
             dlsr = null;
         }
 
@@ -98,7 +120,7 @@ public final class ShadowModule {
         r.setSnapEnabled(snapEnabled);
 
         dlsr = r;
-        app.getViewPort().addProcessor(dlsr);
+        targetViewport().addProcessor(dlsr);
 
         log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={} intensity={} primary={} snap={}",
                 ms, sp, lam, inten, lights.primaryDirectional(), snapEnabled);
@@ -107,5 +129,24 @@ public final class ShadowModule {
     public void refreshPrimaryLightBinding() {
         if (dlsr == null) return;
         dlsr.setLight(lights.primaryLight());
+    }
+
+    private void rebindProcessor(String where) {
+        ViewPort vp = targetViewport();
+
+        // Remove from both likely ports to be safe; JME ignores if not present.
+        try {
+            if (viewport != null) {
+                viewport.main().removeProcessor(dlsr);
+                viewport.gui().removeProcessor(dlsr);
+            } else {
+                app.getViewPort().removeProcessor(dlsr);
+                app.getGuiViewPort().removeProcessor(dlsr);
+            }
+        } catch (Exception ignored) {
+        }
+
+        vp.addProcessor(dlsr);
+        log.info("RenderApi: shadows rebound ({}) to viewport={} primary={}", where, vp.getName(), lights.primaryDirectional());
     }
 }

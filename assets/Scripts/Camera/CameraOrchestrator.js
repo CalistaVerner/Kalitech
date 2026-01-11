@@ -1,3 +1,4 @@
+// FILE: Scripts/player/CameraOrchestrator.js
 "use strict";
 
 const U = require("./camUtil.js");
@@ -10,6 +11,12 @@ function arrHas(arr, code) {
     const n = arr.length | 0;
     for (let i = 0; i < n; i++) if ((arr[i] | 0) === code) return true;
     return false;
+}
+
+function smoothstep01(t) {
+    // clamp + cubic smoothstep
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    return t * t * (3 - 2 * t);
 }
 
 class CameraOrchestrator {
@@ -27,6 +34,14 @@ class CameraOrchestrator {
         this._vDownPrev = false;
         this._switchCd = 0.0;
         this._switchCdTime = 0.18;
+
+        // transition between camera modes
+        this._tr = {
+            active: false,
+            t: 0.0,
+            dur: 0.22,
+            fromX: 0, fromY: 0, fromZ: 0
+        };
 
         this.look = {
             yaw: 0,
@@ -73,8 +88,9 @@ class CameraOrchestrator {
             zoneState: null,
             zoneOverrides: null,
 
-            // optional dependency: terrain height+normal provider
-            // { heightAt(x,z)->number, normalAt(x,z)->{x,y,z} }
+            // collision publishes this each frame (min allowed camera Y after clamp)
+            _camMinY: -Infinity,
+
             terrain: null
         };
 
@@ -84,7 +100,7 @@ class CameraOrchestrator {
         const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type)
             ? String(player.cfg.camera.type)
             : "third";
-        this.setType(initial);
+        this.setType(initial, true);
     }
 
     register(modeOrCtor) {
@@ -106,12 +122,33 @@ class CameraOrchestrator {
         return m.id;
     }
 
-    setType(type) {
+    setType(type, instant) {
         const id = String(type || "").trim().toLowerCase();
         const next = this._byId[id];
         if (!next) throw new Error("[camera] unknown mode: " + type);
 
         if (this._active === next) return;
+
+        const cam = this.d.camera;
+
+        // start transition FROM current camera location (unless instant)
+        if (!instant && cam && typeof cam.location === "function") {
+            const p = cam.location();
+            if (p) {
+                this._tr.active = true;
+                this._tr.t = 0.0;
+                // you can tune this per feel (0.16..0.28)
+                this._tr.dur = 0.22;
+                this._tr.fromX = U.vx(p, 0);
+                this._tr.fromY = U.vy(p, 0);
+                this._tr.fromZ = U.vz(p, 0);
+            } else {
+                this._tr.active = false;
+            }
+        } else {
+            this._tr.active = false;
+        }
+
         this._active = next;
 
         if (this.player.cfg) {
@@ -120,6 +157,7 @@ class CameraOrchestrator {
         }
         if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
+        // reset post smoothing so it doesn't "fight" the transition
         this._smInit = false;
     }
 
@@ -130,7 +168,7 @@ class CameraOrchestrator {
         const cur = this._active;
         let idx = 0;
         for (let i = 0; i < n; i++) if (this._modes[i] === cur) { idx = i; break; }
-        this.setType(this._modes[(idx + 1) % n].id);
+        this.setType(this._modes[(idx + 1) % n].id, false);
     }
 
     setTerrainSource(src) {
@@ -141,29 +179,6 @@ class CameraOrchestrator {
         if (typeof src.heightAt !== "function") throw new Error("[camera] terrain source must provide heightAt(x,z)");
         if (typeof src.normalAt !== "function") throw new Error("[camera] terrain source must provide normalAt(x,z)");
         this._ctx.terrain = src;
-    }
-
-    setTerrainHandle(terrainApi, terrainHandle, world) {
-        if (!terrainApi || typeof terrainApi.heightAt !== "function") {
-            throw new Error("[camera] setTerrainHandle: terrainApi.heightAt(handle,x,z,world) is required");
-        }
-        if (typeof terrainApi.normalAt !== "function") {
-            throw new Error("[camera] setTerrainHandle: terrainApi.normalAt(handle,x,z,world) is required");
-        }
-        if (!terrainHandle) throw new Error("[camera] setTerrainHandle: terrainHandle is required");
-
-        const useWorld = (world !== false);
-
-        this._ctx.terrain = Object.freeze({
-            heightAt: function (x, z) {
-                return terrainApi.heightAt(terrainHandle, x, z, useWorld);
-            },
-            normalAt: function (x, z) {
-                const m = terrainApi.normalAt(terrainHandle, x, z, useWorld);
-                // TerrainApiImpl returns Map<String,Double> -> JS object with keys
-                return {x: +m.x, y: +m.y, z: +m.z};
-            }
-        });
     }
 
     _zonesCfgRef() {
@@ -189,9 +204,10 @@ class CameraOrchestrator {
         this.look.pitch -= dy * this.look.sensitivity;
     }
 
-    _smoothOutPos(out, dt, enabled) {
+    _smoothOutPos(out, dt, enabled, minY) {
         if (!enabled || this.postSmooth <= 0) {
             this._smInit = false;
+            if (Number.isFinite(minY)) out.y = Math.max(out.y, minY);
             return out;
         }
 
@@ -200,13 +216,33 @@ class CameraOrchestrator {
             this._sm.x = out.x;
             this._sm.y = out.y;
             this._sm.z = out.z;
-            return this._sm;
+        } else {
+            this._sm.x = U.expSmooth(this._sm.x, out.x, this.postSmooth, dt);
+            this._sm.y = U.expSmooth(this._sm.y, out.y, this.postSmooth, dt);
+            this._sm.z = U.expSmooth(this._sm.z, out.z, this.postSmooth, dt);
         }
 
-        this._sm.x = U.expSmooth(this._sm.x, out.x, this.postSmooth, dt);
-        this._sm.y = U.expSmooth(this._sm.y, out.y, this.postSmooth, dt);
-        this._sm.z = U.expSmooth(this._sm.z, out.z, this.postSmooth, dt);
+        if (Number.isFinite(minY)) this._sm.y = Math.max(this._sm.y, minY);
         return this._sm;
+    }
+
+    _applyTransition(pos, dt) {
+        const tr = this._tr;
+        if (!tr.active) return pos;
+
+        tr.t += Math.max(0, dt);
+        const a = smoothstep01(tr.t / Math.max(1e-6, tr.dur));
+
+        const x = tr.fromX + (pos.x - tr.fromX) * a;
+        const y = tr.fromY + (pos.y - tr.fromY) * a;
+        const z = tr.fromZ + (pos.z - tr.fromZ) * a;
+
+        if (a >= 0.999) tr.active = false;
+
+        // IMPORTANT: don't pollute smoother state during transition
+        this._smInit = false;
+
+        return {x, y, z};
     }
 
     update(dt, frame) {
@@ -262,6 +298,9 @@ class CameraOrchestrator {
         ctx.zoneState = zoneState;
         ctx.zoneOverrides = zoneOverrides;
 
+        // reset published clamp each frame
+        ctx._camMinY = -Infinity;
+
         if (mode.meta.supportsZoom) {
             if (zoneOverrides && (zoneOverrides.zoomMin != null || zoneOverrides.zoomMax != null)) {
                 const zmin = (zoneOverrides.zoomMin != null) ? +zoneOverrides.zoomMin : this.zoom.min;
@@ -274,12 +313,39 @@ class CameraOrchestrator {
 
         mode.update(ctx);
 
+        const modeId = mode && mode.id ? mode.id : "??";
+        const hasCol = !!(mode && mode.meta && mode.meta.hasCollision);
+        const colEnabled = !!(this.collision && this.collision.enabled);
+
+        if (!hasCol || !colEnabled) {
+            if (typeof LOG !== "undefined" && LOG && typeof LOG.debug === "function") {
+                LOG.debug(
+                    "[camera][collision] SKIP mode=" + modeId +
+                    " hasCollision=" + hasCol +
+                    " solverEnabled=" + colEnabled
+                );
+            }
+        } else {
+            if (typeof LOG !== "undefined" && LOG && typeof LOG.debug === "function") {
+                LOG.debug("[camera][collision] RUN mode=" + modeId);
+            }
+        }
+
+        if (hasCol && colEnabled) {
+            this.collision.solve(ctx);
+        }
+
         if (mode.meta.hasCollision && this.collision.enabled) {
             this.collision.solve(ctx);
         }
 
-        const sm = this._smoothOutPos(ctx.outPos, dt, mode.id === "third");
-        cam.setLocation(sm.x, sm.y, sm.z);
+        // 1) post smoothing (third only)
+        const sm = this._smoothOutPos(ctx.outPos, dt, mode.id === "third", ctx._camMinY);
+
+        // 2) transition blend (works for both directions)
+        const p = this._applyTransition(sm, dt);
+
+        cam.setLocation(p.x, p.y, p.z);
     }
 }
 

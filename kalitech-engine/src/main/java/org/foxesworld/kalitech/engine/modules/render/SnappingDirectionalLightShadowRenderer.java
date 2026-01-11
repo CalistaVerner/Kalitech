@@ -7,13 +7,12 @@ import com.jme3.shadow.DirectionalLightShadowRenderer;
 
 /**
  * DirectionalLightShadowRenderer + always-on texel snapping.
- * <p>
- * No thresholds, no smoothing, no time gating.
- * Snapping runs every frame for each split camera -> smooth updates without shimmer.
+ *
+ * Snapping runs every frame for each split camera -> stable updates without shimmer.
  */
 public final class SnappingDirectionalLightShadowRenderer extends DirectionalLightShadowRenderer {
 
-    private ShadowSnapper snapper;
+    private final ShadowSnapper snapper;
     private boolean snapEnabled = true;
 
     public SnappingDirectionalLightShadowRenderer(AssetManager assets, int shadowMapSize, int nbSplits) {
@@ -29,6 +28,22 @@ public final class SnappingDirectionalLightShadowRenderer extends DirectionalLig
         this.snapEnabled = enabled;
     }
 
+    /**
+     * If true, keeps each shadow split ortho frustum extents stable (square) to
+     * avoid "breathing" when the view camera rotates.
+     */
+    public void setStabilizeExtents(boolean enabled) {
+        snapper.setStabilizeExtents(enabled);
+    }
+
+    /**
+     * Extra padding applied when stabilizing extents. Must be >= 1.0.
+     * Typical: 1.05..1.20.
+     */
+    public void setExtentsPadding(float padding) {
+        snapper.setExtentsPadding(padding);
+    }
+
     @Override
     protected void updateShadowCams(Camera viewCam) {
         super.updateShadowCams(viewCam);
@@ -38,9 +53,7 @@ public final class SnappingDirectionalLightShadowRenderer extends DirectionalLig
         final int n = getNumShadowMaps();
         for (int i = 0; i < n; i++) {
             Camera c = getShadowCam(i);
-            if (c != null) {
-                snapper.snap(c);
-            }
+            if (c != null) snapper.snap(c);
         }
     }
 }
