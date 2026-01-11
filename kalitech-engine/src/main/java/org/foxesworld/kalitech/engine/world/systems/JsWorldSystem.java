@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
+import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Method;
@@ -24,7 +25,7 @@ public final class JsWorldSystem implements KSystem {
         this.module = Objects.requireNonNull(module, "module");
         this.cfg = cfg;
         this.sysDesc = sysDesc;
-        this.runtimeProfile = (runtimeProfile == null || runtimeProfile.isBlank()) ? "world" : runtimeProfile.trim();
+        this.runtimeProfile = normalizeProfile(runtimeProfile);
     }
 
     public JsWorldSystem(String module, Object cfg, Object sysDesc) {
@@ -35,34 +36,10 @@ public final class JsWorldSystem implements KSystem {
         this(module, null, null, "world");
     }
 
-    private static boolean safeHas(SystemContext ctx, String k) {
-        try {
-            return ctx != null && ctx.has(k);
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private static Object safeGet(SystemContext ctx, String k) {
-        try {
-            return (ctx == null) ? null : ctx.get(k);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static void safePut(SystemContext ctx, String k, Object v) {
-        try {
-            if (ctx != null) ctx.put(k, v);
-        } catch (Throwable ignored) {
-        }
-    }
-
-    private static void safeRemove(SystemContext ctx, String k) {
-        try {
-            if (ctx != null) ctx.remove(k);
-        } catch (Throwable ignored) {
-        }
+    private static String normalizeProfile(String p) {
+        if (p == null) return "world";
+        final String t = p.trim();
+        return t.isEmpty() ? "world" : t;
     }
 
     private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
@@ -88,8 +65,8 @@ public final class JsWorldSystem implements KSystem {
 
     private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
         try {
-            Method m = c.getMethod(name, sig);
-            Object r = m.invoke(target, args);
+            final Method m = c.getMethod(name, sig);
+            final Object r = m.invoke(target, args);
             return (r instanceof Value vv) ? vv : null;
         } catch (NoSuchMethodException ignored) {
             return null;
@@ -100,7 +77,7 @@ public final class JsWorldSystem implements KSystem {
 
     @Override
     public void onStart(SystemContext ctx) {
-        withScopedConfig(ctx, () -> {
+        withScopedSystem(ctx, () -> {
             ensureLoaded(ctx);
             invokeIfPresent("init", ctx);
             return null;
@@ -109,7 +86,7 @@ public final class JsWorldSystem implements KSystem {
 
     @Override
     public void onUpdate(SystemContext ctx, float tpf) {
-        withScopedConfig(ctx, () -> {
+        withScopedSystem(ctx, () -> {
             ensureLoaded(ctx);
             invokeIfPresent("update", ctx, tpf);
             return null;
@@ -118,62 +95,82 @@ public final class JsWorldSystem implements KSystem {
 
     @Override
     public void onStop(SystemContext ctx) {
-        withScopedConfig(ctx, () -> {
-            try {
-                invokeIfPresent("destroy");
-            } catch (Throwable ignored) {
-            }
+        withScopedSystem(ctx, () -> {
+            invokeIfPresent("destroy", ctx);
             return null;
         });
     }
 
-    private <T> T withScopedConfig(SystemContext ctx, Callable<T> call) {
-        final boolean hadConfig = safeHas(ctx, "config");
-        final boolean hadCfg = safeHas(ctx, "cfg");
-        final boolean hadSystem = safeHas(ctx, "system");
+    private <T> T withScopedSystem(SystemContext ctx, Callable<T> call) {
+        Objects.requireNonNull(ctx, "ctx");
 
-        final Object prevConfig = hadConfig ? safeGet(ctx, "config") : null;
-        final Object prevCfg = hadCfg ? safeGet(ctx, "cfg") : null;
-        final Object prevSystem = hadSystem ? safeGet(ctx, "system") : null;
+        final boolean hadConfig = ctx.has("config");
+        final boolean hadCfg = ctx.has("cfg");
+        final boolean hadSystem = ctx.has("system");
 
-        if (cfg != null) {
-            safePut(ctx, "config", cfg);
-            safePut(ctx, "cfg", cfg);
-        }
-        if (sysDesc != null) safePut(ctx, "system", sysDesc);
+        final Object prevConfig = hadConfig ? ctx.get("config") : null;
+        final Object prevCfg = hadCfg ? ctx.get("cfg") : null;
+        final Object prevSystem = hadSystem ? ctx.get("system") : null;
+
+        ctx.put("config", cfg);
+        ctx.put("cfg", cfg);
+        ctx.put("system", sysDesc);
 
         try {
             return call.call();
+        } catch (PolyglotException pe) {
+            if (pe.isCancelled()) {
+                if (log.isDebugEnabled()) log.debug("[JsWorldSystem] cancelled module={}", module);
+                return null;
+            }
+            throw pe;
         } catch (RuntimeException re) {
             throw re;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("[JsWorldSystem] failure module=" + module + " err=" + e, e);
         } finally {
-            if (hadConfig) safePut(ctx, "config", prevConfig);
-            else safeRemove(ctx, "config");
-            if (hadCfg) safePut(ctx, "cfg", prevCfg);
-            else safeRemove(ctx, "cfg");
-            if (hadSystem) safePut(ctx, "system", prevSystem);
-            else safeRemove(ctx, "system");
+            if (hadConfig) ctx.put("config", prevConfig);
+            else ctx.remove("config");
+            if (hadCfg) ctx.put("cfg", prevCfg);
+            else ctx.remove("cfg");
+            if (hadSystem) ctx.put("system", prevSystem);
+            else ctx.remove("system");
         }
     }
 
     private void ensureLoaded(SystemContext ctx) throws Exception {
         if (exports != null) return;
 
-        ScriptRuntime rt = ctx.runtime(runtimeProfile);
-        if (rt == null) rt = ctx.runtime();
-        if (rt == null) throw new IllegalStateException("JsWorldSystem requires ScriptRuntime in SystemContext");
+        synchronized (this) {
+            if (exports != null) return;
 
-        exports = requireViaReflection(rt, module);
-        if (exports == null)
-            throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
+            ScriptRuntime rt = ctx.runtime(runtimeProfile);
+            if (rt == null) rt = ctx.runtime();
+            if (rt == null) throw new IllegalStateException("JsWorldSystem requires ScriptRuntime in SystemContext");
+
+            final Value ex = requireViaReflection(rt, module);
+            if (ex == null) throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
+
+            exports = ex;
+
+            if (log.isDebugEnabled()) {
+                log.debug("[JsWorldSystem] loaded module={} exportsKeys={}", module, exports.getMemberKeys());
+            }
+        }
     }
 
     private void invokeIfPresent(String fnName, Object... args) {
-        if (exports == null || !exports.hasMember(fnName)) return;
-        Value fn = exports.getMember(fnName);
+        final Value ex = exports;
+        if (ex == null || !ex.hasMember(fnName)) return;
+
+        final Value fn = ex.getMember(fnName);
         if (fn == null || !fn.canExecute()) return;
-        fn.execute(args);
+
+        try {
+            fn.execute(args);
+        } catch (PolyglotException pe) {
+            if (pe.isCancelled()) return;
+            throw new RuntimeException("[JsWorldSystem] js threw in " + fnName + " module=" + module + " err=" + pe.getMessage(), pe);
+        }
     }
 }

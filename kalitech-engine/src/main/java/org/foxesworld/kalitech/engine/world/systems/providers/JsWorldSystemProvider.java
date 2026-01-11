@@ -20,9 +20,14 @@ public final class JsWorldSystemProvider implements SystemProvider {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
 
-    private static String normalize(String s) {
+    @Override
+    public String id() {
+        return "jsSystem";
+    }
+
+    private static String normalizeProfile(String s) {
         if (s == null) return "world";
-        String t = s.trim().toLowerCase();
+        final String t = s.trim();
         return t.isEmpty() ? "world" : t;
     }
 
@@ -34,21 +39,15 @@ public final class JsWorldSystemProvider implements SystemProvider {
         if (v.isString()) return v.asString();
 
         if (v.hasArrayElements()) {
-            long n = v.getArraySize();
-            int len = (int) Math.min(n, Integer.MAX_VALUE);
-            Object[] arr = new Object[len];
+            final int len = (int) Math.min(v.getArraySize(), Integer.MAX_VALUE);
+            final Object[] arr = new Object[len];
             for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
             return ProxyArray.fromArray(arr);
         }
 
         if (v.hasMembers()) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            for (String k : v.getMemberKeys()) {
-                try {
-                    map.put(k, toProxy(v.getMember(k)));
-                } catch (Throwable ignored) {
-                }
-            }
+            final Map<String, Object> map = new LinkedHashMap<>();
+            for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
             return ProxyObject.fromMap(map);
         }
 
@@ -56,52 +55,43 @@ public final class JsWorldSystemProvider implements SystemProvider {
     }
 
     @Override
-    public String id() {
-        return "jsSystem";
-    }
-
-    @Override
     public KSystem create(SystemContext ctx, Value config) {
+        if (config == null || config.isNull() || !config.hasMembers()) {
+            throw new IllegalArgumentException("jsSystem requires config object");
+        }
+
         final String module = str(config, "module", null);
         if (module == null || module.isBlank()) {
             throw new IllegalArgumentException("jsSystem requires config.module = 'Scripts/.../file.js'");
         }
 
-        final boolean sandboxReq = bool(config, "sandbox", false);
-        final String rtReq = str(config, "runtime", null);
-        final String requested = sandboxReq ? "sandbox" : ((rtReq == null || rtReq.isBlank()) ? "world" : rtReq.trim());
+        final String stableId = str(config, "stableId", null);
+        final int order = (config.hasMember("order") && config.getMember("order").fitsInInt())
+                ? config.getMember("order").asInt()
+                : 0;
 
-        // policy optional
+        final boolean sandboxReq = bool(config, "sandbox", false);
+        final String rtReq = str(config, "runtime", str(config, "profile", null));
+        final String requested = sandboxReq ? "sandbox" : normalizeProfile(rtReq);
+
         final SystemContext.RuntimePolicy pol = ctx.runtimePolicy();
         final String resolved = (pol != null)
                 ? pol.resolveProfile(requested, SystemContext.RuntimePolicy.Origin.SCRIPT_CONFIG)
-                : normalize(requested);
+                : normalizeProfile(requested);
 
-        // Optional unwrap inner config
-        Value inner = config;
-        boolean unwrapped = false;
-        try {
-            if (config != null && !config.isNull() && config.hasMember("config")) {
-                Value c = config.getMember("config");
-                if (c != null && !c.isNull()) {
-                    inner = c;
-                    unwrapped = true;
-                }
-            }
-        } catch (Throwable t) {
-            log.warn("[jsSystem] unwrap inner config failed: {}", t.toString());
-        }
-
-        final Object cfgJs = toProxy(inner);
+        final Object cfgJs = toProxy(config);
 
         final Map<String, Object> sysDesc = new LinkedHashMap<>();
-        sysDesc.put("provider", id());
+        sysDesc.put("id", id());
+        sysDesc.put("order", order);
+        sysDesc.put("stableId", stableId);
         sysDesc.put("module", module);
         sysDesc.put("runtime", resolved);
         sysDesc.put("config", cfgJs);
 
         if (log.isDebugEnabled()) {
-            log.debug("[jsSystem] prepared (module={}, unwrapped={}, runtime={} -> {})", module, unwrapped, requested, resolved);
+            log.debug("[jsSystem] prepared module={} stableId={} order={} requested={} resolved={}",
+                    module, stableId, order, requested, resolved);
         }
         log.info("[jsSystem] module={} runtime={}", module, resolved);
 
