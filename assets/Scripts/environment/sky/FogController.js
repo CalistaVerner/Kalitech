@@ -1,4 +1,3 @@
-// FILE: Scripts/systems/sky/FogController.js
 "use strict";
 
 const SkyMath = require("./SkyMath.js");
@@ -10,61 +9,101 @@ class FogController {
         this.fogDensityDay = 1.10;
         this.fogDensityNight = 1.35;
 
-        this.lastFogDensity = NaN;
-        this.lastFogColorKey = "";
-        this.lastFogDistance = NaN;
+        this._lastFogDensity = NaN;
+        this._lastFogColorKey = "";
+        this._lastFogDistance = NaN;
     }
 
     applyCfg(cfg) {
         if (!cfg || !cfg.fog) return;
 
-        const fc = cfg.fog.color;
-        if (fc) {
-            if (fc.r != null) this.fogBase.r = +fc.r;
-            if (fc.g != null) this.fogBase.g = +fc.g;
-            if (fc.b != null) this.fogBase.b = +fc.b;
+        const fog = cfg.fog;
+
+        if (fog.color) {
+            const c = fog.color;
+            if (c.r != null) this.fogBase.r = +c.r;
+            if (c.g != null) this.fogBase.g = +c.g;
+            if (c.b != null) this.fogBase.b = +c.b;
         }
 
-        const fd = +cfg.fog.distance;
-        if (Number.isFinite(fd)) this.fogDistance = fd;
+        if (fog.distance != null) {
+            const v = +fog.distance;
+            if (Number.isFinite(v)) this.fogDistance = v;
+        }
 
-        const fdd = +cfg.fog.densityDay;
-        if (Number.isFinite(fdd)) this.fogDensityDay = fdd;
+        if (fog.densityDay != null) {
+            const v = +fog.densityDay;
+            if (Number.isFinite(v)) this.fogDensityDay = v;
+        }
 
-        const fdn = +cfg.fog.densityNight;
-        if (Number.isFinite(fdn)) this.fogDensityNight = fdn;
+        if (fog.densityNight != null) {
+            const v = +fog.densityNight;
+            if (Number.isFinite(v)) this.fogDensityNight = v;
+        }
+
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][fog] applyCfg color=(" + this.fogBase.r + "," + this.fogBase.g + "," + this.fogBase.b + ")" +
+                " densityDay=" + this.fogDensityDay +
+                " densityNight=" + this.fogDensityNight +
+                " distance=" + this.fogDistance
+            );
+        }
     }
 
     init(render) {
+        if (!render || typeof render.fogCfg !== "function") {
+            throw new Error("[fog] render.fogCfg(cfg) is required");
+        }
+
         render.fogCfg({
             color: [this.fogBase.r, this.fogBase.g, this.fogBase.b],
             density: this.fogDensityDay,
             distance: this.fogDistance
         });
 
-        this.lastFogDensity = NaN;
-        this.lastFogColorKey = "";
-        this.lastFogDistance = NaN;
+        this._lastFogDensity = NaN;
+        this._lastFogColorKey = "";
+        this._lastFogDistance = NaN;
+
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug("[sky][fog] init applied");
+        }
     }
 
-    update(render, sunEval) {
-        const fogD = SkyMath.lerp(this.fogDensityNight, this.fogDensityDay, sunEval.dayFactor);
+    update(render, celEval) {
+        const d = (celEval && typeof celEval.dayFactor === "number") ? celEval.dayFactor : 1.0;
+
+        const fogD = SkyMath.lerp(this.fogDensityNight, this.fogDensityDay, d);
         const key = SkyMath.rgbKey(this.fogBase.r, this.fogBase.g, this.fogBase.b);
 
-        if (
-            Math.abs(fogD - this.lastFogDensity) > 0.002 ||
-            key !== this.lastFogColorKey ||
-            Math.abs(this.fogDistance - this.lastFogDistance) > 0.1
-        ) {
-            render.fogCfg({
-                color: [this.fogBase.r, this.fogBase.g, this.fogBase.b],
-                density: fogD,
-                distance: this.fogDistance
-            });
-            this.lastFogDensity = fogD;
-            this.lastFogColorKey = key;
-            this.lastFogDistance = this.fogDistance;
+        const changed =
+            Math.abs(fogD - this._lastFogDensity) > 0.002 ||
+            key !== this._lastFogColorKey ||
+            Math.abs(this.fogDistance - this._lastFogDistance) > 0.1;
+
+        if (!changed) return;
+
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][fog] APPLY density=" + fogD.toFixed(4) +
+                " distance=" + this.fogDistance.toFixed(1) +
+                " dayFactor=" + d.toFixed(4)
+            );
         }
+
+        render.fogCfg({
+            color: [this.fogBase.r, this.fogBase.g, this.fogBase.b],
+            density: fogD,
+            distance: this.fogDistance
+        });
+
+        this._lastFogDensity = fogD;
+        this._lastFogColorKey = key;
+        this._lastFogDistance = this.fogDistance;
+    }
+
+    destroy() {
     }
 }
 

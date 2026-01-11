@@ -1,31 +1,54 @@
-// FILE: Scripts/systems/sky/LightRig.js
 "use strict";
 
 const SkyMath = require("./SkyMath.js");
 
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
+    return v;
+}
+
+function isFn(f) {
+    return typeof f === "function";
+}
+
 class LightRig {
     constructor() {
-        this.light = null;
-        this.sun = null;
-        this.ambient = null;
+        this.render = null;
+        this.enabled = true;
 
         this.minAmbient = 0.20;
 
         this.ambientDay = { r: 0.25, g: 0.28, b: 0.35, intensity: 0.55 };
         this.ambientNight = { r: 0.10, g: 0.12, b: 0.18, intensity: 0.12 };
 
-        this.dbg = null;
-        this.debug = {
-            enabled: false,
-            origin: { x: 0, y: 5, z: 0 },
-            sunLen: 40,
-            axes: true,
-            horizonCross: true,
-            ttl: 0.05
+        this.shadows = {
+            enabled: true,
+            mapSizeDay: 4096,
+            mapSizeNight: 2048,
+            splits: 3,
+            lambda: 0.65,
+            intensityDay: 0.60,
+            intensityNight: 0.35
         };
 
-        this._dbgAcc = 0;
-        this._dbgEvery = 0.0;
+        this.warmup = {enabled: false, seconds: 0.35};
+        this._warmupLeft = 0.0;
+
+        this._lastPrimary = "";
+        this._lastShadowKey = "";
+        this._lastShadowEnabled = null;
+
+        // debug sampling control
+        this._dbgAcc = 0.0;
+        this._dbgEvery = 1.0; // seconds
+    }
+
+    setEnabled(v) {
+        this.enabled = !!v;
+        if (!this.enabled) this.disableShadowsHard();
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug("[sky][light] setEnabled=" + this.enabled);
+        }
     }
 
     applyCfg(cfg) {
@@ -52,292 +75,242 @@ class LightRig {
             if (a.intensity != null) this.ambientNight.intensity = +a.intensity;
         }
 
-        if (cfg.debug) {
-            const d = cfg.debug;
-            if (d.enabled != null) this.debug.enabled = !!d.enabled;
-
-            if (d.origin) {
-                if (d.origin.x != null) this.debug.origin.x = +d.origin.x;
-                if (d.origin.y != null) this.debug.origin.y = +d.origin.y;
-                if (d.origin.z != null) this.debug.origin.z = +d.origin.z;
+        if (cfg.warmupShadows) {
+            const ws = cfg.warmupShadows;
+            if (ws.enabled != null) this.warmup.enabled = !!ws.enabled;
+            if (ws.seconds != null) {
+                const v = +ws.seconds;
+                if (Number.isFinite(v) && v >= 0) this.warmup.seconds = v;
             }
+        }
 
-            if (d.sunLen != null) {
-                const v = +d.sunLen;
-                if (Number.isFinite(v) && v > 0) this.debug.sunLen = v;
+        if (cfg.shadows) {
+            const sh = cfg.shadows;
+
+            if (sh.enabled != null) this.shadows.enabled = !!sh.enabled;
+
+            if (sh.mapSizeDay != null) this.shadows.mapSizeDay = Math.round(+sh.mapSizeDay);
+            if (sh.mapSizeNight != null) this.shadows.mapSizeNight = Math.round(+sh.mapSizeNight);
+            if (sh.mapSize != null) this.shadows.mapSizeDay = Math.round(+sh.mapSize);
+
+            if (sh.splits != null) this.shadows.splits = Math.round(+sh.splits);
+            if (sh.lambda != null) this.shadows.lambda = +sh.lambda;
+
+            if (sh.intensityDay != null) this.shadows.intensityDay = +sh.intensityDay;
+            if (sh.intensityNight != null) this.shadows.intensityNight = +sh.intensityNight;
+            if (sh.intensity != null) {
+                const v = +sh.intensity;
+                if (Number.isFinite(v)) {
+                    this.shadows.intensityDay = v;
+                    this.shadows.intensityNight = Math.min(v, 0.45);
+                }
             }
+        }
 
-            if (d.axes != null) this.debug.axes = !!d.axes;
-            if (d.horizonCross != null) this.debug.horizonCross = !!d.horizonCross;
+        if (cfg.debug && cfg.debug.skyEvery != null) {
+            const v = +cfg.debug.skyEvery;
+            if (Number.isFinite(v) && v >= 0) this._dbgEvery = v;
+        }
 
-            if (d.ttl != null) {
-                const v = +d.ttl;
-                if (Number.isFinite(v) && v >= 0) this.debug.ttl = v;
-            }
-
-            if (d.every != null) {
-                const v = +d.every;
-                if (Number.isFinite(v) && v >= 0) this._dbgEvery = v;
-            }
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][light] applyCfg minAmbient=" + this.minAmbient +
+                " shadows=" + JSON.stringify(this.shadows) +
+                " warmup=" + JSON.stringify(this.warmup) +
+                " dbgEvery=" + this._dbgEvery
+            );
         }
     }
 
     init(engine) {
-        this.light = engine.light();
+        req(engine, "[LightRig] engine is required");
+        this.render = req(engine.render(), "[LightRig] engine.render() is required");
 
-        try { this.dbg = engine.debug ? engine.debug() : null; } catch (_) { this.dbg = null; }
+        req(this.render.ensureScene, "[LightRig] render.ensureScene() is required");
+        req(this.render.sunCfg, "[LightRig] render.sunCfg(cfg) is required");
+        req(this.render.ambientCfg, "[LightRig] render.ambientCfg(cfg) is required");
 
-        try {
-            this.sun = this.light.create({
-                type: "directional",
-                enabled: true,
-                attach: true,
-                dir: [-1, -1, -0.3],
-                color: [1.0, 0.98, 0.90],
-                intensity: 1.2
+        if (!isFn(this.render.sunShadowsCfg) && !isFn(this.render.sunShadows)) {
+            throw new Error("[LightRig] render.sunShadowsCfg(cfg) or render.sunShadows(mapSize) is required");
+        }
+
+        if (this.render.setPrimaryDirectional != null && !isFn(this.render.setPrimaryDirectional)) {
+            throw new Error("[LightRig] render.setPrimaryDirectional must be a function if provided");
+        }
+        if (this.render.moonCfg != null && !isFn(this.render.moonCfg)) {
+            throw new Error("[LightRig] render.moonCfg must be a function if provided");
+        }
+
+        this.render.ensureScene();
+
+        this._warmupLeft = (this.warmup.enabled ? Math.max(0, +this.warmup.seconds) : 0);
+
+        this._lastPrimary = "";
+        this._lastShadowKey = "";
+        this._lastShadowEnabled = null;
+
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug("[sky][light] init ok warmupLeft=" + this._warmupLeft.toFixed(3));
+        }
+    }
+
+    update(engine, celEval, tpf) {
+        if (!this.enabled) return;
+
+        const dt = Number.isFinite(+tpf) ? +tpf : 0.0;
+        if (this._warmupLeft > 0) this._warmupLeft = Math.max(0, this._warmupLeft - dt);
+
+        const primary = req(celEval && celEval.primary, "[LightRig] celEval.primary is required");
+        const d = req(celEval && celEval.dayFactor, "[LightRig] celEval.dayFactor is required");
+
+        // primary switch
+        if (primary !== this._lastPrimary) {
+            this._lastPrimary = primary;
+            if (isFn(this.render.setPrimaryDirectional)) this.render.setPrimaryDirectional(primary);
+            this._lastShadowKey = "";
+
+            if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+                ENGINE.log.debug("[sky][light] primary -> " + primary + " dayFactor=" + d.toFixed(4));
+            }
+        }
+
+        // sun
+        {
+            const s = req(celEval.sun, "[LightRig] celEval.sun is required");
+            const dir = req(s.rayDir, "[LightRig] celEval.sun.rayDir is required");
+            const col = req(s.color, "[LightRig] celEval.sun.color is required");
+
+            this.render.sunCfg({
+                dir: [dir.x, dir.y, dir.z],
+                color: [col.r, col.g, col.b],
+                intensity: +s.intensity
             });
-        } catch (e) {
-            try {
-                ENGINE.log.error("[sky] failed to create sun light: " + e);
-            } catch (_) {
-            }
         }
 
-        try {
-            this.ambient = this.light.create({
-                type: "ambient",
-                enabled: true,
-                attach: true,
-                color: [this.ambientDay.r, this.ambientDay.g, this.ambientDay.b],
-                intensity: Math.max(this.minAmbient, this.ambientDay.intensity)
+        // moon (optional)
+        if (isFn(this.render.moonCfg)) {
+            const m = req(celEval.moon, "[LightRig] celEval.moon is required");
+            const dir = req(m.rayDir, "[LightRig] celEval.moon.rayDir is required");
+            const col = req(m.color, "[LightRig] celEval.moon.color is required");
+
+            this.render.moonCfg({
+                dir: [dir.x, dir.y, dir.z],
+                color: [col.r, col.g, col.b],
+                intensity: (celEval.isNight ? +m.intensity : 0.0)
             });
-        } catch (e) {
-            try {
-                ENGINE.log.error("[sky] failed to create ambient light: " + e);
-            } catch (_) {
-            }
         }
 
-        this.test(engine);
-    }
+        // ambient
+        const ambR = SkyMath.lerp(this.ambientNight.r, this.ambientDay.r, d);
+        const ambG = SkyMath.lerp(this.ambientNight.g, this.ambientDay.g, d);
+        const ambB = SkyMath.lerp(this.ambientNight.b, this.ambientDay.b, d);
+        const ambI = SkyMath.lerp(this.ambientNight.intensity, this.ambientDay.intensity, d);
 
-    setEnabled(enabled) {
-        try { if (this.light && this.sun) this.light.enable(this.sun, !!enabled); } catch (_) {}
-        try { if (this.light && this.ambient) this.light.enable(this.ambient, !!enabled); } catch (_) {}
-    }
+        this.render.ambientCfg({
+            color: [ambR, ambG, ambB],
+            intensity: Math.max(this.minAmbient, ambI)
+        });
 
-    update(engine, sunEval, tpf) {
-        if (this.sun) {
-            try {
-                this.light.set(this.sun, {
-                    dir: [sunEval.rayDir.x, sunEval.rayDir.y, sunEval.rayDir.z],
-                    color: [sunEval.color.r, sunEval.color.g, sunEval.color.b],
-                    intensity: sunEval.intensity
-                });
-            } catch (e) {
-                try {
-                    ENGINE.log.warn("[sky] sun light set failed: " + e);
-                } catch (_) {
-                }
-            }
-        }
+        // shadows
+        this.applyShadows(primary);
 
-        const ambR = SkyMath.lerp(this.ambientNight.r, this.ambientDay.r, sunEval.dayFactor);
-        const ambG = SkyMath.lerp(this.ambientNight.g, this.ambientDay.g, sunEval.dayFactor);
-        const ambB = SkyMath.lerp(this.ambientNight.b, this.ambientDay.b, sunEval.dayFactor);
-        const ambI = SkyMath.lerp(this.ambientNight.intensity, this.ambientDay.intensity, sunEval.dayFactor);
-
-        if (this.ambient) {
-            try {
-                this.light.set(this.ambient, {
-                    color: [ambR, ambG, ambB],
-                    intensity: Math.max(this.minAmbient, ambI)
-                });
-            } catch (e) {
-                try {
-                    ENGINE.log.warn("[sky] ambient light set failed: " + e);
-                } catch (_) {
-                }
-            }
-        }
-
-        this.drawDebug(engine, sunEval, tpf);
-    }
-
-    drawDebug(engine, sunEval, tpf) {
-        if (!this.debug.enabled) return;
-        if (!this.dbg) return;
-
-        const dt = Number.isFinite(+tpf) ? +tpf : 0;
+        // periodic debug snapshot (controlled)
         this._dbgAcc += dt;
+        if (this._dbgEvery > 0 && this._dbgAcc >= this._dbgEvery) {
+            this._dbgAcc = 0;
+            if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+                ENGINE.log.debug(
+                    "[sky][light] tick primary=" + primary +
+                    " dayFactor=" + d.toFixed(4) +
+                    " warmupLeft=" + this._warmupLeft.toFixed(3)
+                );
+            }
+        }
+    }
 
-        if (this._dbgEvery > 0 && this._dbgAcc < this._dbgEvery) return;
-        this._dbgAcc = 0;
+    applyShadows(primary) {
+        const warmupDone = this._warmupLeft <= 0;
+        const should = warmupDone && this.shadows.enabled;
 
-        const ttl = this.debug.ttl;
-        const ox = this.debug.origin.x, oy = this.debug.origin.y, oz = this.debug.origin.z;
-
-        try { this.dbg.tick(dt); } catch (_) {}
-
-        if (this.debug.axes) {
-            this.dbg.axes({
-                pos: [0, 0, 0],
-                size: 2,
-                ttl: ttl,
-                depthTest: true,
-                depthWrite: false
-            });
+        if (!should) {
+            if (this._lastShadowEnabled !== false) {
+                this.disableShadowsHard();
+                if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+                    ENGINE.log.debug("[sky][shadows] disabled (warmupDone=" + warmupDone + ")");
+                }
+            }
+            return;
         }
 
-        const dir = sunEval && sunEval.rayDir ? sunEval.rayDir : { x: -1, y: -1, z: -0.3 };
-        const len = this.debug.sunLen;
+        this._lastShadowEnabled = true;
 
-        const isDay = (sunEval && sunEval.dayFactor != null) ? (sunEval.dayFactor > 0.08) : true;
+        let mapSize = (primary === "sun") ? this.shadows.mapSizeDay : this.shadows.mapSizeNight;
+        let splits = this.shadows.splits;
+        let lambda = this.shadows.lambda;
+        let intensity = (primary === "sun") ? this.shadows.intensityDay : this.shadows.intensityNight;
 
-        const colSun = isDay
-            ? [1.0, 0.95, 0.35, 1.0]
-            : [0.25, 0.35, 1.0, 1.0];
+        mapSize = this.clampInt(mapSize, 256, 8192, 4096);
+        splits = this.clampInt(splits, 1, 4, 3);
+        lambda = this.clampNum(lambda, 0.0, 1.0, 0.65);
+        intensity = this.clampNum(intensity, 0.0, 1.0, 0.60);
 
-        this.dbg.ray({
-            origin: [ox, oy, oz],
-            dir: [dir.x, dir.y, dir.z],
-            len: len,
-            color: colSun,
-            ttl: ttl,
-            arrow: true,
-            depthTest: true,
-            depthWrite: false
-        });
+        const key = primary + "|" + mapSize + "|" + splits + "|" + lambda.toFixed(4) + "|" + intensity.toFixed(4);
+        if (key === this._lastShadowKey) return;
+        this._lastShadowKey = key;
 
-        if (this.debug.horizonCross) {
-            const cross = Math.max(4, len * 0.25);
-            const y = oy;
-
-            this.dbg.line({ a: [ox - cross, y, oz], b: [ox + cross, y, oz], color: [0.9, 0.9, 0.9, 1], ttl, depthTest: true, depthWrite: false });
-            this.dbg.line({ a: [ox, y, oz - cross], b: [ox, y, oz + cross], color: [0.9, 0.9, 0.9, 1], ttl, depthTest: true, depthWrite: false });
-
-            this.dbg.line({ a: [ox, 0, oz], b: [ox, y, oz], color: [0.3, 1.0, 0.3, 1], ttl, depthTest: true, depthWrite: false });
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][shadows] APPLY primary=" + primary +
+                " mapSize=" + mapSize +
+                " splits=" + splits +
+                " lambda=" + lambda +
+                " intensity=" + intensity
+            );
         }
 
-        const ambI = Math.max(this.minAmbient, (sunEval && sunEval.ambientIntensity != null) ? sunEval.ambientIntensity : 0);
-        const ambBar = Math.max(0.5, Math.min(6.0, ambI * 6.0));
-        this.dbg.line({
-            a: [ox + 1.5, oy, oz],
-            b: [ox + 1.5, oy + ambBar, oz],
-            color: [0.2, 0.8, 1.0, 1.0],
-            ttl: ttl,
-            depthTest: true,
-            depthWrite: false
+        if (isFn(this.render.sunShadowsCfg)) {
+            this.render.sunShadowsCfg({mapSize, splits, lambda, intensity});
+        } else {
+            this.render.sunShadows(mapSize);
+        }
+    }
+
+    disableShadowsHard() {
+        this._lastShadowEnabled = false;
+        this._lastShadowKey = "";
+
+        if (!this.render) return;
+
+        if (isFn(this.render.sunShadowsCfg)) this.render.sunShadowsCfg({
+            mapSize: 0,
+            splits: 1,
+            lambda: 0.65,
+            intensity: 0.0
         });
+        else this.render.sunShadows(0);
+    }
+
+    clampInt(v, min, max, def) {
+        const n = Math.round(Number(v));
+        if (!Number.isFinite(n)) return def;
+        if (n < min) return min;
+        if (n > max) return max;
+        return n | 0;
+    }
+
+    clampNum(v, min, max, def) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return def;
+        if (n < min) return min;
+        if (n > max) return max;
+        return n;
     }
 
     destroy() {
-        try { if (this.light && this.sun) this.light.destroy(this.sun); } catch (_) {}
-        try { if (this.light && this.ambient) this.light.destroy(this.ambient); } catch (_) {}
-        this.sun = null;
-        this.ambient = null;
-        this.dbg = null;
-    }
-
-    test(engine) {
-        const light = engine.light();
-
-        const testLight = light.create({
-            type: "point",
-            attach: true,
-            enabled: true,
-            pos: [200, 8, -300],
-            radius: 120,
-            color: [1.0, 1.0, 1.0],
-            intensity: 6.0
-        });
-
-        //engine.render().ensureScene();
-
-        const torch = light.create({
-            type: "point",
-            attach: true,
-            enabled: true,
-            pos: [200, 8, -300],
-            radius: 120,
-            color: [1, 0.95, 0.8],
-            intensity: 8.0
-        });
-
-        try {
-            ENGINE.log.info("[sky] torch id=" + torch.id());
-        } catch (_) {
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug("[sky][light] destroy");
         }
-
-        const TOTAL = 40;
-        const TOWERS = 5;
-        const BOXES_PER_TOWER = TOTAL / TOWERS;
-
-        const BASE_X = 120;
-        const BASE_Z = -300;
-        const TOWER_SPACING = 8;
-
-        const density = 4.5;
-        const weightBias = 0.6;
-
-        let boxId = 0;
-
-        for (let t = 0; t < TOWERS; t++) {
-
-            // позиции башни
-            const x = BASE_X + t * TOWER_SPACING;
-            const z = BASE_Z;
-
-            // генерируем размеры для башни
-            let sizes = [];
-            for (let i = 0; i < BOXES_PER_TOWER; i++) {
-                sizes.push(this.randNum(1, 5));
-            }
-
-            // ВАЖНО: большие вниз, маленькие вверх
-            sizes.sort((a, b) => b - a);
-
-            let y = 0;
-
-            for (let i = 0; i < sizes.length; i++) {
-                const size = sizes[i];
-
-                // корректная высота: половина текущего + половина предыдущего
-                y += size / 2;
-
-                const mass =
-                    density *
-                    Math.pow(size, 3) *
-                    (1 + size * weightBias);
-
-                ENGINE.mesh
-                    .box$()
-                    .size(size)
-                    .name("box-" + boxId++)
-                    .pos(x, y, z)
-                    .material(MAT.getMaterial("box"))
-                    .physics(mass, {
-                        lockRotation: false
-                    })
-                    .create();
-
-                // поднимаемся для следующего блока
-                y += size / 2;
-            }
-        }
-
-    }
-
-    randNum(min, max) {
-        min = +min;
-        max = +max;
-        if (!Number.isFinite(min) || !Number.isFinite(max)) {
-            throw new Error("randNum(min, max): min/max must be numbers");
-        }
-        if (max < min) {
-            const t = min; min = max; max = t;
-        }
-        return min + Math.random() * (max - min);
+        this.render = null;
     }
 }
 

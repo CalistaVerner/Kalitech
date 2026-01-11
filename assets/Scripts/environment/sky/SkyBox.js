@@ -6,18 +6,31 @@ class SkyBox {
         this.dayAsset = null;
         this.sunsetAsset = null;
         this.nightAsset = null;
+
         this.lastAsset = "";
     }
 
     applyCfg(cfg) {
-        if (cfg && cfg.skybox != null) this.defaultAsset = String(cfg.skybox);
-        if (cfg && cfg.skyboxDay != null) this.dayAsset = String(cfg.skyboxDay);
-        if (cfg && cfg.skyboxSunset != null) this.sunsetAsset = String(cfg.skyboxSunset);
-        if (cfg && cfg.skyboxNight != null) this.nightAsset = String(cfg.skyboxNight);
+        if (!cfg) return;
+
+        if (cfg.skybox != null) this.defaultAsset = String(cfg.skybox);
+        if (cfg.skyboxDay != null) this.dayAsset = String(cfg.skyboxDay);
+        if (cfg.skyboxSunset != null) this.sunsetAsset = String(cfg.skyboxSunset);
+        if (cfg.skyboxNight != null) this.nightAsset = String(cfg.skyboxNight);
+
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][skybox] applyCfg default='" + this.defaultAsset + "'" +
+                (this.dayAsset ? (" day='" + this.dayAsset + "'") : "") +
+                (this.sunsetAsset ? (" sunset='" + this.sunsetAsset + "'") : "") +
+                (this.nightAsset ? (" night='" + this.nightAsset + "'") : "")
+            );
+        }
     }
 
-    pickAsset(sunEval) {
-        const d = sunEval && typeof sunEval.dayFactor === "number" ? sunEval.dayFactor : 1.0;
+    pickAsset(dayFactor) {
+        const d = (typeof dayFactor === "number") ? dayFactor : 1.0;
+
         if (!this.dayAsset && !this.sunsetAsset && !this.nightAsset) return this.defaultAsset;
 
         if (d < 0.10) return this.nightAsset || this.defaultAsset;
@@ -25,33 +38,24 @@ class SkyBox {
         return this.dayAsset || this.defaultAsset;
     }
 
-    update(render, sunEval) {
-        const asset = this.pickAsset(sunEval);
-        if (!asset) return;
+    update(render, dayFactor) {
+        if (!render || typeof render.skyboxCube !== "function") {
+            throw new Error("[skybox] render.skyboxCube(asset) is required");
+        }
+
+        const asset = this.pickAsset(dayFactor);
+        if (!asset) throw new Error("[skybox] asset is empty");
+
         if (asset === this.lastAsset) return;
 
-        // 1) ensureScene (если есть)
-        try {
-            if (render && typeof render.ensureScene === "function") render.ensureScene();
-        } catch (e) {
-            (ENGINE.log || console).warn("[skybox] ensureScene failed:", e && (e.stack || e.message || String(e)));
+        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
+            ENGINE.log.debug(
+                "[sky][skybox] switch asset='" + asset + "' dayFactor=" + Number(dayFactor).toFixed(4)
+            );
         }
 
-        // 2) проверить метод
-        if (!render || typeof render.skyboxCube !== "function") {
-            (ENGINE.log || console).warn("[skybox] render.skyboxCube() not found. render keys maybe host-object.");
-            return;
-        }
-
-        // 3) применить и залогировать
-        try {
-            (ENGINE.log || console).info("[skybox] applying:", asset);
-            render.skyboxCube(asset);
-            this.lastAsset = asset;
-        } catch (e) {
-            (ENGINE.log || console).error("[skybox] skyboxCube failed asset=" + asset + " err=" + (e && (e.stack || e.message || String(e))));
-            // не обновляем lastAsset, чтобы пробовало снова после фикса
-        }
+        render.skyboxCube(asset);
+        this.lastAsset = asset;
     }
 }
 

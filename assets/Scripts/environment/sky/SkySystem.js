@@ -1,299 +1,393 @@
-// FILE: Scripts/systems/sky/SkySystem.js
 "use strict";
 
 const SkyClock = require("./SkyClock.js");
-const SunModel = require("./SunModel.js");
+const CelestialModel = require("./CelestialModel.js");
 const LightRig = require("./LightRig.js");
 const SkyBox = require("./SkyBox.js");
-//const FogController = require("./FogController.js");
+const FogController = require("./FogController.js");
+
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
+    return v;
+}
+
+function isFn(f) {
+    return typeof f === "function";
+}
+
+function dbg(log, s) {
+    if (log && log.debug) log.debug(s);
+}
+
+function mapGet(m, key) {
+    if (!m) return null;
+
+    // Map-like: has/get
+    if (typeof m === "object" && typeof m.has === "function" && typeof m.get === "function") {
+        if (m.has(key)) return m.get(key);
+        return null;
+    }
+
+    // Plain object
+    if (typeof m === "object") {
+        if (Object.prototype.hasOwnProperty.call(m, key)) return m[key];
+        return null;
+    }
+
+    return null;
+}
+
+function tryGet(ctx, key) {
+    if (!ctx) return null;
+
+    // 1) ctx.get("x")
+    if (typeof ctx.get === "function") {
+        const v = ctx.get(key);
+        if (v != null) return v;
+    }
+
+    // 2) ctx.state()  (0-arity!) -> stateObj, then get from it
+    if (typeof ctx.state === "function") {
+        const st = ctx.state(); // IMPORTANT: no args
+        const v = mapGet(st, key);
+        if (v != null) return v;
+    }
+
+    // 3) ctx.stateDomain.get("x")
+    if (ctx.stateDomain) {
+        const v = mapGet(ctx.stateDomain, key);
+        if (v != null) return v;
+    }
+
+    return null;
+}
+
 
 class SkySystem {
-    constructor(engine) {
-        this.engine = engine;
+    constructor(engineApi) {
+        this.engine = req(engineApi, "[sky] engineApi is required");
+        this.render = null;
 
         this.clock = new SkyClock();
-        this.sun = new SunModel();
+        this.celestial = new CelestialModel();
         this.lights = new LightRig();
         this.skybox = new SkyBox();
-        //this.fog = new FogController();
+        this.fog = new FogController();
 
-        this.render = engine.render();
+        this._cfgRef = null;
+        this._cfgPath = "INIT";
 
-        this.staticApplied = false;
-        this.wiredEvents = false;
+        this._didInitTime = false;
 
-        this._lastCfgRef = null;
+        this._eventsWired = false;
         this._unsubs = [];
 
-        this._lastPostRef = null;
-        this._lastShadowMapSize = null;
+        this._enabled = true;
 
-        this.dbgAcc = 0.0;
+        // debug cadence
+        this._dbgAcc = 0.0;
+        this._dbgEvery = 1.0;
+        this._dbgLastPrimary = null;
+
+        // one-shot diag
+        this._diagCfgPrinted = false;
     }
 
     init(ctx) {
-        try {
-            ENGINE.log.info("[sky] init");
-        } catch (_) {
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+
+        (ENGINE.log || console).info("[sky] init");
+
+        if (!isFn(this.engine.render)) {
+            throw new Error("[sky] engineApi.render() is required (pass ctx.engine.api(), not ctx.engine)");
         }
-        try {
-            const c = ctx.get("config");
-            const sh = c && c.shadows;
-            try {
-                ENGINE.log.info("[sky] cfg.shadows exists=" + !!sh + " mapSize=" + (sh ? sh.mapSize : "null"));
-            } catch (_) {
-            }
-        } catch (e) {
-            try {
-                ENGINE.log.warn("[sky] cfg dump failed: " + e);
-            } catch (_) {
-            }
-        }
+
+        this.render = req(this.engine.render(), "[sky] engine.render() returned null");
+
+        dbg(log, "[sky] ctx keys = " + Object.keys(ctx || {}).join(","));
+        dbg(log, "[sky] ctx has config=" + !!(ctx && (ctx.config || ctx.cfg || ctx.params || (ctx.system && (ctx.system.config || ctx.system.cfg)))));
+        dbg(log, "[sky] ctx has get=" + !!(ctx && isFn(ctx.get)) + " has=" + !!(ctx && isFn(ctx.has)) + " state=" + !!(ctx && isFn(ctx.state)));
+        dbg(log, "[sky] ctx has stateDomain=" + !!(ctx && ctx.stateDomain) + " perfDomain=" + !!(ctx && ctx.perfDomain));
 
         const cfg = this.readCfg(ctx);
-        this.applyConfigIfChanged(cfg);
+        this.applyCfg(cfg);
 
-        this.applyStaticOnce(cfg);
+        this.assertRenderContract();
 
-        this.clock.t = this.clock.dayLengthSec * 0.18;
-        this.applyFrame(this.clock.time01);
+        this.lights.init(this.engine);
+        this.fog.init(this.render);
 
+        if (!this._didInitTime) {
+            if (!cfg || cfg.startTime01 == null) this.clock.setTime01(0.25);
+            this._didInitTime = true;
+        }
+
+        this.applyFrame(0);
         this.wireEventsOnce();
     }
 
     update(ctx, tpf) {
         const cfg = this.readCfg(ctx);
-        this.applyConfigIfChanged(cfg);
+        this.applyCfg(cfg);
 
-        this.applyRenderCfgIfPresent(cfg);
+        const dt = this.getDt(tpf);
 
-        const dt = this.getTpf(ctx, tpf);
-
-        if (!this.clock.enabled) {
-            this.lights.setEnabled(false);
-            return;
-        }
-        this.lights.setEnabled(true);
+        if (!this._enabled || !this.clock.enabled) return;
 
         this.clock.step(dt);
-        this.applyFrame(this.clock.time01);
+        this.applyFrame(dt);
 
-        this.dbgAcc += dt;
-        if (this.dbgAcc > 2.0) {
-            this.dbgAcc = 0.0;
-            /*
-            try {
-                ENGINE.log.debug(
-                    "[sky] phase=" + this.clock.time01.toFixed(3) +
-                    " t=" + this.clock.t.toFixed(2) +
-                    " dt=" + dt.toFixed(4)
-                );
-            } catch (_) {} */
+        // heartbeat
+        if (cfg && cfg.debug && cfg.debug.skyEvery != null) {
+            const v = +cfg.debug.skyEvery;
+            if (Number.isFinite(v) && v >= 0) this._dbgEvery = v;
+        }
+
+        this._dbgAcc += dt;
+        if (this._dbgEvery > 0 && this._dbgAcc >= this._dbgEvery) {
+            this._dbgAcc = 0;
+
+            const cel = this.celestial.evaluate(this.clock.time01);
+            const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+            dbg(log,
+                "[sky] tick time01=" + cel.time01.toFixed(4) +
+                " dayFactor=" + cel.dayFactor.toFixed(4) +
+                " primary=" + cel.primary +
+                " cfgPath=" + this._cfgPath
+            );
         }
     }
 
     destroy() {
-        for (let i = 0; i < this._unsubs.length; i++) {
-            try { this._unsubs[i](); } catch (_) {}
-        }
+        for (let i = 0; i < this._unsubs.length; i++) this._unsubs[i]();
         this._unsubs.length = 0;
+
         this.lights.destroy();
+        this.fog.destroy();
+
+        (ENGINE.log || console).info("[sky] destroy");
     }
 
-    applyFrame(time01) {
-        const sunEval = this.sun.evaluate(time01);
+    applyFrame(dt) {
+        const cel = this.celestial.evaluate(this.clock.time01);
 
-        this.lights.update(this.engine, sunEval);
-        this.skybox.update(this.render, sunEval);
-        //this.fog.update(this.render, sunEval);
+        if (cel.primary !== this._dbgLastPrimary) {
+            this._dbgLastPrimary = cel.primary;
+            const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+            dbg(log,
+                "[sky] PRIMARY -> " + cel.primary +
+                " time01=" + cel.time01.toFixed(4) +
+                " dayFactor=" + cel.dayFactor.toFixed(4)
+            );
+        }
+
+        this.lights.update(this.engine, cel, dt);
+        this.skybox.update(this.render, cel.dayFactor);
+        this.fog.update(this.render, cel);
     }
 
+    applyCfg(cfg) {
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+
+        if (!cfg) {
+            dbg(log, "[sky][cfg] not found (using defaults) path=" + this._cfgPath);
+            return;
+        }
+
+        if (cfg === this._cfgRef) return;
+        this._cfgRef = cfg;
+
+        this.clock.applyCfg(cfg);
+        this.celestial.applyCfg(cfg);
+        this.lights.applyCfg(cfg);
+        this.skybox.applyCfg(cfg);
+        this.fog.applyCfg(cfg);
+
+        dbg(log, "[sky][cfg] applied ref-change path=" + this._cfgPath);
+    }
+
+    /**
+     * IMPORTANT:
+     * Your ctx shows domains: stateDomain + ctx.state()/get()/has().
+     * Config is not in ctx.config — so we extract from those domains.
+     */
     readCfg(ctx) {
-        if (!ctx) return null;
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
 
-        try {
-            if (typeof ctx.get === "function") {
-                const c = ctx.get("config");
-                if (c) return c;
-                const cc = ctx.get("cfg");
-                if (cc) return cc;
-                const sys = ctx.get("system");
-                if (sys && sys.config) return sys.config;
+        if (!ctx) {
+            this._cfgPath = "ctx:null";
+            return null;
+        }
+
+        // 1) obvious fields
+        if (ctx.config) {
+            this._cfgPath = "ctx.config";
+            return ctx.config;
+        }
+        if (ctx.cfg) {
+            this._cfgPath = "ctx.cfg";
+            return ctx.cfg;
+        }
+        if (ctx.params) {
+            this._cfgPath = "ctx.params";
+            return ctx.params;
+        }
+        if (ctx.settings) {
+            this._cfgPath = "ctx.settings";
+            return ctx.settings;
+        }
+
+        // 2) system wrapper
+        if (ctx.system) {
+            if (ctx.system.config) {
+                this._cfgPath = "ctx.system.config";
+                return ctx.system.config;
             }
-        } catch (_) {}
+            if (ctx.system.cfg) {
+                this._cfgPath = "ctx.system.cfg";
+                return ctx.system.cfg;
+            }
+        }
 
-        try { if (ctx.system && ctx.system.config) return ctx.system.config; } catch (_) {}
-        if (ctx.config) return ctx.config;
-        if (ctx.cfg) return ctx.cfg;
+        // 3) domains / getters (your actual case)
+        // try common keys (order: strict)
+        const keys = [
+            "config",
+            "cfg",
+            "systemConfig",
+            "systemCfg",
+            "sysConfig",
+            "settings",
+            "params",
+            "moduleConfig"
+        ];
 
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            const v = tryGet(ctx, k);
+            if (v != null) {
+                this._cfgPath = "domain:" + k;
+                if (!this._diagCfgPrinted) {
+                    this._diagCfgPrinted = true;
+                    dbg(log, "[sky][cfg] FOUND via " + this._cfgPath);
+                    dbg(log, "[sky][cfg] cfg keys=" + Object.keys(v).join(","));
+                }
+                return v;
+            }
+        }
+
+        // 4) one-shot deep diag: list keys that exist in stateDomain if possible
+        if (!this._diagCfgPrinted) {
+            this._diagCfgPrinted = true;
+
+            dbg(log, "[sky][cfg] NOT FOUND. diag:");
+            if (ctx.stateDomain && typeof ctx.stateDomain === "object") {
+                dbg(log, "[sky][cfg] stateDomain keys=" + Object.keys(ctx.stateDomain).join(","));
+            }
+            // if ctx.has exists, probe what it claims to have
+            if (isFn(ctx.has)) {
+                const probe = ["config", "cfg", "systemConfig", "systemCfg", "settings", "params", "moduleConfig"];
+                for (let i = 0; i < probe.length; i++) {
+                    const k = probe[i];
+                    dbg(log, "[sky][cfg] ctx.has('" + k + "')=" + !!ctx.has(k));
+                }
+            }
+        }
+
+        this._cfgPath = "NOT_FOUND";
         return null;
     }
 
-    applyConfigIfChanged(cfg) {
-        if (!cfg) return;
-        if (cfg === this._lastCfgRef) return;
-        this._lastCfgRef = cfg;
-
-        this.clock.applyCfg(cfg);
-        this.sun.applyCfg(cfg);
-        this.lights.applyCfg(cfg);
-        this.skybox.applyCfg(cfg);
-        //this.fog.applyCfg(cfg);
-
-        this.applyRenderCfgIfPresent(cfg);
-    }
-
-    applyStaticOnce(cfg) {
-        if (this.staticApplied) return;
-        this.staticApplied = true;
-
-        //this.render.ensureScene();
-
-        this.lights.init(this.engine);
-        //this.fog.init(this.render);
-
-        const initSun = this.sun.evaluate(0.18);
-        this.skybox.update(this.render, initSun);
-
-        this.applyRenderCfgIfPresent(cfg, true);
-    }
-
-    applyRenderCfgIfPresent(cfg, forceDefaults) {
-       // try { this.render.ensureScene(); } catch (_) {}
-
-        let ms = null;
-
-        const sh = cfg && cfg.shadows ? cfg.shadows : null;
-        if (sh) {
-            ms = this.clampInt(sh.mapSize, 0, 16384, 16384);
-        } else if (forceDefaults) {
-            ms = 16384;
-        }
-
-        if (ms !== null) {
-            if (ms !== this._lastShadowMapSize) {
-                this._lastShadowMapSize = ms;
-                try {
-                    try {
-                        ENGINE.log.info("[sky] apply shadows mapSize=" + ms);
-                    } catch (_) {
-                    }
-                    this.render.sunShadows(ms);
-                } catch (e) {
-                    try {
-                        ENGINE.log.warn("[sky] render.sunShadows failed: " + e);
-                    } catch (_) {
-                    }
-                }
-            }
-        }
-
-        const pp = cfg && cfg.post ? cfg.post : null;
-        if (pp && pp !== this._lastPostRef) {
-            this._lastPostRef = pp;
-            try { this.render.postCfg(pp); } catch (e) {
-                try {
-                    ENGINE.log.warn("[sky] render.postCfg failed: " + e);
-                } catch (_) {
-                }
-            }
-        }
-    }
-
-    getTpf(ctx, maybeTpf) {
-        const p = +maybeTpf;
+    getDt(tpf) {
+        const p = Number(tpf);
         if (Number.isFinite(p) && p > 0) return p;
-
-        try {
-            const c = +ctx.tpf;
-            if (Number.isFinite(c) && c > 0) return c;
-        } catch (_) {}
-
-        try {
-            const t = +ctx.time.tpf;
-            if (Number.isFinite(t) && t > 0) return t;
-        } catch (_) {}
-
-        try {
-            const v = +this.engine.time().tpf();
-            if (Number.isFinite(v) && v > 0) return v;
-        } catch (_) {}
-
         return 1.0 / 60.0;
     }
 
-    clampInt(v, min, max, def) {
-        const n = Math.round(Number(v));
-        if (!Number.isFinite(n)) return def;
-        if (n < min) return min;
-        if (n > max) return max;
-        return n | 0;
+    assertRenderContract() {
+        const r = req(this.render, "[sky] render is required");
+
+        req(r.ensureScene, "[sky] render.ensureScene() is required");
+        req(r.sunCfg, "[sky] render.sunCfg(cfg) is required");
+        req(r.ambientCfg, "[sky] render.ambientCfg(cfg) is required");
+        req(r.fogCfg, "[sky] render.fogCfg(cfg) is required");
+        req(r.skyboxCube, "[sky] render.skyboxCube(asset) is required");
+
+        if (!isFn(r.sunShadowsCfg) && !isFn(r.sunShadows)) {
+            throw new Error("[sky] render.sunShadowsCfg(cfg) or render.sunShadows(mapSize) is required");
+        }
+
+        if (r.setPrimaryDirectional != null && !isFn(r.setPrimaryDirectional)) {
+            throw new Error("[sky] render.setPrimaryDirectional must be a function if provided");
+        }
+
+        if (r.moonCfg != null && !isFn(r.moonCfg)) {
+            throw new Error("[sky] render.moonCfg must be a function if provided");
+        }
+
+        r.ensureScene();
+
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+        dbg(log, "[sky] render contract OK");
     }
 
     wireEventsOnce() {
-        if (this.wiredEvents) return;
-        this.wiredEvents = true;
+        if (this._eventsWired) return;
+        this._eventsWired = true;
 
-        try {
-            const ev = EVENTS;
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
 
-            const on = (name, fn) => {
-                const ret = ev.on(name, fn);
-                if (typeof ret === "function") this._unsubs.push(ret);
-                else if (typeof ev.off === "function") this._unsubs.push(() => ev.off(name, fn));
-            };
-
-            on("sky:setTime", (p) => {
-                if (!p) return;
-
-                const dls = +p.dayLengthSec;
-                if (Number.isFinite(dls) && dls > 1) this.clock.dayLengthSec = dls;
-
-                const t01 = +p.time01;
-                if (Number.isFinite(t01)) this.clock.setTime01(t01);
-                else {
-                    const ts = +p.timeSec;
-                    if (Number.isFinite(ts)) this.clock.setTimeSec(ts);
-                }
-
-                this.applyFrame(this.clock.time01);
-            });
-
-            on("sky:setSpeed", (p) => {
-                if (!p) return;
-                const dls = +p.dayLengthSec;
-                if (Number.isFinite(dls) && dls > 1) this.clock.dayLengthSec = dls;
-            });
-
-            on("sky:setEnabled", (p) => {
-                if (!p) return;
-                if (p.enabled === true) this.clock.enabled = true;
-                if (p.enabled === false) this.clock.enabled = false;
-            });
-
-            on("render:shadows", (p) => {
-                const ms = this.clampInt(p && p.mapSize, 0, 16384, 16384);
-                this._lastShadowMapSize = null;
-                this.applyRenderCfgIfPresent({ shadows: { mapSize: ms } }, false);
-            });
-
-            on("render:post", (p) => {
-                if (!p) return;
-                this._lastPostRef = null;
-                try { this.render.postCfg(p); } catch (e) {
-                    try {
-                        ENGINE.log.warn("[sky] render:post failed: " + e);
-                    } catch (_) {
-                    }
-                }
-            });
-
-        } catch (e) {
-            try {
-                ENGINE.log.warn("[sky] events wiring skipped: " + e);
-            } catch (_) {
-            }
+        const ev = (typeof globalThis !== "undefined") ? globalThis.EVENTS : undefined;
+        if (!ev) {
+            dbg(log, "[sky] EVENTS not present");
+            return;
         }
+        if (!isFn(ev.on)) throw new Error("[sky] EVENTS.on(name, fn) is required");
+
+        const on = (name, fn) => {
+            const ret = ev.on(name, fn);
+            if (isFn(ret)) this._unsubs.push(ret);
+            else if (isFn(ev.off)) this._unsubs.push(() => ev.off(name, fn));
+        };
+
+        on("sky:setTime", (p) => {
+            if (!p) return;
+
+            if (p.time01 != null) this.clock.setTime01(+p.time01);
+            else if (p.timeSec != null) this.clock.setTimeSec(+p.timeSec);
+
+            if (p.dayLengthSec != null) {
+                const dls = +p.dayLengthSec;
+                if (Number.isFinite(dls) && dls > 1) this.clock.dayLengthSec = dls;
+            }
+
+            dbg(log, "[sky][event] sky:setTime " + JSON.stringify(p));
+            this.applyFrame(0);
+        });
+
+        on("sky:setEnabled", (p) => {
+            if (!p) return;
+            if (p.enabled === true) this.setEnabled(true);
+            if (p.enabled === false) this.setEnabled(false);
+            dbg(log, "[sky][event] sky:setEnabled enabled=" + this._enabled);
+        });
+
+        on("sky:setSpeed", (p) => {
+            if (!p) return;
+            const dls = +p.dayLengthSec;
+            if (Number.isFinite(dls) && dls > 1) this.clock.dayLengthSec = dls;
+            dbg(log, "[sky][event] sky:setSpeed dayLengthSec=" + this.clock.dayLengthSec);
+        });
+
+        dbg(log, "[sky] EVENTS wired");
+    }
+
+    setEnabled(v) {
+        this._enabled = !!v;
+        this.lights.setEnabled(this._enabled);
+
+        const log = ENGINE && ENGINE.log ? ENGINE.log : null;
+        dbg(log, "[sky] setEnabled=" + this._enabled);
     }
 }
 
