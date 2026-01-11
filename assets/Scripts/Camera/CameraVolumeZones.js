@@ -7,6 +7,14 @@ function clamp01(v) {
     return v < 0 ? 0 : (v > 1 ? 1 : v);
 }
 
+function resetState(st) {
+    st.id = null;
+    st.weight = 0;
+    st.priority = -2147483648;
+    st.overrides = null;
+    return st;
+}
+
 function pointInAabb(px, py, pz, a) {
     return px >= a.min.x && px <= a.max.x &&
         py >= a.min.y && py <= a.max.y &&
@@ -16,6 +24,7 @@ function pointInAabb(px, py, pz, a) {
 function aabbWeight(px, py, pz, a, blend) {
     if (!pointInAabb(px, py, pz, a)) return 0;
     if (!(blend > 0)) return 1;
+
     const dx = Math.min(px - a.min.x, a.max.x - px);
     const dy = Math.min(py - a.min.y, a.max.y - py);
     const dz = Math.min(pz - a.min.z, a.max.z - pz);
@@ -29,8 +38,7 @@ class CameraVolumeZones {
 
         this.enabled = false;
         this._zones = [];
-
-        this.state = {id: null, weight: 0, priority: -2147483648, overrides: null};
+        this.state = resetState({id: null, weight: 0, priority: 0, overrides: null});
     }
 
     configureFromPlayerCfg() {
@@ -40,35 +48,24 @@ class CameraVolumeZones {
         if (vz == null) {
             this.enabled = false;
             this._zones.length = 0;
-            this.state.id = null;
-            this.state.weight = 0;
-            this.state.priority = -2147483648;
-            this.state.overrides = null;
+            resetState(this.state);
             return;
         }
 
         const v = ZC.validateZonesConfig(vz);
         this.enabled = v.enabled;
         this._zones = v.zones;
-
-        this.state.id = null;
-        this.state.weight = 0;
-        this.state.priority = -2147483648;
-        this.state.overrides = null;
+        resetState(this.state);
     }
 
     update(bodyPos) {
-        if (!this.enabled) {
-            this.state.id = null;
-            this.state.weight = 0;
-            this.state.priority = -2147483648;
-            this.state.overrides = null;
-            return this.state;
-        }
+        if (!this.enabled) return resetState(this.state);
 
         const px = U.vx(bodyPos, 0), py = U.vy(bodyPos, 0), pz = U.vz(bodyPos, 0);
 
-        let best = null, bestW = 0, bestPr = -2147483648;
+        let best = null;
+        let bestW = 0;
+        let bestPr = -2147483648;
 
         for (let i = 0; i < this._zones.length; i++) {
             const z = this._zones[i];
@@ -82,19 +79,12 @@ class CameraVolumeZones {
             }
         }
 
-        if (!best) {
-            this.state.id = null;
-            this.state.weight = 0;
-            this.state.priority = -2147483648;
-            this.state.overrides = null;
-            return this.state;
-        }
+        if (!best) return resetState(this.state);
 
         this.state.id = best.id;
         this.state.weight = bestW;
         this.state.priority = bestPr;
         this.state.overrides = best.overrides;
-
         return this.state;
     }
 
@@ -102,7 +92,6 @@ class CameraVolumeZones {
         const st = this.state;
         if (!this.enabled || !st.overrides || !(st.weight > 0)) return base || null;
 
-        // minimal blend: numbers lerp, vec3 lerp, booleans threshold.
         const w = st.weight;
         const over = st.overrides;
 

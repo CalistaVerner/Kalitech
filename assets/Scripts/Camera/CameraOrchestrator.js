@@ -12,10 +12,6 @@ function arrHas(arr, code) {
     return false;
 }
 
-function smoothstep01(t) {
-    return t * t * (3 - 2 * t);
-}
-
 class CameraOrchestrator {
     constructor(player) {
         C.validatePlayer(player);
@@ -51,19 +47,14 @@ class CameraOrchestrator {
         });
 
         this.collision = new CameraCollisionSolver();
-        this.zones = new CameraVolumeZones(player);
 
-        // config pointer cache (no per-frame rebuild)
+        this.zones = new CameraVolumeZones(player);
         this._lastZonesCfgRef = null;
 
-        this.transition = {
-            enabled: true,
-            duration: 0.22,
-            active: false,
-            t: 0,
-            from: { x: 0, y: 0, z: 0 },
-            to: { x: 0, y: 0, z: 0 }
-        };
+        // post-solve smoothing (fixes “jerky third-person”)
+        this.postSmooth = 22.0;
+        this._sm = {x: 0, y: 0, z: 0};
+        this._smInit = false;
 
         this._ctx = {
             orchestrator: this,
@@ -86,9 +77,7 @@ class CameraOrchestrator {
         this.register(require("./modes/first.js"));
         this.register(require("./modes/third.js"));
 
-        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type)
-            ? String(player.cfg.camera.type)
-            : "third";
+        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type) ? String(player.cfg.camera.type) : "third";
         this.setType(initial);
     }
 
@@ -106,7 +95,9 @@ class CameraOrchestrator {
     }
 
     getType() {
-        return this._active ? this._active.id : "third";
+        const m = this._active;
+        if (!m || !m.id) throw new Error("[camera] active mode is not set");
+        return m.id;
     }
 
     setType(type) {
@@ -123,12 +114,12 @@ class CameraOrchestrator {
         }
         if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
-        this.transition.active = false;
+        // Correct shadow-safe policy (no more “t shadows disappeared in third”)
+        //const model = this.player.getModel();
+        //model.setFirstPerson(next.id === "first");
 
-        const model = this.player.getModel();
-        if (model && typeof model.setVisible === "function") {
-            model.setVisible(!!next.meta.playerModelVisible);
-        }
+        // reset post smoothing on mode switch
+        this._smInit = false;
     }
 
     next() {
@@ -146,14 +137,25 @@ class CameraOrchestrator {
         return c ? c.volumeZones : null;
     }
 
+    _applyModelPolicy() {
+        const model = this.player.getModel();
+        if (model == null) return; // модель может появиться позже (spawn lifecycle)
+
+        if (typeof model.setFirstPerson !== "function") {
+            throw new Error("[camera] model.setFirstPerson(isFirstPerson) is required");
+        }
+
+        model.setFirstPerson(this.getType() === "first");
+    }
+
     _syncZonesIfNeeded() {
         const ref = this._zonesCfgRef();
         if (ref === this._lastZonesCfgRef) return;
         this._lastZonesCfgRef = ref;
-        this.zones.configureFromPlayerCfg(); // strict validation inside
+        this.zones.configureFromPlayerCfg();
     }
 
-    _applyLook(dt, snap) {
+    _applyLook(snap) {
         let dx = U.num(snap.dx, 0);
         let dy = U.num(snap.dy, 0);
 
@@ -164,25 +166,24 @@ class CameraOrchestrator {
         this.look.pitch -= dy * this.look.sensitivity;
     }
 
-    _tickTransition(dt) {
-        const cam = this.d.camera;
-        const tr = this.transition;
-        const dur = Math.max(1e-4, U.num(tr.duration, 0.22));
-
-        tr.t += dt;
-        let a = U.clamp(tr.t / dur, 0, 1);
-        a = smoothstep01(a);
-
-        cam.setLocation(
-            tr.from.x + (tr.to.x - tr.from.x) * a,
-            tr.from.y + (tr.to.y - tr.from.y) * a,
-            tr.from.z + (tr.to.z - tr.from.z) * a
-        );
-
-        if (tr.t >= dur) {
-            tr.active = false;
-            cam.setLocation(tr.to.x, tr.to.y, tr.to.z);
+    _smoothOutPos(out, dt, enabled) {
+        if (!enabled || this.postSmooth <= 0) {
+            this._smInit = false;
+            return out;
         }
+
+        if (!this._smInit) {
+            this._smInit = true;
+            this._sm.x = out.x;
+            this._sm.y = out.y;
+            this._sm.z = out.z;
+            return this._sm;
+        }
+
+        this._sm.x = U.expSmooth(this._sm.x, out.x, this.postSmooth, dt);
+        this._sm.y = U.expSmooth(this._sm.y, out.y, this.postSmooth, dt);
+        this._sm.z = U.expSmooth(this._sm.z, out.z, this.postSmooth, dt);
+        return this._sm;
     }
 
     update(dt, frame) {
@@ -192,8 +193,10 @@ class CameraOrchestrator {
 
         const cam = this.d.camera;
         const phys = this.d.physics;
+        const snap = frame.snap;
 
-        this._applyLook(dt, frame.snap);
+        this._applyLook(snap);
+        this._applyModelPolicy();
 
         const bodyId = this.player.getBodyId() | 0;
         const bodyPos = phys.position(bodyId);
@@ -203,7 +206,6 @@ class CameraOrchestrator {
         const zoneState = this.zones.update(bodyPos);
         const zoneOverrides = this.zones.blendedOverrides(null);
 
-        // pitch limits (zone override, else base)
         const baseMinPitch = -this.look.pitchLimit;
         const baseMaxPitch = +this.look.pitchLimit;
         const minPitch = (zoneOverrides && zoneOverrides.minPitch != null) ? +zoneOverrides.minPitch : baseMinPitch;
@@ -212,10 +214,9 @@ class CameraOrchestrator {
         this.look.pitch = U.clamp(this.look.pitch, Math.min(minPitch, maxPitch), Math.max(minPitch, maxPitch));
         cam.setYawPitch(this.look.yaw, this.look.pitch);
 
-        // mode switch
         this._switchCd = Math.max(0, this._switchCd - dt);
 
-        const kd = frame.snap.keysDown;
+        const kd = snap.keysDown;
         if (!kd) throw new Error("[camera] snap.keysDown required");
 
         const vDown = (this._keyV > 0) && arrHas(kd, this._keyV);
@@ -224,34 +225,21 @@ class CameraOrchestrator {
 
         if (pressedV) {
             this._switchCd = this._switchCdTime;
-
-            const loc = cam.location();
-            this.transition.from.x = U.vx(loc, 0);
-            this.transition.from.y = U.vy(loc, 0);
-            this.transition.from.z = U.vz(loc, 0);
-
             this.next();
         }
 
-        if (this.transition.active) {
-            this._tickTransition(dt);
-            return;
-        }
-
-        // build ctx once
-        const ctx = this._ctx;
         const mode = this._active;
+        const ctx = this._ctx;
 
         ctx.mode = mode;
         ctx.dt = dt;
-        ctx.snap = frame.snap;
+        ctx.snap = snap;
         ctx.bodyId = bodyId;
         ctx.bodyPos = bodyPos;
         ctx.input = frame.input;
         ctx.zoneState = zoneState;
         ctx.zoneOverrides = zoneOverrides;
 
-        // zoom (zone clamps)
         if (mode.meta.supportsZoom) {
             if (zoneOverrides && (zoneOverrides.zoomMin != null || zoneOverrides.zoomMax != null)) {
                 const zmin = (zoneOverrides.zoomMin != null) ? +zoneOverrides.zoomMin : this.zoom.min;
@@ -262,27 +250,15 @@ class CameraOrchestrator {
             this.zoom.update(dt, ctx);
         }
 
-        // mode computes target/outPos (third keeps target centered on player)
         mode.update(ctx);
 
-        // collision (strict)
         if (mode.meta.hasCollision && this.collision.enabled) {
             this.collision.solve(ctx);
         }
 
-        if (pressedV && this.transition.enabled) {
-            this.transition.to.x = ctx.outPos.x;
-            this.transition.to.y = ctx.outPos.y;
-            this.transition.to.z = ctx.outPos.z;
-
-            this.transition.active = true;
-            this.transition.t = 0;
-
-            cam.setLocation(this.transition.from.x, this.transition.from.y, this.transition.from.z);
-            return;
-        }
-
-        cam.setLocation(ctx.outPos.x, ctx.outPos.y, ctx.outPos.z);
+        // post-solve smoothing only for third-person (first-person must be instant)
+        const sm = this._smoothOutPos(ctx.outPos, dt, mode.id === "third");
+        cam.setLocation(sm.x, sm.y, sm.z);
     }
 }
 
