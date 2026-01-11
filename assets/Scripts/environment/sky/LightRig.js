@@ -31,6 +31,16 @@ class LightRig {
             intensityNight: 0.35
         };
 
+        // Optional “sun rays / god rays” (if render supports)
+        this.sunRays = {
+            enabled: true,
+            // “art knobs”
+            strengthDay: 0.85,
+            strengthNight: 0.0,
+            // how much it follows dayFactor (0..1)
+            dayResponse: 1.0
+        };
+
         this.warmup = {enabled: false, seconds: 0.35};
         this._warmupLeft = 0.0;
 
@@ -38,17 +48,12 @@ class LightRig {
         this._lastShadowKey = "";
         this._lastShadowEnabled = null;
 
-        // debug sampling control
-        this._dbgAcc = 0.0;
-        this._dbgEvery = 1.0; // seconds
+        this._lastRaysKey = "";
     }
 
     setEnabled(v) {
         this.enabled = !!v;
         if (!this.enabled) this.disableShadowsHard();
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug("[sky][light] setEnabled=" + this.enabled);
-        }
     }
 
     applyCfg(cfg) {
@@ -98,6 +103,7 @@ class LightRig {
 
             if (sh.intensityDay != null) this.shadows.intensityDay = +sh.intensityDay;
             if (sh.intensityNight != null) this.shadows.intensityNight = +sh.intensityNight;
+
             if (sh.intensity != null) {
                 const v = +sh.intensity;
                 if (Number.isFinite(v)) {
@@ -107,18 +113,12 @@ class LightRig {
             }
         }
 
-        if (cfg.debug && cfg.debug.skyEvery != null) {
-            const v = +cfg.debug.skyEvery;
-            if (Number.isFinite(v) && v >= 0) this._dbgEvery = v;
-        }
-
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug(
-                "[sky][light] applyCfg minAmbient=" + this.minAmbient +
-                " shadows=" + JSON.stringify(this.shadows) +
-                " warmup=" + JSON.stringify(this.warmup) +
-                " dbgEvery=" + this._dbgEvery
-            );
+        if (cfg.sunRays) {
+            const sr = cfg.sunRays;
+            if (sr.enabled != null) this.sunRays.enabled = !!sr.enabled;
+            if (sr.strengthDay != null) this.sunRays.strengthDay = +sr.strengthDay;
+            if (sr.strengthNight != null) this.sunRays.strengthNight = +sr.strengthNight;
+            if (sr.dayResponse != null) this.sunRays.dayResponse = +sr.dayResponse;
         }
     }
 
@@ -140,18 +140,17 @@ class LightRig {
         if (this.render.moonCfg != null && !isFn(this.render.moonCfg)) {
             throw new Error("[LightRig] render.moonCfg must be a function if provided");
         }
+        if (this.render.sunRaysCfg != null && !isFn(this.render.sunRaysCfg)) {
+            throw new Error("[LightRig] render.sunRaysCfg must be a function if provided");
+        }
 
         this.render.ensureScene();
 
         this._warmupLeft = (this.warmup.enabled ? Math.max(0, +this.warmup.seconds) : 0);
-
         this._lastPrimary = "";
         this._lastShadowKey = "";
         this._lastShadowEnabled = null;
-
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug("[sky][light] init ok warmupLeft=" + this._warmupLeft.toFixed(3));
-        }
+        this._lastRaysKey = "";
     }
 
     update(engine, celEval, tpf) {
@@ -161,20 +160,17 @@ class LightRig {
         if (this._warmupLeft > 0) this._warmupLeft = Math.max(0, this._warmupLeft - dt);
 
         const primary = req(celEval && celEval.primary, "[LightRig] celEval.primary is required");
-        const d = req(celEval && celEval.dayFactor, "[LightRig] celEval.dayFactor is required");
+        const dayFactor = req(celEval && celEval.dayFactor, "[LightRig] celEval.dayFactor is required");
+        const nightFactor = (celEval && typeof celEval.nightFactor === "number") ? celEval.nightFactor : (1.0 - dayFactor);
 
-        // primary switch
         if (primary !== this._lastPrimary) {
             this._lastPrimary = primary;
             if (isFn(this.render.setPrimaryDirectional)) this.render.setPrimaryDirectional(primary);
             this._lastShadowKey = "";
-
-            if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-                ENGINE.log.debug("[sky][light] primary -> " + primary + " dayFactor=" + d.toFixed(4));
-            }
+            this._lastRaysKey = "";
         }
 
-        // sun
+        // Sun directional
         {
             const s = req(celEval.sun, "[LightRig] celEval.sun is required");
             const dir = req(s.rayDir, "[LightRig] celEval.sun.rayDir is required");
@@ -185,9 +181,24 @@ class LightRig {
                 color: [col.r, col.g, col.b],
                 intensity: +s.intensity
             });
+
+            // Optional sun rays (godrays): strength follows dayFactor by default
+            if (isFn(this.render.sunRaysCfg) && this.sunRays.enabled) {
+                const strength = SkyMath.lerp(this.sunRays.strengthNight, this.sunRays.strengthDay,
+                    SkyMath.clamp(dayFactor * this.sunRays.dayResponse, 0, 1)
+                );
+                const raysKey = strength.toFixed(4) + "|" + dir.x.toFixed(4) + "|" + dir.y.toFixed(4) + "|" + dir.z.toFixed(4);
+                if (raysKey !== this._lastRaysKey) {
+                    this._lastRaysKey = raysKey;
+                    this.render.sunRaysCfg({
+                        dir: [dir.x, dir.y, dir.z],
+                        strength
+                    });
+                }
+            }
         }
 
-        // moon (optional)
+        // Moon directional (optional)
         if (isFn(this.render.moonCfg)) {
             const m = req(celEval.moon, "[LightRig] celEval.moon is required");
             const dir = req(m.rayDir, "[LightRig] celEval.moon.rayDir is required");
@@ -200,32 +211,19 @@ class LightRig {
             });
         }
 
-        // ambient
-        const ambR = SkyMath.lerp(this.ambientNight.r, this.ambientDay.r, d);
-        const ambG = SkyMath.lerp(this.ambientNight.g, this.ambientDay.g, d);
-        const ambB = SkyMath.lerp(this.ambientNight.b, this.ambientDay.b, d);
-        const ambI = SkyMath.lerp(this.ambientNight.intensity, this.ambientDay.intensity, d);
+        // Ambient blend (CDPR-ish: keep a floor)
+        const ambR = SkyMath.lerp(this.ambientNight.r, this.ambientDay.r, dayFactor);
+        const ambG = SkyMath.lerp(this.ambientNight.g, this.ambientDay.g, dayFactor);
+        const ambB = SkyMath.lerp(this.ambientNight.b, this.ambientDay.b, dayFactor);
+        const ambI = SkyMath.lerp(this.ambientNight.intensity, this.ambientDay.intensity, dayFactor);
 
         this.render.ambientCfg({
             color: [ambR, ambG, ambB],
             intensity: Math.max(this.minAmbient, ambI)
         });
 
-        // shadows
+        // Shadows: day/night quality + intensity
         this.applyShadows(primary);
-
-        // periodic debug snapshot (controlled)
-        this._dbgAcc += dt;
-        if (this._dbgEvery > 0 && this._dbgAcc >= this._dbgEvery) {
-            this._dbgAcc = 0;
-            if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-                ENGINE.log.debug(
-                    "[sky][light] tick primary=" + primary +
-                    " dayFactor=" + d.toFixed(4) +
-                    " warmupLeft=" + this._warmupLeft.toFixed(3)
-                );
-            }
-        }
     }
 
     applyShadows(primary) {
@@ -233,12 +231,7 @@ class LightRig {
         const should = warmupDone && this.shadows.enabled;
 
         if (!should) {
-            if (this._lastShadowEnabled !== false) {
-                this.disableShadowsHard();
-                if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-                    ENGINE.log.debug("[sky][shadows] disabled (warmupDone=" + warmupDone + ")");
-                }
-            }
+            if (this._lastShadowEnabled !== false) this.disableShadowsHard();
             return;
         }
 
@@ -249,7 +242,7 @@ class LightRig {
         let lambda = this.shadows.lambda;
         let intensity = (primary === "sun") ? this.shadows.intensityDay : this.shadows.intensityNight;
 
-        mapSize = this.clampInt(mapSize, 256, 8192, 4096);
+        mapSize = this.clampInt(mapSize, 256, 16384, 4096);
         splits = this.clampInt(splits, 1, 4, 3);
         lambda = this.clampNum(lambda, 0.0, 1.0, 0.65);
         intensity = this.clampNum(intensity, 0.0, 1.0, 0.60);
@@ -257,16 +250,6 @@ class LightRig {
         const key = primary + "|" + mapSize + "|" + splits + "|" + lambda.toFixed(4) + "|" + intensity.toFixed(4);
         if (key === this._lastShadowKey) return;
         this._lastShadowKey = key;
-
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug(
-                "[sky][shadows] APPLY primary=" + primary +
-                " mapSize=" + mapSize +
-                " splits=" + splits +
-                " lambda=" + lambda +
-                " intensity=" + intensity
-            );
-        }
 
         if (isFn(this.render.sunShadowsCfg)) {
             this.render.sunShadowsCfg({mapSize, splits, lambda, intensity});
@@ -278,16 +261,13 @@ class LightRig {
     disableShadowsHard() {
         this._lastShadowEnabled = false;
         this._lastShadowKey = "";
-
         if (!this.render) return;
 
-        if (isFn(this.render.sunShadowsCfg)) this.render.sunShadowsCfg({
-            mapSize: 0,
-            splits: 1,
-            lambda: 0.65,
-            intensity: 0.0
-        });
-        else this.render.sunShadows(0);
+        if (isFn(this.render.sunShadowsCfg)) {
+            this.render.sunShadowsCfg({mapSize: 0, splits: 1, lambda: 0.65, intensity: 0.0});
+        } else {
+            this.render.sunShadows(0);
+        }
     }
 
     clampInt(v, min, max, def) {
@@ -307,9 +287,6 @@ class LightRig {
     }
 
     destroy() {
-        if (ENGINE && ENGINE.log && ENGINE.log.debug) {
-            ENGINE.log.debug("[sky][light] destroy");
-        }
         this.render = null;
     }
 }
