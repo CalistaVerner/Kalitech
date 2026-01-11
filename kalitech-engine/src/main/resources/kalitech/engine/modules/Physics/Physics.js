@@ -88,6 +88,14 @@ class EnginePhysics {
         return this._orch.raycastAll(cfg);
     }
 
+    sweepSphere(cfg) {
+        return this._orch.sweepSphere(cfg);
+    }
+
+    sweepCapsule(cfg) {
+        return this._orch.sweepCapsule(cfg);
+    }
+
     debug(e) {
         return this._orch.debug(e);
     }
@@ -114,7 +122,7 @@ module.exports = create;
 module.exports.EnginePhysics = EnginePhysics;
 module.exports.META = Object.freeze({
     moduleId: "physics",
-    version: "2.0.5",
+    version: "2.0.6",
     description: "ENGINE-only physics module (bootstrap-owned registration)",
     engineMin: "0.2.0"
 });

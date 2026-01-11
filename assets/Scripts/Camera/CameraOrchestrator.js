@@ -51,7 +51,7 @@ class CameraOrchestrator {
         this.zones = new CameraVolumeZones(player);
         this._lastZonesCfgRef = null;
 
-        // post-solve smoothing (fixes “jerky third-person”)
+        // post-solve smoothing (third-person only)
         this.postSmooth = 22.0;
         this._sm = {x: 0, y: 0, z: 0};
         this._smInit = false;
@@ -71,13 +71,19 @@ class CameraOrchestrator {
             target: { x: 0, y: 0, z: 0 },
             outPos: {x: 0, y: 0, z: 0},
             zoneState: null,
-            zoneOverrides: null
+            zoneOverrides: null,
+
+            // optional dependency: terrain height+normal provider
+            // { heightAt(x,z)->number, normalAt(x,z)->{x,y,z} }
+            terrain: null
         };
 
         this.register(require("./modes/first.js"));
         this.register(require("./modes/third.js"));
 
-        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type) ? String(player.cfg.camera.type) : "third";
+        const initial = (player.cfg && player.cfg.camera && player.cfg.camera.type)
+            ? String(player.cfg.camera.type)
+            : "third";
         this.setType(initial);
     }
 
@@ -114,11 +120,6 @@ class CameraOrchestrator {
         }
         if (this.player.dom && this.player.dom.view) this.player.dom.view.type = next.id;
 
-        // Correct shadow-safe policy (no more “t shadows disappeared in third”)
-        //const model = this.player.getModel();
-        //model.setFirstPerson(next.id === "first");
-
-        // reset post smoothing on mode switch
         this._smInit = false;
     }
 
@@ -132,20 +133,42 @@ class CameraOrchestrator {
         this.setType(this._modes[(idx + 1) % n].id);
     }
 
+    setTerrainSource(src) {
+        if (src == null) {
+            this._ctx.terrain = null;
+            return;
+        }
+        if (typeof src.heightAt !== "function") throw new Error("[camera] terrain source must provide heightAt(x,z)");
+        if (typeof src.normalAt !== "function") throw new Error("[camera] terrain source must provide normalAt(x,z)");
+        this._ctx.terrain = src;
+    }
+
+    setTerrainHandle(terrainApi, terrainHandle, world) {
+        if (!terrainApi || typeof terrainApi.heightAt !== "function") {
+            throw new Error("[camera] setTerrainHandle: terrainApi.heightAt(handle,x,z,world) is required");
+        }
+        if (typeof terrainApi.normalAt !== "function") {
+            throw new Error("[camera] setTerrainHandle: terrainApi.normalAt(handle,x,z,world) is required");
+        }
+        if (!terrainHandle) throw new Error("[camera] setTerrainHandle: terrainHandle is required");
+
+        const useWorld = (world !== false);
+
+        this._ctx.terrain = Object.freeze({
+            heightAt: function (x, z) {
+                return terrainApi.heightAt(terrainHandle, x, z, useWorld);
+            },
+            normalAt: function (x, z) {
+                const m = terrainApi.normalAt(terrainHandle, x, z, useWorld);
+                // TerrainApiImpl returns Map<String,Double> -> JS object with keys
+                return {x: +m.x, y: +m.y, z: +m.z};
+            }
+        });
+    }
+
     _zonesCfgRef() {
         const c = this.player.cfg && this.player.cfg.camera ? this.player.cfg.camera : null;
         return c ? c.volumeZones : null;
-    }
-
-    _applyModelPolicy() {
-        const model = this.player.getModel();
-        if (model == null) return; // модель может появиться позже (spawn lifecycle)
-
-        if (typeof model.setFirstPerson !== "function") {
-            throw new Error("[camera] model.setFirstPerson(isFirstPerson) is required");
-        }
-
-        model.setFirstPerson(this.getType() === "first");
     }
 
     _syncZonesIfNeeded() {
@@ -196,7 +219,6 @@ class CameraOrchestrator {
         const snap = frame.snap;
 
         this._applyLook(snap);
-        this._applyModelPolicy();
 
         const bodyId = this.player.getBodyId() | 0;
         const bodyPos = phys.position(bodyId);
@@ -256,7 +278,6 @@ class CameraOrchestrator {
             this.collision.solve(ctx);
         }
 
-        // post-solve smoothing only for third-person (first-person must be instant)
         const sm = this._smoothOutPos(ctx.outPos, dt, mode.id === "third");
         cam.setLocation(sm.x, sm.y, sm.z);
     }

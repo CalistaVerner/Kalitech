@@ -10,6 +10,7 @@ class PlayerCamera {
 
     attach() {
         if (!this.orch) this.orch = new CameraOrchestrator(this.player);
+        //this.orch.setTerrainHandle(ENGINE.terrain. TERRAIN, true);
     }
 
     getType() {

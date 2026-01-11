@@ -166,10 +166,53 @@ class PhysicsOrchestrator {
         return c;
     }
 
+    _sweep(cfg) {
+        const c = Object.assign({}, cfg);
+        c.from = vec3Arr(c.from, 0, 0, 0);
+        c.to = vec3Arr(c.to, 0, -1, 0);
+
+        // common optional filters
+        if (c.mask != null) c.mask = (c.mask | 0);
+        if (c.group != null) c.group = (c.group | 0);
+        if (c.ignoreBody != null) c.ignoreBody = (c.ignoreBody | 0);
+        if (c.ignoreSurface != null) c.ignoreSurface = (c.ignoreSurface | 0);
+
+        return c;
+    }
+
     raycast(cfg) {
         if (typeof this._phys.raycast !== "function") throw new Error("[ENGINE.physics] backend.raycast(cfg) missing");
         return this._phys.raycast(this._ray(cfg));
     }
+
+    // ----- convex sweeps (sphere/capsule) -----
+    sweepSphere(cfg) {
+        if (typeof this._phys.sweepSphere !== "function") {
+            throw new Error("[ENGINE.physics] backend.sweepSphere(cfg) missing");
+        }
+        const c = this._sweep(cfg);
+        c.radius = num(c.radius, 0);
+        if (!(c.radius > 0)) throw new Error("[ENGINE.physics] sweepSphere: cfg.radius must be > 0");
+        return this._phys.sweepSphere(c);
+    }
+
+    sweepCapsule(cfg) {
+        if (typeof this._phys.sweepCapsule !== "function") {
+            throw new Error("[ENGINE.physics] backend.sweepCapsule(cfg) missing");
+        }
+        const c = this._sweep(cfg);
+        c.radius = num(c.radius, 0);
+        c.height = num(c.height, 0);
+
+        if (!(c.radius > 0)) throw new Error("[ENGINE.physics] sweepCapsule: cfg.radius must be > 0");
+        if (!(c.height >= 0)) throw new Error("[ENGINE.physics] sweepCapsule: cfg.height must be >= 0");
+
+        // orientation (optional)
+        c.up = vec3Arr(c.up, 0, 1, 0);
+
+        return this._phys.sweepCapsule(c);
+    }
+
 
     raycastEx(cfg) {
         if (typeof this._phys.raycastEx !== "function") throw new Error("[ENGINE.physics] backend.raycastEx(cfg) missing");

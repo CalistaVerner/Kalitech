@@ -3,6 +3,7 @@
 
 const {isObj, num, i32} = require("./TerrainTypes.js");
 const {TerrainHeights} = require("./TerrainHeights.js");
+const {TerrainInstance} = require("./TerrainInstance.js");
 
 class TerrainCreateHelper {
     constructor(engine, terrNative, heightsApi, physicsApi, proxies) {
@@ -27,8 +28,12 @@ class TerrainCreateHelper {
         const xz = scaleCfg ? num(scaleCfg.xz, num(c.xzScale, 1.0)) : num(c.xzScale, 1.0);
         const y = scaleCfg ? num(scaleCfg.y, num(c.yScale, num(c.heightScale, 1.0))) : num(c.yScale, num(c.heightScale, 1.0));
 
+        // ------------------------------------------------------------
+        // post: apply material/uv/lod/scale and RETURN TerrainInstance
+        // ------------------------------------------------------------
         const post = (surfaceOrBundle) => {
-            const surface = surfaceOrBundle && surfaceOrBundle.surface ? surfaceOrBundle.surface : surfaceOrBundle;
+            const surface = (surfaceOrBundle && surfaceOrBundle.surface) ? surfaceOrBundle.surface : surfaceOrBundle;
+            if (!surface) throw new Error("[TERR] create(): native returned null surface");
 
             if (materialH != null) this.p.material(surface, materialH);
             if (uvCfg != null) this.p.uv(surface, uvCfg);
@@ -40,9 +45,13 @@ class TerrainCreateHelper {
                 else if (Number.isFinite(y) && y !== 1.0) this.p.scale(surface, 1.0, {yScale: y});
             }
 
-            return surfaceOrBundle;
+            // IMPORTANT: return object-mode instance (mirrors Java API via proxies)
+            return new TerrainInstance(this.p, surface);
         };
 
+        // ------------------------------------------------------------
+        // plane
+        // ------------------------------------------------------------
         if (kind === "plane") {
             const planeCfg = Object.assign({}, isObj(c.plane) ? c.plane : {}, {
                 name: c.name,
@@ -52,6 +61,9 @@ class TerrainCreateHelper {
             return post(this.p.plane(planeCfg));
         }
 
+        // ------------------------------------------------------------
+        // quad
+        // ------------------------------------------------------------
         if (kind === "quad") {
             const quadCfg = Object.assign({}, isObj(c.quad) ? c.quad : {}, {
                 name: c.name,
@@ -61,6 +73,9 @@ class TerrainCreateHelper {
             return post(this.p.quad(quadCfg));
         }
 
+        // ------------------------------------------------------------
+        // heightmap
+        // ------------------------------------------------------------
         if (kind === "heightmap") {
             const tcfg = Object.assign({}, isObj(c.terrain) ? c.terrain : {}, {
                 name: c.name,
@@ -70,10 +85,14 @@ class TerrainCreateHelper {
             if (c.heightmap && !tcfg.heightmap) tcfg.heightmap = c.heightmap;
             if (tcfg.heightScale == null && Number.isFinite(y)) tcfg.heightScale = y;
             if (tcfg.xzScale == null && Number.isFinite(xz)) tcfg.xzScale = xz;
+
+            // native creation already handles physics via p.terrain wrapper
             return post(this.p.terrain(tcfg));
         }
 
-        // IMPORTANT: heights/noise build physics AFTER post-scale using dynamicMesh
+        // ------------------------------------------------------------
+        // noise: generate heights -> create terrainHeights -> apply post -> build physics AFTER post-scale
+        // ------------------------------------------------------------
         if (kind === "noise") {
             const noise = isObj(c.noise) ? c.noise : {};
             const type = String(noise.type || "perlin");
@@ -105,32 +124,60 @@ class TerrainCreateHelper {
                 attach: attachFlag,
             });
 
+            // IMPORTANT: create WITHOUT physics first (dynamicMesh later)
             let surface = this.terr.terrainHeights(tcfgNoPhys);
-            surface = post(surface);
 
-            if (physCfg != null) surface = this.phys.withBody(this.terr, surface, physCfg, "dynamicMesh");
-            return surface;
+            // apply post (material/uv/lod/scale)
+            const inst = post(surface);
+
+            // build physics AFTER post-scale, but do not change returned type (instance)
+            // (physics attachment is side-effect; the actual body handle lives in engine registries)
+            if (physCfg != null) this.phys.withBody(this.terr, inst.surface, physCfg, "dynamicMesh");
+
+            return inst;
         }
 
+        // ------------------------------------------------------------
+        // heights: accept array-like -> f32, infer size if possible, validate dims, create terrainHeights
+        // ------------------------------------------------------------
         if (kind === "heights") {
             const heightsIn = c.heights;
             if (!heightsIn) throw new Error("[TERR] create(kind='heights'): cfg.heights is required");
 
+            const heights = TerrainHeights.toFloat32Array(heightsIn);
+
+            // allow either cfg.terrain.{size,patchSize} or top-level size/patchSize
             const tcfg0 = isObj(c.terrain) ? c.terrain : {};
+            const size = i32(tcfg0.size, i32(c.size, 0)) || TerrainHeights.inferSizeFromHeights(heights);
+            const patchSize = i32(tcfg0.patchSize, i32(c.patchSize, 0));
+
+            if (size > 0) {
+                TerrainHeights.validateTerrainDims(size, patchSize || 0);
+                TerrainHeights.assertHeightsMatchSize(heights, size, "create(kind='heights')");
+            }
+
             const tcfgNoPhys = Object.assign({}, tcfg0, {
                 name: c.name,
-                heights: heightsIn,
+                heights,
+                // keep explicit size/patchSize if known
+                size: size || undefined,
+                patchSize: patchSize || undefined,
                 attach: attachFlag,
             });
 
             let surface = this.terr.terrainHeights(tcfgNoPhys);
-            surface = post(surface);
 
-            if (physCfg != null) surface = this.phys.withBody(this.terr, surface, physCfg, "dynamicMesh");
-            return surface;
+            const inst = post(surface);
+
+            // IMPORTANT: build physics AFTER post-scale (dynamicMesh)
+            if (physCfg != null) this.phys.withBody(this.terr, inst.surface, physCfg, "dynamicMesh");
+
+            return inst;
         }
 
-        // default
+        // ------------------------------------------------------------
+        // default: treat as heightmap/terrain cfg
+        // ------------------------------------------------------------
         return post(this.p.terrain(Object.assign({}, isObj(c.terrain) ? c.terrain : c)));
     }
 }

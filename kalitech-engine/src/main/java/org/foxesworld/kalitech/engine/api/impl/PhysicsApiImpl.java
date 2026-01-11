@@ -1166,6 +1166,194 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     // ------------------------------------------------------------
+// Convex sweeps (sphere / capsule)
+// ------------------------------------------------------------
+
+    private static void buildPerpBasis(Vector3f dirN, Vector3f outU, Vector3f outV) {
+        // Pick a stable reference axis, then build U,V basis perpendicular to dirN.
+        Vector3f a = (Math.abs(dirN.y) < 0.9f) ? Vector3f.UNIT_Y : Vector3f.UNIT_X;
+        outU.set(dirN).crossLocal(a);
+        float ul = outU.length();
+        if (!(ul > 1e-8f)) {
+            // Fallback (dir was parallel to chosen axis)
+            a = Vector3f.UNIT_Z;
+            outU.set(dirN).crossLocal(a);
+            ul = outU.length();
+            if (!(ul > 1e-8f)) {
+                outU.set(1, 0, 0);
+            }
+        }
+        outU.normalizeLocal();
+        outV.set(dirN).crossLocal(outU).normalizeLocal();
+    }
+
+    private Object sweepSphereInternal(Object cfg) {
+        flushPendingAdd();
+        PhysicsSpace space = space();
+        if (cfg == null) throw new IllegalArgumentException("physics.sweepSphere(cfg): cfg required");
+
+        Vector3f from = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "from"), 0, 0, 0);
+        Vector3f to = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "to"), 0, 0, 0);
+
+        float radius = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "radius"), 0.0);
+        if (!(radius > 0f)) throw new IllegalArgumentException("physics.sweepSphere(cfg): cfg.radius must be > 0");
+
+        // filters (accept both keys: ignoreBodyId / ignoreBody)
+        Object igB = PhysicsValueParsers.member(cfg, "ignoreBodyId");
+        if (igB == null) igB = PhysicsValueParsers.member(cfg, "ignoreBody");
+        int ignoreBodyId = (int) PhysicsValueParsers.asNum(igB, 0);
+
+        Object igS = PhysicsValueParsers.member(cfg, "ignoreSurfaceId");
+        if (igS == null) igS = PhysicsValueParsers.member(cfg, "ignoreSurface");
+        int ignoreSurfaceId = (int) PhysicsValueParsers.asNum(igS, 0);
+
+        boolean staticOnly = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "staticOnly"), false);
+        boolean dynamicOnly = PhysicsValueParsers.asBool(PhysicsValueParsers.member(cfg, "dynamicOnly"), false);
+        int mask = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "mask"), 0);
+
+        Vector3f dir = to.subtract(from);
+        float len = dir.length();
+        if (!(len > 1e-6f)) {
+            return hitObj(false, 0, 0, 0f, 0f, from, null);
+        }
+        Vector3f dirN = dir.mult(1f / len);
+
+        // Approx sweep via multiple rays around direction.
+        final int rings = 2;
+        final int steps = 10; // rays per ring
+        final float ring1 = radius;
+        final float ring2 = radius * 0.70710677f;
+
+        Vector3f u = new Vector3f();
+        Vector3f v = new Vector3f();
+        buildPerpBasis(dirN, u, v);
+
+        float bestFrac = Float.POSITIVE_INFINITY;
+        PhysicsRayTestResult bestHit = null;
+        Vector3f bestFrom = null;
+
+        // center ray
+        {
+            List<PhysicsRayTestResult> hits = space.rayTest(from, to);
+            if (hits != null && !hits.isEmpty()) {
+                for (PhysicsRayTestResult r : hits) {
+                    float f = r.getHitFraction();
+                    if (!isFinite(f) || f < 0f || f > 1f) continue;
+
+                    PhysicsBodyHandle h = findHandleByCollisionObject(r.getCollisionObject());
+                    if (h == null) continue;
+
+                    if (ignoreBodyId > 0 && h.id == ignoreBodyId) continue;
+                    if (ignoreSurfaceId > 0 && h.surfaceId == ignoreSurfaceId) continue;
+
+                    RigidBodyControl rb = h.__raw();
+                    if (!passesStaticDynamicFilter(rb, staticOnly, dynamicOnly)) continue;
+                    if (!passesMaskFilter(rb, mask)) continue;
+
+                    if (f < bestFrac) {
+                        bestFrac = f;
+                        bestHit = r;
+                        bestFrom = from;
+                    }
+                }
+            }
+        }
+
+        // ring samples
+        for (int ring = 1; ring <= rings; ring++) {
+            float rr = (ring == 1) ? ring1 : ring2;
+            for (int i = 0; i < steps; i++) {
+                float ang = (float) (i * (Math.PI * 2.0) / steps);
+                float ca = (float) Math.cos(ang);
+                float sa = (float) Math.sin(ang);
+
+                Vector3f off = new Vector3f(u).multLocal(ca * rr).addLocal(new Vector3f(v).multLocal(sa * rr));
+                Vector3f rf = from.add(off);
+                Vector3f rt = to.add(off);
+
+                List<PhysicsRayTestResult> hits = space.rayTest(rf, rt);
+                if (hits == null || hits.isEmpty()) continue;
+
+                for (PhysicsRayTestResult r : hits) {
+                    float f = r.getHitFraction();
+                    if (!isFinite(f) || f < 0f || f > 1f) continue;
+
+                    PhysicsBodyHandle h = findHandleByCollisionObject(r.getCollisionObject());
+                    if (h == null) continue;
+
+                    if (ignoreBodyId > 0 && h.id == ignoreBodyId) continue;
+                    if (ignoreSurfaceId > 0 && h.surfaceId == ignoreSurfaceId) continue;
+
+                    RigidBodyControl rb = h.__raw();
+                    if (!passesStaticDynamicFilter(rb, staticOnly, dynamicOnly)) continue;
+                    if (!passesMaskFilter(rb, mask)) continue;
+
+                    if (f < bestFrac) {
+                        bestFrac = f;
+                        bestHit = r;
+                        bestFrom = rf;
+                    }
+                }
+            }
+        }
+
+        if (bestHit == null) {
+            return hitObj(false, 0, 0, 0f, 0f, from, null);
+        }
+
+        PhysicsBodyHandle bh = findHandleByCollisionObject(bestHit.getCollisionObject());
+        int bodyId = (bh != null) ? bh.id : 0;
+        int surfaceId = (bh != null) ? bh.surfaceId : 0;
+
+        Vector3f hitPoint = bestFrom.add(dir.mult(bestFrac));
+        float distance = len * bestFrac;
+        return hitObj(true, bodyId, surfaceId, bestFrac, distance, hitPoint, bestHit.getHitNormalLocal());
+    }
+
+    private Object sweepCapsuleInternal(Object cfg) {
+        if (cfg == null) throw new IllegalArgumentException("physics.sweepCapsule(cfg): cfg required");
+
+        float radius = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "radius"), 0.0);
+        float height = (float) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "height"), 0.0);
+
+        if (!(radius > 0f)) throw new IllegalArgumentException("physics.sweepCapsule(cfg): cfg.radius must be > 0");
+        if (!(height >= 0f)) throw new IllegalArgumentException("physics.sweepCapsule(cfg): cfg.height must be >= 0");
+
+        // Conservative: convert capsule -> bigger sphere
+        float half = height * 0.5f;
+        float eff = (float) Math.sqrt(radius * radius + half * half);
+
+        HashMap<String, Object> m = new HashMap<>();
+        if (cfg instanceof java.util.Map<?, ?> map) {
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() != null) m.put(String.valueOf(e.getKey()), e.getValue());
+            }
+        }
+        if (cfg instanceof Value v && v.hasMembers()) {
+            for (String k : v.getMemberKeys()) {
+                try {
+                    m.put(k, v.getMember(k));
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        m.put("radius", eff);
+
+        return sweepSphereInternal(m);
+    }
+
+    @HostAccess.Export
+    public Object sweepSphere(Object cfg) {
+        return sweepSphereInternal(cfg);
+    }
+
+    @HostAccess.Export
+    public Object sweepCapsule(Object cfg) {
+        return sweepCapsuleInternal(cfg);
+    }
+
+
+    // ------------------------------------------------------------
     // debug/gravity
     // ------------------------------------------------------------
 

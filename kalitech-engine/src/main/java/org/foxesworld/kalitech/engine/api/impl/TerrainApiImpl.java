@@ -13,8 +13,7 @@ import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.terrain.*;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
-
-import java.util.Map;
+import org.graalvm.polyglot.proxy.ProxyObject;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
@@ -277,13 +276,13 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
-    public Map<String, Double> normalAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
+    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
         TerrainQuad tq = requireTerrain(handle);
         return ops.normalAt(tq, x, z, world);
     }
 
     @HostAccess.Export
-    public Map<String, Double> normalAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
+    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
         return normalAt(handle, x, z, true);
     }
 

@@ -6,7 +6,9 @@ import com.jme3.renderer.Camera;
 import com.jme3.terrain.geomipmap.TerrainLodControl;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyObject;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
@@ -65,7 +67,7 @@ public final class TerrainOps {
         return wp.y;
     }
 
-    public Map<String, Double> normalAt(TerrainQuad tq, double x, double z, boolean world) {
+    public ProxyObject normalAt(TerrainQuad tq, double x, double z, boolean world) {
         float lx, lz;
         if (world) {
             Vector3f local = tq.worldToLocal(new Vector3f((float) x, 0f, (float) z), null);
@@ -77,9 +79,21 @@ public final class TerrainOps {
         }
 
         Vector3f n = tq.getNormal(new Vector2f(lx, lz));
-        if (n == null) return Map.of("x", Double.NaN, "y", Double.NaN, "z", Double.NaN);
+        if (n == null) {
+            return ProxyObject.fromMap(Map.of(
+                    "x", Double.NaN,
+                    "y", Double.NaN,
+                    "z", Double.NaN
+            ));
+        }
 
         if (world) n = tq.getWorldRotation().mult(n);
-        return Map.of("x", (double) n.x, "y", (double) n.y, "z", (double) n.z);
+
+        // Важно: ProxyObject -> в JS будет {x:..., y:..., z:...} с dot-доступом
+        Map<String, Object> out = new HashMap<>(4, 1.0f);
+        out.put("x", (double) n.x);
+        out.put("y", (double) n.y);
+        out.put("z", (double) n.z);
+        return ProxyObject.fromMap(out);
     }
 }

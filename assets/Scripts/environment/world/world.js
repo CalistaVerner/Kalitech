@@ -15,7 +15,7 @@ class Index {
         const xz = 2.0;
         const half = (size - 1) * xz * 0.5; // 512
 
-        const t = TERR.create({
+        globalThis.TERRAIN = TERR.create({
             name: "proc",
             kind: "heights",
 
@@ -47,6 +47,7 @@ class Index {
             // (опционально) если Java поддерживает:
             // autoCenter: true, // 0..1 -> -0.5..+0.5 автоматически
         });
+        console.log(TERRAIN.heightAt(12, 12));
     }
 
 

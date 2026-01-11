@@ -14,8 +14,8 @@ const worldSystems = [
             azimuthDeg: 35,
 
             // AAA crossfade textures
-            skyDomeTexDay: "Textures/Sky/sunrise_4k.hdr",
-            skyDomeTexNight: "Textures/Sky/sunset_4k.hdr",
+            skyDomeTexDay: "Textures/Sky/sky_0.dds",
+            skyDomeTexNight: "Textures/Sky/sky_0.dds",
 
             skyDome: {
                 texBlendDay: 0.55,
@@ -146,7 +146,60 @@ const worldSystems = [
             module: "Scripts/player/index.js",
 
             spawn: {pos: {x: 129, y: 3, z: -300}, radius: 0.35, height: 1.8, mass: 80},
-            camera: {type: "first"},
+            camera: {
+                type: "first",
+                volumeZones: {
+                    enabled: true,
+                    zones: [
+                        {
+                            id: "corridor_tight",
+                            priority: 100,
+                            blend: 1.25,
+                            shape: {
+                                aabb: {
+                                    min: [10, 0, -20],
+                                    max: [40, 6, 10]
+                                }
+                            },
+                            overrides: {
+                                zoomMin: 1.8,
+                                zoomMax: 4.2,
+
+                                pivotOffset: [0.15, 1.55, 0.00],
+                                verticalLift: 0.08,
+                                shoulderX: 0.08,
+
+                                collisionEnabled: true,
+                                camRadius: 0.28,
+                                surfacePadding: 0.10,
+                                floorPadding: 0.22,
+
+                                minPitch: -0.85,
+                                maxPitch: 0.55
+                            }
+                        },
+
+                        {
+                            id: "open_field",
+                            priority: 10,
+                            blend: 3.0,
+                            shape: {
+                                aabb: {
+                                    min: [-9999, 0, -9999],
+                                    max: [9999, 9999, 9999]
+                                }
+                            },
+                            overrides: {
+                                zoomMin: 2.0,
+                                zoomMax: 18.0,
+                                pivotOffset: [0.35, 1.45, 0.0],
+                                verticalLift: 0.15,
+                                shoulderX: 0.25
+                            }
+                        }
+                    ]
+                }
+            },
             ui: {layerName: "player.debug", anchor: "tl"},
 
             shoot: {

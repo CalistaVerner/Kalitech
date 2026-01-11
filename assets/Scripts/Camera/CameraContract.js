@@ -25,7 +25,6 @@ function asStr(v, name) {
 function validatePlayer(player) {
     req(player, "[camera] player is required");
     if (!isFn(player.getBodyId)) fail("[camera] player.getBodyId() required");
-    if (!isFn(player.getModel)) fail("[camera] player.getModel() required");
 
     const d = req(player.d, "[camera] player.d is required");
 
@@ -40,16 +39,8 @@ function validatePlayer(player) {
     const inp = req(d.input, "[camera] player.d.input is required");
     if (!isFn(inp.keyCode)) fail("[camera] d.input.keyCode(key) required");
 
-    // IMPORTANT: model may be null during early boot/spawn.
-    // Contract is enforced WHEN model exists.
-    const model = player.getModel();
-    if (model != null && !isFn(model.setFirstPerson)) {
-        fail("[camera] model.setFirstPerson(isFirstPerson) required when model is available");
-    }
-
     return true;
 }
-
 
 function validateMeta(meta) {
     if (!isObj(meta)) fail("[camera] mode.meta required");

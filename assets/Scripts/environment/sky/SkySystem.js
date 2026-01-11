@@ -1,4 +1,3 @@
-// FILE: Scripts/environment/sky/SkySystem.js
 "use strict";
 
 const SkyClock = require("./SkyClock.js");
@@ -19,7 +18,7 @@ function isFn(f) {
 function mapGet(m, key) {
     if (!m) return null;
 
-    // Map-like: has/get
+    // Map-like (java.util.Map proxy or JS Map)
     if (typeof m === "object" && typeof m.has === "function" && typeof m.get === "function") {
         return m.has(key) ? m.get(key) : null;
     }
@@ -95,8 +94,10 @@ class SkySystem {
 
         this.assertRenderContract();
 
-        this.lights.init(this.engine);
-        this.fog.init(this.render);
+        // IMPORTANT: pass render too (extra args are OK, missing args can break)
+        if (isFn(this.lights.init)) this.lights.init(this.engine, this.render);
+        if (isFn(this.skydome.init)) this.skydome.init(this.render);
+        if (isFn(this.fog.init)) this.fog.init(this.render);
 
         if (!this._didInitTime) {
             if (cfg.startTime01 == null) this.clock.setTime01(0.25);
@@ -144,8 +145,9 @@ class SkySystem {
         for (let i = 0; i < this._unsubs.length; i++) this._unsubs[i]();
         this._unsubs.length = 0;
 
-        this.lights.destroy();
-        this.fog.destroy();
+        if (isFn(this.lights.destroy)) this.lights.destroy();
+        if (isFn(this.skydome.destroy)) this.skydome.destroy();
+        if (isFn(this.fog.destroy)) this.fog.destroy();
 
         (ENGINE && ENGINE.log ? ENGINE.log : console).info("[sky] destroy");
     }
@@ -165,9 +167,10 @@ class SkySystem {
             }
         }
 
-        this.lights.update(this.engine, cel, dt);
-        this.skydome.update(this.render, cel);
-        this.fog.update(this.render, cel);
+        // AAA: pass render everywhere (so modules can drive RenderApi)
+        if (isFn(this.lights.update)) this.lights.update(this.engine, this.render, cel, dt);
+        if (isFn(this.skydome.update)) this.skydome.update(this.render, cel);
+        if (isFn(this.fog.update)) this.fog.update(this.render, cel);
     }
 
     applyCfg(cfg) {
@@ -176,16 +179,17 @@ class SkySystem {
 
         this.clock.applyCfg(cfg);
         this.celestial.applyCfg(cfg);
-        this.lights.applyCfg(cfg);
-        this.skydome.applyCfg(cfg);
-        this.fog.applyCfg(cfg);
+
+        if (isFn(this.lights.applyCfg)) this.lights.applyCfg(cfg);
+        if (isFn(this.skydome.applyCfg)) this.skydome.applyCfg(cfg);
+        if (isFn(this.fog.applyCfg)) this.fog.applyCfg(cfg);
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
         if (log && log.debug) log.debug("[sky][cfg] applied path=" + this._cfgPath);
     }
 
     /**
-     * STRICT config resolution (your runtime layout):
+     * STRICT config resolution (matches your runtime layout):
      *  1) ctx.config / ctx.cfg / ctx.params / ctx.settings
      *  2) ctx.system.config / ctx.system.cfg
      *  3) ctx.get("config") / ctx.state().get("config") / ctx.stateDomain.get("config") ...
@@ -198,46 +202,10 @@ class SkySystem {
             throw new Error("[sky][cfg] ctx is null");
         }
 
-        // 1) obvious fields
-        if (ctx.config) {
-            this._cfgPath = "ctx.config";
-            return ctx.config;
-        }
-        if (ctx.cfg) {
-            this._cfgPath = "ctx.cfg";
-            return ctx.cfg;
-        }
-        if (ctx.params) {
-            this._cfgPath = "ctx.params";
-            return ctx.params;
-        }
-        if (ctx.settings) {
-            this._cfgPath = "ctx.settings";
-            return ctx.settings;
-        }
 
-        // 2) system wrapper
-        if (ctx.system) {
-            if (ctx.system.config) {
-                this._cfgPath = "ctx.system.config";
-                return ctx.system.config;
-            }
-            if (ctx.system.cfg) {
-                this._cfgPath = "ctx.system.cfg";
-                return ctx.system.cfg;
-            }
-        }
-
-        // 3) domains / getters (actual case)
+        // 3) domains/getters (your actual case)
         const keys = [
-            "config",
-            "cfg",
-            "systemConfig",
-            "systemCfg",
-            "sysConfig",
-            "settings",
-            "params",
-            "moduleConfig"
+            "config"
         ];
 
         for (let i = 0; i < keys.length; i++) {
@@ -262,30 +230,30 @@ class SkySystem {
     assertRenderContract() {
         const r = req(this.render, "[sky] render is required");
 
+        // Core
         req(r.ensureScene, "[sky] render.ensureScene() is required");
         req(r.sunCfg, "[sky] render.sunCfg(cfg) is required");
+        req(r.moonCfg, "[sky] render.moonCfg(cfg) is required (AAA)");
         req(r.ambientCfg, "[sky] render.ambientCfg(cfg) is required");
         req(r.fogCfg, "[sky] render.fogCfg(cfg) is required");
 
-        // AAA: SkyDome mandatory (no SkyBox here)
-        req(r.skyDomeCfg, "[sky] render.skyDomeCfg(cfg) is required");
+        // AAA SkyDome A/B + Blend (no skybox legacy)
+        req(r.skyDomeCfg, "[sky] render.skyDomeCfg(cfg) is required (AAA)");
+        req(r.skyDomeTexA, "[sky] render.skyDomeTexA(asset) is required (AAA)");
+        req(r.skyDomeTexB, "[sky] render.skyDomeTexB(asset) is required (AAA)");
 
-        if (!isFn(r.sunShadowsCfg) && !isFn(r.sunShadows)) {
-            throw new Error("[sky] render.sunShadowsCfg(cfg) or render.sunShadows(mapSize) is required");
+        // AAA shadows
+        if (!isFn(r.sunShadowsCfg)) {
+            throw new Error("[sky] render.sunShadowsCfg(cfg) is required (AAA). No legacy sunShadows(mapSize).");
         }
 
-        if (r.setPrimaryDirectional != null && !isFn(r.setPrimaryDirectional)) {
-            throw new Error("[sky] render.setPrimaryDirectional must be a function if provided");
-        }
-
-        if (r.moonCfg != null && !isFn(r.moonCfg)) {
-            throw new Error("[sky] render.moonCfg must be a function if provided");
-        }
+        // AAA primary directional switch
+        req(r.setPrimaryDirectional, "[sky] render.setPrimaryDirectional('sun'|'moon') is required (AAA)");
 
         r.ensureScene();
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
-        if (log && log.debug) log.debug("[sky] render contract OK (SkyDome)");
+        if (log && log.debug) log.debug("[sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)");
     }
 
     wireEventsOnce() {
@@ -341,7 +309,7 @@ class SkySystem {
 
     setEnabled(v) {
         this._enabled = !!v;
-        this.lights.setEnabled(this._enabled);
+        if (isFn(this.lights.setEnabled)) this.lights.setEnabled(this._enabled);
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
         if (log && log.debug) log.debug("[sky] setEnabled=" + this._enabled);
