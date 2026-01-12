@@ -1,10 +1,8 @@
+// FILE: org/foxesworld/kalitech/engine/world/KWorld.java
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world;
 
-import org.foxesworld.kalitech.engine.world.systems.KSystem;
-import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
-import org.foxesworld.kalitech.engine.world.systems.ThreadMode;
+import org.foxesworld.kalitech.engine.world.systems.*;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,7 +75,7 @@ public final class KWorld {
         for (KSystem sys : workerSystems) {
             try {
                 if (sch != null) sch.ensureStarted(sys, ctx);
-                else sys.onStart(ctx); // fallback if scheduler absent
+                else sys.onStart(ctx);
             } catch (Throwable t) {
                 ctx.log().error("[world:{}] worker start failed: {}", name, sys, t);
             }
@@ -132,6 +130,41 @@ public final class KWorld {
         }
 
         started = false;
+    }
+
+    /**
+     * FULL hot reload: stop all systems -> notify hot reload -> start all systems.
+     * This guarantees init() is called again and all runtime singletons can be reset.
+     */
+    public void hotReload(SystemContext ctx, String reason) {
+        Objects.requireNonNull(ctx, "ctx");
+
+        if (started) {
+            stop(ctx);
+        }
+
+        // After stop — safe to clear everything that lives across reloads.
+        for (KSystem sys : mainSystems) {
+            if (sys instanceof HotReloadableSystem hr) {
+                try {
+                    hr.onHotReload(ctx, reason);
+                } catch (Throwable t) {
+                    ctx.log().warn("[world:{}] hotReload reset failed: {}", name, sys, t);
+                }
+            }
+        }
+        for (KSystem sys : workerSystems) {
+            if (sys instanceof HotReloadableSystem hr) {
+                try {
+                    hr.onHotReload(ctx, reason);
+                } catch (Throwable t) {
+                    ctx.log().warn("[world:{}] hotReload(worker) reset failed: {}", name, sys, t);
+                }
+            }
+        }
+
+        // Re-start all systems cleanly.
+        start(ctx);
     }
 
     private static final class Entry {

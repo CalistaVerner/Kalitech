@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/world/systems/JsWorldSystem.java
 package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
@@ -8,9 +9,10 @@ import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 
-public final class JsWorldSystem implements KSystem {
+public final class JsWorldSystem implements KSystem, HotReloadableSystem {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystem.class);
 
@@ -20,6 +22,7 @@ public final class JsWorldSystem implements KSystem {
     private final String runtimeProfile;
 
     private volatile Value exports;
+    private volatile boolean needsInit = true;
 
     public JsWorldSystem(String module, Object cfg, Object sysDesc, String runtimeProfile) {
         this.module = Objects.requireNonNull(module, "module");
@@ -42,6 +45,8 @@ public final class JsWorldSystem implements KSystem {
         return t.isEmpty() ? "world" : t;
     }
 
+    // ------------------------ ScriptRuntime reflection helpers ------------------------
+
     private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
         final Class<?> c = rt.getClass();
 
@@ -63,6 +68,68 @@ public final class JsWorldSystem implements KSystem {
         throw new IllegalStateException("Cannot load module via ScriptRuntime reflection: " + module);
     }
 
+    private static int invalidateManyViaReflection(ScriptRuntime rt, Set<String> modules, String reason) {
+        final Class<?> c = rt.getClass();
+
+        // invalidateManyWithReason(Set<String>, String)
+        try {
+            final Method m = c.getMethod("invalidateManyWithReason", Set.class, String.class);
+            final Object r = m.invoke(rt, modules, reason);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateManyWithReason failed: " + t, t);
+        }
+
+        // invalidateMany(Set<String>)
+        try {
+            final Method m = c.getMethod("invalidateMany", Set.class);
+            final Object r = m.invoke(rt, modules);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateMany failed: " + t, t);
+        }
+
+        return 0;
+    }
+
+    private static int invalidateAllViaReflection(ScriptRuntime rt, String reason) {
+        final Class<?> c = rt.getClass();
+
+        // invalidateAllWithReason(String)
+        try {
+            final Method m = c.getMethod("invalidateAllWithReason", String.class);
+            final Object r = m.invoke(rt, reason);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateAllWithReason failed: " + t, t);
+        }
+
+        // invalidateAll()
+        try {
+            final Method m = c.getMethod("invalidateAll");
+            final Object r = m.invoke(rt);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateAll failed: " + t, t);
+        }
+
+        // clearModuleCache()
+        try {
+            final Method m = c.getMethod("clearModuleCache");
+            m.invoke(rt);
+            return 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.clearModuleCache failed: " + t, t);
+        }
+
+        return 0;
+    }
+
     private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
         try {
             final Method m = c.getMethod(name, sig);
@@ -75,11 +142,14 @@ public final class JsWorldSystem implements KSystem {
         }
     }
 
+    // ------------------------ KSystem ------------------------
+
     @Override
     public void onStart(SystemContext ctx) {
         withScopedSystem(ctx, () -> {
             ensureLoaded(ctx);
             invokeIfPresent("init", ctx);
+            needsInit = false;
             return null;
         });
     }
@@ -88,6 +158,12 @@ public final class JsWorldSystem implements KSystem {
     public void onUpdate(SystemContext ctx, float tpf) {
         withScopedSystem(ctx, () -> {
             ensureLoaded(ctx);
+
+            if (needsInit) {
+                invokeIfPresent("init", ctx);
+                needsInit = false;
+            }
+
             invokeIfPresent("update", ctx, tpf);
             return null;
         });
@@ -100,6 +176,50 @@ public final class JsWorldSystem implements KSystem {
             return null;
         });
     }
+
+    // ------------------------ HotReloadableSystem ------------------------
+
+    @Override
+    public void onHotReload(SystemContext ctx, String reason) {
+        // FULL wipe: kill exports + force init next tick + invalidate caches
+        try {
+            withScopedSystem(ctx, () -> {
+                // best-effort destroy old instance if it exists
+                try {
+                    invokeIfPresent("destroy", ctx);
+                } catch (Throwable ignored) {
+                }
+
+                ScriptRuntime rt = ctx.runtime(runtimeProfile);
+                if (rt == null) rt = ctx.runtime();
+
+                if (rt != null) {
+                    // user asked "clear all": invalidate ALL modules, not only this one
+                    try {
+                        invalidateAllViaReflection(rt, reason != null ? reason : "F5");
+                    } catch (Throwable t) {
+                        // fallback: at least invalidate this module
+                        try {
+                            invalidateManyViaReflection(rt, Set.of(module), reason != null ? reason : "F5");
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                }
+
+                exports = null;
+                needsInit = true;
+
+                log.info("[JsWorldSystem] HotReload({}) module={}", (reason != null ? reason : "F5"), module);
+                return null;
+            });
+        } catch (Throwable t) {
+            log.warn("[JsWorldSystem] HotReload failed module={}", module, t);
+            exports = null;
+            needsInit = true;
+        }
+    }
+
+    // ------------------------ internals ------------------------
 
     private <T> T withScopedSystem(SystemContext ctx, Callable<T> call) {
         Objects.requireNonNull(ctx, "ctx");

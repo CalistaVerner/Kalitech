@@ -5,6 +5,10 @@ import com.jme3.app.Application;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetManager;
+import com.jme3.input.InputManager;
+import com.jme3.input.KeyInput;
+import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.KeyTrigger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -34,6 +38,20 @@ public final class WorldAppState extends BaseAppState {
     private SystemScheduler scheduler; // optional (can be null)
     private KWorld world;
     private SystemContext worldCtx;
+    private static final String HOT_RELOAD = "world:hotReload";
+    private final ActionListener hotReloadListener = new ActionListener() {
+        @Override
+        public void onAction(String name, boolean isPressed, float tpf) {
+            if (!HOT_RELOAD.equals(name)) return;
+            if (!isPressed) return; // срабатываем только на нажатие
+
+            if (world != null && worldCtx != null) {
+                log.warn("[World] F5 hot reload");
+                world.hotReload(worldCtx, "F5");
+            }
+        }
+    };
+    private InputManager input;
 
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.host = Objects.requireNonNull(runtimeAppState, "runtimeAppState");
@@ -62,6 +80,10 @@ public final class WorldAppState extends BaseAppState {
             log.warn("[World] SystemScheduler disabled (optional): {}", t.toString());
             scheduler = null;
         }
+
+        this.input = engine.getApp().getInputManager();
+        this.input.addMapping(HOT_RELOAD, new KeyTrigger(KeyInput.KEY_F5));
+        this.input.addListener(hotReloadListener, HOT_RELOAD);
     }
 
     @Override
@@ -93,6 +115,17 @@ public final class WorldAppState extends BaseAppState {
             } catch (Throwable ignored) {
             }
         });
+
+        if (input != null) {
+            try {
+                input.removeListener(hotReloadListener);
+            } catch (Throwable ignored) {
+            }
+            try {
+                input.deleteMapping(HOT_RELOAD);
+            } catch (Throwable ignored) {
+            }
+        }
         runtimeProfiles.clear();
         baseRuntime = null;
     }

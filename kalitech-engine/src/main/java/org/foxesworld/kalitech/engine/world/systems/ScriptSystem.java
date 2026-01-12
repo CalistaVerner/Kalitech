@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/world/systems/ScriptSystem.java
 package org.foxesworld.kalitech.engine.world.systems;
 
 import com.jme3.app.SimpleApplication;
@@ -11,12 +12,13 @@ import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class ScriptSystem implements KSystem {
+public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
     private static final Logger log = LogManager.getLogger(ScriptSystem.class);
 
@@ -66,6 +68,40 @@ public final class ScriptSystem implements KSystem {
         while (s.startsWith("./")) s = s.substring(2);
         while (s.startsWith("/")) s = s.substring(1);
         return s;
+    }
+
+    private static int invalidateAll(ScriptRuntime rt, String reason) {
+        if (rt == null) return 0;
+        final Class<?> c = rt.getClass();
+
+        try {
+            final Method m = c.getMethod("invalidateAllWithReason", String.class);
+            final Object r = m.invoke(rt, reason);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateAllWithReason failed: " + t, t);
+        }
+
+        try {
+            final Method m = c.getMethod("invalidateAll");
+            final Object r = m.invoke(rt);
+            return (r instanceof Number n) ? n.intValue() : 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.invalidateAll failed: " + t, t);
+        }
+
+        try {
+            final Method m = c.getMethod("clearModuleCache");
+            m.invoke(rt);
+            return 0;
+        } catch (NoSuchMethodException ignored) {
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime.clearModuleCache failed: " + t, t);
+        }
+
+        return 0;
     }
 
     @Override
@@ -141,26 +177,7 @@ public final class ScriptSystem implements KSystem {
 
     @Override
     public void onStop(SystemContext systemContext) {
-        try {
-            var scripts = ecs.components().view(ScriptComponent.class);
-            for (var e : scripts.entrySet()) {
-                ScriptComponent sc = e.getValue();
-                if (sc == null || sc.instance == null) continue;
-
-                try {
-                    callIfExists(sc.instance, "destroy");
-                } catch (org.graalvm.polyglot.PolyglotException pe) {
-                    // ignore cancelled context on shutdown
-                } catch (Throwable t) {
-                    log.warn("Script destroy failed for entity {}", e.getKey(), t);
-                } finally {
-                    sc.instance = null;
-                    sc.moduleVersion = 0L;
-                }
-            }
-        } catch (Throwable t) {
-            log.warn("ScriptSystem stop encountered errors", t);
-        }
+        destroyAllInstances();
 
         if (watcher != null) {
             try {
@@ -174,6 +191,54 @@ public final class ScriptSystem implements KSystem {
         bus = null;
         runtime = null;
         log.info("ScriptSystem stopped");
+    }
+
+    @Override
+    public void onHotReload(SystemContext ctx, String reason) {
+        // FULL wipe: destroy all instances, reset versions, invalidate ALL modules
+        try {
+            destroyAllInstances();
+
+            if (runtime == null) runtime = ctx.runtime();
+            if (runtime != null) {
+                int removed = invalidateAll(runtime, reason != null ? reason : "F5");
+                log.info("HotReload(F5): ScriptRuntime invalidatedAll removedFromCache={}", removed);
+            }
+
+            if (bus != null) {
+                try {
+                    bus.emit("hotreload:force", reason != null ? reason : "F5");
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable t) {
+            log.warn("HotReload(F5) failed in ScriptSystem", t);
+        }
+    }
+
+    private void destroyAllInstances() {
+        try {
+            var scripts = ecs.components().view(ScriptComponent.class);
+            for (var e : scripts.entrySet()) {
+                ScriptComponent sc = e.getValue();
+                if (sc == null) continue;
+
+                if (sc.instance != null) {
+                    try {
+                        callIfExists(sc.instance, "destroy");
+                    } catch (org.graalvm.polyglot.PolyglotException pe) {
+                        // cancelled context is fine
+                    } catch (Throwable t) {
+                        log.warn("Script destroy failed for entity {}", e.getKey(), t);
+                    }
+                }
+
+                sc.instance = null;
+                sc.moduleVersion = 0L;
+            }
+        } catch (Throwable t) {
+            log.warn("destroyAllInstances encountered errors", t);
+        }
     }
 
     private void ensureStarted(int entityId, ScriptComponent sc) {
