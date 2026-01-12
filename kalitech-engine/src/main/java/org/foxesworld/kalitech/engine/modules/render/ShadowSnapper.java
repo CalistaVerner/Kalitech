@@ -3,239 +3,123 @@ package org.foxesworld.kalitech.engine.modules.render;
 
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Locale;
 
 /**
- * Texel snapping + stable padded extents.
- * Also provides "reason logs" to distinguish texel drift vs bias/PCF shimmer.
+ * Texel snapping for directional shadow cameras.
+ * <p>
+ * Idea:
+ * - Shadow cameras are orthographic (parallel projection).
+ * - We quantize (snap) the camera position along its Left/Up axes
+ * with step = frustumSize / shadowMapSize, so the shadow projection
+ * becomes stable relative to the world and does not shimmer.
+ * <p>
+ * This is "always-on snapping" (no thresholds, no smoothing, no gating),
+ * so it stays smooth while still stable.
  */
 public final class ShadowSnapper {
 
-    private boolean stabilizeExtents = true;
-    private float extentsPadding = 1.12f;
-
-    private int shadowMapSize = 2048;
-
-    private Logger log;
-    private boolean debugEnabled = false;
-    private long debugIntervalNanos = 500_000_000L; // 500 ms
-    private long lastDebugNanos = 0L;
-
-    private float lastWidth = 0f;
-    private float lastHeight = 0f;
-    private float lastTexelWorld = 0f;
-    private float lastDx = 0f;
-    private float lastDy = 0f;
-
-    // shimmer probe / stability
-    private float lastTexelWorldLogged = Float.NaN;
-    private int stableSnapFrames = 0;
-    private int warnAfterStableFrames = 180;
-    private boolean shimmerWarned = false;
-
-    // texelWorld changes streak (breathing detector)
-    private int texelChangedStreak = 0;
+    private final int shadowMapSize;
 
     private final Vector3f tmpLoc = new Vector3f();
     private final Vector3f tmpLeft = new Vector3f();
     private final Vector3f tmpUp = new Vector3f();
     private final Vector3f delta = new Vector3f();
 
-    public ShadowSnapper() {
-    }
-
-    private static float stableEps(float texelWorld) {
-        // eps is proportional to texel size to avoid float-noise false negatives
-        // 1e-5*texelWorld ~ 1e-8 when texelWorld~1e-3 (your case) => sane.
-        float t = (texelWorld > 0f ? texelWorld : 1f);
-        return (1e-5f * t) + 1e-9f;
-    }
-
-    private static void ensureNamed(Camera cam) {
-        try {
-            String n = cam.getName();
-            if (n == null || n.isBlank()) cam.setName("shadowCam");
-        } catch (Throwable ignored) {
+    public ShadowSnapper(int shadowMapSize) {
+        if (shadowMapSize <= 0) {
+            throw new IllegalArgumentException("[render][shadow] shadowMapSize must be > 0");
         }
+        this.shadowMapSize = shadowMapSize;
     }
 
-    private static float roundToStep(float v, float step) {
+    /**
+     * Quantize a value down to the nearest multiple of {@code step}.
+     *
+     * <p>
+     * Snapping shadow camera movement must be conservative: rounding to the
+     * nearest texel as in the original implementation can push the camera in
+     * either direction, which may cause the orthographic frustum to no longer
+     * fully encompass the visible slice of the view frustum. This can lead to
+     * shadows detaching from their casters (“peter panning”) or objects falling
+     * outside of the shadow map coverage. To avoid this, we always snap
+     * <em>downwards</em> (i.e. toward negative infinity) using {@code floor()}.
+     * This approach matches the technique described by Valient and widely used
+     * by CD Projekt Red for stable cascaded shadow maps【115644872280442†L51-L71】.
+     *
+     * @param v    the value to quantize (e.g. the projection of the camera
+     *             position onto an axis)
+     * @param step the size of one texel in world units
+     * @return the quantized value that is a multiple of {@code step}, or
+     * {@code v} if {@code step} is not positive
+     */
+    private static float snapDownToStep(float v, float step) {
         if (!(step > 0f)) return v;
-        return Math.round(v / step) * step;
-    }
-
-    private static boolean approx(float a, float b, float eps) {
-        if (Float.isNaN(a) || Float.isNaN(b)) return false;
-        return Math.abs(a - b) <= eps;
-    }
-
-    private static String fmt(float v) {
-        return String.format(Locale.ROOT, "%.6f", v);
-    }
-
-    public void setLogger(Logger log) {
-        this.log = log;
-    }
-
-    public void setDebugEnabled(boolean enabled) {
-        this.debugEnabled = enabled;
-        if (!enabled) {
-            stableSnapFrames = 0;
-            shimmerWarned = false;
-            texelChangedStreak = 0;
-            lastTexelWorldLogged = Float.NaN;
-        }
-    }
-
-    public void setDebugIntervalMs(int ms) {
-        if (ms <= 0) ms = 250;
-        this.debugIntervalNanos = (long) ms * 1_000_000L;
-    }
-
-    public void setWarnAfterStableFrames(int frames) {
-        if (frames < 60) frames = 60;
-        this.warnAfterStableFrames = frames;
-    }
-
-    public void setShadowMapSize(int mapSize) {
-        if (mapSize < 256) mapSize = 256;
-        this.shadowMapSize = mapSize;
-    }
-
-    public boolean isStabilizeExtents() {
-        return stabilizeExtents;
-    }
-
-    public void setStabilizeExtents(boolean stabilizeExtents) {
-        this.stabilizeExtents = stabilizeExtents;
-    }
-
-    public float getExtentsPadding() {
-        return extentsPadding;
-    }
-
-    public void setExtentsPadding(float extentsPadding) {
-        if (!(extentsPadding > 0f)) extentsPadding = 1.0f;
-        this.extentsPadding = extentsPadding;
-    }
-
-    public float getLastTexelWorld() {
-        return lastTexelWorld;
-    }
-
-    public float getLastWidth() {
-        return lastWidth;
-    }
-
-    public float getLastHeight() {
-        return lastHeight;
-    }
-
-    public float getLastDx() {
-        return lastDx;
-    }
-
-    public float getLastDy() {
-        return lastDy;
+        return (float) Math.floor(v / step) * step;
     }
 
     public void snap(Camera shadowCam) {
-        if (shadowCam == null) return;
+        if (shadowCam == null) throw new IllegalArgumentException("[render][shadow] shadowCam is null");
+
+        // Works only for parallel (ortho) cameras
         if (!shadowCam.isParallelProjection()) return;
 
-        ensureNamed(shadowCam);
+        final float left = shadowCam.getFrustumLeft();
+        final float right = shadowCam.getFrustumRight();
+        final float bottom = shadowCam.getFrustumBottom();
+        final float top = shadowCam.getFrustumTop();
 
-        // 1) Stabilize extents (avoid breathing)
-        if (stabilizeExtents) {
-            float l = shadowCam.getFrustumLeft();
-            float r = shadowCam.getFrustumRight();
-            float b = shadowCam.getFrustumBottom();
-            float t = shadowCam.getFrustumTop();
+        // Compute the size of the orthographic projection.  JME defines the
+        // frustum edges relative to the camera’s centre.  Because the PSSM
+        // implementation always builds a square projection volume (based on a
+        // bounding sphere)【115644872280442†L51-L71】, we conservatively choose the
+        // maximum of width and height here.  Using a unified texel size for
+        // both axes prevents aspect ratio differences from causing sub‑pixel
+        // drift.
+        final float width = right - left;
+        final float height = top - bottom;
+        if (!(width > 0f) || !(height > 0f)) return;
+        final float size = Math.max(width, height);
+        final float texel = size / (float) shadowMapSize;
 
-            float w0 = Math.abs(r - l);
-            float h0 = Math.abs(t - b);
-            float s = Math.max(w0, h0) * extentsPadding;
-            float half = 0.5f * s;
+        // World-space camera basis vectors
+        tmpLeft.set(shadowCam.getLeft());
+        tmpUp.set(shadowCam.getUp());
 
-            shadowCam.setFrustum(
-                    shadowCam.getFrustumNear(), shadowCam.getFrustumFar(),
-                    -half, +half, +half, -half
-            );
-        }
-
-        // 2) World units per texel
-        float width = Math.abs(shadowCam.getFrustumRight() - shadowCam.getFrustumLeft());
-        float height = Math.abs(shadowCam.getFrustumTop() - shadowCam.getFrustumBottom());
-
-        int ms = Math.max(1, shadowMapSize);
-        float texelWorld = width / (float) ms;
-
-        lastWidth = width;
-        lastHeight = height;
-        lastTexelWorld = texelWorld;
-
-        // 3) Copy vectors safely
+        // Current camera position
         tmpLoc.set(shadowCam.getLocation());
-        tmpLeft.set(shadowCam.getLeft()).normalizeLocal();
-        tmpUp.set(shadowCam.getUp()).normalizeLocal();
 
-        float projL = tmpLoc.dot(tmpLeft);
-        float projU = tmpLoc.dot(tmpUp);
+        // Project camera position onto left/up axes
+        // Project the camera position onto the left and up axes.  This gives
+        // world‑space coordinates measured along those axes relative to the
+        // world origin.  We do not offset by half the frustum dimensions here
+        // because the camera location already lies at the centre of the
+        // orthographic projection.
+        final float x = tmpLoc.dot(tmpLeft);
+        final float y = tmpLoc.dot(tmpUp);
 
-        float snappedL = roundToStep(projL, texelWorld);
-        float snappedU = roundToStep(projU, texelWorld);
+        // Snap down to the nearest integer multiple of the texel size.  Using
+        // floor() instead of round() ensures the projection bounds only ever
+        // contract.  This avoids sub‑texel expansion that could otherwise
+        // offset shadows away from their casters when the camera moves【115644872280442†L51-L71】.
+        final float sx = snapDownToStep(x, texel);
+        final float sy = snapDownToStep(y, texel);
 
-        float dL = snappedL - projL;
-        float dU = snappedU - projU;
+        final float dx = sx - x;
+        final float dy = sy - y;
 
-        lastDx = dL;
-        lastDy = dU;
-
-        // apply if meaningfully off-grid (avoid float-noise toggling)
-        final float eps = stableEps(texelWorld);
-        if (Math.abs(dL) > eps || Math.abs(dU) > eps) {
-            delta.set(tmpLeft).multLocal(dL);
-            delta.addLocal(tmpUp.x * dU, tmpUp.y * dU, tmpUp.z * dU);
-            tmpLoc.addLocal(delta);
-            shadowCam.setLocation(tmpLoc);
-        }
-
-        // Stability: tie epsilon to texelWorld (NOT 1e-9 absolute!)
-        if (Math.abs(dL) <= eps && Math.abs(dU) <= eps) stableSnapFrames++;
-        else stableSnapFrames = 0;
-
-        debugMaybe(shadowCam);
-
-        if (debugEnabled && log != null && log.isWarnEnabled() && !shimmerWarned) {
-            if (stableSnapFrames >= warnAfterStableFrames) {
-                shimmerWarned = true;
-                log.warn("[shadow][shimmer] snapping is stable (|dx|,|dy| <= eps for {} frames). If shimmer persists, root cause is likely: bias/PCF + subpixel geometry OR cascade transition. Next step: add slope-scaled bias + normal-offset + cascade blending.",
-                        stableSnapFrames);
-            }
-        }
-    }
-
-    private void debugMaybe(Camera cam) {
-        if (!debugEnabled) return;
-        if (log == null || !log.isDebugEnabled()) return;
-
-        long now = System.nanoTime();
-        if (now - lastDebugNanos < debugIntervalNanos) return;
-        lastDebugNanos = now;
-
-        boolean texelChanged = !(approx(lastTexelWorld, lastTexelWorldLogged, stableEps(lastTexelWorld)));
-        if (texelChanged) texelChangedStreak++;
-        else texelChangedStreak = 0;
-
-        lastTexelWorldLogged = lastTexelWorld;
-
-        log.debug("[shadow][snap] cam={} mapSize={} w={} h={} texelWorld={} dx={} dy={} stabilizeExtents={} pad={} texelChanged={} stableSnapFrames={} texelChangedStreak={}",
-                cam.getName(), shadowMapSize,
-                fmt(lastWidth), fmt(lastHeight), fmt(lastTexelWorld),
-                fmt(lastDx), fmt(lastDy),
-                stabilizeExtents, fmt(extentsPadding),
-                texelChanged, stableSnapFrames, texelChangedStreak);
+        // Only apply an offset when needed.  If the camera is already aligned to
+        // the texel grid no work is performed.  Otherwise translate the
+        // camera along its left and up axes by the computed deltas.  Note
+        // that multLocal(dx) modifies the temporary vector in place, so we
+        // construct the final offset by first scaling the left axis and then
+        // accumulating the up contribution.
+        if (dx == 0f && dy == 0f) return;
+        delta.set(tmpLeft).multLocal(dx).addLocal(tmpUp.mult(dy));
+        tmpLoc.addLocal(delta);
+        shadowCam.setLocation(tmpLoc);
+        // Force the camera’s view and projection matrices to update.  Without
+        // this call the downstream shadow renderer may continue using stale
+        // matrices, leading to shimmering or misaligned shadows.
+        shadowCam.update();
     }
 }

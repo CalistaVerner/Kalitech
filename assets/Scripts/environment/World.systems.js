@@ -14,8 +14,8 @@ const worldSystems = [
             azimuthDeg: 35,
 
             // AAA crossfade textures
-            skyDomeTexDay: "Textures/Sky/sky_0.dds",
-            skyDomeTexNight: "Textures/Sky/sky_0.dds",
+            skyDomeTexDay: "Textures/Sky/qwantani_afternoon_puresky_1k.hdr",
+            skyDomeTexNight: "Textures/Sky/qwantani_afternoon_puresky_1k.hdr",
 
             skyDome: {
                 texBlendDay: 0.55,

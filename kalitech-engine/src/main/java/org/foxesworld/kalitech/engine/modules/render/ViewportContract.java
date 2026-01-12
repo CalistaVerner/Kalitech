@@ -16,14 +16,6 @@ public final class ViewportContract {
         this.log = log;
     }
 
-    public ViewPort main() {
-        return app.getViewPort();
-    }
-
-    public ViewPort gui() {
-        return app.getGuiViewPort();
-    }
-
     public void ensure(String where) {
         ViewPort main = app.getViewPort();
         ViewPort gui = app.getGuiViewPort();
