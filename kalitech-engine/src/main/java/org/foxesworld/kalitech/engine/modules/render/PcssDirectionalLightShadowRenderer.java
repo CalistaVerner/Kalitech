@@ -2,102 +2,72 @@
 package org.foxesworld.kalitech.engine.modules.render;
 
 import com.jme3.asset.AssetManager;
-import com.jme3.renderer.Camera;
-import com.jme3.shadow.DirectionalLightShadowRenderer;
+import com.jme3.material.Material;
+import org.apache.logging.log4j.Logger;
 
 /**
- * Directional light shadow renderer that implements Percentage‐Closer Soft Shadows (PCSS).
+ * PCSS variant on top of StableDirectionalLightShadowRenderer.
  *
- * <p>PCSS produces soft shadow edges that broaden with the distance between the occluder
- * and the receiver, creating a more realistic contact‑hardening penumbra. This class
- * extends {@link DirectionalLightShadowRenderer} and exposes additional parameters
- * controlling the PCSS behaviour, such as the effective light source radius
- * ({@code lightSize}) and the number of samples used for blocker search and
- * filtering. A complete PCSS implementation would replace the default shadow
- * comparison shader with one that performs two phases: blocker depth search
- * followed by percentage‑closer filtering with a radius proportional to the
- * blocker/receiver distance. The default JME3 shader only supports fixed kernel
- * percentage‑closer filtering; therefore this class currently sets the PCSS
- * parameters as uniforms on the post‑shadow material. To enable PCSS, the
- * associated shader must be updated accordingly.</p>
+ * NOTE: PCSS requires shader support. This renderer only sets uniforms
+ * if the material definition provides them.
  */
-public class PcssDirectionalLightShadowRenderer extends DirectionalLightShadowRenderer {
+public final class PcssDirectionalLightShadowRenderer extends StableDirectionalLightShadowRenderer {
 
-    /**
-     * Radius of the light source in world units. Larger values produce wider
-     * penumbrae. Defaults to {@code 0.1f} which approximates a small sun disk.
-     */
-    private float lightSize = 0.1f;
+    // PCSS knobs (contact hardening)
+    private float lightSize = 0.02f;   // bigger => softer
+    private int searchSamples = 16;    // blocker search
+    private int filterSamples = 16;    // PCF filter
 
-    /**
-     * Number of samples used during the blocker search phase. Increasing this
-     * improves the accuracy of the average blocker depth estimation at the cost
-     * of performance. A typical value is between 8 and 16.
-     */
-    private int searchSamples = 16;
+    // logging
+    private Logger log;
+    private boolean dbg = false;
 
-    /**
-     * Number of samples used during the filtering phase. Higher values yield
-     * smoother soft shadows. A typical value is 16–32. Note that the total
-     * number of shadow map taps can grow quadratically with this parameter,
-     * so values above 32 may be prohibitively expensive.
-     */
-    private int filterSamples = 32;
-
-    /**
-     * Creates a new PCSS shadow renderer. The constructor matches the base
-     * {@link DirectionalLightShadowRenderer} signature.
-     *
-     * @param assets        asset manager used to load shaders and materials
-     * @param shadowMapSize size in pixels of each shadow map texture
-     * @param nbSplits      number of cascades (splits) to use
-     */
     public PcssDirectionalLightShadowRenderer(AssetManager assets, int shadowMapSize, int nbSplits) {
         super(assets, shadowMapSize, nbSplits);
     }
 
-    /**
-     * Sets the effective radius of the light source used when computing the
-     * penumbra size. Increasing this value results in softer shadows at all
-     * distances. Defaults to {@code 0.1f}.
-     *
-     * @param size light radius in world units
-     */
-    public void setLightSize(float size) {
-        this.lightSize = Math.max(0.0f, size);
+    public void setPcssDebug(Logger log, boolean enabled) {
+        this.log = log;
+        this.dbg = enabled;
     }
 
-    /**
-     * Sets the number of samples used during the blocker search phase. The
-     * blocker search determines the average depth of occluders around the
-     * fragment being shaded. Higher values yield more accurate blocker depth
-     * estimation but increase cost.
-     *
-     * @param samples number of search samples (>=1)
-     */
-    public void setSearchSamples(int samples) {
-        this.searchSamples = Math.max(1, samples);
+    public void setLightSize(float lightSize) {
+        this.lightSize = Math.max(0.0f, lightSize);
     }
 
-    /**
-     * Sets the number of samples used during the percentage‑closer filtering
-     * phase. This controls the smoothness of the penumbra. Higher values
-     * increase quality and cost.
-     *
-     * @param samples number of filter samples (>=1)
-     */
-    public void setFilterSamples(int samples) {
-        this.filterSamples = Math.max(1, samples);
+    public void setSearchSamples(int searchSamples) {
+        this.searchSamples = Math.max(4, searchSamples);
+    }
+
+    public void setFilterSamples(int filterSamples) {
+        this.filterSamples = Math.max(4, filterSamples);
     }
 
     @Override
-    protected void updateShadowCams(Camera viewCam) {
-        // Let the base class compute cascade splits and light space cameras.
-        super.updateShadowCams(viewCam);
-        // Additional PCSS‑specific camera updates could be placed here, but
-        // currently there are none. For example, one could adjust the
-        // frustum extents based on light size to keep the penumbra within
-        // cascade bounds.
-    }
+    protected void setMaterialParameters(Material material) {
+        super.setMaterialParameters(material);
+        if (material == null || material.getMaterialDef() == null) return;
 
+        boolean any = false;
+
+        if (material.getParam("LightSize") != null) {
+            material.setFloat("LightSize", lightSize);
+            any = true;
+        }
+        if (material.getParam("SearchSamples") != null) {
+            material.setInt("SearchSamples", searchSamples);
+            any = true;
+        }
+        if (material.getParam("FilterSamples") != null) {
+            material.setInt("FilterSamples", filterSamples);
+            any = true;
+        }
+
+        if (dbg && log != null && log.isDebugEnabled()) {
+            log.debug("[shadow][pcss] uniformsApplied=" + any +
+                    " lightSize=" + lightSize +
+                    " searchSamples=" + searchSamples +
+                    " filterSamples=" + filterSamples);
+        }
+    }
 }

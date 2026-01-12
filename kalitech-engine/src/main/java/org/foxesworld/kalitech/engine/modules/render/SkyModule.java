@@ -96,31 +96,6 @@ public final class SkyModule {
     }
 
     /**
-     * Clears a parameter on the material if it exists. This helper checks that
-     * the material definition declares the parameter and that it currently has
-     * a value before attempting to clear it. Avoids unnecessary exceptions from
-     * the underlying Material class.
-     *
-     * @param m    material on which to clear a parameter
-     * @param name the name of the parameter to clear
-     */
-    private static void safeClearParam(Material m, String name) {
-        if (m == null || name == null) {
-            return;
-        }
-        if (m.getMaterialDef() == null) {
-            return;
-        }
-        if (m.getMaterialDef().getMaterialParam(name) == null) {
-            return;
-        }
-        if (m.getParam(name) == null) {
-            return;
-        }
-        m.clearParam(name);
-    }
-
-    /**
      * Removes the sky dome from the scene and resets internal state. After
      * calling this method, a subsequent call to {@link #skyDomeCfg(Value)} or
      * {@link #skyDomeTexA(String)} will lazily recreate the dome.
@@ -146,97 +121,6 @@ public final class SkyModule {
         sdHaze = sdSunDisk = sdMoonDisk = sdExposure = Float.NaN;
 
         log.info("RenderApi: skydome cleared");
-    }
-
-    /**
-     * Assigns the first sky texture to the dome. The supplied asset may be a
-     * standard 2D texture or a cubemap; the code detects the type and configures
-     * filtering and wrap modes accordingly. When switching between 2D and cube
-     * textures, this method validates that the previously assigned textures are
-     * of the same type, since mixing types across A/B channels is unsupported.
-     *
-     * @param asset path to the texture asset to assign as SkyTexA
-     */
-    public void skyDomeTexA(String asset) {
-        if (asset == null || asset.isBlank()) {
-            throw new IllegalArgumentException("[render] skyDomeTexA: asset is blank");
-        }
-        final String a = asset.trim();
-        ensureSkyDomeExists();
-        final Texture t = assets.loadTexture(a);
-        if (t == null) {
-            throw new IllegalStateException("[render] skyDomeTexA: loadTexture returned null: " + a);
-        }
-        final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
-        configureSkyTexture(t, useCube);
-        if (sdUseCube == null) {
-            sdUseCube = useCube;
-        } else if (sdUseCube != useCube) {
-            throw new IllegalStateException("[render] SkyDome A/B type mismatch: A is " +
-                    (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
-        }
-        if (useCube) {
-            skydomeMat.setTexture("SkyCubeA", t);
-            skydomeMat.setBoolean("UseCube", true);
-            safeClearParam(skydomeMat, "SkyTexA");
-            return;
-        }
-        skydomeMat.setTexture("SkyTexA", t);
-        skydomeMat.setBoolean("UseCube", false);
-        safeClearParam(skydomeMat, "SkyCubeA");
-    }
-
-    /**
-     * Assigns the second sky texture to the dome. The semantics mirror those of
-     * {@link #skyDomeTexA(String)}. See that method for details.
-     *
-     * @param asset path to the texture asset to assign as SkyTexB
-     */
-    public void skyDomeTexB(String asset) {
-        if (asset == null || asset.isBlank()) {
-            throw new IllegalArgumentException("[render] skyDomeTexB: asset is blank");
-        }
-        final String a = asset.trim();
-        ensureSkyDomeExists();
-        final Texture t = assets.loadTexture(a);
-        if (t == null) {
-            throw new IllegalStateException("[render] skyDomeTexB: loadTexture returned null: " + a);
-        }
-        final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
-        configureSkyTexture(t, useCube);
-        if (sdUseCube == null) {
-            sdUseCube = useCube;
-        } else if (sdUseCube != useCube) {
-            throw new IllegalStateException("[render] SkyDome A/B type mismatch: B is " +
-                    (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
-        }
-        if (useCube) {
-            skydomeMat.setTexture("SkyCubeB", t);
-            skydomeMat.setBoolean("UseCube", true);
-            safeClearParam(skydomeMat, "SkyTexB");
-            return;
-        }
-        skydomeMat.setTexture("SkyTexB", t);
-        skydomeMat.setBoolean("UseCube", false);
-        safeClearParam(skydomeMat, "SkyCubeB");
-    }
-
-    /**
-     * Clears all sky textures on the dome. This resets the internal type flag
-     * and leaves the material with no assigned textures. After clearing, a call
-     * to {@link #skyDomeCfg(Value)} or assigning a new texture will set the
-     * appropriate blending parameters.
-     */
-    public void skyDomeTexClear() {
-        ensureSkyDomeExists();
-        safeClearParam(skydomeMat, "SkyTex");
-        safeClearParam(skydomeMat, "SkyCube");
-        safeClearParam(skydomeMat, "SkyTexA");
-        safeClearParam(skydomeMat, "SkyTexB");
-        safeClearParam(skydomeMat, "SkyCubeA");
-        safeClearParam(skydomeMat, "SkyCubeB");
-        sdUseCube = null;
-        log.info("RenderApi: skydome texture cleared");
     }
 
     /**
@@ -399,6 +283,104 @@ public final class SkyModule {
     }
 
     /**
+     * Clears a parameter on the material if it exists. This helper checks that
+     * the material definition declares the parameter and that it currently has
+     * a value before attempting to clear it. Avoids unnecessary exceptions from
+     * the underlying Material class.
+     *
+     * @param m    material on which to clear a parameter
+     * @param name the name of the parameter to clear
+     */
+    private static void safeClearParam(Material m, String name) {
+        if (m == null || name == null) {
+            return;
+        }
+        if (m.getMaterialDef() == null) {
+            return;
+        }
+        if (m.getMaterialDef().getMaterialParam(name) == null) {
+            return;
+        }
+        if (m.getParam(name) == null) {
+            return;
+        }
+        m.clearParam(name);
+    }
+
+    /**
+     * Assigns the first sky texture to the dome. The supplied asset may be a
+     * standard 2D texture or a cubemap; the code detects the type and configures
+     * filtering and wrap modes accordingly. When switching between 2D and cube
+     * textures, this method validates that the previously assigned textures are
+     * of the same type, since mixing types across A/B channels is unsupported.
+     *
+     * @param asset path to the texture asset to assign as SkyTexA
+     */
+    public void skyDomeTexA(String asset) {
+        if (asset == null || asset.isBlank()) {
+            throw new IllegalArgumentException("[render] skyDomeTexA: asset is blank");
+        }
+        final String a = asset.trim();
+        ensureSkyDomeExists();
+        final Texture t = assets.loadTexture(a);
+        if (t == null) {
+            throw new IllegalStateException("[render] skyDomeTexA: loadTexture returned null: " + a);
+        }
+        final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
+        configureSkyTexture(t, useCube);
+        if (sdUseCube == null) {
+            sdUseCube = useCube;
+        } else if (sdUseCube != useCube) {
+            throw new IllegalStateException("[render] SkyDome A/B type mismatch: A is " +
+                    (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
+        }
+        if (useCube) {
+            skydomeMat.setTexture("SkyCubeA", t);
+            skydomeMat.setBoolean("UseCube", true);
+            safeClearParam(skydomeMat, "SkyTexA");
+            return;
+        }
+        skydomeMat.setTexture("SkyTexA", t);
+        skydomeMat.setBoolean("UseCube", false);
+        safeClearParam(skydomeMat, "SkyCubeA");
+    }
+
+    /**
+     * Assigns the second sky texture to the dome. The semantics mirror those of
+     * {@link #skyDomeTexA(String)}. See that method for details.
+     *
+     * @param asset path to the texture asset to assign as SkyTexB
+     */
+    public void skyDomeTexB(String asset) {
+        if (asset == null || asset.isBlank()) {
+            throw new IllegalArgumentException("[render] skyDomeTexB: asset is blank");
+        }
+        final String a = asset.trim();
+        ensureSkyDomeExists();
+        final Texture t = assets.loadTexture(a);
+        if (t == null) {
+            throw new IllegalStateException("[render] skyDomeTexB: loadTexture returned null: " + a);
+        }
+        final boolean useCube = (t instanceof com.jme3.texture.TextureCubeMap);
+        configureSkyTexture(t, useCube);
+        if (sdUseCube == null) {
+            sdUseCube = useCube;
+        } else if (sdUseCube != useCube) {
+            throw new IllegalStateException("[render] SkyDome A/B type mismatch: B is " +
+                    (useCube ? "CUBE" : "2D") + " but existing mode is " + (sdUseCube ? "CUBE" : "2D"));
+        }
+        if (useCube) {
+            skydomeMat.setTexture("SkyCubeB", t);
+            skydomeMat.setBoolean("UseCube", true);
+            safeClearParam(skydomeMat, "SkyTexB");
+            return;
+        }
+        skydomeMat.setTexture("SkyTexB", t);
+        skydomeMat.setBoolean("UseCube", false);
+        safeClearParam(skydomeMat, "SkyCubeB");
+    }
+
+    /**
      * Ensures that the dome model and material are loaded and attached to the
      * scene. If the dome has already been instantiated, this method returns
      * immediately.
@@ -447,6 +429,24 @@ public final class SkyModule {
         skydomeGeoms = list.isEmpty() ? null : list.toArray(new Geometry[0]);
     }
 
+    /**
+     * Clears all sky textures on the dome. This resets the internal type flag
+     * and leaves the material with no assigned textures. After clearing, a call
+     * to {@link #skyDomeCfg(Value)} or assigning a new texture will set the
+     * appropriate blending parameters.
+     */
+    public void skyDomeTexClear() {
+        ensureSkyDomeExists();
+        safeClearParam(skydomeMat, "SkyTex");
+        safeClearParam(skydomeMat, "SkyCube");
+        safeClearParam(skydomeMat, "SkyTexA");
+        safeClearParam(skydomeMat, "SkyTexB");
+        safeClearParam(skydomeMat, "SkyCubeA");
+        safeClearParam(skydomeMat, "SkyCubeB");
+        sdUseCube = null;
+        log.info("RenderApi: skydome texture cleared");
+    }
+
     private void configureSkyTexture(Texture t, boolean cube) {
         if (t == null) {
             return;
@@ -465,7 +465,7 @@ public final class SkyModule {
         t.setMagFilter(Texture.MagFilter.Bilinear);
         // Repeat wrap for equirectangular images; edge clamp for cubes.
         if (!cube) {
-            t.setWrap(Texture.WrapMode.Repeat);
+            t.setWrap(Texture.WrapMode.EdgeClamp);
         } else {
             // Cubemaps rely on samplerCube which clamps at edges; edge clamp is safe.
             t.setWrap(Texture.WrapMode.EdgeClamp);
