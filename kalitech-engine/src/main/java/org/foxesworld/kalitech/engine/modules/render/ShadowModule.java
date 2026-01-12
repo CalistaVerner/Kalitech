@@ -27,6 +27,33 @@ public final class ShadowModule {
 
     private boolean snapEnabled = true;
 
+    /**
+     * When {@code true}, use a PCSS (percentage closer soft shadows) renderer
+     * instead of the default snapping renderer. PCSS produces contact‑hardening
+     * soft shadows similar to those seen in AAA games. Note that enabling this
+     * option requires an appropriate shader supporting PCSS uniforms. Defaults
+     * to {@code false}.
+     */
+    private boolean usePcss = false;
+
+    /**
+     * Configures whether PCSS shadow rendering is used. When enabled, the
+     * {@link PcssDirectionalLightShadowRenderer} is instantiated instead of
+     * {@link SnappingDirectionalLightShadowRenderer}. Changing this flag
+     * invalidates and recreates the shadow renderer the next time shadows are
+     * enabled.
+     *
+     * @param use whether to enable PCSS soft shadows
+     */
+    public void setUsePcss(boolean use) {
+        this.usePcss = use;
+        // If a renderer exists, recreate it on the next enable call
+        if (dlsr != null) {
+            app.getViewPort().removeProcessor(dlsr);
+            dlsr = null;
+        }
+    }
+
     public ShadowModule(SimpleApplication app, AssetManager assets, Logger log, LightRigModule lights) {
         this.app = app;
         this.assets = assets;
@@ -90,25 +117,29 @@ public final class ShadowModule {
         this.lambda = lam;
         this.intensity = inten;
 
-        // Create a new snapping shadow renderer.  The base class supports
-        // built‑in stabilization of shadow edges via setEnabledStabilization(),
-        // but jME leaves this on by default.  We explicitly enable it here to
-        // ensure the renderer does not disable stabilization internally.  In
-        // addition we enable our custom texel snapping implementation which
-        // quantizes camera movement.  See ShadowSnapper for details.
-        SnappingDirectionalLightShadowRenderer r =
-                new SnappingDirectionalLightShadowRenderer(assets, ms, sp);
-        r.setLight(lights.primaryLight());
-        r.setLambda(lam);
-        r.setShadowIntensity(inten);
-        r.setEnabledStabilization(true);
-        r.setSnapEnabled(snapEnabled);
+        // Choose renderer type based on PCSS flag
+        if (usePcss) {
+            PcssDirectionalLightShadowRenderer r =
+                    new PcssDirectionalLightShadowRenderer(assets, ms, sp);
+            r.setLight(lights.primaryLight());
+            r.setLambda(lam);
+            r.setShadowIntensity(inten);
+            // Optional: tune PCSS parameters here or expose them externally
+            dlsr = r;
+        } else {
+            SnappingDirectionalLightShadowRenderer r =
+                    new SnappingDirectionalLightShadowRenderer(assets, ms, sp);
+            r.setLight(lights.primaryLight());
+            r.setLambda(lam);
+            r.setShadowIntensity(inten);
+            r.setSnapEnabled(snapEnabled);
+            dlsr = r;
+        }
 
-        dlsr = r;
         app.getViewPort().addProcessor(dlsr);
 
-        log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={} intensity={} primary={} snap={}",
-                ms, sp, lam, inten, lights.primaryDirectional(), snapEnabled);
+        log.info("RenderApi: shadows enabled mapSize={} splits={} lambda={} intensity={} primary={} snap={} pcss={}",
+                ms, sp, lam, inten, lights.primaryDirectional(), snapEnabled, usePcss);
     }
 
     public void refreshPrimaryLightBinding() {

@@ -19,6 +19,8 @@ public final class SnappingDirectionalLightShadowRenderer extends DirectionalLig
     public SnappingDirectionalLightShadowRenderer(AssetManager assets, int shadowMapSize, int nbSplits) {
         super(assets, shadowMapSize, nbSplits);
         this.snapper = new ShadowSnapper(shadowMapSize);
+        // enable built-in stabilization of shadow edges provided by the base class
+        this.setEnabledStabilization(true);
     }
 
     public boolean isSnapEnabled() {

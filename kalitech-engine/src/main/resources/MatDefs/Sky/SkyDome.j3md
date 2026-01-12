@@ -31,7 +31,7 @@ MaterialDef SkyDome {
 
     Technique {
         VertexShader   GLSL150: MatDefs/Sky/SkyDome.vert
-        FragmentShader GLSL150: MatDefs/Sky/SkyDome.frag
+        FragmentShader GLSL450: MatDefs/Sky/SkyDome.frag
 
         WorldParameters {
             WorldMatrix

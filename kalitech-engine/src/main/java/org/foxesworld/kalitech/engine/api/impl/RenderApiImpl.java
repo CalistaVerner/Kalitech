@@ -63,7 +63,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         this.ecs = ctx.ecs;
 
         this.viewport = new ViewportContract(app, log);
-        this.lights = new LightRigModule(app.getRootNode(), log);
+        this.lights = new LightRigModule(new RenderThread(ctx.engine, ctx.app), app);
         this.shadows = new ShadowModule(app, assets, log, lights);
 
         this.sky = new SkyModule(app, assets, log);
@@ -152,7 +152,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             ensureScene();
             onJmeSyncVoid("render.ambientCfg", () -> {
                 viewport.ensure("ambientCfg");
-                lights.ensureAmbient();
+                lights.ensure();//ensureAmbient();
 
                 double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", 0.25));
                 double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", 0.28));
@@ -185,7 +185,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             ensureScene();
             onJmeSyncVoid("render.sunCfg", () -> {
                 viewport.ensure("sunCfg");
-                lights.ensureSun();
+                lights.ensure();
 
                 Value dir = RenderCfg.member(cfg, "dir");
                 Value col = RenderCfg.member(cfg, "color");
@@ -230,7 +230,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             ensureScene();
             onJmeSyncVoid("render.moonCfg", () -> {
                 viewport.ensure("moonCfg");
-                lights.ensureMoon();
+                lights.ensure();
 
                 Value dir = RenderCfg.member(cfg, "dir");
                 Value col = RenderCfg.member(cfg, "color");
