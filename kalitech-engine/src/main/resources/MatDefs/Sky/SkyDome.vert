@@ -1,17 +1,30 @@
 in vec3 inPosition;
 
-uniform mat4 g_WorldViewProjectionMatrix;
+uniform mat4 g_WorldMatrix;
+uniform mat4 g_ViewProjectionMatrix;
 uniform vec3 g_CameraPosition;
 
 out vec3 vDir;
 
+vec3 safeNormalize(vec3 v) {
+    float l2 = dot(v, v);
+    if (l2 < 1e-12) return vec3(0.0, 1.0, 0.0);
+    return v * inversesqrt(l2);
+}
+
 void main() {
-    // Direction for sampling should come from the dome's local sphere direction
-    vec3 localPos = inPosition;
-    vDir = normalize(localPos);
+    // Apply world scale/rotation (ignore translation here; we recenter manually)
+    vec3 worldFromMesh = (g_WorldMatrix * vec4(inPosition, 1.0)).xyz;
 
-    // No parallax: keep dome centered on camera
-    vec3 worldPos = localPos + g_CameraPosition;
+    // Direction for sky shading
+    vDir = safeNormalize(worldFromMesh);
 
-    gl_Position = g_WorldViewProjectionMatrix * vec4(worldPos, 1.0);
+    // Center the dome on camera (no parallax)
+    vec3 worldPos = worldFromMesh + g_CameraPosition;
+
+    // Project
+    gl_Position = g_ViewProjectionMatrix * vec4(worldPos, 1.0);
+
+    // Force to far plane to kill any residual Z artifacts (even if depth test is on somewhere)
+    gl_Position.z = gl_Position.w;
 }

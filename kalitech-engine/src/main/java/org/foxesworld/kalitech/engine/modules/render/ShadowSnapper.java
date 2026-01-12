@@ -3,41 +3,105 @@ package org.foxesworld.kalitech.engine.modules.render;
 
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
+import org.apache.logging.log4j.Logger;
+
+import java.util.Locale;
 
 /**
- * Texel snapping for directional shadow cameras.
- *
- * Fixes shimmering by:
- *  1) Stabilizing ortho extents (square frustum) so it doesn't "breathe"
- *     with view camera rotation (fit-to-scene-ish).
- *  2) Snapping camera position along Left/Up axes in world units per texel.
+ * Texel snapping + stable padded extents.
+ * Also provides "reason logs" to distinguish texel drift vs bias/PCF shimmer.
  */
 public final class ShadowSnapper {
 
-    private final int shadowMapSize;
-
-    private final Vector3f tmpDir = new Vector3f();
-    /**
-     * If true, we force each shadow cam ortho frustum to be a stable square
-     * (fit-to-scene-ish) so it doesn't "breathe" when the view camera rotates.
-     */
     private boolean stabilizeExtents = true;
+    private float extentsPadding = 1.12f;
+
+    private int shadowMapSize = 2048;
+
+    private Logger log;
+    private boolean debugEnabled = false;
+    private long debugIntervalNanos = 500_000_000L; // 500 ms
+    private long lastDebugNanos = 0L;
+
+    private float lastWidth = 0f;
+    private float lastHeight = 0f;
+    private float lastTexelWorld = 0f;
+    private float lastDx = 0f;
+    private float lastDy = 0f;
+
+    // shimmer probe / stability
+    private float lastTexelWorldLogged = Float.NaN;
+    private int stableSnapFrames = 0;
+    private int warnAfterStableFrames = 180;
+    private boolean shimmerWarned = false;
+
+    // texelWorld changes streak (breathing detector)
+    private int texelChangedStreak = 0;
 
     private final Vector3f tmpLoc = new Vector3f();
     private final Vector3f tmpLeft = new Vector3f();
     private final Vector3f tmpUp = new Vector3f();
     private final Vector3f delta = new Vector3f();
-    /**
-     * Extra padding applied when stabilizing extents. 1.0 = no padding.
-     * Use small values like 1.05..1.20 if you still see edge popping.
-     */
-    private float extentsPadding = 1.12f;
 
-    public ShadowSnapper(int shadowMapSize) {
-        if (shadowMapSize <= 0) {
-            throw new IllegalArgumentException("[render][shadow] shadowMapSize must be > 0");
+    public ShadowSnapper() {
+    }
+
+    private static float stableEps(float texelWorld) {
+        // eps is proportional to texel size to avoid float-noise false negatives
+        // 1e-5*texelWorld ~ 1e-8 when texelWorld~1e-3 (your case) => sane.
+        float t = (texelWorld > 0f ? texelWorld : 1f);
+        return (1e-5f * t) + 1e-9f;
+    }
+
+    private static void ensureNamed(Camera cam) {
+        try {
+            String n = cam.getName();
+            if (n == null || n.isBlank()) cam.setName("shadowCam");
+        } catch (Throwable ignored) {
         }
-        this.shadowMapSize = shadowMapSize;
+    }
+
+    private static float roundToStep(float v, float step) {
+        if (!(step > 0f)) return v;
+        return Math.round(v / step) * step;
+    }
+
+    private static boolean approx(float a, float b, float eps) {
+        if (Float.isNaN(a) || Float.isNaN(b)) return false;
+        return Math.abs(a - b) <= eps;
+    }
+
+    private static String fmt(float v) {
+        return String.format(Locale.ROOT, "%.6f", v);
+    }
+
+    public void setLogger(Logger log) {
+        this.log = log;
+    }
+
+    public void setDebugEnabled(boolean enabled) {
+        this.debugEnabled = enabled;
+        if (!enabled) {
+            stableSnapFrames = 0;
+            shimmerWarned = false;
+            texelChangedStreak = 0;
+            lastTexelWorldLogged = Float.NaN;
+        }
+    }
+
+    public void setDebugIntervalMs(int ms) {
+        if (ms <= 0) ms = 250;
+        this.debugIntervalNanos = (long) ms * 1_000_000L;
+    }
+
+    public void setWarnAfterStableFrames(int frames) {
+        if (frames < 60) frames = 60;
+        this.warnAfterStableFrames = frames;
+    }
+
+    public void setShadowMapSize(int mapSize) {
+        if (mapSize < 256) mapSize = 256;
+        this.shadowMapSize = mapSize;
     }
 
     public boolean isStabilizeExtents() {
@@ -53,94 +117,125 @@ public final class ShadowSnapper {
     }
 
     public void setExtentsPadding(float extentsPadding) {
-        if (!(extentsPadding >= 1.0f)) {
-            throw new IllegalArgumentException("[render][shadow] extentsPadding must be >= 1.0");
-        }
+        if (!(extentsPadding > 0f)) extentsPadding = 1.0f;
         this.extentsPadding = extentsPadding;
     }
 
-    private static float roundToStep(float v, float step) {
-        if (!(step > 0f)) return v;
-        return Math.round(v / step) * step;
+    public float getLastTexelWorld() {
+        return lastTexelWorld;
+    }
+
+    public float getLastWidth() {
+        return lastWidth;
+    }
+
+    public float getLastHeight() {
+        return lastHeight;
+    }
+
+    public float getLastDx() {
+        return lastDx;
+    }
+
+    public float getLastDy() {
+        return lastDy;
     }
 
     public void snap(Camera shadowCam) {
-        if (shadowCam == null) throw new IllegalArgumentException("[render][shadow] shadowCam is null");
-
-        // Works only for parallel (ortho) cameras
+        if (shadowCam == null) return;
         if (!shadowCam.isParallelProjection()) return;
 
-        float left = shadowCam.getFrustumLeft();
-        float right = shadowCam.getFrustumRight();
-        float bottom = shadowCam.getFrustumBottom();
-        float top = shadowCam.getFrustumTop();
+        ensureNamed(shadowCam);
 
-        float width = right - left;
-        float height = top - bottom;
-
-        if (!(width > 0f) || !(height > 0f)) return;
-
-        // ------------------------------------------------------------
-        // 1) Stabilize ortho extents so they don't "breathe" with camera rotation
-        //    (fit-to-scene-ish square).
-        // ------------------------------------------------------------
+        // 1) Stabilize extents (avoid breathing)
         if (stabilizeExtents) {
-            final float cx = (left + right) * 0.5f;
-            final float cy = (bottom + top) * 0.5f;
+            float l = shadowCam.getFrustumLeft();
+            float r = shadowCam.getFrustumRight();
+            float b = shadowCam.getFrustumBottom();
+            float t = shadowCam.getFrustumTop();
 
-            final float size = Math.max(width, height) * extentsPadding;
-            final float half = size * 0.5f;
+            float w0 = Math.abs(r - l);
+            float h0 = Math.abs(t - b);
+            float s = Math.max(w0, h0) * extentsPadding;
+            float half = 0.5f * s;
 
-            left = cx - half;
-            right = cx + half;
-            bottom = cy - half;
-            top = cy + half;
-
-            width = right - left;
-            height = top - bottom;
-
-            // Camera#setFrustum signature is (near, far, left, right, top, bottom)
             shadowCam.setFrustum(
-                    shadowCam.getFrustumNear(),
-                    shadowCam.getFrustumFar(),
-                    left,
-                    right,
-                    top,
-                    bottom
+                    shadowCam.getFrustumNear(), shadowCam.getFrustumFar(),
+                    -half, +half, +half, -half
             );
         }
 
-        // After stabilization we expect square frustum, so texel size is uniform.
-        final float texel = Math.max(width, height) / (float) shadowMapSize;
+        // 2) World units per texel
+        float width = Math.abs(shadowCam.getFrustumRight() - shadowCam.getFrustumLeft());
+        float height = Math.abs(shadowCam.getFrustumTop() - shadowCam.getFrustumBottom());
 
-        // World-space camera basis vectors
-        tmpLeft.set(shadowCam.getLeft());
-        tmpUp.set(shadowCam.getUp());
+        int ms = Math.max(1, shadowMapSize);
+        float texelWorld = width / (float) ms;
 
-        // Current camera position
+        lastWidth = width;
+        lastHeight = height;
+        lastTexelWorld = texelWorld;
+
+        // 3) Copy vectors safely
         tmpLoc.set(shadowCam.getLocation());
+        tmpLeft.set(shadowCam.getLeft()).normalizeLocal();
+        tmpUp.set(shadowCam.getUp()).normalizeLocal();
 
-        // Project camera position onto left/up axes
-        final float x = tmpLoc.dot(tmpLeft);
-        final float y = tmpLoc.dot(tmpUp);
+        float projL = tmpLoc.dot(tmpLeft);
+        float projU = tmpLoc.dot(tmpUp);
 
-        // Snap to nearest texel step (ROUND, not FLOOR, for minimal drift)
-        final float sx = roundToStep(x, texel);
-        final float sy = roundToStep(y, texel);
+        float snappedL = roundToStep(projL, texelWorld);
+        float snappedU = roundToStep(projU, texelWorld);
 
-        final float dx = sx - x;
-        final float dy = sy - y;
+        float dL = snappedL - projL;
+        float dU = snappedU - projU;
 
-        if (dx == 0f && dy == 0f) return;
+        lastDx = dL;
+        lastDy = dU;
 
-        // IMPORTANT: do not mutate tmpUp while building delta
-        delta.set(tmpLeft).multLocal(dx);
-        tmpDir.set(tmpUp).multLocal(dy);
-        delta.addLocal(tmpDir);
+        // apply if meaningfully off-grid (avoid float-noise toggling)
+        final float eps = stableEps(texelWorld);
+        if (Math.abs(dL) > eps || Math.abs(dU) > eps) {
+            delta.set(tmpLeft).multLocal(dL);
+            delta.addLocal(tmpUp.x * dU, tmpUp.y * dU, tmpUp.z * dU);
+            tmpLoc.addLocal(delta);
+            shadowCam.setLocation(tmpLoc);
+        }
 
-        tmpLoc.addLocal(delta);
-        shadowCam.setLocation(tmpLoc);
+        // Stability: tie epsilon to texelWorld (NOT 1e-9 absolute!)
+        if (Math.abs(dL) <= eps && Math.abs(dU) <= eps) stableSnapFrames++;
+        else stableSnapFrames = 0;
 
-        shadowCam.update();
+        debugMaybe(shadowCam);
+
+        if (debugEnabled && log != null && log.isWarnEnabled() && !shimmerWarned) {
+            if (stableSnapFrames >= warnAfterStableFrames) {
+                shimmerWarned = true;
+                log.warn("[shadow][shimmer] snapping is stable (|dx|,|dy| <= eps for {} frames). If shimmer persists, root cause is likely: bias/PCF + subpixel geometry OR cascade transition. Next step: add slope-scaled bias + normal-offset + cascade blending.",
+                        stableSnapFrames);
+            }
+        }
+    }
+
+    private void debugMaybe(Camera cam) {
+        if (!debugEnabled) return;
+        if (log == null || !log.isDebugEnabled()) return;
+
+        long now = System.nanoTime();
+        if (now - lastDebugNanos < debugIntervalNanos) return;
+        lastDebugNanos = now;
+
+        boolean texelChanged = !(approx(lastTexelWorld, lastTexelWorldLogged, stableEps(lastTexelWorld)));
+        if (texelChanged) texelChangedStreak++;
+        else texelChangedStreak = 0;
+
+        lastTexelWorldLogged = lastTexelWorld;
+
+        log.debug("[shadow][snap] cam={} mapSize={} w={} h={} texelWorld={} dx={} dy={} stabilizeExtents={} pad={} texelChanged={} stableSnapFrames={} texelChangedStreak={}",
+                cam.getName(), shadowMapSize,
+                fmt(lastWidth), fmt(lastHeight), fmt(lastTexelWorld),
+                fmt(lastDx), fmt(lastDy),
+                stabilizeExtents, fmt(extentsPadding),
+                texelChanged, stableSnapFrames, texelChangedStreak);
     }
 }

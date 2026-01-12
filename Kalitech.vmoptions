@@ -1,4 +1,4 @@
--Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+#-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
 -DphysicsDebug=false
 -Dhud.debug=false
 -Dhud.debug.smoketest=false

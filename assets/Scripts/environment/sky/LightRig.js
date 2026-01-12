@@ -141,15 +141,16 @@ class LightRig {
                 splits: s.splits | 0,
                 lambda: +s.lambda,
                 intensity: +s.intensity,
-                snap: !!s.snap,
-                fitPadding: 1.15,
-                // CDPR-ish fixed cascade distances (world units)
-                fixedSplits: [6, 20, 50, 100],
-                // на будущее (шейдером добьём)
-                pcfSamples: 16,
-                pcss: false,
-                lightRadius: 0.0
+                snap: true,//!!s.snap,
+                stabilizeExtents: true,
+                extentsPadding: 1.12,
+                zExtend: 2500,
+                zFadeLength: 250,
+                debug: true,
+                debugEveryFrames: 120,
+                debugSnapIntervalMs: 500
             });
+
         }
     }
 }

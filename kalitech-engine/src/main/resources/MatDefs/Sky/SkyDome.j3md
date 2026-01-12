@@ -34,7 +34,8 @@ MaterialDef SkyDome {
         FragmentShader GLSL150: MatDefs/Sky/SkyDome.frag
 
         WorldParameters {
-            WorldViewProjectionMatrix
+            WorldMatrix
+            ViewProjectionMatrix
             CameraPosition
         }
     }

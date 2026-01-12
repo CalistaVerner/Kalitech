@@ -15,8 +15,6 @@ import com.jme3.post.filters.FogFilter;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
-import com.jme3.scene.shape.Sphere;
-import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.texture.Texture;
 import com.jme3.util.SkyFactory;
 import org.apache.logging.log4j.LogManager;
@@ -79,6 +77,9 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     private float moonDx = Float.NaN, moonDy = Float.NaN, moonDz = Float.NaN;
     private float moonR = Float.NaN, moonG = Float.NaN, moonB = Float.NaN, moonI = Float.NaN;
 
+    private static final String SKYDOME_MODEL_ASSET = "Models/Sky/skydome.obj";
+    private static final float SKYDOME_SCALE = 1000f;
+
     // Legacy skybox
     private Spatial skybox;
     private String skyboxAsset = "";
@@ -96,6 +97,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     private float sdZenR = Float.NaN, sdZenG = Float.NaN, sdZenB = Float.NaN;
     private float sdHorR = Float.NaN, sdHorG = Float.NaN, sdHorB = Float.NaN;
     private float sdHaze = Float.NaN, sdSunDisk = Float.NaN, sdMoonDisk = Float.NaN, sdExposure = Float.NaN;
+    private com.jme3.scene.Geometry[] skydomeGeoms;
 
     // Post runtime cfg cache
     private boolean postEnabled = true;
@@ -165,22 +167,124 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             log.info("RenderApi: skybox removed (switch to skydome)");
         }
 
-        Sphere sphere = new Sphere(48, 48, 1000f, false, true);
-        Geometry g = new Geometry("SkyDome", sphere);
-        g.setQueueBucket(RenderQueue.Bucket.Sky);
-        g.setCullHint(Spatial.CullHint.Never);
-        g.setShadowMode(RenderQueue.ShadowMode.Off);
+        com.jme3.asset.AssetInfo info = assets.locateAsset(new com.jme3.asset.AssetKey<>(SKYDOME_MODEL_ASSET));
+        if (info == null) {
+            throw new IllegalStateException("RenderApi: engine skydome resource not found: " + SKYDOME_MODEL_ASSET);
+        }
+
+        Spatial dome = assets.loadModel(SKYDOME_MODEL_ASSET);
+        if (dome == null) {
+            throw new IllegalStateException("RenderApi: loadModel returned null for: " + SKYDOME_MODEL_ASSET);
+        }
 
         Material m = new Material(assets, "MatDefs/Sky/SkyDome.j3md");
-        g.setMaterial(m);
 
-        app.getRootNode().attachChild(g);
+        // SAFE SKY STATE
+        com.jme3.material.RenderState rs = m.getAdditionalRenderState();
+        rs.setDepthWrite(false);
+        rs.setDepthTest(true);
+        rs.setFaceCullMode(com.jme3.material.RenderState.FaceCullMode.Off); // debug-safe
 
-        skydome = g;
+        // Bind material + bake mesh center (critical for OBJ domes)
+        bindSkyMaterial(dome, m);
+
+        dome.setName("SkyDome");
+        dome.setQueueBucket(RenderQueue.Bucket.Sky);
+        dome.setCullHint(Spatial.CullHint.Never);
+        dome.setShadowMode(RenderQueue.ShadowMode.Off);
+        dome.setLocalScale(SKYDOME_SCALE);
+
+        app.getRootNode().attachChild(dome);
+
+        skydome = dome;
         skydomeMat = m;
 
-        log.info("RenderApi: skydome created");
+        log.info("RenderApi: skydome bind material geoms={}", (skydomeGeoms == null ? 0 : skydomeGeoms.length));
+        log.info("RenderApi: skydome created (model='{}')", SKYDOME_MODEL_ASSET);
     }
+
+
+    private void bindSkyMaterial(Spatial root, Material m) {
+        java.util.ArrayList<Geometry> list = new java.util.ArrayList<>(8);
+
+        root.depthFirstTraversal(sp -> {
+            if (!(sp instanceof Geometry g)) return;
+
+            // Bake center-to-origin once (fixes "black procedural" when OBJ dome is offset)
+            bakeMeshCenterToOriginOnce(g);
+
+            // Hard override imported MTL material
+            g.setMaterial(m);
+
+            // Force sky flags
+            g.setQueueBucket(RenderQueue.Bucket.Sky);
+            g.setCullHint(Spatial.CullHint.Never);
+            g.setShadowMode(RenderQueue.ShadowMode.Off);
+
+            // Diagnostics
+            com.jme3.scene.Mesh mesh = g.getMesh();
+            boolean hasPos = mesh != null && mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Position) != null;
+            boolean hasNor = mesh != null && mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Normal) != null;
+            boolean hasUv = mesh != null && mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord) != null;
+            int tris = (mesh == null) ? 0 : mesh.getTriangleCount();
+
+            log.info("RenderApi: skydome geom='{}' buffers: pos={} normal={} uv={} tris={}",
+                    g.getName(), hasPos, hasNor, hasUv, tris);
+
+            list.add(g);
+        });
+
+        skydomeGeoms = list.isEmpty() ? null : list.toArray(new Geometry[0]);
+    }
+
+    private void bakeMeshCenterToOriginOnce(Geometry g) {
+        // prevent rebake
+        Boolean baked = g.getUserData("sky.bakedCenter");
+        if (Boolean.TRUE.equals(baked)) return;
+
+        com.jme3.scene.Mesh mesh = g.getMesh();
+        if (mesh == null) return;
+
+        com.jme3.scene.VertexBuffer vb = mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Position);
+        if (vb == null) return;
+
+        // Ensure bounds exist
+        mesh.updateBound();
+        com.jme3.bounding.BoundingVolume bv = mesh.getBound();
+        if (bv == null) return;
+
+        com.jme3.math.Vector3f c = bv.getCenter(); // local-space center
+        if (c == null) return;
+
+        // If already centered, skip
+        if (c.lengthSquared() < 1e-10f) {
+            g.setUserData("sky.bakedCenter", true);
+            return;
+        }
+
+        java.nio.FloatBuffer fb = (java.nio.FloatBuffer) vb.getData();
+        if (fb == null) return;
+
+        // bake: subtract center from each vertex position
+        for (int i = 0; i < fb.limit(); i += 3) {
+            fb.put(i, fb.get(i) - c.x);
+            fb.put(i + 1, fb.get(i + 1) - c.y);
+            fb.put(i + 2, fb.get(i + 2) - c.z);
+        }
+
+        vb.updateData(fb);
+        mesh.updateBound();
+
+        // Important: the geometry might have had a local translation compensating the offset.
+        // Keep it at origin for a sky dome.
+        g.setLocalTranslation(0f, 0f, 0f);
+
+        g.setUserData("sky.bakedCenter", true);
+
+        log.info("RenderApi: skydome baked center to origin geom='{}' center=({}, {}, {})",
+                g.getName(), c.x, c.y, c.z);
+    }
+
 
     @HostAccess.Export
     @Override
@@ -330,6 +434,16 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 skydomeMat.setFloat("SunDisk", sunDisk);
                 skydomeMat.setFloat("MoonDisk", moonDisk);
                 skydomeMat.setFloat("Exposure", exposure);
+
+                // hard-enforce: ensure all dome geometries really use skydomeMat
+                if (skydomeGeoms != null) {
+                    for (Geometry g : skydomeGeoms) {
+                        if (g.getMaterial() != skydomeMat) {
+                            g.setMaterial(skydomeMat);
+                        }
+                    }
+                }
+
             });
         });
     }
@@ -517,31 +631,33 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // --------------------- primary directional ---------------------
+
+    // --------------------- sun / moon ---------------------
+
+
+    // --------------------- shadows ---------------------
 
     @HostAccess.Export
-    public void setPrimaryDirectional(String which) {
-        final String w = (which == null ? "" : which.trim().toLowerCase());
-        if (!w.equals("sun") && !w.equals("moon")) {
-            throw new IllegalArgumentException("[render] setPrimaryDirectional: expected 'sun' or 'moon'");
-        }
+    @Override
+    public void sunShadows(int mapSize) {
+        sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
+    }
 
+    @HostAccess.Export
+    public void sunShadowsEx(int mapSize, int splits, double lambda, double intensity) {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                viewport.ensure("setPrimaryDirectional");
+                viewport.ensure("sunShadowsEx");
                 lights.ensure();
-                if (w.equals(lights.primaryDirectional())) return;
-
-                lights.setPrimaryDirectional(w);
-                shadows.refreshPrimaryLightBinding();
-
-                log.info("RenderApi: primaryDirectional={}", w);
+                shadows.enable(mapSize, splits, lambda, intensity);
             });
         });
     }
 
-    // --------------------- sun / moon ---------------------
+// FILE: org/foxesworld/kalitech/engine/api/impl/RenderApiImpl.java
+// ВАЖНО: я присылаю целиком ТОЛЬКО изменённые методы (иначе я рискую сломать то, что ты не показывала).
+// Просто замени эти методы 1-в-1 в своём RenderApiImpl.
 
     @HostAccess.Export
     @Override
@@ -586,7 +702,8 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 sun.setDirection(v);
                 sun.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
-                if ("sun".equals(lights.primaryDirectional())) shadows.refreshPrimaryLightBinding();
+                // КРИТИЧНО: НЕ ребайндим свет каждый кадр.
+                // Рендерер уже держит ссылку на тот же DirectionalLight instance.
             });
         });
     }
@@ -633,27 +750,32 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 moon.setDirection(v);
                 moon.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
 
-                if ("moon".equals(lights.primaryDirectional())) shadows.refreshPrimaryLightBinding();
+                // НЕ ребайндим каждый кадр.
             });
         });
     }
 
-    // --------------------- shadows ---------------------
-
     @HostAccess.Export
-    @Override
-    public void sunShadows(int mapSize) {
-        sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
-    }
+    public void setPrimaryDirectional(String which) {
+        final String w = (which == null ? "" : which.trim().toLowerCase());
+        if (!w.equals("sun") && !w.equals("moon")) {
+            throw new IllegalArgumentException("[render] setPrimaryDirectional: expected 'sun' or 'moon'");
+        }
 
-    @HostAccess.Export
-    public void sunShadowsEx(int mapSize, int splits, double lambda, double intensity) {
         profiledVoid(() -> {
             ensureScene();
             onJme(() -> {
-                viewport.ensure("sunShadowsEx");
+                viewport.ensure("setPrimaryDirectional");
                 lights.ensure();
-                shadows.enable(mapSize, splits, lambda, intensity);
+
+                if (w.equals(lights.primaryDirectional())) return;
+
+                lights.setPrimaryDirectional(w);
+
+                // ЕДИНСТВЕННОЕ место, где реально нужен rebind.
+                shadows.refreshPrimaryLightBinding();
+
+                log.info("RenderApi: primaryDirectional={}", w);
             });
         });
     }
@@ -668,11 +790,20 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
         boolean snap = RenderCfg.bool(cfg, "snap", true);
 
-        // cache-only knobs for future (оставляем контракт)
-        RenderCfg.num(cfg, "softness", 0.0);
-        intClampR(cfg, "pcfSamples", 16, 1, 64);
-        RenderCfg.bool(cfg, "pcss", false);
-        RenderCfg.num(cfg, "lightRadius", 0.0);
+        boolean stabilizeExtents = RenderCfg.bool(cfg, "stabilizeExtents", true);
+        double extentsPadding = RenderCfg.num(cfg, "extentsPadding", 1.12);
+
+        double zExtend = RenderCfg.num(cfg, "zExtend", 2500.0);
+        double zFade = RenderCfg.num(cfg, "zFadeLength", 250.0);
+
+        // NEW: anti-shimmer knobs
+        double bias = RenderCfg.num(cfg, "bias", 0.0035);
+        double slopeBias = RenderCfg.num(cfg, "slopeBias", 2.0);
+        double normalOffset = RenderCfg.num(cfg, "normalOffset", 0.0);
+
+        boolean debug = RenderCfg.bool(cfg, "debug", false);
+        int debugEvery = intClampR(cfg, "debugEveryFrames", 120, 1, 6000);
+        int debugSnapMs = intClampR(cfg, "debugSnapIntervalMs", 500, 50, 5000);
 
         profiledVoid(() -> {
             ensureScene();
@@ -681,10 +812,34 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 lights.ensure();
 
                 shadows.setSnapEnabled(snap);
+                shadows.setStabilizeExtents(stabilizeExtents);
+                shadows.setExtentsPadding(extentsPadding);
+
+                shadows.setShadowZExtend(zExtend);
+                shadows.setShadowZFadeLength(zFade);
+
+                shadows.setShadowBias(bias);
+                shadows.setShadowSlopeBias(slopeBias);
+                shadows.setShadowNormalOffset(normalOffset);
+
+                shadows.setDebugEnabled(debug);
+                shadows.setDebugEveryFrames(debugEvery);
+                shadows.setDebugSnapIntervalMs(debugSnapMs);
+
                 shadows.enable(map, splits, lambda, intensity);
 
-                DirectionalLightShadowRenderer r = shadows.renderer();
-                if (r != null) r.setLight(lights.primaryLight());
+                log.info("[render] sunShadowsCfg mapSize={} splits={} lambda={} intensity={} snap={} stabilizeExtents={} pad={} zExtend={} zFade={} bias={} slopeBias={} normalOffset={} debug={} everyFrames={} snapMs={}",
+                        map, splits,
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) lambda),
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) intensity),
+                        snap, stabilizeExtents,
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) extentsPadding),
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) zExtend),
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) zFade),
+                        String.format(java.util.Locale.ROOT, "%.6f", (float) bias),
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) slopeBias),
+                        String.format(java.util.Locale.ROOT, "%.3f", (float) normalOffset),
+                        debug, debugEvery, debugSnapMs);
             });
         });
     }
