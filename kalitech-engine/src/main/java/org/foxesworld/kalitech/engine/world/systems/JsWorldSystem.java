@@ -1,4 +1,5 @@
 // FILE: org/foxesworld/kalitech/engine/world/systems/JsWorldSystem.java
+// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
@@ -9,7 +10,6 @@ import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Callable;
 
 public final class JsWorldSystem implements KSystem, HotReloadableSystem {
@@ -28,121 +28,8 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
         this.module = Objects.requireNonNull(module, "module");
         this.cfg = cfg;
         this.sysDesc = sysDesc;
-        this.runtimeProfile = normalizeProfile(runtimeProfile);
+        this.runtimeProfile = (runtimeProfile == null || runtimeProfile.isBlank()) ? "world" : runtimeProfile.trim();
     }
-
-    public JsWorldSystem(String module, Object cfg, Object sysDesc) {
-        this(module, cfg, sysDesc, "world");
-    }
-
-    public JsWorldSystem(String module) {
-        this(module, null, null, "world");
-    }
-
-    private static String normalizeProfile(String p) {
-        if (p == null) return "world";
-        final String t = p.trim();
-        return t.isEmpty() ? "world" : t;
-    }
-
-    // ------------------------ ScriptRuntime reflection helpers ------------------------
-
-    private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
-        final Class<?> c = rt.getClass();
-
-        Value v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class}, new Object[]{module});
-        if (v != null) return v;
-
-        v = tryInvokeValue(c, rt, "requireModule", new Class<?>[]{String.class}, new Object[]{module});
-        if (v != null) return v;
-
-        v = tryInvokeValue(c, rt, "loadModule", new Class<?>[]{String.class}, new Object[]{module});
-        if (v != null) return v;
-
-        v = tryInvokeValue(c, rt, "evalModule", new Class<?>[]{String.class}, new Object[]{module});
-        if (v != null) return v;
-
-        v = tryInvokeValue(c, rt, "evaluateModule", new Class<?>[]{String.class}, new Object[]{module});
-        if (v != null) return v;
-
-        throw new IllegalStateException("Cannot load module via ScriptRuntime reflection: " + module);
-    }
-
-    private static int invalidateManyViaReflection(ScriptRuntime rt, Set<String> modules, String reason) {
-        final Class<?> c = rt.getClass();
-
-        // invalidateManyWithReason(Set<String>, String)
-        try {
-            final Method m = c.getMethod("invalidateManyWithReason", Set.class, String.class);
-            final Object r = m.invoke(rt, modules, reason);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateManyWithReason failed: " + t, t);
-        }
-
-        // invalidateMany(Set<String>)
-        try {
-            final Method m = c.getMethod("invalidateMany", Set.class);
-            final Object r = m.invoke(rt, modules);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateMany failed: " + t, t);
-        }
-
-        return 0;
-    }
-
-    private static int invalidateAllViaReflection(ScriptRuntime rt, String reason) {
-        final Class<?> c = rt.getClass();
-
-        // invalidateAllWithReason(String)
-        try {
-            final Method m = c.getMethod("invalidateAllWithReason", String.class);
-            final Object r = m.invoke(rt, reason);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateAllWithReason failed: " + t, t);
-        }
-
-        // invalidateAll()
-        try {
-            final Method m = c.getMethod("invalidateAll");
-            final Object r = m.invoke(rt);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateAll failed: " + t, t);
-        }
-
-        // clearModuleCache()
-        try {
-            final Method m = c.getMethod("clearModuleCache");
-            m.invoke(rt);
-            return 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.clearModuleCache failed: " + t, t);
-        }
-
-        return 0;
-    }
-
-    private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
-        try {
-            final Method m = c.getMethod(name, sig);
-            final Object r = m.invoke(target, args);
-            return (r instanceof Value vv) ? vv : null;
-        } catch (NoSuchMethodException ignored) {
-            return null;
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime." + name + " invocation failed: " + t, t);
-        }
-    }
-
-    // ------------------------ KSystem ------------------------
 
     @Override
     public void onStart(SystemContext ctx) {
@@ -177,14 +64,66 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
         });
     }
 
-    // ------------------------ HotReloadableSystem ------------------------
+    private static Value requireViaReflection(ScriptRuntime rt, String module) throws Exception {
+        final Class<?> c = rt.getClass();
+
+        Value v = tryInvokeValue(c, rt, "require", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "requireModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "loadModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        v = tryInvokeValue(c, rt, "evalModule", new Class<?>[]{String.class}, new Object[]{module});
+        if (v != null) return v;
+
+        throw new IllegalStateException("Cannot load module via ScriptRuntime reflection: " + module);
+    }
+
+    private static Value tryInvokeValue(Class<?> c, Object target, String name, Class<?>[] sig, Object[] args) {
+        try {
+            final Method m = c.getMethod(name, sig);
+            final Object r = m.invoke(target, args);
+            return (r instanceof Value vv) ? vv : null;
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        } catch (Throwable t) {
+            throw new RuntimeException("runtime." + name + " invocation failed: " + t, t);
+        }
+    }
+
+    private static void invalidateAllViaReflection(ScriptRuntime rt, String reason) throws Exception {
+        final Class<?> c = rt.getClass();
+
+        try {
+            final Method m = c.getMethod("invalidateAllWithReason", String.class);
+            m.invoke(rt, reason);
+            return;
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        try {
+            final Method m = c.getMethod("invalidateAll");
+            m.invoke(rt);
+            return;
+        } catch (NoSuchMethodException ignored) {
+        }
+
+        try {
+            final Method m = c.getMethod("clearModuleCache");
+            m.invoke(rt);
+        } catch (NoSuchMethodException ignored) {
+        }
+    }
 
     @Override
     public void onHotReload(SystemContext ctx, String reason) {
-        // FULL wipe: kill exports + force init next tick + invalidate caches
+        final String why = (reason == null || reason.isBlank()) ? "F5" : reason;
+
         try {
             withScopedSystem(ctx, () -> {
-                // best-effort destroy old instance if it exists
                 try {
                     invokeIfPresent("destroy", ctx);
                 } catch (Throwable ignored) {
@@ -192,24 +131,18 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
 
                 ScriptRuntime rt = ctx.runtime(runtimeProfile);
                 if (rt == null) rt = ctx.runtime();
-
                 if (rt != null) {
-                    // user asked "clear all": invalidate ALL modules, not only this one
                     try {
-                        invalidateAllViaReflection(rt, reason != null ? reason : "F5");
+                        invalidateAllViaReflection(rt, why);
                     } catch (Throwable t) {
-                        // fallback: at least invalidate this module
-                        try {
-                            invalidateManyViaReflection(rt, Set.of(module), reason != null ? reason : "F5");
-                        } catch (Throwable ignored) {
-                        }
+                        log.warn("[JsWorldSystem] invalidateAll failed profile={} module={}", runtimeProfile, module, t);
                     }
                 }
 
                 exports = null;
                 needsInit = true;
 
-                log.info("[JsWorldSystem] HotReload({}) module={}", (reason != null ? reason : "F5"), module);
+                log.info("[JsWorldSystem] HotReload({}) module={}", why, module);
                 return null;
             });
         } catch (Throwable t) {
@@ -218,8 +151,6 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
             needsInit = true;
         }
     }
-
-    // ------------------------ internals ------------------------
 
     private <T> T withScopedSystem(SystemContext ctx, Callable<T> call) {
         Objects.requireNonNull(ctx, "ctx");
@@ -239,10 +170,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
         try {
             return call.call();
         } catch (PolyglotException pe) {
-            if (pe.isCancelled()) {
-                if (log.isDebugEnabled()) log.debug("[JsWorldSystem] cancelled module={}", module);
-                return null;
-            }
+            if (pe.isCancelled()) return null;
             throw pe;
         } catch (RuntimeException re) {
             throw re;
@@ -268,10 +196,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
             if (rt == null) rt = ctx.runtime();
             if (rt == null) throw new IllegalStateException("JsWorldSystem requires ScriptRuntime in SystemContext");
 
-            final Value ex = requireViaReflection(rt, module);
-            if (ex == null) throw new IllegalStateException("ScriptRuntime returned null exports for module=" + module);
-
-            exports = ex;
+            exports = requireViaReflection(rt, module);
 
             if (log.isDebugEnabled()) {
                 log.debug("[JsWorldSystem] loaded module={} exportsKeys={}", module, exports.getMemberKeys());
@@ -281,10 +206,10 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
 
     private void invokeIfPresent(String fnName, Object... args) {
         final Value ex = exports;
-        if (ex == null || !ex.hasMember(fnName)) return;
+        if (ex == null || ex.isNull() || !ex.hasMember(fnName)) return;
 
         final Value fn = ex.getMember(fnName);
-        if (fn == null || !fn.canExecute()) return;
+        if (fn == null || fn.isNull() || !fn.canExecute()) return;
 
         try {
             fn.execute(args);

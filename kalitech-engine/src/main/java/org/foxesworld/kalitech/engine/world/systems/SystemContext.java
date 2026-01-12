@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/world/systems/SystemContext.java
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
@@ -11,7 +12,9 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
+import org.foxesworld.kalitech.engine.world.HotReloadHub;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +48,28 @@ public final class SystemContext {
     private final SystemScheduler scheduler;  // nullable (world-only)
     private final MainThreadBudgetQueue mainQueue; // nullable (world-only)
     private final PerfProvider perfProvider;  // nullable (world-only)
+
+    // NEW: JS-visible hot reload domain
+    @HostAccess.Export
+    public final HotReloadDomain hotReloadDomain;
+    // ---------------- Hot Reload ----------------
+    private final HotReloadHub hotReloadHub;
+
+    public SimpleApplication app() {
+        return app;
+    }
+
+    private final ConcurrentHashMap<String, Object> state = new ConcurrentHashMap<>();
+
+    public AssetManager assets() {
+        return assets;
+    }
+
+    @HostAccess.Export public final WorldDomain world;
+    @HostAccess.Export public final RenderDomain render;
+    @HostAccess.Export public final StateDomain stateDomain;
+    @HostAccess.Export public final PerfDomain perfDomain;
+
     public SystemContext(
             SimpleApplication app,
             EngineApi api,
@@ -76,26 +101,18 @@ public final class SystemContext {
         this.mainQueue = mainQueue;
         this.perfProvider = perfProvider;
 
+        // NEW: always present, even outside "world"
+        this.hotReloadHub = new HotReloadHub();
+
         this.engine = new EngineDomain(this.api);
         this.world = new WorldDomain(this.ecs, this.events);
         this.render = new RenderDomain(this.api);
         this.stateDomain = new StateDomain(this.state);
         this.perfDomain = new PerfDomain(this.perfProvider);
-    }
 
-    public SimpleApplication app() {
-        return app;
+        // NEW: JS-visible domain
+        this.hotReloadDomain = new HotReloadDomain(this.hotReloadHub);
     }
-
-    private final ConcurrentHashMap<String, Object> state = new ConcurrentHashMap<>();
-
-    public AssetManager assets() {
-        return assets;
-    }
-    @HostAccess.Export public final WorldDomain world;
-    @HostAccess.Export public final RenderDomain render;
-    @HostAccess.Export public final StateDomain stateDomain;
-    @HostAccess.Export public final PerfDomain perfDomain;
 
     public EngineApi api() {
         return api;
@@ -130,6 +147,7 @@ public final class SystemContext {
         if (p.isEmpty()) return runtime;
         return runtimeProvider.runtime(p);
     }
+
     public EcsWorld ecs() { return ecs; }
 
     /**
@@ -156,6 +174,11 @@ public final class SystemContext {
      */
     public PerfProvider perfProvider() {
         return perfProvider;
+    }
+
+    // NEW: Java-side access to hub
+    public HotReloadHub hotReloadHub() {
+        return hotReloadHub;
     }
 
     @HostAccess.Export
@@ -197,6 +220,13 @@ public final class SystemContext {
 
     @HostAccess.Export public PerfDomain perf() { return perfDomain; }
     @HostAccess.Export public StateDomain state() { return stateDomain; }
+
+    // NEW: sugar for JS
+    @HostAccess.Export
+    public HotReloadDomain hotReload() {
+        return hotReloadDomain;
+    }
+
     @HostAccess.Export public void put(String key, Object value) { stateDomain.set(key, value); }
     @HostAccess.Export public Object get(String key) { return stateDomain.get(key); }
     @HostAccess.Export public Object remove(String key) { return stateDomain.remove(key); }
@@ -321,5 +351,44 @@ public final class SystemContext {
         @HostAccess.Export
         public void frameLogEverySeconds(int sec) {
             if (perf != null) try { perf.setFrameOverBudgetLogEverySeconds(sec); } catch (Throwable ignored) {} }
+    }
+
+    // ---------------- NEW DOMAIN: Hot Reload ----------------
+
+    public static final class HotReloadDomain {
+        private final HotReloadHub hub;
+
+        HotReloadDomain(HotReloadHub hub) {
+            this.hub = Objects.requireNonNull(hub, "hub");
+        }
+
+        /**
+         * Register JS hook: fn(reason)
+         */
+        @HostAccess.Export
+        public void register(Value fn) {
+            if (fn == null || !fn.canExecute()) return;
+            hub.register((reason) -> {
+                try {
+                    fn.execute(reason);
+                } catch (Throwable ignored) {
+                }
+            });
+        }
+
+        @HostAccess.Export
+        public void fire(String reason) {
+            hub.fire(reason);
+        }
+
+        @HostAccess.Export
+        public int size() {
+            return hub.size();
+        }
+
+        @HostAccess.Export
+        public void clear() {
+            hub.clear();
+        }
     }
 }

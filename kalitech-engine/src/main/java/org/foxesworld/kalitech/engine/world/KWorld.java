@@ -48,11 +48,11 @@ public final class KWorld {
         final ArrayList<KSystem> workers = new ArrayList<>(systems.size());
 
         for (Entry e : systems) {
-            KSystem sys = e.system;
+            final KSystem sys = e.system;
             ThreadMode m;
             try {
                 m = sys.threadMode();
-            } catch (Throwable t) {
+            } catch (Throwable ignored) {
                 continue;
             }
 
@@ -132,38 +132,37 @@ public final class KWorld {
         started = false;
     }
 
-    /**
-     * FULL hot reload: stop all systems -> notify hot reload -> start all systems.
-     * This guarantees init() is called again and all runtime singletons can be reset.
-     */
     public void hotReload(SystemContext ctx, String reason) {
         Objects.requireNonNull(ctx, "ctx");
+        final String why = (reason == null || reason.isBlank()) ? "F5" : reason;
 
-        if (started) {
-            stop(ctx);
+        if (started) stop(ctx);
+
+        // 1) global hooks (no hardcode: modules register themselves)
+        try {
+            ctx.hotReloadHub().fire(why);
+        } catch (Throwable t) {
+            ctx.log().warn("[world:{}] hotReload hub.fire failed: {}", name, t.toString());
         }
 
-        // After stop — safe to clear everything that lives across reloads.
+        // 2) per-system hooks (cache invalidation etc.)
         for (KSystem sys : mainSystems) {
             if (sys instanceof HotReloadableSystem hr) {
                 try {
-                    hr.onHotReload(ctx, reason);
-                } catch (Throwable t) {
-                    ctx.log().warn("[world:{}] hotReload reset failed: {}", name, sys, t);
+                    hr.onHotReload(ctx, why);
+                } catch (Throwable ignored) {
                 }
             }
         }
         for (KSystem sys : workerSystems) {
             if (sys instanceof HotReloadableSystem hr) {
                 try {
-                    hr.onHotReload(ctx, reason);
-                } catch (Throwable t) {
-                    ctx.log().warn("[world:{}] hotReload(worker) reset failed: {}", name, sys, t);
+                    hr.onHotReload(ctx, why);
+                } catch (Throwable ignored) {
                 }
             }
         }
 
-        // Re-start all systems cleanly.
         start(ctx);
     }
 

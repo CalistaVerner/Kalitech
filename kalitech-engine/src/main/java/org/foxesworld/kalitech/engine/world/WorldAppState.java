@@ -30,24 +30,25 @@ public final class WorldAppState extends BaseAppState {
 
     private static final Logger log = LogManager.getLogger(WorldAppState.class);
 
-    private final RuntimeAppState host;     //  keep host to access shared runtime/assets/bus/ecs/etc
+    private static final String HOT_RELOAD = "world:hotReload";
+
+    private final RuntimeAppState host;     // keep host to access shared runtime/assets/bus/ecs/etc
     private final EngineApiImpl engine;
     private final Map<String, ScriptRuntime> runtimeProfiles = new ConcurrentHashMap<>();
-    // Base runtime configured in RuntimeAppState (providers + builtins)
     private ScriptRuntime baseRuntime;
     private SystemScheduler scheduler; // optional (can be null)
     private KWorld world;
     private SystemContext worldCtx;
-    private static final String HOT_RELOAD = "world:hotReload";
-    private final ActionListener hotReloadListener = new ActionListener() {
-        @Override
-        public void onAction(String name, boolean isPressed, float tpf) {
-            if (!HOT_RELOAD.equals(name)) return;
-            if (!isPressed) return; // срабатываем только на нажатие
+    private final ActionListener hotReloadListener = (name, pressed, tpf) -> {
+        if (!pressed) return;
+        if (!HOT_RELOAD.equals(name)) return;
 
-            if (world != null && worldCtx != null) {
-                log.warn("[World] F5 hot reload");
+        if (world != null && worldCtx != null) {
+            log.warn("[World] F5 hot reload");
+            try {
                 world.hotReload(worldCtx, "F5");
+            } catch (Throwable t) {
+                log.error("[World] hotReload failed", t);
             }
         }
     };
@@ -70,10 +71,8 @@ public final class WorldAppState extends BaseAppState {
 
     @Override
     protected void initialize(Application app) {
-        // snapshot base runtime (must be configured in RuntimeAppState)
         this.baseRuntime = host.getRuntime();
 
-        // Scheduler is optional — can be enabled later if you want.
         try {
             scheduler = new SystemScheduler(this);
         } catch (Throwable t) {
@@ -81,9 +80,15 @@ public final class WorldAppState extends BaseAppState {
             scheduler = null;
         }
 
-        this.input = engine.getApp().getInputManager();
-        this.input.addMapping(HOT_RELOAD, new KeyTrigger(KeyInput.KEY_F5));
-        this.input.addListener(hotReloadListener, HOT_RELOAD);
+        input = (engine.getApp() != null) ? engine.getApp().getInputManager() : null;
+        if (input != null) {
+            try {
+                if (!input.hasMapping(HOT_RELOAD)) input.addMapping(HOT_RELOAD, new KeyTrigger(KeyInput.KEY_F5));
+                input.addListener(hotReloadListener, HOT_RELOAD);
+            } catch (Throwable t) {
+                log.warn("[World] HotReload keybind failed: {}", t.toString());
+            }
+        }
     }
 
     @Override
@@ -102,19 +107,6 @@ public final class WorldAppState extends BaseAppState {
     @Override
     protected void cleanup(Application app) {
         destroyWorld();
-        if (scheduler != null) {
-            try {
-                scheduler.close();
-            } catch (Throwable ignored) {
-            }
-            scheduler = null;
-        }
-        runtimeProfiles.values().forEach(rt -> {
-            try {
-                rt.close();
-            } catch (Throwable ignored) {
-            }
-        });
 
         if (input != null) {
             try {
@@ -122,10 +114,26 @@ public final class WorldAppState extends BaseAppState {
             } catch (Throwable ignored) {
             }
             try {
-                input.deleteMapping(HOT_RELOAD);
+                if (input.hasMapping(HOT_RELOAD)) input.deleteMapping(HOT_RELOAD);
             } catch (Throwable ignored) {
             }
+            input = null;
         }
+
+        if (scheduler != null) {
+            try {
+                scheduler.close();
+            } catch (Throwable ignored) {
+            }
+            scheduler = null;
+        }
+
+        runtimeProfiles.values().forEach(rt -> {
+            try {
+                rt.close();
+            } catch (Throwable ignored) {
+            }
+        });
         runtimeProfiles.clear();
         baseRuntime = null;
     }
@@ -134,11 +142,11 @@ public final class WorldAppState extends BaseAppState {
     protected void onEnable() {
     }
 
-    // ---------------- World control (called by engine.world()) ----------------
-
     @Override
     protected void onDisable() {
     }
+
+    // ---------------- World control (called by engine.world()) ----------------
 
     public void createWorld(KWorld newWorld, boolean start) {
         Objects.requireNonNull(newWorld, "newWorld");
@@ -146,7 +154,6 @@ public final class WorldAppState extends BaseAppState {
 
         this.world = newWorld;
 
-        //  IMPORTANT: always use RuntimeAppState's runtime as base (configured providers)
         final ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
 
         this.worldCtx = new SystemContext(
@@ -155,12 +162,12 @@ public final class WorldAppState extends BaseAppState {
                 engine.getEcs(),
                 engine.getBus(),
                 engine.__getPhysicsSpaceOrNull(),
-                rt0,                         // base runtime (shared)
-                this::getRuntime,            // runtimeProvider (profiles)
-                null,                        // runtimePolicy (optional)
-                scheduler,                   // scheduler (optional)
-                null,                        // mainQueue (optional)
-                null,                        // perfProvider (optional)
+                rt0,
+                this::getRuntime,
+                null,
+                scheduler,
+                null,
+                null,
                 engine.getLog()
         );
 
@@ -199,16 +206,9 @@ public final class WorldAppState extends BaseAppState {
         return scheduler;
     }
 
-    /**
-     * Runtime profile pool.
-     * CRITICAL: profile runtimes MUST be configured with the same module providers as base runtime,
-     * otherwise require() will fail (no ModuleStreamProvider).
-     */
     public ScriptRuntime getRuntime(String profile) {
         final String p = (profile == null || profile.isBlank()) ? "world" : profile.trim();
 
-        // Shortcut: if someone asks for default profile, we can return base runtime directly.
-        // (Optional but safe; avoids extra runtimes until you really need isolation.)
         if ("world".equalsIgnoreCase(p) || "main".equalsIgnoreCase(p) || "default".equalsIgnoreCase(p)) {
             ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
             if (rt0 != null) return rt0;
@@ -216,12 +216,7 @@ public final class WorldAppState extends BaseAppState {
 
         return runtimeProfiles.computeIfAbsent(p, k -> {
             ScriptRuntime rt = new ScriptRuntime();
-
-            //  providers first
             rt.setModuleStreamProvider(this::openJsModuleStream);
-            // rt.setModuleSourceProvider(this::loadTextAssetOrNull); // if you use it
-
-            //  then builtins
             try {
                 rt.initBuiltIns(engine);
             } catch (Throwable t) {
