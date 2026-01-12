@@ -1,4 +1,4 @@
-// FILE: Scripts/core/controller/ControllerRegistry.js
+// FILE: @builtin/modules/Controllers/helpers/ControllerRegistry.js
 "use strict";
 
 function req(v, msg) {
@@ -30,11 +30,15 @@ class ControllerRegistry {
         this._defs = new Map(); // id -> def
     }
 
+    // FULL WIPE registry (hot reload friendly)
+    clear() {
+        this._defs.clear();
+        return this;
+    }
+
     register(id, Ctor, opts) {
         id = reqStr(id, `[Registry:${this.name}] id is required`);
         Ctor = reqFn(Ctor, `[Registry:${this.name}] Ctor is required`);
-
-        if (this._defs.has(id)) throw new Error(`[Registry:${this.name}] duplicate id '${id}'`);
 
         opts = opts || {};
         const def = Object.freeze({
@@ -46,6 +50,9 @@ class ControllerRegistry {
             when: (typeof opts.when === "function") ? opts.when : null
         });
 
+        // HOT-RELOAD SAFE:
+        // - previously: throw on duplicate
+        // - now: overwrite (last wins)
         this._defs.set(id, def);
         return this;
     }
