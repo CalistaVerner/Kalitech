@@ -391,6 +391,7 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
+    @Override
     public void detachEntity(SurfaceApi.SurfaceHandle handle) {
         requireHandle(handle, "terrain.detachEntity");
         engine.surface().detachFromEntity(handle);

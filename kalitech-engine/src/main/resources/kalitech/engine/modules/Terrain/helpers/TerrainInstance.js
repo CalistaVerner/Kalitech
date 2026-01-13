@@ -68,8 +68,12 @@ class TerrainInstance {
         return this._api.scale(this.surface, xz, cfg);
     }
 
-    attach(entityUuid) {
+    attachEntity(entityUuid) {
         return this._api.attachEntity(this.surface, entityUuid);
+    }
+
+    attach(entityUuid) {
+        return this.attachEntity(entityUuid);
     }
 
     detach() {
