@@ -23,6 +23,8 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public final class EngineApiImpl implements EngineApi {
 
@@ -341,6 +343,20 @@ public final class EngineApiImpl implements EngineApi {
             ecs.reset();
         } catch (Throwable t) {
             LOG.warn("__resetWorldState: ecs.reset failed reason={}", why, t);
+        }
+
+        try {
+            if (isJmeThread()) {
+                surfaceRegistry.resetAll(why);
+            } else {
+                Future<?> f = app.enqueue(() -> {
+                    surfaceRegistry.resetAll(why);
+                    return null;
+                });
+                f.get(2, TimeUnit.SECONDS);
+            }
+        } catch (Throwable t) {
+            LOG.warn("__resetWorldState: surfaceRegistry.resetAll failed reason={}", why, t);
         }
 
         try {

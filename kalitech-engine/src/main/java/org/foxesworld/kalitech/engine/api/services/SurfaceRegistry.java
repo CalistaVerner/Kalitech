@@ -269,6 +269,26 @@ public final class SurfaceRegistry implements EngineService {
         }
     }
 
+    public void resetAll(String reason) {
+        String why = (reason == null) ? "" : reason.trim();
+        if (log.isDebugEnabled()) log.debug("[surface] resetAll reason={} count={}", why, byId.size());
+
+        for (Spatial s : byId.values()) {
+            if (s == null) continue;
+            Node parent = s.getParent();
+            if (parent != null) parent.detachChild(s);
+        }
+
+        pendingAttach.clear();
+        byId.clear();
+        kindById.clear();
+        attachFlushScheduled.set(false);
+        ids.set(1);
+
+        emit("engine.surface.resetAll", "reason", why);
+    }
+
+
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
