@@ -74,12 +74,6 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         super("debug", "DebugDraw", "1.1.0");
     }
 
-    // --- Legacy ctor (kept for compatibility; no logic changes) ---
-    public DebugDrawApiImpl(EngineApiImpl engine) {
-        this();
-        bind(engine);
-    }
-
     // --- Module lifecycle ---
     @Override
     public void attach(ApiContext ctx) {

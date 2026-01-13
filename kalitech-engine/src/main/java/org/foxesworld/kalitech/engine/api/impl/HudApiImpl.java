@@ -58,12 +58,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         super("hud", "Hud", "1.0.0");
     }
 
-    // --- Legacy ctor (kept for compatibility; no logic changes) ---
-    public HudApiImpl(EngineApiImpl engine) {
-        this();
-        bind(engine);
-    }
-
     // --- Module lifecycle ---
     @Override
     public void attach(ApiContext ctx) {

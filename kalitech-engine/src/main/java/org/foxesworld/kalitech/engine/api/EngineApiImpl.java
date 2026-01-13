@@ -334,6 +334,30 @@ public final class EngineApiImpl implements EngineApi {
         return bus;
     }
 
+    public void __resetWorldState(String reason) {
+        final String why = (reason == null || reason.isBlank()) ? "F5" : reason.trim();
+
+        try {
+            ecs.reset();
+        } catch (Throwable t) {
+            LOG.warn("__resetWorldState: ecs.reset failed reason={}", why, t);
+        }
+
+        try {
+            physicsApi.__clearAll();
+        } catch (Throwable t) {
+            LOG.warn("__resetWorldState: physics.__clearAll failed reason={}", why, t);
+        }
+
+        try {
+            if (renderApi instanceof RenderApiImpl impl) {
+                impl.__resetWorldCache(why);
+            }
+        } catch (Throwable t) {
+            LOG.warn("__resetWorldState: render cache reset failed reason={}", why, t);
+        }
+    }
+
     /**
      * ✅ UUID-only surface cleanup hook.
      * Call this from ECS when an entity is destroyed.

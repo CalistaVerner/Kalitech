@@ -131,6 +131,14 @@ public final class PostModule {
         tonemap.setSaturation(saturation);
     }
 
+    public void resetCache() {
+        postExposure = Float.NaN;
+        postWhitePoint = Float.NaN;
+        postShoulder = Float.NaN;
+        postToe = Float.NaN;
+        postSaturation = Float.NaN;
+    }
+
     private void ensureFogExists() {
         if (fog != null) return;
         ensureMainFpp("ensureFogExists");
