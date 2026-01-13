@@ -15,11 +15,57 @@ public final class EcsWorld {
     private final ComponentStore components = new ComponentStore();
     private final EntityUuids uuids = new EntityUuids();
 
-    public ComponentStore components() { return components;
+    public ComponentStore components() {
+        return components;
     }
 
     public EntityUuids uuids() {
-        return uuids; }
+        return uuids;
+    }
+
+    // ------------------------------------------------------------
+    // UUID-first component helpers (engine/internal use)
+    // ------------------------------------------------------------
+
+    public void putComponentByName(String uuid, String type, Object value) {
+        int id = requireEntityId(uuid, "putComponentByName");
+        components.putByName(id, type, value);
+    }
+
+    public Object getComponentByName(String uuid, String type) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return null;
+        return components.getByName(id, type);
+    }
+
+    public boolean hasComponentByName(String uuid, String type) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return false;
+        return components.hasByName(id, type);
+    }
+
+    public void removeComponentByName(String uuid, String type) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return;
+        components.removeByName(id, type);
+    }
+
+    public <T> void putComponent(String uuid, Class<T> type, T value) {
+        int id = requireEntityId(uuid, "putComponent");
+        components.put(id, type, value);
+    }
+
+    public <T> T getComponent(String uuid, Class<T> type) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return null;
+        return components.get(id, type);
+    }
+
+    public <T> void removeComponent(String uuid, Class<T> type) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return;
+        components.remove(id, type);
+    }
 
     // ------------------------------------------------------------
     // UUID-only public lifecycle

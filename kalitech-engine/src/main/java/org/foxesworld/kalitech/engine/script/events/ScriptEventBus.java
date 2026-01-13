@@ -504,7 +504,7 @@ public final class ScriptEventBus {
         public long seq;         // filled automatically if 0
         public String source;    // e.g. "physics", "world", "scripts"
         public String world;     // optional world id/name
-        public int entityId;     // optional entity
+        public String entityUuid; // optional entity
     }
 
     /**

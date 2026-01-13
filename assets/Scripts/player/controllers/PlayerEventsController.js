@@ -19,8 +19,13 @@ class PlayerEventsController {
         this.impl = new PlayerEvents(this.entity);
 
         if (this.impl && typeof this.impl.emit === "function") {
+            const uuid = (this.entity && typeof this.entity.uuidString === "function")
+                ? this.entity.uuidString()
+                : (this.entity && typeof this.entity.uuid === "function")
+                    ? this.entity.uuid()
+                    : this.entity && this.entity.uuid;
             this.impl.emit("player.spawn", {
-                entityId: this.entity.entityId,
+                uuid,
                 bodyId: this.entity.bodyId
             });
         }
@@ -29,7 +34,11 @@ class PlayerEventsController {
         if (ctx && typeof ctx.state === "function") {
             ctx.state().set("player", {
                 alive: true,
-                entityId: this.entity.entityId,
+                uuid: (this.entity && typeof this.entity.uuidString === "function")
+                    ? this.entity.uuidString()
+                    : (this.entity && typeof this.entity.uuid === "function")
+                        ? this.entity.uuid()
+                        : this.entity && this.entity.uuid,
                 surfaceId: this.entity.surfaceId,
                 bodyId: this.entity.bodyId
             });

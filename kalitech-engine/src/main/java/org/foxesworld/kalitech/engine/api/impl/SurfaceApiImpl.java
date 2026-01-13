@@ -26,7 +26,6 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
-import org.foxesworld.kalitech.engine.ecs.EntityId;
 import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -383,10 +382,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!r.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
     }
 
-    private int entityIdFromUuidStrict(String uuid) {
-        int id = engine.getEcs().uuids().entityIdOf(uuid);
-        if (id == EntityId.NULL) throw new IllegalArgumentException("surface: unknown entity uuid=" + uuid);
-        return id;
+    private void requireExistingEntity(String uuid) {
+        if (!engine.getEcs().exists(uuid)) {
+            throw new IllegalArgumentException("surface: unknown entity uuid=" + uuid);
+        }
     }
 
     @HostAccess.Export
@@ -404,11 +403,11 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         requireHandle(target);
         onJmeSyncVoid("attachEntity", () -> {
             String uuid = requireUuid(entityUuid);
+            requireExistingEntity(uuid);
 
             registry.attach(target.id(), uuid);
 
-            int entityId = entityIdFromUuidStrict(uuid);
-            engine.getEcs().components().putByName(entityId, "Surface",
+            engine.getEcs().putComponentByName(uuid, "Surface",
                     new SurfaceComponent(target.id(), target.kind()));
 
             emit("engine.surface.attachEntity", "surfaceId", target.id(), "uuid", uuid, "kind", target.kind());
@@ -437,8 +436,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             String uuid = registry.detachSurface(target.id());
             if (uuid == null || uuid.isBlank()) return;
 
-            int entityId = entityIdFromUuidStrict(uuid);
-            engine.getEcs().components().removeByName(entityId, "Surface");
+            engine.getEcs().removeComponentByName(uuid, "Surface");
 
             emit("engine.surface.detachFromEntity", "surfaceId", target.id(), "uuid", uuid, "kind", target.kind());
         });
@@ -824,8 +822,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             }
 
             if (uuid != null && !uuid.isBlank()) {
-                int entityId = entityIdFromUuidStrict(uuid);
-                engine.getEcs().components().removeByName(entityId, "Surface");
+                engine.getEcs().removeComponentByName(uuid, "Surface");
             }
 
             // 4) destroy surface
