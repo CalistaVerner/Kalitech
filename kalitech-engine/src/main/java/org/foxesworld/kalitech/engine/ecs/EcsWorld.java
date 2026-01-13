@@ -23,10 +23,6 @@ public final class EcsWorld {
         return uuids;
     }
 
-    // ------------------------------------------------------------
-    // UUID-first component helpers (engine/internal use)
-    // ------------------------------------------------------------
-
     public void putComponentByName(String uuid, String type, Object value) {
         int id = requireEntityId(uuid, "putComponentByName");
         components.putByName(id, type, value);
@@ -67,10 +63,6 @@ public final class EcsWorld {
         components.remove(id, type);
     }
 
-    // ------------------------------------------------------------
-    // UUID-only public lifecycle
-    // ------------------------------------------------------------
-
     public String createEntity() {
         int id = entities.create();
         uuids.onCreate(id);
@@ -92,10 +84,6 @@ public final class EcsWorld {
         return id != EntityId.NULL && entities.isAlive(id);
     }
 
-    // ------------------------------------------------------------
-    // Internal bridge (engine modules): UUID -> entityId
-    // ------------------------------------------------------------
-
     /**
      * INTERNAL: resolve UUID to dense id or throw. Not for scripts.
      */
@@ -111,7 +99,7 @@ public final class EcsWorld {
     }
 
     /**
-     * INTERNAL
+     * INTERNAL.
      */
     public boolean isAliveEntityId(int entityId) {
         return entities.isAlive(entityId);
@@ -122,10 +110,6 @@ public final class EcsWorld {
         components.reset();
         uuids.reset();
     }
-
-    // ------------------------------------------------------------
-    // internals
-    // ------------------------------------------------------------
 
     private void destroyInternal(int id) {
         uuids.onDestroy(id);
