@@ -115,6 +115,11 @@ public final class SurfaceRegistry implements EngineService {
         emit("engine.surface.attached", "surfaceId", surfaceId, "entityUuid", uuid);
     }
 
+    private static SurfaceApiImpl.SurfaceComponent surfaceComponent(Object value) {
+        if (value instanceof SurfaceApiImpl.SurfaceComponent sc) return sc;
+        return null;
+    }
+
     /**
      * Detach binding by surfaceId. Returns detached uuid or "" if none.
      */
@@ -142,22 +147,6 @@ public final class SurfaceRegistry implements EngineService {
             emit("engine.surface.detached", "surfaceId", surf, "entityUuid", entityUuid);
         }
         return surf;
-    }
-
-    public String attachedEntityUuid(int surfaceId) {
-        EcsWorld e = ecs;
-        if (e == null) return "";
-
-        final String[] found = new String[1];
-        e.components().forEachByName("Surface", (entityId, value) -> {
-            if (found[0] != null) return;
-            SurfaceApiImpl.SurfaceComponent sc = surfaceComponent(value);
-            if (sc == null || sc.surfaceId != surfaceId) return;
-            String uuid = e.uuids().uuidStringOf(entityId);
-            if (uuid != null && !uuid.isBlank()) found[0] = uuid;
-        });
-
-        return (found[0] != null) ? found[0] : "";
     }
 
     // ------------------------------------------------------------
@@ -216,15 +205,26 @@ public final class SurfaceRegistry implements EngineService {
         if (log.isDebugEnabled()) log.debug("[surface] destroyed surfaceId={} entityUuid={}", id, uuid);
     }
 
+    public String attachedEntityUuid(int surfaceId) {
+        EcsWorld e = ecs;
+        if (e == null) return "";
+
+        final String[] found = new String[1];
+        e.components().forEachByName("Surface", (entityId, value) -> {
+            if (found[0] != null) return;
+            SurfaceApiImpl.SurfaceComponent sc = surfaceComponent(value);
+            if (sc == null || sc.surfaceId != surfaceId) return;
+            String uuid = e.uuids().uuidStringOf(entityId);
+            if (uuid != null && !uuid.isBlank()) found[0] = uuid;
+        });
+
+        return (found[0] != null) ? found[0] : "";
+    }
+
     private SurfaceApiImpl.SurfaceComponent surfaceComponent(String entityUuid) {
         EcsWorld e = ecs;
         if (e == null || entityUuid == null || entityUuid.isBlank()) return null;
         return surfaceComponent(e.getComponentByName(entityUuid.trim(), "Surface"));
-    }
-
-    private static SurfaceApiImpl.SurfaceComponent surfaceComponent(Object value) {
-        if (value instanceof SurfaceApiImpl.SurfaceComponent sc) return sc;
-        return null;
     }
 
     private String requireAliveUuid(String uuid) {
