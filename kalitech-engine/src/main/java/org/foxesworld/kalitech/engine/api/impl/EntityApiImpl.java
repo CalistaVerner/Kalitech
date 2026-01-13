@@ -2,6 +2,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -15,6 +16,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
 
     private static final Logger log = LogManager.getLogger(EntityApiImpl.class);
 
+    private EngineApiImpl engine;
     private EcsWorld ecs;
 
     public EntityApiImpl() {
@@ -24,12 +26,14 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
+        this.engine = Objects.requireNonNull(ctx.engine, "ctx.engine");
         this.ecs = Objects.requireNonNull(ctx.ecs, "ctx.ecs");
     }
 
     @Override
     public void detach() {
         this.ecs = null;
+        this.engine = null;
         super.detach();
     }
 
@@ -57,6 +61,10 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     @HostAccess.Export
     @Override
     public void destroy(String uuid) {
+        EngineApiImpl e = this.engine;
+        if (e != null) {
+            e.__surfaceCleanupOnEntityDestroy(uuid);
+        }
         ecs.destroyEntity(uuid);
         if (log.isDebugEnabled()) log.debug("[entity] destroyed uuid={}", uuid);
     }
