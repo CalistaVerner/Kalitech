@@ -70,6 +70,35 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         this.post = new PostModule(app, assets, log);
     }
 
+    public void __resetWorldCache(String reason) {
+        ambR = Float.NaN;
+        ambG = Float.NaN;
+        ambB = Float.NaN;
+        ambI = Float.NaN;
+
+        sunDx = Float.NaN;
+        sunDy = Float.NaN;
+        sunDz = Float.NaN;
+        sunR = Float.NaN;
+        sunG = Float.NaN;
+        sunB = Float.NaN;
+        sunI = Float.NaN;
+
+        moonDx = Float.NaN;
+        moonDy = Float.NaN;
+        moonDz = Float.NaN;
+        moonR = Float.NaN;
+        moonG = Float.NaN;
+        moonB = Float.NaN;
+        moonI = Float.NaN;
+
+        final String why = (reason == null || reason.isBlank()) ? "worldReset" : reason.trim();
+        onJmeSyncVoid("render.__resetWorldCache", () -> {
+            if (post != null) post.resetCache();
+            if (shadows != null) shadows.clearShadowMaps(why);
+        });
+    }
+
     @HostAccess.Export
     @Override
     public void ensureScene() {

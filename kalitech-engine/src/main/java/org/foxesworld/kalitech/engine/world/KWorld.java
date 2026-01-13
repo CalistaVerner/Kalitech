@@ -2,6 +2,7 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world;
 
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.world.systems.*;
 
 import java.util.ArrayList;
@@ -161,6 +162,14 @@ public final class KWorld {
                 } catch (Throwable ignored) {
                 }
             }
+        }
+
+        try {
+            if (ctx.api() instanceof EngineApiImpl impl) {
+                impl.__resetWorldState(why);
+            }
+        } catch (Throwable t) {
+            ctx.log().warn("[world:{}] reset failed: {}", name, t.toString());
         }
 
         start(ctx);
