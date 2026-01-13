@@ -223,15 +223,35 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
     @Override
     public String findByName(String name) {
-        if (name == null || name.isBlank())
+        if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("world.findByName(name): name is required");
-        throw new UnsupportedOperationException("world.findByName is not implemented on UUID-only ECS. Provide an index/search in EcsWorld and wire it here.");
+        }
+
+        final String target = name.trim();
+        final String[] found = new String[1];
+
+        ecs.components().forEachByName("Name", (entityId, value) -> {
+            if (found[0] != null) return;
+            if (!(value instanceof String v)) return;
+            if (!target.equals(v)) return;
+
+            String uuid = ecs.uuids().uuidStringOf(entityId);
+            if (uuid != null && !uuid.isBlank()) found[0] = uuid;
+        });
+
+        return (found[0] != null) ? found[0] : "";
     }
 
     @Override
     public void destroy(String uuid) {
-        if (uuid == null || uuid.isBlank()) throw new IllegalArgumentException("world.destroy(uuid): uuid is required");
-        throw new UnsupportedOperationException("world.destroy is not implemented on UUID-only ECS. Provide ecs.destroyEntity(uuid) and wire it here.");
+        if (uuid == null || uuid.isBlank()) {
+            throw new IllegalArgumentException("world.destroy(uuid): uuid is required");
+        }
+
+        engine.__surfaceCleanupOnEntityDestroy(uuid);
+        ecs.destroyEntity(uuid);
+        emit("entity.destroyed", Map.of("uuid", uuid));
+        if (log.isDebugEnabled()) log.debug("[world.destroy] uuid={}", uuid);
     }
 
     private WorldAppState requireWorldAppState() {

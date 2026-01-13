@@ -179,10 +179,10 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
             if (attach) api.attachToRoot(h);
 
             if (cfg != null && !cfg.isNull()) {
-                Value ent = member(cfg, "entityId");
-                if (ent != null && !ent.isNull() && ent.fitsInInt()) {
-                    int entityId = ent.asInt();
-                    if (entityId > 0) api.attachEntity(h, entityId);
+                Value ent = member(cfg, "entityUuid");
+                if (ent != null && !ent.isNull() && ent.isString()) {
+                    String uuid = ent.asString();
+                    if (uuid != null && !uuid.isBlank()) api.attachEntity(h, uuid);
                 }
             }
 

@@ -358,12 +358,6 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
-    @Override
-    public void attach(SurfaceApi.SurfaceHandle handle, int entityId) {
-        throw new IllegalStateException("terrain.attach(handle, entityId) removed (UUID-only). Use terrain.attachEntity(handle, uuid).");
-    }
-
-    @HostAccess.Export
     public Object physics(SurfaceApi.SurfaceHandle surface, Value cfg) {
         requireHandle(surface, "terrain.physics");
         return physics.bind(surface, cfg);
@@ -374,6 +368,7 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @Override
     public void attachEntity(SurfaceApi.SurfaceHandle handle, Object entityUuid) {
         requireHandle(handle, "terrain.attachEntity");
         engine.surface().attachEntity(handle, entityUuid);
