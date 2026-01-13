@@ -1,190 +1,806 @@
-[14:05:58.572][INFO][KalitechApplication] KALITECH CORE 0.2.7-SNAPSHOT
-[14:05:58.574][INFO][KalitechApplication] Java: 17.0.15
-[14:05:58.574][INFO][KalitechApplication] OS: Windows 10 10.0
-[14:05:58.585][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@1845c588
-[14:05:58.592][INFO][GuiGlobals] Lemur build date:20220405
-[14:05:58.592][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[14:05:59.504][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[14:06:00.129][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[14:06:00.173][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
-[14:06:00.174][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
-[14:06:00.175][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
-[14:06:00.176][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
-[14:06:00.176][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
-[14:06:00.204][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
-[14:06:00.214][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
-[14:06:00.214][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
-[14:06:00.219][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
-[14:06:00.219][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
-[14:06:00.221][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
-[14:06:00.226][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
-[14:06:00.227][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' uuidsBound=true
-[14:06:00.228][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
-[14:06:00.232][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
-[14:06:00.233][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
-[14:06:00.234][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
-[14:06:00.235][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
-[14:06:00.235][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
-[14:06:00.236][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
-[14:06:00.236][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
-[14:06:00.237][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
-[14:06:00.239][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
-[14:06:00.240][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[14:06:00.307][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[14:06:00.503][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[14:06:00.503][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
-[14:06:00.504][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
-[14:06:00.505][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
-[14:06:00.507][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
-[14:06:01.266][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
-[14:06:01.268][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
-[14:06:01.367][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
-[14:06:01.453][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
-[14:06:01.456][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
-[14:06:01.458][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
-[14:06:01.477][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
-[14:06:01.481][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
-[14:06:01.488][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
-[14:06:01.493][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
-[14:06:01.495][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
-[14:06:01.577][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
-[14:06:01.592][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
-[14:06:01.738][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
-[14:06:01.741][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
-[14:06:01.755][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
-[14:06:01.757][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
-[14:06:01.761][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
-[14:06:01.771][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
-[14:06:01.781][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
-[14:06:01.783][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
-[14:06:01.787][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
-[14:06:01.796][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
-[14:06:01.798][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
-[14:06:01.801][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
-[14:06:01.810][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
-[14:06:01.813][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
-[14:06:01.818][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
-[14:06:01.828][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
-[14:06:01.831][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
-[14:06:01.839][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
-[14:06:01.841][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
-[14:06:01.843][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
-[14:06:01.852][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
-[14:06:01.864][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
-[14:06:01.864][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
-[14:06:01.876][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
-[14:06:01.877][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
-[14:06:01.888][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
-[14:06:01.889][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
-[14:06:01.892][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
-[14:06:01.894][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
-[14:06:01.900][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
-[14:06:01.904][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
-[14:06:01.908][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
-[14:06:01.914][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
-[14:06:01.915][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
-[14:06:01.917][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
-[14:06:01.920][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
-[14:06:01.925][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
-[14:06:01.929][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
-[14:06:01.935][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
-[14:06:01.940][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
-[14:06:01.941][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
-[14:06:01.946][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
-[14:06:01.949][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
-[14:06:01.954][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
-[14:06:01.956][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
-[14:06:01.959][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.3' from='@module/Controllers/Controllers'
-[14:06:01.960][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
-[14:06:01.970][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
-[14:06:01.971][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
-[14:06:01.975][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
-[14:06:01.976][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
-[14:06:01.977][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (710 ms)
-[14:06:01.980][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
-[14:06:01.985][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[14:06:01.986][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
-[14:06:01.986][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
-[14:06:01.987][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
-[14:06:01.987][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
-[14:06:01.988][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
-[14:06:01.988][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
-[14:06:01.988][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
-[14:06:01.988][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
-[14:06:01.989][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
-[14:06:01.989][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
-[14:06:01.989][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
-[14:06:01.990][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
-[14:06:01.990][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
-[14:06:01.990][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
-[14:06:01.991][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
-[14:06:01.991][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
-[14:06:01.991][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
-[14:06:01.992][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
-[14:06:01.992][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
-[14:06:01.992][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
-[14:06:01.993][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
-[14:06:01.993][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
-[14:06:01.994][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
-[14:06:01.994][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
-[14:06:01.994][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[14:06:01.996][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[14:06:01.998][INFO][PhysicsApiImpl] [physics] cleared all bodies
-[14:06:02.029][INFO][WorldAppState] [World] created 'main'
-[14:06:02.058][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
-[14:06:02.076][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
-[14:06:02.084][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
-[14:06:02.086][INFO][LightRigModule] RenderApi: ambient created
-[14:06:02.087][INFO][LightRigModule] RenderApi: sun created
-[14:06:02.087][INFO][LightRigModule] RenderApi: moon created
-[14:06:02.088][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
-[14:06:02.088][INFO][RenderApiImpl] RenderApi: scene ensured
-[14:06:02.089][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
-[14:06:02.100][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
-[14:06:02.117][INFO][RenderApiImpl] RenderApi: shadows enabled mapSize=2048 splits=4 lambda=0.65 intensity=0.65 primary=sun snap=true pcss=false
-[14:06:02.158][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
-[14:06:03.369][INFO][RenderApiImpl] RenderApi: fog filter created
-[14:06:03.375][DEBUG][EngineApiImpl] [sky] EVENTS wired
-[14:06:03.378][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
-[14:06:03.378][INFO][EngineApiImpl] [scene] init
-[14:06:03.874][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
-[14:06:03.900][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
-[14:06:03.925][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=0.0 kinematic=false lockRotation=false
-[14:06:03.967][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
-[14:06:03.996][DEBUG][EntityApiImpl] [entity] created uuid=c156be9f-eb1b-b5db-f6ba-7e3817ea73a3 name='player'
-[14:06:04.000][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box worldPos=(135.0, -10.0, -334.0)
-[14:06:04.003][DEBUG][SurfaceRegistry] [surface] attached surfaceId=2 entityUuid=c156be9f-eb1b-b5db-f6ba-7e3817ea73a3
-[14:06:04.017][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=80.0 kinematic=false lockRotation=false
-[14:06:04.043][INFO][WorldApiImpl] [world.create] name=main systems=3 start=true
-[14:06:04.043][INFO][RuntimeAppState] [Runtime] app started
-[14:06:04.112][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2533
-[14:06:04.117][DEBUG][EngineApiImpl] [sky] tick time01=0.2533 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:04.122][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
-[14:06:04.127][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
-[14:06:04.129][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
-[14:06:04.131][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
-[14:06:04.134][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
-[14:06:04.140][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
-[14:06:04.142][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
-[14:06:04.149][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
-[14:06:04.154][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
-[14:06:05.106][DEBUG][EngineApiImpl] [sky] tick time01=0.2541 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:06.105][DEBUG][EngineApiImpl] [sky] tick time01=0.2550 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:07.121][DEBUG][EngineApiImpl] [sky] tick time01=0.2558 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:08.138][DEBUG][EngineApiImpl] [sky] tick time01=0.2567 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:09.138][DEBUG][EngineApiImpl] [sky] tick time01=0.2575 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:10.155][DEBUG][EngineApiImpl] [sky] tick time01=0.2583 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:11.171][DEBUG][EngineApiImpl] [sky] tick time01=0.2592 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:12.171][DEBUG][EngineApiImpl] [sky] tick time01=0.2600 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:13.172][DEBUG][EngineApiImpl] [sky] tick time01=0.2609 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:14.188][DEBUG][EngineApiImpl] [sky] tick time01=0.2617 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:15.188][DEBUG][EngineApiImpl] [sky] tick time01=0.2625 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:16.189][DEBUG][EngineApiImpl] [sky] tick time01=0.2634 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:17.188][DEBUG][EngineApiImpl] [sky] tick time01=0.2642 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:18.189][DEBUG][EngineApiImpl] [sky] tick time01=0.2650 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:19.189][DEBUG][EngineApiImpl] [sky] tick time01=0.2659 dayFactor=1.0000 primary=sun cfgPath=domain:config
-[14:06:19.440][INFO][ScriptRuntime] Closing ScriptRuntime
-[14:06:19.448][INFO][RuntimeAppState] [Runtime] stopped
-[14:06:19.453][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/sky/index.js
-[14:06:19.454][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/environment/world/world.js
-[14:06:19.454][DEBUG][JsWorldSystem] [JsWorldSystem] cancelled module=Scripts/player/index.js
+[12:52:23.410][INFO][KalitechApplication] KALITECH CORE 0.2.7-SNAPSHOT
+[12:52:23.412][INFO][KalitechApplication] Java: 17.0.15
+[12:52:23.413][INFO][KalitechApplication] OS: Windows 10 10.0
+[12:52:23.425][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@2dae0ccf
+[12:52:23.434][INFO][GuiGlobals] Lemur build date:20220405
+[12:52:23.435][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[12:52:24.582][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[12:52:25.209][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[12:52:25.255][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
+[12:52:25.256][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
+[12:52:25.257][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
+[12:52:25.258][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
+[12:52:25.258][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
+[12:52:25.286][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
+[12:52:25.295][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
+[12:52:25.296][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
+[12:52:25.298][INFO][RenderApiImpl] [shadow] auto-reattach state attached
+[12:52:25.300][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
+[12:52:25.301][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
+[12:52:25.302][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
+[12:52:25.307][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
+[12:52:25.309][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' uuidsBound=true
+[12:52:25.309][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
+[12:52:25.314][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
+[12:52:25.315][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
+[12:52:25.315][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
+[12:52:25.317][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.OBJLoader extensions=obj,mtl
+[12:52:25.317][INFO][MeshApiImpl] MeshApi: registered loader=com.jme3.scene.plugins.fbx.FbxLoader extensions=fbx
+[12:52:25.317][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
+[12:52:25.318][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
+[12:52:25.319][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
+[12:52:25.320][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
+[12:52:25.322][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[12:52:25.390][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[12:52:25.579][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[12:52:25.579][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
+[12:52:25.580][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
+[12:52:25.581][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
+[12:52:25.583][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
+[12:52:26.351][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
+[12:52:26.353][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
+[12:52:26.454][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
+[12:52:26.538][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
+[12:52:26.541][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
+[12:52:26.544][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
+[12:52:26.563][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
+[12:52:26.568][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
+[12:52:26.575][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
+[12:52:26.578][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
+[12:52:26.582][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
+[12:52:26.663][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
+[12:52:26.679][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
+[12:52:26.819][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
+[12:52:26.821][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
+[12:52:26.835][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
+[12:52:26.837][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
+[12:52:26.840][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
+[12:52:26.851][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
+[12:52:26.861][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
+[12:52:26.862][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
+[12:52:26.867][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
+[12:52:26.876][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
+[12:52:26.878][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
+[12:52:26.881][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
+[12:52:26.892][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
+[12:52:26.895][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
+[12:52:26.902][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
+[12:52:26.911][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
+[12:52:26.915][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
+[12:52:26.923][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
+[12:52:26.925][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
+[12:52:26.927][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
+[12:52:26.937][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
+[12:52:26.948][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
+[12:52:26.949][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
+[12:52:26.961][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
+[12:52:26.961][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
+[12:52:26.971][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
+[12:52:26.971][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
+[12:52:26.975][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
+[12:52:26.976][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
+[12:52:26.983][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
+[12:52:26.986][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
+[12:52:26.990][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
+[12:52:26.996][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
+[12:52:26.997][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
+[12:52:26.998][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
+[12:52:27.002][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
+[12:52:27.007][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
+[12:52:27.010][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
+[12:52:27.015][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
+[12:52:27.020][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
+[12:52:27.021][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
+[12:52:27.026][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
+[12:52:27.030][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
+[12:52:27.033][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
+[12:52:27.036][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
+[12:52:27.040][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.5' from='@module/Controllers/Controllers'
+[12:52:27.040][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
+[12:52:27.049][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
+[12:52:27.050][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
+[12:52:27.054][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
+[12:52:27.055][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
+[12:52:27.055][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (705 ms)
+[12:52:27.059][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
+[12:52:27.063][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[12:52:27.064][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
+[12:52:27.065][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
+[12:52:27.065][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
+[12:52:27.065][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
+[12:52:27.066][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
+[12:52:27.066][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
+[12:52:27.067][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
+[12:52:27.067][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
+[12:52:27.067][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
+[12:52:27.068][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
+[12:52:27.068][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
+[12:52:27.068][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
+[12:52:27.069][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
+[12:52:27.069][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
+[12:52:27.070][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
+[12:52:27.070][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
+[12:52:27.070][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
+[12:52:27.071][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
+[12:52:27.071][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
+[12:52:27.071][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
+[12:52:27.072][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
+[12:52:27.072][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
+[12:52:27.073][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
+[12:52:27.073][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
+[12:52:27.073][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[12:52:27.076][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[12:52:27.078][INFO][PhysicsApiImpl] [physics] cleared all bodies
+[12:52:27.111][INFO][WorldAppState] [World] created 'main'
+[12:52:27.139][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[12:52:27.158][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[12:52:27.169][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[12:52:27.172][INFO][LightRigModule] RenderApi: ambient created
+[12:52:27.172][INFO][LightRigModule] RenderApi: sun created
+[12:52:27.172][INFO][LightRigModule] RenderApi: moon created
+[12:52:27.174][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
+[12:52:27.174][INFO][RenderApiImpl] RenderApi: scene ensured
+[12:52:27.175][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[12:52:27.190][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[12:52:27.200][INFO][RenderApiImpl] [shadow] snapEnabled=true
+[12:52:27.209][INFO][RenderApiImpl] [shadow] attached vp='Default' cam=2130834439 scenes=1
+[12:52:27.209][INFO][RenderApiImpl] [shadow][vpDump] afterAttach PRE:
+[12:52:27.209][INFO][RenderApiImpl] [shadow][vpDump] afterAttach MAIN:
+[12:52:27.209][INFO][RenderApiImpl] [shadow][vpDump]   name=Default camHash=2130834439 scenes=1 procs=2
+[12:52:27.209][INFO][RenderApiImpl] [shadow][vpDump] afterAttach POST:
+[12:52:27.209][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:27.210][INFO][RenderApiImpl] [shadow][vpDump] afterAttach GUI:
+[12:52:27.210][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:27.251][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
+[12:52:28.513][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[12:52:28.516][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[12:52:28.516][INFO][EngineApiImpl] [scene] init
+[12:52:29.028][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[12:52:29.054][INFO][PhysicsApiImpl] [physics] tick listener bound (collision begin/stay/end + postStep)
+[12:52:29.079][DEBUG][PhysicsApiImpl] [physics] body created id=1 surfaceId=1 mass=0.0 kinematic=false lockRotation=false
+[12:52:29.084][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[12:52:29.121][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.0954165, -300.0)
+[12:52:29.123][DEBUG][PhysicsApiImpl] [physics] body created id=2 surfaceId=2 mass=1164.0647 kinematic=false lockRotation=false
+[12:52:29.125][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 6.2332354, -300.0)
+[12:52:29.125][DEBUG][PhysicsApiImpl] [physics] body created id=3 surfaceId=3 mass=1058.4163 kinematic=false lockRotation=false
+[12:52:29.126][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 10.0511, -300.0)
+[12:52:29.127][DEBUG][PhysicsApiImpl] [physics] body created id=4 surfaceId=4 mass=630.7517 kinematic=false lockRotation=false
+[12:52:29.128][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 13.552049, -300.0)
+[12:52:29.128][DEBUG][PhysicsApiImpl] [physics] body created id=5 surfaceId=5 mass=567.8817 kinematic=false lockRotation=false
+[12:52:29.130][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 16.810041, -300.0)
+[12:52:29.130][DEBUG][PhysicsApiImpl] [physics] body created id=6 surfaceId=6 mass=367.8537 kinematic=false lockRotation=false
+[12:52:29.131][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 19.67272, -300.0)
+[12:52:29.131][DEBUG][PhysicsApiImpl] [physics] body created id=7 surfaceId=7 mass=219.97194 kinematic=false lockRotation=false
+[12:52:29.133][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 22.303852, -300.0)
+[12:52:29.133][DEBUG][PhysicsApiImpl] [physics] body created id=8 surfaceId=8 mass=203.01488 kinematic=false lockRotation=false
+[12:52:29.134][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 24.755535, -300.0)
+[12:52:29.135][DEBUG][PhysicsApiImpl] [physics] body created id=9 surfaceId=9 mass=130.60257 kinematic=false lockRotation=false
+[12:52:29.136][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 27.043713, -300.0)
+[12:52:29.136][DEBUG][PhysicsApiImpl] [physics] body created id=10 surfaceId=10 mass=125.29258 kinematic=false lockRotation=false
+[12:52:29.137][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 29.274485, -300.0)
+[12:52:29.138][DEBUG][PhysicsApiImpl] [physics] body created id=11 surfaceId=11 mass=108.77419 kinematic=false lockRotation=false
+[12:52:29.139][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 31.334326, -300.0)
+[12:52:29.139][DEBUG][PhysicsApiImpl] [physics] body created id=12 surfaceId=12 mass=70.20335 kinematic=false lockRotation=false
+[12:52:29.141][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.4609969, -300.0)
+[12:52:29.142][DEBUG][PhysicsApiImpl] [physics] body created id=13 surfaceId=13 mass=2121.2122 kinematic=false lockRotation=false
+[12:52:29.143][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 7.341179, -300.0)
+[12:52:29.143][DEBUG][PhysicsApiImpl] [physics] body created id=14 surfaceId=14 mass=1989.348 kinematic=false lockRotation=false
+[12:52:29.145][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 12.104782, -300.0)
+[12:52:29.145][DEBUG][PhysicsApiImpl] [physics] body created id=15 surfaceId=15 mass=1768.924 kinematic=false lockRotation=false
+[12:52:29.147][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 16.608507, -300.0)
+[12:52:29.147][DEBUG][PhysicsApiImpl] [physics] body created id=16 surfaceId=16 mass=1301.6118 kinematic=false lockRotation=false
+[12:52:29.149][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 20.720531, -300.0)
+[12:52:29.149][DEBUG][PhysicsApiImpl] [physics] body created id=17 surfaceId=17 mass=896.1695 kinematic=false lockRotation=false
+[12:52:29.150][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 24.140417, -300.0)
+[12:52:29.151][DEBUG][PhysicsApiImpl] [physics] body created id=18 surfaceId=18 mass=313.8681 kinematic=false lockRotation=false
+[12:52:29.152][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 26.794643, -300.0)
+[12:52:29.153][DEBUG][PhysicsApiImpl] [physics] body created id=19 surfaceId=19 mass=145.9934 kinematic=false lockRotation=false
+[12:52:29.154][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 28.986624, -300.0)
+[12:52:29.154][DEBUG][PhysicsApiImpl] [physics] body created id=20 surfaceId=20 mass=80.59141 kinematic=false lockRotation=false
+[12:52:29.155][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 30.96535, -300.0)
+[12:52:29.156][DEBUG][PhysicsApiImpl] [physics] body created id=21 surfaceId=21 mass=72.09217 kinematic=false lockRotation=false
+[12:52:29.157][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 32.738712, -300.0)
+[12:52:29.158][DEBUG][PhysicsApiImpl] [physics] body created id=22 surfaceId=22 mass=36.05713 kinematic=false lockRotation=false
+[12:52:29.159][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 34.296947, -300.0)
+[12:52:29.159][DEBUG][PhysicsApiImpl] [physics] body created id=23 surfaceId=23 mass=30.033451 kinematic=false lockRotation=false
+[12:52:29.161][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 2.3712032, -300.0)
+[12:52:29.161][DEBUG][PhysicsApiImpl] [physics] body created id=24 surfaceId=24 mass=1845.6752 kinematic=false lockRotation=false
+[12:52:29.162][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 6.517089, -300.0)
+[12:52:29.163][DEBUG][PhysicsApiImpl] [physics] body created id=25 surfaceId=25 mass=629.7323 kinematic=false lockRotation=false
+[12:52:29.164][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 9.88449, -300.0)
+[12:52:29.164][DEBUG][PhysicsApiImpl] [physics] body created id=26 surfaceId=26 mass=423.44922 kinematic=false lockRotation=false
+[12:52:29.165][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 12.930519, -300.0)
+[12:52:29.166][DEBUG][PhysicsApiImpl] [physics] body created id=27 surfaceId=27 mass=303.2195 kinematic=false lockRotation=false
+[12:52:29.166][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 15.805916, -300.0)
+[12:52:29.167][DEBUG][PhysicsApiImpl] [physics] body created id=28 surfaceId=28 mass=280.21353 kinematic=false lockRotation=false
+[12:52:29.168][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 18.315063, -300.0)
+[12:52:29.168][DEBUG][PhysicsApiImpl] [physics] body created id=29 surfaceId=29 mass=106.57039 kinematic=false lockRotation=false
+[12:52:29.169][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 20.48747, -300.0)
+[12:52:29.170][DEBUG][PhysicsApiImpl] [physics] body created id=30 surfaceId=30 mass=105.97178 kinematic=false lockRotation=false
+[12:52:29.171][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 22.6375, -300.0)
+[12:52:29.171][DEBUG][PhysicsApiImpl] [physics] body created id=31 surfaceId=31 mass=98.95669 kinematic=false lockRotation=false
+[12:52:29.172][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 24.705399, -300.0)
+[12:52:29.172][DEBUG][PhysicsApiImpl] [physics] body created id=32 surfaceId=32 mass=80.10648 kinematic=false lockRotation=false
+[12:52:29.173][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 26.452614, -300.0)
+[12:52:29.173][DEBUG][PhysicsApiImpl] [physics] body created id=33 surfaceId=33 mass=28.062683 kinematic=false lockRotation=false
+[12:52:29.174][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 27.78692, -300.0)
+[12:52:29.175][DEBUG][PhysicsApiImpl] [physics] body created id=34 surfaceId=34 mass=12.6506815 kinematic=false lockRotation=false
+[12:52:29.176][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.411108, -300.0)
+[12:52:29.177][DEBUG][PhysicsApiImpl] [physics] body created id=35 surfaceId=35 mass=1964.5978 kinematic=false lockRotation=false
+[12:52:29.178][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 7.1512814, -300.0)
+[12:52:29.178][DEBUG][PhysicsApiImpl] [physics] body created id=36 surfaceId=36 mass=1726.0182 kinematic=false lockRotation=false
+[12:52:29.179][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 11.397888, -300.0)
+[12:52:29.179][DEBUG][PhysicsApiImpl] [physics] body created id=37 surfaceId=37 mass=837.8944 kinematic=false lockRotation=false
+[12:52:29.180][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 15.126729, -300.0)
+[12:52:29.181][DEBUG][PhysicsApiImpl] [physics] body created id=38 surfaceId=38 mass=678.9208 kinematic=false lockRotation=false
+[12:52:29.181][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 18.62644, -300.0)
+[12:52:29.182][DEBUG][PhysicsApiImpl] [physics] body created id=39 surfaceId=39 mass=524.3491 kinematic=false lockRotation=false
+[12:52:29.183][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 21.841402, -300.0)
+[12:52:29.183][DEBUG][PhysicsApiImpl] [physics] body created id=40 surfaceId=40 mass=362.66684 kinematic=false lockRotation=false
+[12:52:29.184][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 24.829542, -300.0)
+[12:52:29.184][DEBUG][PhysicsApiImpl] [physics] body created id=41 surfaceId=41 mass=309.54788 kinematic=false lockRotation=false
+[12:52:29.185][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 27.620518, -300.0)
+[12:52:29.185][DEBUG][PhysicsApiImpl] [physics] body created id=42 surfaceId=42 mass=219.50168 kinematic=false lockRotation=false
+[12:52:29.186][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 30.174055, -300.0)
+[12:52:29.187][DEBUG][PhysicsApiImpl] [physics] body created id=43 surfaceId=43 mass=163.05145 kinematic=false lockRotation=false
+[12:52:29.187][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 32.58668, -300.0)
+[12:52:29.188][DEBUG][PhysicsApiImpl] [physics] body created id=44 surfaceId=44 mass=146.61972 kinematic=false lockRotation=false
+[12:52:29.189][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 34.590214, -300.0)
+[12:52:29.189][DEBUG][PhysicsApiImpl] [physics] body created id=45 surfaceId=45 mass=38.557648 kinematic=false lockRotation=false
+[12:52:29.191][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 1.9843149, -300.0)
+[12:52:29.191][DEBUG][PhysicsApiImpl] [physics] body created id=46 surfaceId=46 mass=951.04767 kinematic=false lockRotation=false
+[12:52:29.192][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 5.7389383, -300.0)
+[12:52:29.192][DEBUG][PhysicsApiImpl] [physics] body created id=47 surfaceId=47 mass=624.0391 kinematic=false lockRotation=false
+[12:52:29.193][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 9.102585, -300.0)
+[12:52:29.194][DEBUG][PhysicsApiImpl] [physics] body created id=48 surfaceId=48 mass=424.05188 kinematic=false lockRotation=false
+[12:52:29.194][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 12.035522, -300.0)
+[12:52:29.195][DEBUG][PhysicsApiImpl] [physics] body created id=49 surfaceId=49 mass=225.65955 kinematic=false lockRotation=false
+[12:52:29.196][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 14.486943, -300.0)
+[12:52:29.196][DEBUG][PhysicsApiImpl] [physics] body created id=50 surfaceId=50 mass=115.49005 kinematic=false lockRotation=false
+[12:52:29.197][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 16.501162, -300.0)
+[12:52:29.198][DEBUG][PhysicsApiImpl] [physics] body created id=51 surfaceId=51 mass=55.100864 kinematic=false lockRotation=false
+[12:52:29.199][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 18.266903, -300.0)
+[12:52:29.199][DEBUG][PhysicsApiImpl] [physics] body created id=52 surfaceId=52 mass=47.16644 kinematic=false lockRotation=false
+[12:52:29.200][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 19.943819, -300.0)
+[12:52:29.200][DEBUG][PhysicsApiImpl] [physics] body created id=53 surfaceId=53 mass=38.312885 kinematic=false lockRotation=false
+[12:52:29.201][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 21.537762, -300.0)
+[12:52:29.201][DEBUG][PhysicsApiImpl] [physics] body created id=54 surfaceId=54 mass=33.128593 kinematic=false lockRotation=false
+[12:52:29.202][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 23.052414, -300.0)
+[12:52:29.202][DEBUG][PhysicsApiImpl] [physics] body created id=55 surfaceId=55 mass=26.811365 kinematic=false lockRotation=false
+[12:52:29.203][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 24.430805, -300.0)
+[12:52:29.204][DEBUG][PhysicsApiImpl] [physics] body created id=56 surfaceId=56 mass=17.05563 kinematic=false lockRotation=false
+[12:52:29.205][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.4054785, -300.0)
+[12:52:29.206][DEBUG][PhysicsApiImpl] [physics] body created id=57 surfaceId=57 mass=1947.4839 kinematic=false lockRotation=false
+[12:52:29.206][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 7.121589, -300.0)
+[12:52:29.207][DEBUG][PhysicsApiImpl] [physics] body created id=58 surfaceId=58 mass=1675.5367 kinematic=false lockRotation=false
+[12:52:29.208][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 11.704447, -300.0)
+[12:52:29.208][DEBUG][PhysicsApiImpl] [physics] body created id=59 surfaceId=59 mass=1573.9038 kinematic=false lockRotation=false
+[12:52:29.209][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 16.16055, -300.0)
+[12:52:29.210][DEBUG][PhysicsApiImpl] [physics] body created id=60 surfaceId=60 mass=1357.6049 kinematic=false lockRotation=false
+[12:52:29.210][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 20.48952, -300.0)
+[12:52:29.211][DEBUG][PhysicsApiImpl] [physics] body created id=61 surfaceId=61 mass=1270.0164 kinematic=false lockRotation=false
+[12:52:29.212][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 24.406809, -300.0)
+[12:52:29.212][DEBUG][PhysicsApiImpl] [physics] body created id=62 surfaceId=62 mass=626.4925 kinematic=false lockRotation=false
+[12:52:29.213][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 27.736738, -300.0)
+[12:52:29.213][DEBUG][PhysicsApiImpl] [physics] body created id=63 surfaceId=63 mass=390.43845 kinematic=false lockRotation=false
+[12:52:29.214][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 30.847889, -300.0)
+[12:52:29.215][DEBUG][PhysicsApiImpl] [physics] body created id=64 surfaceId=64 mass=386.50705 kinematic=false lockRotation=false
+[12:52:29.216][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 33.798435, -300.0)
+[12:52:29.216][DEBUG][PhysicsApiImpl] [physics] body created id=65 surfaceId=65 mass=262.7758 kinematic=false lockRotation=false
+[12:52:29.217][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 36.42703, -300.0)
+[12:52:29.218][DEBUG][PhysicsApiImpl] [physics] body created id=66 surfaceId=66 mass=166.58223 kinematic=false lockRotation=false
+[12:52:29.218][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 38.817635, -300.0)
+[12:52:29.219][DEBUG][PhysicsApiImpl] [physics] body created id=67 surfaceId=67 mass=134.05547 kinematic=false lockRotation=false
+[12:52:29.270][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[12:52:29.306][DEBUG][EntityApiImpl] [entity] created uuid=40beea23-3cab-eba4-bc1e-3f76503ec685 name='player'
+[12:52:29.309][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=box name=box worldPos=(135.0, -10.0, -334.0)
+[12:52:29.313][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=40beea23-3cab-eba4-bc1e-3f76503ec685
+[12:52:29.327][DEBUG][PhysicsApiImpl] [physics] body created id=68 surfaceId=68 mass=80.0 kinematic=false lockRotation=false
+[12:52:29.354][INFO][WorldApiImpl] [world.create] name=main systems=4 start=true
+[12:52:29.355][INFO][RuntimeAppState] [Runtime] app started
+[12:52:29.471][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2535
+[12:52:29.475][DEBUG][EngineApiImpl] [sky] tick time01=0.2535 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:29.479][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
+[12:52:29.483][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
+[12:52:29.484][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
+[12:52:29.485][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
+[12:52:29.488][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
+[12:52:29.494][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
+[12:52:29.496][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
+[12:52:29.504][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
+[12:52:29.508][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
+[12:52:30.466][DEBUG][EngineApiImpl] [sky] tick time01=0.2544 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:31.482][DEBUG][EngineApiImpl] [sky] tick time01=0.2552 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:32.499][WARN][WorldAppState] [World] F5 hot reload
+[12:52:32.501][INFO][EngineApiImpl] [sky] destroy
+[12:52:32.505][DEBUG][PhysicsApiImpl] [physics] body removed id=68 surfaceId=68
+[12:52:32.506][DEBUG][EntityApiImpl] [entity] destroyed uuid=40beea23-3cab-eba4-bc1e-3f76503ec685
+[12:52:32.507][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/sky/index.js
+[12:52:32.507][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/world/world.js
+[12:52:32.507][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/towers.js
+[12:52:32.507][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/player/index.js
+[12:52:32.508][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[12:52:32.509][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[12:52:32.509][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[12:52:32.510][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[12:52:32.510][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[12:52:32.510][INFO][RenderApiImpl] [shadow] snapEnabled=true
+[12:52:32.511][INFO][RenderApiImpl] [shadow] attached vp='Default' cam=2130834439 scenes=1
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump] afterAttach PRE:
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump] afterAttach MAIN:
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump]   name=Default camHash=2130834439 scenes=1 procs=2
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump] afterAttach POST:
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump] afterAttach GUI:
+[12:52:32.511][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:32.512][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[12:52:32.512][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[12:52:32.512][INFO][EngineApiImpl] [scene] init
+[12:52:32.670][DEBUG][SurfaceRegistry] [surface] registered surfaceId=69 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[12:52:32.687][DEBUG][PhysicsApiImpl] [physics] body created id=69 surfaceId=69 mass=0.0 kinematic=false lockRotation=false
+[12:52:32.687][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[12:52:32.688][DEBUG][SurfaceRegistry] [surface] registered surfaceId=70 kind=box name=box-0 worldPos=(120.0, 2.4341815, -300.0)
+[12:52:32.689][DEBUG][PhysicsApiImpl] [physics] body created id=70 surfaceId=70 mass=2035.9176 kinematic=false lockRotation=false
+[12:52:32.689][DEBUG][SurfaceRegistry] [surface] registered surfaceId=71 kind=box name=box-1 worldPos=(120.0, 7.281551, -300.0)
+[12:52:32.690][DEBUG][PhysicsApiImpl] [physics] body created id=71 surfaceId=71 mass=1970.9493 kinematic=false lockRotation=false
+[12:52:32.690][DEBUG][SurfaceRegistry] [surface] registered surfaceId=72 kind=box name=box-2 worldPos=(120.0, 11.981171, -300.0)
+[12:52:32.690][DEBUG][PhysicsApiImpl] [physics] body created id=72 surfaceId=72 mass=1610.9421 kinematic=false lockRotation=false
+[12:52:32.691][DEBUG][SurfaceRegistry] [surface] registered surfaceId=73 kind=box name=box-3 worldPos=(120.0, 16.495535, -300.0)
+[12:52:32.691][DEBUG][PhysicsApiImpl] [physics] body created id=73 surfaceId=73 mass=1462.4861 kinematic=false lockRotation=false
+[12:52:32.691][DEBUG][SurfaceRegistry] [surface] registered surfaceId=74 kind=box name=box-4 worldPos=(120.0, 20.856047, -300.0)
+[12:52:32.691][DEBUG][PhysicsApiImpl] [physics] body created id=74 surfaceId=74 mass=1242.6711 kinematic=false lockRotation=false
+[12:52:32.692][DEBUG][SurfaceRegistry] [surface] registered surfaceId=75 kind=box name=box-5 worldPos=(120.0, 24.848423, -300.0)
+[12:52:32.692][DEBUG][PhysicsApiImpl] [physics] body created id=75 surfaceId=75 mass=748.40985 kinematic=false lockRotation=false
+[12:52:32.692][DEBUG][SurfaceRegistry] [surface] registered surfaceId=76 kind=box name=box-6 worldPos=(120.0, 28.504227, -300.0)
+[12:52:32.693][DEBUG][PhysicsApiImpl] [physics] body created id=76 surfaceId=76 mass=658.0413 kinematic=false lockRotation=false
+[12:52:32.693][DEBUG][SurfaceRegistry] [surface] registered surfaceId=77 kind=box name=box-7 worldPos=(120.0, 31.381025, -300.0)
+[12:52:32.693][DEBUG][PhysicsApiImpl] [physics] body created id=77 surfaceId=77 mass=104.39544 kinematic=false lockRotation=false
+[12:52:32.693][DEBUG][SurfaceRegistry] [surface] registered surfaceId=78 kind=box name=box-8 worldPos=(120.0, 33.449715, -300.0)
+[12:52:32.694][DEBUG][PhysicsApiImpl] [physics] body created id=78 surfaceId=78 mass=75.854416 kinematic=false lockRotation=false
+[12:52:32.694][DEBUG][SurfaceRegistry] [surface] registered surfaceId=79 kind=box name=box-9 worldPos=(120.0, 34.996418, -300.0)
+[12:52:32.694][DEBUG][PhysicsApiImpl] [physics] body created id=79 surfaceId=79 mass=10.494394 kinematic=false lockRotation=false
+[12:52:32.695][DEBUG][SurfaceRegistry] [surface] registered surfaceId=80 kind=box name=box-10 worldPos=(120.0, 36.087795, -300.0)
+[12:52:32.695][DEBUG][PhysicsApiImpl] [physics] body created id=80 surfaceId=80 mass=8.913138 kinematic=false lockRotation=false
+[12:52:32.695][DEBUG][SurfaceRegistry] [surface] registered surfaceId=81 kind=box name=box-11 worldPos=(128.0, 2.221114, -300.0)
+[12:52:32.696][DEBUG][PhysicsApiImpl] [physics] body created id=81 surfaceId=81 mass=1445.8688 kinematic=false lockRotation=false
+[12:52:32.696][DEBUG][SurfaceRegistry] [surface] registered surfaceId=82 kind=box name=box-12 worldPos=(128.0, 6.494242, -300.0)
+[12:52:32.696][DEBUG][PhysicsApiImpl] [physics] body created id=82 surfaceId=82 mass=1077.018 kinematic=false lockRotation=false
+[12:52:32.697][DEBUG][SurfaceRegistry] [surface] registered surfaceId=83 kind=box name=box-13 worldPos=(128.0, 10.474803, -300.0)
+[12:52:32.697][DEBUG][PhysicsApiImpl] [physics] body created id=83 surfaceId=83 mass=855.81396 kinematic=false lockRotation=false
+[12:52:32.697][DEBUG][SurfaceRegistry] [surface] registered surfaceId=84 kind=box name=box-14 worldPos=(128.0, 14.1205015, -300.0)
+[12:52:32.698][DEBUG][PhysicsApiImpl] [physics] body created id=84 surfaceId=84 mass=557.8683 kinematic=false lockRotation=false
+[12:52:32.698][DEBUG][SurfaceRegistry] [surface] registered surfaceId=85 kind=box name=box-15 worldPos=(128.0, 17.464916, -300.0)
+[12:52:32.698][DEBUG][PhysicsApiImpl] [physics] body created id=85 surfaceId=85 mass=458.0347 kinematic=false lockRotation=false
+[12:52:32.699][DEBUG][SurfaceRegistry] [surface] registered surfaceId=86 kind=box name=box-16 worldPos=(128.0, 20.240519, -300.0)
+[12:52:32.699][DEBUG][PhysicsApiImpl] [physics] body created id=86 surfaceId=86 mass=129.63556 kinematic=false lockRotation=false
+[12:52:32.699][DEBUG][SurfaceRegistry] [surface] registered surfaceId=87 kind=box name=box-17 worldPos=(128.0, 22.376823, -300.0)
+[12:52:32.699][DEBUG][PhysicsApiImpl] [physics] body created id=87 surfaceId=87 mass=75.874176 kinematic=false lockRotation=false
+[12:52:32.700][DEBUG][SurfaceRegistry] [surface] registered surfaceId=88 kind=box name=box-18 worldPos=(128.0, 24.232101, -300.0)
+[12:52:32.700][DEBUG][PhysicsApiImpl] [physics] body created id=88 surfaceId=88 mass=47.93148 kinematic=false lockRotation=false
+[12:52:32.700][DEBUG][SurfaceRegistry] [surface] registered surfaceId=89 kind=box name=box-19 worldPos=(128.0, 25.911299, -300.0)
+[12:52:32.701][DEBUG][PhysicsApiImpl] [physics] body created id=89 surfaceId=89 mass=38.035847 kinematic=false lockRotation=false
+[12:52:32.701][DEBUG][SurfaceRegistry] [surface] registered surfaceId=90 kind=box name=box-20 worldPos=(128.0, 27.39846, -300.0)
+[12:52:32.701][DEBUG][PhysicsApiImpl] [physics] body created id=90 surfaceId=90 mass=20.06803 kinematic=false lockRotation=false
+[12:52:32.702][DEBUG][SurfaceRegistry] [surface] registered surfaceId=91 kind=box name=box-21 worldPos=(128.0, 28.606615, -300.0)
+[12:52:32.702][DEBUG][PhysicsApiImpl] [physics] body created id=91 surfaceId=91 mass=8.930761 kinematic=false lockRotation=false
+[12:52:32.702][DEBUG][SurfaceRegistry] [surface] registered surfaceId=92 kind=box name=box-22 worldPos=(136.0, 2.2934778, -300.0)
+[12:52:32.703][DEBUG][PhysicsApiImpl] [physics] body created id=92 surfaceId=92 mass=1629.5548 kinematic=false lockRotation=false
+[12:52:32.703][DEBUG][SurfaceRegistry] [surface] registered surfaceId=93 kind=box name=box-23 worldPos=(136.0, 6.731117, -300.0)
+[12:52:32.703][DEBUG][PhysicsApiImpl] [physics] body created id=93 surfaceId=93 mass=1267.9648 kinematic=false lockRotation=false
+[12:52:32.704][DEBUG][SurfaceRegistry] [surface] registered surfaceId=94 kind=box name=box-24 worldPos=(136.0, 10.984909, -300.0)
+[12:52:32.704][DEBUG][PhysicsApiImpl] [physics] body created id=94 surfaceId=94 mass=1193.6809 kinematic=false lockRotation=false
+[12:52:32.704][DEBUG][SurfaceRegistry] [surface] registered surfaceId=95 kind=box name=box-25 worldPos=(136.0, 15.163869, -300.0)
+[12:52:32.705][DEBUG][PhysicsApiImpl] [physics] body created id=95 surfaceId=95 mass=1111.1393 kinematic=false lockRotation=false
+[12:52:32.705][DEBUG][SurfaceRegistry] [surface] registered surfaceId=96 kind=box name=box-26 worldPos=(136.0, 19.155537, -300.0)
+[12:52:32.705][DEBUG][PhysicsApiImpl] [physics] body created id=96 surfaceId=96 mass=845.6717 kinematic=false lockRotation=false
+[12:52:32.705][DEBUG][SurfaceRegistry] [surface] registered surfaceId=97 kind=box name=box-27 worldPos=(136.0, 22.692516, -300.0)
+[12:52:32.706][DEBUG][PhysicsApiImpl] [physics] body created id=97 surfaceId=97 mass=445.16058 kinematic=false lockRotation=false
+[12:52:32.706][DEBUG][SurfaceRegistry] [surface] registered surfaceId=98 kind=box name=box-28 worldPos=(136.0, 25.786343, -300.0)
+[12:52:32.706][DEBUG][PhysicsApiImpl] [physics] body created id=98 surfaceId=98 mass=323.32425 kinematic=false lockRotation=false
+[12:52:32.707][DEBUG][SurfaceRegistry] [surface] registered surfaceId=99 kind=box name=box-29 worldPos=(136.0, 28.390047, -300.0)
+[12:52:32.707][DEBUG][PhysicsApiImpl] [physics] body created id=99 surfaceId=99 mass=120.271545 kinematic=false lockRotation=false
+[12:52:32.707][DEBUG][SurfaceRegistry] [surface] registered surfaceId=100 kind=box name=box-30 worldPos=(136.0, 30.593086, -300.0)
+[12:52:32.707][DEBUG][PhysicsApiImpl] [physics] body created id=100 surfaceId=100 mass=103.61579 kinematic=false lockRotation=false
+[12:52:32.708][DEBUG][SurfaceRegistry] [surface] registered surfaceId=101 kind=box name=box-31 worldPos=(136.0, 32.360966, -300.0)
+[12:52:32.708][DEBUG][PhysicsApiImpl] [physics] body created id=101 surfaceId=101 mass=21.549147 kinematic=false lockRotation=false
+[12:52:32.708][DEBUG][SurfaceRegistry] [surface] registered surfaceId=102 kind=box name=box-32 worldPos=(136.0, 33.719887, -300.0)
+[12:52:32.709][DEBUG][PhysicsApiImpl] [physics] body created id=102 surfaceId=102 mass=19.488615 kinematic=false lockRotation=false
+[12:52:32.709][DEBUG][SurfaceRegistry] [surface] registered surfaceId=103 kind=box name=box-33 worldPos=(144.0, 2.4342291, -300.0)
+[12:52:32.710][DEBUG][PhysicsApiImpl] [physics] body created id=103 surfaceId=103 mass=2036.0668 kinematic=false lockRotation=false
+[12:52:32.710][DEBUG][SurfaceRegistry] [surface] registered surfaceId=104 kind=box name=box-34 worldPos=(144.0, 7.2844715, -300.0)
+[12:52:32.710][DEBUG][PhysicsApiImpl] [physics] body created id=104 surfaceId=104 mass=1979.6011 kinematic=false lockRotation=false
+[12:52:32.710][DEBUG][SurfaceRegistry] [surface] registered surfaceId=105 kind=box name=box-35 worldPos=(144.0, 12.109085, -300.0)
+[12:52:32.711][DEBUG][PhysicsApiImpl] [physics] body created id=105 surfaceId=105 mass=1956.9597 kinematic=false lockRotation=false
+[12:52:32.711][DEBUG][SurfaceRegistry] [surface] registered surfaceId=106 kind=box name=box-36 worldPos=(144.0, 16.765413, -300.0)
+[12:52:32.711][DEBUG][PhysicsApiImpl] [physics] body created id=106 surfaceId=106 mass=1511.5264 kinematic=false lockRotation=false
+[12:52:32.712][DEBUG][SurfaceRegistry] [surface] registered surfaceId=107 kind=box name=box-37 worldPos=(144.0, 20.732327, -300.0)
+[12:52:32.712][DEBUG][PhysicsApiImpl] [physics] body created id=107 surfaceId=107 mass=560.2992 kinematic=false lockRotation=false
+[12:52:32.712][DEBUG][SurfaceRegistry] [surface] registered surfaceId=108 kind=box name=box-38 worldPos=(144.0, 24.002926, -300.0)
+[12:52:32.712][DEBUG][PhysicsApiImpl] [physics] body created id=108 surfaceId=108 mass=384.68942 kinematic=false lockRotation=false
+[12:52:32.713][DEBUG][SurfaceRegistry] [surface] registered surfaceId=109 kind=box name=box-39 worldPos=(144.0, 27.042854, -300.0)
+[12:52:32.713][DEBUG][PhysicsApiImpl] [physics] body created id=109 surfaceId=109 mass=330.80847 kinematic=false lockRotation=false
+[12:52:32.713][DEBUG][SurfaceRegistry] [surface] registered surfaceId=110 kind=box name=box-40 worldPos=(144.0, 29.511124, -300.0)
+[12:52:32.713][DEBUG][PhysicsApiImpl] [physics] body created id=110 surfaceId=110 mass=73.66368 kinematic=false lockRotation=false
+[12:52:32.714][DEBUG][SurfaceRegistry] [surface] registered surfaceId=111 kind=box name=box-41 worldPos=(144.0, 31.393385, -300.0)
+[12:52:32.714][DEBUG][PhysicsApiImpl] [physics] body created id=111 surfaceId=111 mass=55.124622 kinematic=false lockRotation=false
+[12:52:32.714][DEBUG][SurfaceRegistry] [surface] registered surfaceId=112 kind=box name=box-42 worldPos=(144.0, 32.98655, -300.0)
+[12:52:32.714][DEBUG][PhysicsApiImpl] [physics] body created id=112 surfaceId=112 mass=21.68967 kinematic=false lockRotation=false
+[12:52:32.715][DEBUG][SurfaceRegistry] [surface] registered surfaceId=113 kind=box name=box-43 worldPos=(144.0, 34.215195, -300.0)
+[12:52:32.715][DEBUG][PhysicsApiImpl] [physics] body created id=113 surfaceId=113 mass=9.224531 kinematic=false lockRotation=false
+[12:52:32.716][DEBUG][SurfaceRegistry] [surface] registered surfaceId=114 kind=box name=box-44 worldPos=(152.0, 2.1239328, -300.0)
+[12:52:32.716][DEBUG][PhysicsApiImpl] [physics] body created id=114 surfaceId=114 mass=1224.0426 kinematic=false lockRotation=false
+[12:52:32.716][DEBUG][SurfaceRegistry] [surface] registered surfaceId=115 kind=box name=box-45 worldPos=(152.0, 6.1391263, -300.0)
+[12:52:32.717][DEBUG][PhysicsApiImpl] [physics] body created id=115 surfaceId=115 mass=796.23157 kinematic=false lockRotation=false
+[12:52:32.717][DEBUG][SurfaceRegistry] [surface] registered surfaceId=116 kind=box name=box-46 worldPos=(152.0, 9.769093, -300.0)
+[12:52:32.717][DEBUG][PhysicsApiImpl] [physics] body created id=116 surfaceId=116 mass=584.03595 kinematic=false lockRotation=false
+[12:52:32.717][DEBUG][SurfaceRegistry] [surface] registered surfaceId=117 kind=box name=box-47 worldPos=(152.0, 12.841678, -300.0)
+[12:52:32.718][DEBUG][PhysicsApiImpl] [physics] body created id=117 surfaceId=117 mass=222.1958 kinematic=false lockRotation=false
+[12:52:32.718][DEBUG][SurfaceRegistry] [surface] registered surfaceId=118 kind=box name=box-48 worldPos=(152.0, 15.507677, -300.0)
+[12:52:32.718][DEBUG][PhysicsApiImpl] [physics] body created id=118 surfaceId=118 mass=221.1369 kinematic=false lockRotation=false
+[12:52:32.718][DEBUG][SurfaceRegistry] [surface] registered surfaceId=119 kind=box name=box-49 worldPos=(152.0, 18.018225, -300.0)
+[12:52:32.719][DEBUG][PhysicsApiImpl] [physics] body created id=119 surfaceId=119 mass=142.22363 kinematic=false lockRotation=false
+[12:52:32.719][DEBUG][SurfaceRegistry] [surface] registered surfaceId=120 kind=box name=box-50 worldPos=(152.0, 20.265503, -300.0)
+[12:52:32.719][DEBUG][PhysicsApiImpl] [physics] body created id=120 surfaceId=120 mass=100.34185 kinematic=false lockRotation=false
+[12:52:32.720][DEBUG][SurfaceRegistry] [surface] registered surfaceId=121 kind=box name=box-51 worldPos=(152.0, 22.29678, -300.0)
+[12:52:32.720][DEBUG][PhysicsApiImpl] [physics] body created id=121 surfaceId=121 mass=69.15793 kinematic=false lockRotation=false
+[12:52:32.720][DEBUG][SurfaceRegistry] [surface] registered surfaceId=122 kind=box name=box-52 worldPos=(152.0, 24.155533, -300.0)
+[12:52:32.720][DEBUG][PhysicsApiImpl] [physics] body created id=122 surfaceId=122 mass=53.806313 kinematic=false lockRotation=false
+[12:52:32.721][DEBUG][SurfaceRegistry] [surface] registered surfaceId=123 kind=box name=box-53 worldPos=(152.0, 25.767065, -300.0)
+[12:52:32.721][DEBUG][PhysicsApiImpl] [physics] body created id=123 surfaceId=123 mass=24.474476 kinematic=false lockRotation=false
+[12:52:32.721][DEBUG][SurfaceRegistry] [surface] registered surfaceId=124 kind=box name=box-54 worldPos=(152.0, 27.161304, -300.0)
+[12:52:32.721][DEBUG][PhysicsApiImpl] [physics] body created id=124 surfaceId=124 mass=20.455029 kinematic=false lockRotation=false
+[12:52:32.722][DEBUG][SurfaceRegistry] [surface] registered surfaceId=125 kind=box name=box-55 worldPos=(160.0, 2.3996227, -300.0)
+[12:52:32.722][DEBUG][PhysicsApiImpl] [physics] body created id=125 surfaceId=125 mass=1929.8005 kinematic=false lockRotation=false
+[12:52:32.723][DEBUG][SurfaceRegistry] [surface] registered surfaceId=126 kind=box name=box-56 worldPos=(160.0, 7.1845946, -300.0)
+[12:52:32.723][DEBUG][PhysicsApiImpl] [physics] body created id=126 surfaceId=126 mass=1887.2002 kinematic=false lockRotation=false
+[12:52:32.723][DEBUG][SurfaceRegistry] [surface] registered surfaceId=127 kind=box name=box-57 worldPos=(160.0, 11.72349, -300.0)
+[12:52:32.723][DEBUG][PhysicsApiImpl] [physics] body created id=127 surfaceId=127 mass=1288.7355 kinematic=false lockRotation=false
+[12:52:32.724][DEBUG][SurfaceRegistry] [surface] registered surfaceId=128 kind=box name=box-58 worldPos=(160.0, 15.93361, -300.0)
+[12:52:32.724][DEBUG][PhysicsApiImpl] [physics] body created id=128 surfaceId=128 mass=1085.9271 kinematic=false lockRotation=false
+[12:52:32.725][DEBUG][SurfaceRegistry] [surface] registered surfaceId=129 kind=box name=box-59 worldPos=(160.0, 19.98316, -300.0)
+[12:52:32.725][DEBUG][PhysicsApiImpl] [physics] body created id=129 surfaceId=129 mass=966.51746 kinematic=false lockRotation=false
+[12:52:32.726][DEBUG][SurfaceRegistry] [surface] registered surfaceId=130 kind=box name=box-60 worldPos=(160.0, 23.962448, -300.0)
+[12:52:32.726][DEBUG][PhysicsApiImpl] [physics] body created id=130 surfaceId=130 mass=954.5995 kinematic=false lockRotation=false
+[12:52:32.726][DEBUG][SurfaceRegistry] [surface] registered surfaceId=131 kind=box name=box-61 worldPos=(160.0, 27.723589, -300.0)
+[12:52:32.727][DEBUG][PhysicsApiImpl] [physics] body created id=131 surfaceId=131 mass=629.92163 kinematic=false lockRotation=false
+[12:52:32.727][DEBUG][SurfaceRegistry] [surface] registered surfaceId=132 kind=box name=box-62 worldPos=(160.0, 31.01196, -300.0)
+[12:52:32.727][DEBUG][PhysicsApiImpl] [physics] body created id=132 surfaceId=132 mass=351.52658 kinematic=false lockRotation=false
+[12:52:32.727][DEBUG][SurfaceRegistry] [surface] registered surfaceId=133 kind=box name=box-63 worldPos=(160.0, 33.58996, -300.0)
+[12:52:32.728][DEBUG][PhysicsApiImpl] [physics] body created id=133 surfaceId=133 mass=98.88142 kinematic=false lockRotation=false
+[12:52:32.728][DEBUG][SurfaceRegistry] [surface] registered surfaceId=134 kind=box name=box-64 worldPos=(160.0, 35.669796, -300.0)
+[12:52:32.728][DEBUG][PhysicsApiImpl] [physics] body created id=134 surfaceId=134 mass=83.60735 kinematic=false lockRotation=false
+[12:52:32.728][DEBUG][SurfaceRegistry] [surface] registered surfaceId=135 kind=box name=box-65 worldPos=(160.0, 37.550026, -300.0)
+[12:52:32.729][DEBUG][PhysicsApiImpl] [physics] body created id=135 surfaceId=135 mass=47.454803 kinematic=false lockRotation=false
+[12:52:32.729][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[12:52:32.735][DEBUG][EntityApiImpl] [entity] created uuid=cb28ac31-42d0-e4b4-d5d8-f7789db7c0b8 name='player'
+[12:52:32.736][DEBUG][SurfaceRegistry] [surface] registered surfaceId=136 kind=box name=box worldPos=(135.0, -10.0, -334.0)
+[12:52:32.736][DEBUG][SurfaceRegistry] [surface] attached surfaceId=136 entityUuid=cb28ac31-42d0-e4b4-d5d8-f7789db7c0b8
+[12:52:32.737][DEBUG][PhysicsApiImpl] [physics] body created id=136 surfaceId=136 mass=80.0 kinematic=false lockRotation=false
+[12:52:32.740][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2500
+[12:52:33.484][DEBUG][EngineApiImpl] [sky] tick time01=0.2508 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:34.499][DEBUG][EngineApiImpl] [sky] tick time01=0.2517 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:34.654][DEBUG][SurfaceRegistry] [surface] registered surfaceId=137 kind=sphere name=shot-1 worldPos=(134.89755, -9.140028, -333.9633)
+[12:52:34.656][DEBUG][PhysicsApiImpl] [physics] body created id=137 surfaceId=137 mass=2.2705564 kinematic=false lockRotation=false
+[12:52:35.051][DEBUG][SurfaceRegistry] [surface] registered surfaceId=138 kind=sphere name=shot-2 worldPos=(134.89764, -9.140023, -333.9633)
+[12:52:35.051][DEBUG][PhysicsApiImpl] [physics] body created id=138 surfaceId=138 mass=0.9109834 kinematic=false lockRotation=false
+[12:52:35.284][DEBUG][SurfaceRegistry] [surface] registered surfaceId=139 kind=sphere name=shot-3 worldPos=(134.8977, -9.1400175, -333.9633)
+[12:52:35.284][DEBUG][PhysicsApiImpl] [physics] body created id=139 surfaceId=139 mass=0.14628966 kinematic=false lockRotation=false
+[12:52:35.499][DEBUG][EngineApiImpl] [sky] tick time01=0.2525 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:35.517][DEBUG][SurfaceRegistry] [surface] registered surfaceId=140 kind=sphere name=shot-4 worldPos=(134.89775, -9.140015, -333.9633)
+[12:52:35.517][DEBUG][PhysicsApiImpl] [physics] body created id=140 surfaceId=140 mass=0.33580315 kinematic=false lockRotation=false
+[12:52:35.719][DEBUG][SurfaceRegistry] [surface] registered surfaceId=141 kind=sphere name=shot-5 worldPos=(134.89775, -9.140013, -333.9633)
+[12:52:35.720][DEBUG][PhysicsApiImpl] [physics] body created id=141 surfaceId=141 mass=0.1580509 kinematic=false lockRotation=false
+[12:52:36.500][DEBUG][EngineApiImpl] [sky] tick time01=0.2533 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:37.516][DEBUG][EngineApiImpl] [sky] tick time01=0.2542 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:38.532][DEBUG][EngineApiImpl] [sky] tick time01=0.2550 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:39.532][DEBUG][EngineApiImpl] [sky] tick time01=0.2559 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:40.549][DEBUG][EngineApiImpl] [sky] tick time01=0.2567 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:40.933][WARN][WorldAppState] [World] F5 hot reload
+[12:52:40.933][INFO][EngineApiImpl] [sky] destroy
+[12:52:40.934][DEBUG][PhysicsApiImpl] [physics] body removed id=136 surfaceId=136
+[12:52:40.934][DEBUG][EntityApiImpl] [entity] destroyed uuid=cb28ac31-42d0-e4b4-d5d8-f7789db7c0b8
+[12:52:40.934][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/sky/index.js
+[12:52:40.935][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/world/world.js
+[12:52:40.935][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/towers.js
+[12:52:40.935][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/player/index.js
+[12:52:40.935][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[12:52:40.935][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[12:52:40.936][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[12:52:40.936][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[12:52:40.936][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[12:52:40.936][INFO][RenderApiImpl] [shadow] snapEnabled=true
+[12:52:40.936][INFO][RenderApiImpl] [shadow] attached vp='Default' cam=2130834439 scenes=1
+[12:52:40.936][INFO][RenderApiImpl] [shadow][vpDump] afterAttach PRE:
+[12:52:40.936][INFO][RenderApiImpl] [shadow][vpDump] afterAttach MAIN:
+[12:52:40.937][INFO][RenderApiImpl] [shadow][vpDump]   name=Default camHash=2130834439 scenes=1 procs=2
+[12:52:40.937][INFO][RenderApiImpl] [shadow][vpDump] afterAttach POST:
+[12:52:40.937][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:40.937][INFO][RenderApiImpl] [shadow][vpDump] afterAttach GUI:
+[12:52:40.937][INFO][RenderApiImpl] [shadow][vpDump]   name=Gui Default camHash=1621241684 scenes=1 procs=0
+[12:52:40.937][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[12:52:40.937][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[12:52:40.937][INFO][EngineApiImpl] [scene] init
+[12:52:41.099][DEBUG][SurfaceRegistry] [surface] registered surfaceId=142 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[12:52:41.103][DEBUG][PhysicsApiImpl] [physics] body created id=142 surfaceId=142 mass=0.0 kinematic=false lockRotation=false
+[12:52:41.103][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[12:52:41.104][DEBUG][SurfaceRegistry] [surface] registered surfaceId=143 kind=box name=box-0 worldPos=(120.0, 2.4103808, -300.0)
+[12:52:41.104][DEBUG][PhysicsApiImpl] [physics] body created id=143 surfaceId=143 mass=1962.3809 kinematic=false lockRotation=false
+[12:52:41.105][DEBUG][SurfaceRegistry] [surface] registered surfaceId=144 kind=box name=box-1 worldPos=(120.0, 7.153867, -300.0)
+[12:52:41.105][DEBUG][PhysicsApiImpl] [physics] body created id=144 surfaceId=144 mass=1737.2323 kinematic=false lockRotation=false
+[12:52:41.105][DEBUG][SurfaceRegistry] [surface] registered surfaceId=145 kind=box name=box-2 worldPos=(120.0, 11.797845, -300.0)
+[12:52:41.105][DEBUG][PhysicsApiImpl] [physics] body created id=145 surfaceId=145 mass=1676.1892 kinematic=false lockRotation=false
+[12:52:41.106][DEBUG][SurfaceRegistry] [surface] registered surfaceId=146 kind=box name=box-3 worldPos=(120.0, 16.367527, -300.0)
+[12:52:41.106][DEBUG][PhysicsApiImpl] [physics] body created id=146 surfaceId=146 mass=1539.5056 kinematic=false lockRotation=false
+[12:52:41.106][DEBUG][SurfaceRegistry] [surface] registered surfaceId=147 kind=box name=box-4 worldPos=(120.0, 20.590612, -300.0)
+[12:52:41.106][DEBUG][PhysicsApiImpl] [physics] body created id=147 surfaceId=147 mass=915.9672 kinematic=false lockRotation=false
+[12:52:41.107][DEBUG][SurfaceRegistry] [surface] registered surfaceId=148 kind=box name=box-5 worldPos=(120.0, 24.185354, -300.0)
+[12:52:41.107][DEBUG][PhysicsApiImpl] [physics] body created id=148 surfaceId=148 mass=461.3402 kinematic=false lockRotation=false
+[12:52:41.107][DEBUG][SurfaceRegistry] [surface] registered surfaceId=149 kind=box name=box-6 worldPos=(120.0, 27.15228, -300.0)
+[12:52:41.108][DEBUG][PhysicsApiImpl] [physics] body created id=149 surfaceId=149 mass=223.75578 kinematic=false lockRotation=false
+[12:52:41.108][DEBUG][SurfaceRegistry] [surface] registered surfaceId=150 kind=box name=box-7 worldPos=(120.0, 29.52164, -300.0)
+[12:52:41.108][DEBUG][PhysicsApiImpl] [physics] body created id=150 surfaceId=150 mass=88.84256 kinematic=false lockRotation=false
+[12:52:41.108][DEBUG][SurfaceRegistry] [surface] registered surfaceId=151 kind=box name=box-8 worldPos=(120.0, 31.458479, -300.0)
+[12:52:41.109][DEBUG][PhysicsApiImpl] [physics] body created id=151 surfaceId=151 mass=55.433174 kinematic=false lockRotation=false
+[12:52:41.109][DEBUG][SurfaceRegistry] [surface] registered surfaceId=152 kind=box name=box-9 worldPos=(120.0, 32.972393, -300.0)
+[12:52:41.109][DEBUG][PhysicsApiImpl] [physics] body created id=152 surfaceId=152 mass=14.150687 kinematic=false lockRotation=false
+[12:52:41.109][DEBUG][SurfaceRegistry] [surface] registered surfaceId=153 kind=box name=box-10 worldPos=(120.0, 34.15064, -300.0)
+[12:52:41.109][DEBUG][PhysicsApiImpl] [physics] body created id=153 surfaceId=153 mass=11.111554 kinematic=false lockRotation=false
+[12:52:41.110][DEBUG][SurfaceRegistry] [surface] registered surfaceId=154 kind=box name=box-11 worldPos=(128.0, 2.4987218, -300.0)
+[12:52:41.110][DEBUG][PhysicsApiImpl] [physics] body created id=154 surfaceId=154 mass=2245.6895 kinematic=false lockRotation=false
+[12:52:41.110][DEBUG][SurfaceRegistry] [surface] registered surfaceId=155 kind=box name=box-12 worldPos=(128.0, 7.269917, -300.0)
+[12:52:41.110][DEBUG][PhysicsApiImpl] [physics] body created id=155 surfaceId=155 mass=1574.5433 kinematic=false lockRotation=false
+[12:52:41.111][DEBUG][SurfaceRegistry] [surface] registered surfaceId=156 kind=box name=box-13 worldPos=(128.0, 11.7675295, -300.0)
+[12:52:41.111][DEBUG][PhysicsApiImpl] [physics] body created id=156 surfaceId=156 mass=1455.6592 kinematic=false lockRotation=false
+[12:52:41.111][DEBUG][SurfaceRegistry] [surface] registered surfaceId=157 kind=box name=box-14 worldPos=(128.0, 16.156225, -300.0)
+[12:52:41.111][DEBUG][PhysicsApiImpl] [physics] body created id=157 surfaceId=157 mass=1311.1726 kinematic=false lockRotation=false
+[12:52:41.112][DEBUG][SurfaceRegistry] [surface] registered surfaceId=158 kind=box name=box-15 worldPos=(128.0, 19.631788, -300.0)
+[12:52:41.112][DEBUG][PhysicsApiImpl] [physics] body created id=158 surfaceId=158 mass=209.30807 kinematic=false lockRotation=false
+[12:52:41.112][DEBUG][SurfaceRegistry] [surface] registered surfaceId=159 kind=box name=box-16 worldPos=(128.0, 22.235224, -300.0)
+[12:52:41.112][DEBUG][PhysicsApiImpl] [physics] body created id=159 surfaceId=159 mass=197.70079 kinematic=false lockRotation=false
+[12:52:41.112][DEBUG][SurfaceRegistry] [surface] registered surfaceId=160 kind=box name=box-17 worldPos=(128.0, 24.679317, -300.0)
+[12:52:41.113][DEBUG][PhysicsApiImpl] [physics] body created id=160 surfaceId=160 mass=131.39198 kinematic=false lockRotation=false
+[12:52:41.113][DEBUG][SurfaceRegistry] [surface] registered surfaceId=161 kind=box name=box-18 worldPos=(128.0, 26.848402, -300.0)
+[12:52:41.113][DEBUG][PhysicsApiImpl] [physics] body created id=161 surfaceId=161 mass=83.91095 kinematic=false lockRotation=false
+[12:52:41.113][DEBUG][SurfaceRegistry] [surface] registered surfaceId=162 kind=box name=box-19 worldPos=(128.0, 28.547112, -300.0)
+[12:52:41.114][DEBUG][PhysicsApiImpl] [physics] body created id=162 surfaceId=162 mass=20.795895 kinematic=false lockRotation=false
+[12:52:41.114][DEBUG][SurfaceRegistry] [surface] registered surfaceId=163 kind=box name=box-20 worldPos=(128.0, 29.863356, -300.0)
+[12:52:41.114][DEBUG][PhysicsApiImpl] [physics] body created id=163 surfaceId=163 mass=16.150194 kinematic=false lockRotation=false
+[12:52:41.114][DEBUG][SurfaceRegistry] [surface] registered surfaceId=164 kind=box name=box-21 worldPos=(128.0, 31.088186, -300.0)
+[12:52:41.115][DEBUG][PhysicsApiImpl] [physics] body created id=164 surfaceId=164 mass=12.692384 kinematic=false lockRotation=false
+[12:52:41.115][DEBUG][SurfaceRegistry] [surface] registered surfaceId=165 kind=box name=box-22 worldPos=(136.0, 2.4071488, -300.0)
+[12:52:41.115][DEBUG][PhysicsApiImpl] [physics] body created id=165 surfaceId=165 mass=1952.5502 kinematic=false lockRotation=false
+[12:52:41.115][DEBUG][SurfaceRegistry] [surface] registered surfaceId=166 kind=box name=box-23 worldPos=(136.0, 6.8640614, -300.0)
+[12:52:41.116][DEBUG][PhysicsApiImpl] [physics] body created id=166 surfaceId=166 mass=1072.6407 kinematic=false lockRotation=false
+[12:52:41.116][DEBUG][SurfaceRegistry] [surface] registered surfaceId=167 kind=box name=box-24 worldPos=(136.0, 10.873392, -300.0)
+[12:52:41.116][DEBUG][PhysicsApiImpl] [physics] body created id=167 surfaceId=167 mass=907.8616 kinematic=false lockRotation=false
+[12:52:41.116][DEBUG][SurfaceRegistry] [surface] registered surfaceId=168 kind=box name=box-25 worldPos=(136.0, 14.1522455, -300.0)
+[12:52:41.116][DEBUG][PhysicsApiImpl] [physics] body created id=168 surfaceId=168 mass=213.53459 kinematic=false lockRotation=false
+[12:52:41.117][DEBUG][SurfaceRegistry] [surface] registered surfaceId=169 kind=box name=box-26 worldPos=(136.0, 16.65998, -300.0)
+[12:52:41.117][DEBUG][PhysicsApiImpl] [physics] body created id=169 surfaceId=169 mass=146.60912 kinematic=false lockRotation=false
+[12:52:41.117][DEBUG][SurfaceRegistry] [surface] registered surfaceId=170 kind=box name=box-27 worldPos=(136.0, 18.984081, -300.0)
+[12:52:41.117][DEBUG][PhysicsApiImpl] [physics] body created id=170 surfaceId=170 mass=124.58296 kinematic=false lockRotation=false
+[12:52:41.118][DEBUG][SurfaceRegistry] [surface] registered surfaceId=171 kind=box name=box-28 worldPos=(136.0, 21.213545, -300.0)
+[12:52:41.118][DEBUG][PhysicsApiImpl] [physics] body created id=171 surfaceId=171 mass=108.95071 kinematic=false lockRotation=false
+[12:52:41.118][DEBUG][SurfaceRegistry] [surface] registered surfaceId=172 kind=box name=box-29 worldPos=(136.0, 23.308449, -300.0)
+[12:52:41.118][DEBUG][PhysicsApiImpl] [physics] body created id=172 surfaceId=172 mass=79.50601 kinematic=false lockRotation=false
+[12:52:41.119][DEBUG][SurfaceRegistry] [surface] registered surfaceId=173 kind=box name=box-30 worldPos=(136.0, 25.074554, -300.0)
+[12:52:41.119][DEBUG][PhysicsApiImpl] [physics] body created id=173 surfaceId=173 mass=30.915066 kinematic=false lockRotation=false
+[12:52:41.119][DEBUG][SurfaceRegistry] [surface] registered surfaceId=174 kind=box name=box-31 worldPos=(136.0, 26.565166, -300.0)
+[12:52:41.119][DEBUG][PhysicsApiImpl] [physics] body created id=174 surfaceId=174 mass=25.727295 kinematic=false lockRotation=false
+[12:52:41.119][DEBUG][SurfaceRegistry] [surface] registered surfaceId=175 kind=box name=box-32 worldPos=(136.0, 27.955608, -300.0)
+[12:52:41.120][DEBUG][PhysicsApiImpl] [physics] body created id=175 surfaceId=175 mass=19.019981 kinematic=false lockRotation=false
+[12:52:41.120][DEBUG][SurfaceRegistry] [surface] registered surfaceId=176 kind=box name=box-33 worldPos=(144.0, 2.3758483, -300.0)
+[12:52:41.120][DEBUG][PhysicsApiImpl] [physics] body created id=176 surfaceId=176 mass=1859.2341 kinematic=false lockRotation=false
+[12:52:41.121][DEBUG][SurfaceRegistry] [surface] registered surfaceId=177 kind=box name=box-34 worldPos=(144.0, 7.108392, -300.0)
+[12:52:41.121][DEBUG][PhysicsApiImpl] [physics] body created id=177 surfaceId=177 mass=1803.8015 kinematic=false lockRotation=false
+[12:52:41.121][DEBUG][SurfaceRegistry] [surface] registered surfaceId=178 kind=box name=box-35 worldPos=(144.0, 11.603837, -300.0)
+[12:52:41.121][DEBUG][PhysicsApiImpl] [physics] body created id=178 surfaceId=178 mass=1256.1016 kinematic=false lockRotation=false
+[12:52:41.121][DEBUG][SurfaceRegistry] [surface] registered surfaceId=179 kind=box name=box-36 worldPos=(144.0, 15.84171, -300.0)
+[12:52:41.122][DEBUG][PhysicsApiImpl] [physics] body created id=179 surfaceId=179 mass=1171.7343 kinematic=false lockRotation=false
+[12:52:41.122][DEBUG][SurfaceRegistry] [surface] registered surfaceId=180 kind=box name=box-37 worldPos=(144.0, 19.535297, -300.0)
+[12:52:41.122][DEBUG][PhysicsApiImpl] [physics] body created id=180 surfaceId=180 mass=425.14752 kinematic=false lockRotation=false
+[12:52:41.122][DEBUG][SurfaceRegistry] [surface] registered surfaceId=181 kind=box name=box-38 worldPos=(144.0, 22.714195, -300.0)
+[12:52:41.123][DEBUG][PhysicsApiImpl] [physics] body created id=181 surfaceId=181 mass=415.45255 kinematic=false lockRotation=false
+[12:52:41.123][DEBUG][SurfaceRegistry] [surface] registered surfaceId=182 kind=box name=box-39 worldPos=(144.0, 25.681063, -300.0)
+[12:52:41.123][DEBUG][PhysicsApiImpl] [physics] body created id=182 surfaceId=182 mass=252.89478 kinematic=false lockRotation=false
+[12:52:41.123][DEBUG][SurfaceRegistry] [surface] registered surfaceId=183 kind=box name=box-40 worldPos=(144.0, 28.35504, -300.0)
+[12:52:41.123][DEBUG][PhysicsApiImpl] [physics] body created id=183 surfaceId=183 mass=197.76329 kinematic=false lockRotation=false
+[12:52:41.124][DEBUG][SurfaceRegistry] [surface] registered surfaceId=184 kind=box name=box-41 worldPos=(144.0, 30.643547, -300.0)
+[12:52:41.124][DEBUG][PhysicsApiImpl] [physics] body created id=184 surfaceId=184 mass=78.35067 kinematic=false lockRotation=false
+[12:52:41.124][DEBUG][SurfaceRegistry] [surface] registered surfaceId=185 kind=box name=box-42 worldPos=(144.0, 32.5014, -300.0)
+[12:52:41.124][DEBUG][PhysicsApiImpl] [physics] body created id=185 surfaceId=185 mass=46.69763 kinematic=false lockRotation=false
+[12:52:41.125][DEBUG][SurfaceRegistry] [surface] registered surfaceId=186 kind=box name=box-43 worldPos=(144.0, 34.00678, -300.0)
+[12:52:41.125][DEBUG][PhysicsApiImpl] [physics] body created id=186 surfaceId=186 mass=17.090467 kinematic=false lockRotation=false
+[12:52:41.125][DEBUG][SurfaceRegistry] [surface] registered surfaceId=187 kind=box name=box-44 worldPos=(152.0, 2.4893193, -300.0)
+[12:52:41.125][DEBUG][PhysicsApiImpl] [physics] body created id=187 surfaceId=187 mass=2214.1677 kinematic=false lockRotation=false
+[12:52:41.126][DEBUG][SurfaceRegistry] [surface] registered surfaceId=188 kind=box name=box-45 worldPos=(152.0, 7.440385, -300.0)
+[12:52:41.126][DEBUG][PhysicsApiImpl] [physics] body created id=188 surfaceId=188 mass=2123.6328 kinematic=false lockRotation=false
+[12:52:41.126][DEBUG][SurfaceRegistry] [surface] registered surfaceId=189 kind=box name=box-46 worldPos=(152.0, 12.208262, -300.0)
+[12:52:41.126][DEBUG][PhysicsApiImpl] [physics] body created id=189 surfaceId=189 mass=1663.3798 kinematic=false lockRotation=false
+[12:52:41.127][DEBUG][SurfaceRegistry] [surface] registered surfaceId=190 kind=box name=box-47 worldPos=(152.0, 16.729752, -300.0)
+[12:52:41.127][DEBUG][PhysicsApiImpl] [physics] body created id=190 surfaceId=190 mass=1431.9562 kinematic=false lockRotation=false
+[12:52:41.127][DEBUG][SurfaceRegistry] [surface] registered surfaceId=191 kind=box name=box-48 worldPos=(152.0, 21.020863, -300.0)
+[12:52:41.127][DEBUG][PhysicsApiImpl] [physics] body created id=191 surfaceId=191 mass=1123.9998 kinematic=false lockRotation=false
+[12:52:41.127][DEBUG][SurfaceRegistry] [surface] registered surfaceId=192 kind=box name=box-49 worldPos=(152.0, 24.791216, -300.0)
+[12:52:41.128][DEBUG][PhysicsApiImpl] [physics] body created id=192 surfaceId=192 mass=531.43665 kinematic=false lockRotation=false
+[12:52:41.128][DEBUG][SurfaceRegistry] [surface] registered surfaceId=193 kind=box name=box-50 worldPos=(152.0, 28.040827, -300.0)
+[12:52:41.128][DEBUG][PhysicsApiImpl] [physics] body created id=193 surfaceId=193 mass=387.95407 kinematic=false lockRotation=false
+[12:52:41.128][DEBUG][SurfaceRegistry] [surface] registered surfaceId=194 kind=box name=box-51 worldPos=(152.0, 31.091318, -300.0)
+[12:52:41.129][DEBUG][PhysicsApiImpl] [physics] body created id=194 surfaceId=194 mass=336.4818 kinematic=false lockRotation=false
+[12:52:41.129][DEBUG][SurfaceRegistry] [surface] registered surfaceId=195 kind=box name=box-52 worldPos=(152.0, 33.921326, -300.0)
+[12:52:41.129][DEBUG][PhysicsApiImpl] [physics] body created id=195 surfaceId=195 mass=222.58661 kinematic=false lockRotation=false
+[12:52:41.129][DEBUG][SurfaceRegistry] [surface] registered surfaceId=196 kind=box name=box-53 worldPos=(152.0, 36.577442, -300.0)
+[12:52:41.129][DEBUG][PhysicsApiImpl] [physics] body created id=196 surfaceId=196 mass=214.88165 kinematic=false lockRotation=false
+[12:52:41.130][DEBUG][SurfaceRegistry] [surface] registered surfaceId=197 kind=box name=box-54 worldPos=(152.0, 39.06452, -300.0)
+[12:52:41.130][DEBUG][PhysicsApiImpl] [physics] body created id=197 surfaceId=197 mass=136.70692 kinematic=false lockRotation=false
+[12:52:41.130][DEBUG][SurfaceRegistry] [surface] registered surfaceId=198 kind=box name=box-55 worldPos=(160.0, 2.489988, -300.0)
+[12:52:41.131][DEBUG][PhysicsApiImpl] [physics] body created id=198 surfaceId=198 mass=2216.399 kinematic=false lockRotation=false
+[12:52:41.131][DEBUG][SurfaceRegistry] [surface] registered surfaceId=199 kind=box name=box-56 worldPos=(160.0, 7.217298, -300.0)
+[12:52:41.131][DEBUG][PhysicsApiImpl] [physics] body created id=199 surfaceId=199 mass=1485.5941 kinematic=false lockRotation=false
+[12:52:41.131][DEBUG][SurfaceRegistry] [surface] registered surfaceId=200 kind=box name=box-57 worldPos=(160.0, 11.606902, -300.0)
+[12:52:41.131][DEBUG][PhysicsApiImpl] [physics] body created id=200 surfaceId=200 mass=1285.9236 kinematic=false lockRotation=false
+[12:52:41.132][DEBUG][SurfaceRegistry] [surface] registered surfaceId=201 kind=box name=box-58 worldPos=(160.0, 15.728012, -300.0)
+[12:52:41.132][DEBUG][PhysicsApiImpl] [physics] body created id=201 surfaceId=201 mass=923.84717 kinematic=false lockRotation=false
+[12:52:41.132][DEBUG][SurfaceRegistry] [surface] registered surfaceId=202 kind=box name=box-59 worldPos=(160.0, 19.207636, -300.0)
+[12:52:41.132][DEBUG][PhysicsApiImpl] [physics] body created id=202 surfaceId=202 mass=349.20764 kinematic=false lockRotation=false
+[12:52:41.133][DEBUG][SurfaceRegistry] [surface] registered surfaceId=203 kind=box name=box-60 worldPos=(160.0, 22.0732, -300.0)
+[12:52:41.133][DEBUG][PhysicsApiImpl] [physics] body created id=203 surfaceId=203 mass=235.04099 kinematic=false lockRotation=false
+[12:52:41.133][DEBUG][SurfaceRegistry] [surface] registered surfaceId=204 kind=box name=box-61 worldPos=(160.0, 24.482584, -300.0)
+[12:52:41.133][DEBUG][PhysicsApiImpl] [physics] body created id=204 surfaceId=204 mass=95.66656 kinematic=false lockRotation=false
+[12:52:41.134][DEBUG][SurfaceRegistry] [surface] registered surfaceId=205 kind=box name=box-62 worldPos=(160.0, 26.51457, -300.0)
+[12:52:41.134][DEBUG][PhysicsApiImpl] [physics] body created id=205 surfaceId=205 mass=73.030975 kinematic=false lockRotation=false
+[12:52:41.134][DEBUG][SurfaceRegistry] [surface] registered surfaceId=206 kind=box name=box-63 worldPos=(160.0, 28.432669, -300.0)
+[12:52:41.134][DEBUG][PhysicsApiImpl] [physics] body created id=206 surfaceId=206 mass=63.803596 kinematic=false lockRotation=false
+[12:52:41.134][DEBUG][SurfaceRegistry] [surface] registered surfaceId=207 kind=box name=box-64 worldPos=(160.0, 30.213547, -300.0)
+[12:52:41.135][DEBUG][PhysicsApiImpl] [physics] body created id=207 surfaceId=207 mass=42.872154 kinematic=false lockRotation=false
+[12:52:41.135][DEBUG][SurfaceRegistry] [surface] registered surfaceId=208 kind=box name=box-65 worldPos=(160.0, 31.693304, -300.0)
+[12:52:41.135][DEBUG][PhysicsApiImpl] [physics] body created id=208 surfaceId=208 mass=16.649828 kinematic=false lockRotation=false
+[12:52:41.135][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[12:52:41.137][DEBUG][EntityApiImpl] [entity] created uuid=7bc4da5c-02a4-5747-e60f-a04d466ebd7d name='player'
+[12:52:41.137][DEBUG][SurfaceRegistry] [surface] registered surfaceId=209 kind=box name=box worldPos=(135.0, -10.0, -334.0)
+[12:52:41.137][DEBUG][SurfaceRegistry] [surface] attached surfaceId=209 entityUuid=7bc4da5c-02a4-5747-e60f-a04d466ebd7d
+[12:52:41.138][DEBUG][PhysicsApiImpl] [physics] body created id=209 surfaceId=209 mass=80.0 kinematic=false lockRotation=false
+[12:52:41.141][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2500
+[12:52:41.919][DEBUG][EngineApiImpl] [sky] tick time01=0.2508 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:42.922][DEBUG][EngineApiImpl] [sky] tick time01=0.2517 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:43.928][DEBUG][EngineApiImpl] [sky] tick time01=0.2525 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:44.933][DEBUG][EngineApiImpl] [sky] tick time01=0.2533 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:45.950][DEBUG][EngineApiImpl] [sky] tick time01=0.2542 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:46.951][DEBUG][EngineApiImpl] [sky] tick time01=0.2550 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:47.966][DEBUG][EngineApiImpl] [sky] tick time01=0.2559 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:48.983][DEBUG][EngineApiImpl] [sky] tick time01=0.2567 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:49.983][DEBUG][EngineApiImpl] [sky] tick time01=0.2576 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:50.991][DEBUG][EngineApiImpl] [sky] tick time01=0.2584 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:52.006][DEBUG][EngineApiImpl] [sky] tick time01=0.2592 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:53.005][DEBUG][EngineApiImpl] [sky] tick time01=0.2601 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:54.021][DEBUG][EngineApiImpl] [sky] tick time01=0.2609 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:55.033][DEBUG][EngineApiImpl] [sky] tick time01=0.2618 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:56.050][DEBUG][EngineApiImpl] [sky] tick time01=0.2626 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:57.058][DEBUG][EngineApiImpl] [sky] tick time01=0.2635 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:58.067][DEBUG][EngineApiImpl] [sky] tick time01=0.2643 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:52:59.067][DEBUG][EngineApiImpl] [sky] tick time01=0.2651 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:00.083][DEBUG][EngineApiImpl] [sky] tick time01=0.2660 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:01.084][DEBUG][EngineApiImpl] [sky] tick time01=0.2668 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:02.100][DEBUG][EngineApiImpl] [sky] tick time01=0.2677 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:03.100][DEBUG][EngineApiImpl] [sky] tick time01=0.2685 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:04.100][DEBUG][EngineApiImpl] [sky] tick time01=0.2693 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:05.100][DEBUG][EngineApiImpl] [sky] tick time01=0.2702 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:06.100][DEBUG][EngineApiImpl] [sky] tick time01=0.2710 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:07.101][DEBUG][EngineApiImpl] [sky] tick time01=0.2718 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:08.009][DEBUG][SurfaceRegistry] [surface] registered surfaceId=210 kind=sphere name=shot-1 worldPos=(134.90964, -9.139498, -333.95752)
+[12:53:08.009][DEBUG][PhysicsApiImpl] [physics] body created id=210 surfaceId=210 mass=0.31750932 kinematic=false lockRotation=false
+[12:53:08.106][DEBUG][EngineApiImpl] [sky] tick time01=0.2727 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:08.705][DEBUG][SurfaceRegistry] [surface] registered surfaceId=211 kind=sphere name=shot-2 worldPos=(134.90964, -9.139498, -333.95752)
+[12:53:08.705][DEBUG][PhysicsApiImpl] [physics] body created id=211 surfaceId=211 mass=0.5588696 kinematic=false lockRotation=false
+[12:53:09.112][DEBUG][EngineApiImpl] [sky] tick time01=0.2735 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:09.278][DEBUG][SurfaceRegistry] [surface] registered surfaceId=212 kind=sphere name=shot-3 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:09.278][DEBUG][PhysicsApiImpl] [physics] body created id=212 surfaceId=212 mass=1.6853468 kinematic=false lockRotation=false
+[12:53:09.819][DEBUG][SurfaceRegistry] [surface] registered surfaceId=213 kind=sphere name=shot-4 worldPos=(134.90964, -9.139498, -333.95752)
+[12:53:09.819][DEBUG][PhysicsApiImpl] [physics] body created id=213 surfaceId=213 mass=0.1278813 kinematic=false lockRotation=false
+[12:53:10.129][DEBUG][EngineApiImpl] [sky] tick time01=0.2743 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:10.309][DEBUG][SurfaceRegistry] [surface] registered surfaceId=214 kind=sphere name=shot-5 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:10.310][DEBUG][PhysicsApiImpl] [physics] body created id=214 surfaceId=214 mass=1.4790226 kinematic=false lockRotation=false
+[12:53:11.136][DEBUG][EngineApiImpl] [sky] tick time01=0.2752 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:12.111][DEBUG][SurfaceRegistry] [surface] registered surfaceId=215 kind=sphere name=shot-6 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:12.111][DEBUG][PhysicsApiImpl] [physics] body created id=215 surfaceId=215 mass=1.1559681 kinematic=false lockRotation=false
+[12:53:12.144][DEBUG][EngineApiImpl] [sky] tick time01=0.2760 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:12.651][DEBUG][SurfaceRegistry] [surface] registered surfaceId=216 kind=sphere name=shot-7 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:12.652][DEBUG][PhysicsApiImpl] [physics] body created id=216 surfaceId=216 mass=0.5603861 kinematic=false lockRotation=false
+[12:53:13.151][DEBUG][EngineApiImpl] [sky] tick time01=0.2769 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:13.302][DEBUG][SurfaceRegistry] [surface] registered surfaceId=217 kind=sphere name=shot-8 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:13.302][DEBUG][PhysicsApiImpl] [physics] body created id=217 surfaceId=217 mass=0.12539634 kinematic=false lockRotation=false
+[12:53:13.751][DEBUG][SurfaceRegistry] [surface] registered surfaceId=218 kind=sphere name=shot-9 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:13.752][DEBUG][PhysicsApiImpl] [physics] body created id=218 surfaceId=218 mass=1.179766 kinematic=false lockRotation=false
+[12:53:14.052][DEBUG][SurfaceRegistry] [surface] registered surfaceId=219 kind=sphere name=shot-10 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:14.053][DEBUG][PhysicsApiImpl] [physics] body created id=219 surfaceId=219 mass=1.4551733 kinematic=false lockRotation=false
+[12:53:14.151][DEBUG][EngineApiImpl] [sky] tick time01=0.2777 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:15.055][DEBUG][SurfaceRegistry] [surface] registered surfaceId=220 kind=sphere name=shot-11 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:15.056][DEBUG][PhysicsApiImpl] [physics] body created id=220 surfaceId=220 mass=0.1446114 kinematic=false lockRotation=false
+[12:53:15.156][DEBUG][EngineApiImpl] [sky] tick time01=0.2785 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:15.652][DEBUG][SurfaceRegistry] [surface] registered surfaceId=221 kind=sphere name=shot-12 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:15.652][DEBUG][PhysicsApiImpl] [physics] body created id=221 surfaceId=221 mass=1.8598725 kinematic=false lockRotation=false
+[12:53:16.168][DEBUG][EngineApiImpl] [sky] tick time01=0.2794 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:16.435][DEBUG][SurfaceRegistry] [surface] registered surfaceId=222 kind=sphere name=shot-13 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:16.435][DEBUG][PhysicsApiImpl] [physics] body created id=222 surfaceId=222 mass=0.24297829 kinematic=false lockRotation=false
+[12:53:16.685][DEBUG][SurfaceRegistry] [surface] registered surfaceId=223 kind=sphere name=shot-14 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:16.686][DEBUG][PhysicsApiImpl] [physics] body created id=223 surfaceId=223 mass=2.5513659 kinematic=false lockRotation=false
+[12:53:17.136][DEBUG][SurfaceRegistry] [surface] registered surfaceId=224 kind=sphere name=shot-15 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:17.136][DEBUG][PhysicsApiImpl] [physics] body created id=224 surfaceId=224 mass=0.07499891 kinematic=false lockRotation=false
+[12:53:17.170][DEBUG][EngineApiImpl] [sky] tick time01=0.2802 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:17.368][DEBUG][SurfaceRegistry] [surface] registered surfaceId=225 kind=sphere name=shot-16 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:17.369][DEBUG][PhysicsApiImpl] [physics] body created id=225 surfaceId=225 mass=0.8346383 kinematic=false lockRotation=false
+[12:53:18.179][DEBUG][EngineApiImpl] [sky] tick time01=0.2811 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:19.185][DEBUG][EngineApiImpl] [sky] tick time01=0.2819 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:20.201][DEBUG][EngineApiImpl] [sky] tick time01=0.2827 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:21.201][DEBUG][EngineApiImpl] [sky] tick time01=0.2836 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:21.689][DEBUG][SurfaceRegistry] [surface] registered surfaceId=226 kind=sphere name=shot-17 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:21.690][DEBUG][PhysicsApiImpl] [physics] body created id=226 surfaceId=226 mass=0.34628123 kinematic=false lockRotation=false
+[12:53:22.042][DEBUG][SurfaceRegistry] [surface] registered surfaceId=227 kind=sphere name=shot-18 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:22.042][DEBUG][PhysicsApiImpl] [physics] body created id=227 surfaceId=227 mass=1.4127256 kinematic=false lockRotation=false
+[12:53:22.224][DEBUG][EngineApiImpl] [sky] tick time01=0.2844 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:22.412][DEBUG][SurfaceRegistry] [surface] registered surfaceId=228 kind=sphere name=shot-19 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:22.412][DEBUG][PhysicsApiImpl] [physics] body created id=228 surfaceId=228 mass=0.09818649 kinematic=false lockRotation=false
+[12:53:22.745][DEBUG][SurfaceRegistry] [surface] registered surfaceId=229 kind=sphere name=shot-20 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:22.745][DEBUG][PhysicsApiImpl] [physics] body created id=229 surfaceId=229 mass=0.6577623 kinematic=false lockRotation=false
+[12:53:23.040][DEBUG][SurfaceRegistry] [surface] registered surfaceId=230 kind=sphere name=shot-21 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:23.040][DEBUG][PhysicsApiImpl] [physics] body created id=230 surfaceId=230 mass=0.91017085 kinematic=false lockRotation=false
+[12:53:23.257][DEBUG][EngineApiImpl] [sky] tick time01=0.2853 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:23.292][DEBUG][SurfaceRegistry] [surface] registered surfaceId=231 kind=sphere name=shot-22 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:23.292][DEBUG][PhysicsApiImpl] [physics] body created id=231 surfaceId=231 mass=1.2639421 kinematic=false lockRotation=false
+[12:53:23.590][DEBUG][SurfaceRegistry] [surface] registered surfaceId=232 kind=sphere name=shot-23 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:23.590][DEBUG][PhysicsApiImpl] [physics] body created id=232 surfaceId=232 mass=0.6865804 kinematic=false lockRotation=false
+[12:53:23.893][DEBUG][SurfaceRegistry] [surface] registered surfaceId=233 kind=sphere name=shot-24 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:23.894][DEBUG][PhysicsApiImpl] [physics] body created id=233 surfaceId=233 mass=0.1319632 kinematic=false lockRotation=false
+[12:53:24.139][DEBUG][SurfaceRegistry] [surface] registered surfaceId=234 kind=sphere name=shot-25 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:24.139][DEBUG][PhysicsApiImpl] [physics] body created id=234 surfaceId=234 mass=0.57651645 kinematic=false lockRotation=false
+[12:53:24.260][DEBUG][EngineApiImpl] [sky] tick time01=0.2861 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:24.359][DEBUG][SurfaceRegistry] [surface] registered surfaceId=235 kind=sphere name=shot-26 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:24.360][DEBUG][PhysicsApiImpl] [physics] body created id=235 surfaceId=235 mass=2.056664 kinematic=false lockRotation=false
+[12:53:24.736][DEBUG][SurfaceRegistry] [surface] registered surfaceId=236 kind=sphere name=shot-27 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:24.736][DEBUG][PhysicsApiImpl] [physics] body created id=236 surfaceId=236 mass=0.48469827 kinematic=false lockRotation=false
+[12:53:25.100][DEBUG][SurfaceRegistry] [surface] registered surfaceId=237 kind=sphere name=shot-28 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:25.101][DEBUG][PhysicsApiImpl] [physics] body created id=237 surfaceId=237 mass=0.16770735 kinematic=false lockRotation=false
+[12:53:25.265][DEBUG][EngineApiImpl] [sky] tick time01=0.2870 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:25.398][DEBUG][SurfaceRegistry] [surface] registered surfaceId=238 kind=sphere name=shot-29 worldPos=(134.90964, -9.139502, -333.95752)
+[12:53:25.398][DEBUG][PhysicsApiImpl] [physics] body created id=238 surfaceId=238 mass=0.08684799 kinematic=false lockRotation=false
+[12:53:25.659][DEBUG][SurfaceRegistry] [surface] registered surfaceId=239 kind=sphere name=shot-30 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:25.659][DEBUG][PhysicsApiImpl] [physics] body created id=239 surfaceId=239 mass=1.7791233 kinematic=false lockRotation=false
+[12:53:25.960][DEBUG][SurfaceRegistry] [surface] registered surfaceId=240 kind=sphere name=shot-31 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:25.960][DEBUG][PhysicsApiImpl] [physics] body created id=240 surfaceId=240 mass=0.851762 kinematic=false lockRotation=false
+[12:53:26.293][DEBUG][EngineApiImpl] [sky] tick time01=0.2878 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:26.326][DEBUG][SurfaceRegistry] [surface] registered surfaceId=241 kind=sphere name=shot-32 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:26.327][DEBUG][PhysicsApiImpl] [physics] body created id=241 surfaceId=241 mass=0.109747574 kinematic=false lockRotation=false
+[12:53:26.741][DEBUG][SurfaceRegistry] [surface] registered surfaceId=242 kind=sphere name=shot-33 worldPos=(134.90964, -9.139498, -333.95752)
+[12:53:26.741][DEBUG][PhysicsApiImpl] [physics] body created id=242 surfaceId=242 mass=0.5451119 kinematic=false lockRotation=false
+[12:53:27.076][DEBUG][SurfaceRegistry] [surface] registered surfaceId=243 kind=sphere name=shot-34 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:27.076][DEBUG][PhysicsApiImpl] [physics] body created id=243 surfaceId=243 mass=0.9795974 kinematic=false lockRotation=false
+[12:53:27.325][DEBUG][EngineApiImpl] [sky] tick time01=0.2887 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:27.393][DEBUG][SurfaceRegistry] [surface] registered surfaceId=244 kind=sphere name=shot-35 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:27.394][DEBUG][PhysicsApiImpl] [physics] body created id=244 surfaceId=244 mass=0.57447124 kinematic=false lockRotation=false
+[12:53:27.754][DEBUG][SurfaceRegistry] [surface] registered surfaceId=245 kind=sphere name=shot-36 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:27.755][DEBUG][PhysicsApiImpl] [physics] body created id=245 surfaceId=245 mass=0.9884495 kinematic=false lockRotation=false
+[12:53:28.109][DEBUG][SurfaceRegistry] [surface] registered surfaceId=246 kind=sphere name=shot-37 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:28.110][DEBUG][PhysicsApiImpl] [physics] body created id=246 surfaceId=246 mass=1.0815425 kinematic=false lockRotation=false
+[12:53:28.342][DEBUG][EngineApiImpl] [sky] tick time01=0.2895 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:28.659][DEBUG][SurfaceRegistry] [surface] registered surfaceId=247 kind=sphere name=shot-38 worldPos=(134.90964, -9.139501, -333.95752)
+[12:53:28.659][DEBUG][PhysicsApiImpl] [physics] body created id=247 surfaceId=247 mass=1.1291701 kinematic=false lockRotation=false
+[12:53:29.040][DEBUG][SurfaceRegistry] [surface] registered surfaceId=248 kind=sphere name=shot-39 worldPos=(134.90964, -9.139499, -333.95752)
+[12:53:29.040][DEBUG][PhysicsApiImpl] [physics] body created id=248 surfaceId=248 mass=1.1872643 kinematic=false lockRotation=false
+[12:53:29.342][DEBUG][EngineApiImpl] [sky] tick time01=0.2904 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:29.775][DEBUG][SurfaceRegistry] [surface] registered surfaceId=249 kind=sphere name=shot-40 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:29.775][DEBUG][PhysicsApiImpl] [physics] body created id=249 surfaceId=249 mass=0.38424322 kinematic=false lockRotation=false
+[12:53:30.357][DEBUG][EngineApiImpl] [sky] tick time01=0.2912 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:31.374][DEBUG][EngineApiImpl] [sky] tick time01=0.2920 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:32.173][DEBUG][SurfaceRegistry] [surface] registered surfaceId=250 kind=sphere name=shot-41 worldPos=(134.90964, -9.139498, -333.95752)
+[12:53:32.174][DEBUG][PhysicsApiImpl] [physics] body created id=250 surfaceId=250 mass=1.633956 kinematic=false lockRotation=false
+[12:53:32.374][DEBUG][EngineApiImpl] [sky] tick time01=0.2929 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:33.025][DEBUG][SurfaceRegistry] [surface] registered surfaceId=251 kind=sphere name=shot-42 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:33.026][DEBUG][PhysicsApiImpl] [physics] body created id=251 surfaceId=251 mass=0.7476954 kinematic=false lockRotation=false
+[12:53:33.390][DEBUG][EngineApiImpl] [sky] tick time01=0.2937 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:33.457][DEBUG][SurfaceRegistry] [surface] registered surfaceId=252 kind=sphere name=shot-43 worldPos=(134.90964, -9.139497, -333.95752)
+[12:53:33.458][DEBUG][PhysicsApiImpl] [physics] body created id=252 surfaceId=252 mass=1.5882785 kinematic=false lockRotation=false
+[12:53:33.806][DEBUG][SurfaceRegistry] [surface] registered surfaceId=253 kind=sphere name=shot-44 worldPos=(134.90964, -9.1395, -333.95752)
+[12:53:33.806][DEBUG][PhysicsApiImpl] [physics] body created id=253 surfaceId=253 mass=0.95940363 kinematic=false lockRotation=false
+[12:53:34.408][DEBUG][EngineApiImpl] [sky] tick time01=0.2946 dayFactor=1.0000 primary=sun cfgPath=domain:config
+[12:53:35.041][INFO][ScriptRuntime] Closing ScriptRuntime
+[12:53:35.048][INFO][RuntimeAppState] [Runtime] stopped

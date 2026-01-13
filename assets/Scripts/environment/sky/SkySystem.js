@@ -65,7 +65,7 @@ class SkySystem {
         this.celestial = new CelestialModel();
         this.lights = new LightRig();
         this.skydome = new SkyDome();
-        this.fog = new FogController();
+        //this.fog = new FogController();
 
         this._cfgRef = null;
         this._cfgPath = "INIT";
@@ -97,7 +97,7 @@ class SkySystem {
         // IMPORTANT: pass render too (extra args are OK, missing args can break)
         if (isFn(this.lights.init)) this.lights.init(this.engine, this.render);
         if (isFn(this.skydome.init)) this.skydome.init(this.render);
-        if (isFn(this.fog.init)) this.fog.init(this.render);
+        //if (isFn(this.fog.init)) this.fog.init(this.render);
 
         if (!this._didInitTime) {
             if (cfg.startTime01 == null) this.clock.setTime01(0.25);
@@ -147,7 +147,7 @@ class SkySystem {
 
         if (isFn(this.lights.destroy)) this.lights.destroy();
         if (isFn(this.skydome.destroy)) this.skydome.destroy();
-        if (isFn(this.fog.destroy)) this.fog.destroy();
+        //if (isFn(this.fog.destroy)) this.fog.destroy();
 
         (ENGINE && ENGINE.log ? ENGINE.log : console).info("[sky] destroy");
     }
@@ -170,7 +170,7 @@ class SkySystem {
         // AAA: pass render everywhere (so modules can drive RenderApi)
         if (isFn(this.lights.update)) this.lights.update(this.engine, this.render, cel, dt);
         if (isFn(this.skydome.update)) this.skydome.update(this.render, cel);
-        if (isFn(this.fog.update)) this.fog.update(this.render, cel);
+        //if (isFn(this.fog.update)) this.fog.update(this.render, cel);
     }
 
     applyCfg(cfg) {
@@ -182,7 +182,7 @@ class SkySystem {
 
         if (isFn(this.lights.applyCfg)) this.lights.applyCfg(cfg);
         if (isFn(this.skydome.applyCfg)) this.skydome.applyCfg(cfg);
-        if (isFn(this.fog.applyCfg)) this.fog.applyCfg(cfg);
+        //if (isFn(this.fog.applyCfg)) this.fog.applyCfg(cfg);
 
         const log = ENGINE && ENGINE.log ? ENGINE.log : null;
         if (log && log.debug) log.debug("[sky][cfg] applied path=" + this._cfgPath);

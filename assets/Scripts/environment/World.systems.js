@@ -138,6 +138,14 @@ const worldSystems = [
         config: {module: "Scripts/environment/world/world.js"}
     },
 
+
+    {
+        id: "jsSystem",
+        order: 20,
+        stableId: "sys.towers",
+        config: {module: "Scripts/environment/towers.js"}
+    },
+
     {
         id: "jsSystem",
         order: 50,

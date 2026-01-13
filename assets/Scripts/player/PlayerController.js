@@ -1,3 +1,4 @@
+// FILE: Scripts/player/PlayerController.js
 "use strict";
 
 const {PlayerPawn} = require("./PlayerPawn.js");
@@ -22,18 +23,34 @@ class PlayerController {
     }
 
     update(dt) {
-        this.ec.update(dt);
+        const ec = this.ec;
+        if (ec) ec.update(dt);
     }
 
     dispose() {
-        this.ec.dispose();
-        this.ec = null;
+        // idempotent + crash-safe: always try to kill pawn/entity
+        const ec = this.ec;
+        const pawn = this.pawn;
 
-        this.pawn.destroy();
+        this.ec = null;
         this.pawn = null;
 
         this.ctx = null;
         this.cfg = null;
+
+        if (ec && typeof ec.dispose === "function") {
+            try {
+                ec.dispose();
+            } catch (_) {
+            }
+        }
+
+        if (pawn && typeof pawn.destroy === "function") {
+            try {
+                pawn.destroy();
+            } catch (_) {
+            }
+        }
     }
 }
 

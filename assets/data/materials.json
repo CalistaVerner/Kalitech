@@ -48,7 +48,7 @@
     "def": "Common/MatDefs/Misc/Unshaded.j3md",
     "params": {
       "ColorMap": {
-        "texture": "Textures/box.png",
+        "texture": "Textures/wall.dds",
         "wrap": "Repeat",
         "tileWorld": { "x": 1.0, "z": 1.0 },
         "min": "Trilinear",

@@ -64,7 +64,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
         this.viewport = new ViewportContract(app, log);
         this.lights = new LightRigModule(new RenderThread(ctx.engine, ctx.app), app);
-        this.shadows = new ShadowModule(app, assets, log, lights);
+        this.shadows = new ShadowModule(new RenderThread(ctx.engine, app), app, assets, log, lights);
 
         this.sky = new SkyModule(app, assets, log);
         this.post = new PostModule(app, assets, log);
@@ -285,7 +285,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 if (w.equals(lights.primaryDirectional())) return;
 
                 lights.setPrimaryDirectional(w);
-                shadows.refreshPrimaryLightBinding();
+                shadows.renderer();
 
                 log.info("RenderApi: primaryDirectional={}", w);
             });
@@ -307,7 +307,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             onJmeSyncVoid("render.sunShadowsEx", () -> {
                 viewport.ensure("sunShadowsEx");
                 lights.ensure();
-                shadows.enable(mapSize, splits, lambda, intensity);
+                shadows.applyCfg(mapSize, splits, (float) lambda, (float) intensity);
             });
         });
     }
@@ -335,7 +335,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 lights.ensure();
 
                 shadows.setSnapEnabled(snap);
-                shadows.enable(map, splits, lambda, intensity);
+                shadows.applyCfg(map, splits, (float) lambda, (float) intensity);
 
                 DirectionalLightShadowRenderer r = shadows.renderer();
                 if (r != null) r.setLight(lights.primaryLight());
