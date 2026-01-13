@@ -348,11 +348,8 @@ public final class EngineApiImpl implements EngineApi {
                 surfaceRegistry.destroy(surfaceId);
             }
 
-            // components removal is engine-internal; if you want ZERO entityId usage here too,
-            // do it in ECS layer by uuid (preferred).
             try {
-                int entityId = ecs.uuids().entityIdOf(entityUuid);
-                if (entityId > 0) ecs.components().removeByName(entityId, "Surface");
+                ecs.removeComponentByName(entityUuid, "Surface");
             } catch (Throwable ignored) {
             }
         } catch (Throwable t) {

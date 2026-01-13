@@ -7,8 +7,7 @@ class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
-        // UUID-only (legacy entityId removed)
-        this.entityId = 0;
+        // UUID-only
         this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
 
         this.surface = ctx.surface || null;
@@ -178,7 +177,6 @@ class EntityHandle {
             } catch (_) {
             }
         }
-        this.entityId = 0;
         this.uuid = "";
     }
 

@@ -7,7 +7,6 @@ import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.ecs.EntityId;
 import org.graalvm.polyglot.HostAccess;
 
 import java.util.Objects;
@@ -83,34 +82,27 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     @Override
     public void setComponent(String uuid, String type, Object value) {
         String t = requireType(type, "[entity] setComponent");
-        int id = ecs.resolveEntityId(uuid); // internal bridge
-        ecs.components().putByName(id, t, value);
+        ecs.putComponentByName(uuid, t, value);
     }
 
     @HostAccess.Export
     @Override
     public Object getComponent(String uuid, String type) {
         String t = requireType(type, "[entity] getComponent");
-        int id = ecs.resolveEntityIdOrNull(uuid);
-        if (id == EntityId.NULL) return null;
-        return ecs.components().getByName(id, t);
+        return ecs.getComponentByName(uuid, t);
     }
 
     @HostAccess.Export
     @Override
     public boolean hasComponent(String uuid, String type) {
         String t = requireType(type, "[entity] hasComponent");
-        int id = ecs.resolveEntityIdOrNull(uuid);
-        if (id == EntityId.NULL) return false;
-        return ecs.components().hasByName(id, t);
+        return ecs.hasComponentByName(uuid, t);
     }
 
     @HostAccess.Export
     @Override
     public void removeComponent(String uuid, String type) {
         String t = requireType(type, "[entity] removeComponent");
-        int id = ecs.resolveEntityIdOrNull(uuid);
-        if (id == EntityId.NULL) return;
-        ecs.components().removeByName(id, t);
+        ecs.removeComponentByName(uuid, t);
     }
 }

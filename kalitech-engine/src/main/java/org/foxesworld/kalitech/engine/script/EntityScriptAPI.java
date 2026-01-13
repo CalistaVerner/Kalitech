@@ -1,6 +1,5 @@
 package org.foxesworld.kalitech.engine.script;
 
-import com.jme3.app.SimpleApplication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -12,26 +11,24 @@ public final class EntityScriptAPI {
 
     private static final Logger log = LogManager.getLogger(EntityScriptAPI.class);
 
-    private final int entityId;
+    private final String uuid;
     private final EcsWorld ecs;
-    private final SimpleApplication app;
     private final ScriptEventBus events;
 
-    public EntityScriptAPI(int entityId, EcsWorld ecs, SimpleApplication app, ScriptEventBus events) {
-        this.entityId = entityId;
+    public EntityScriptAPI(String uuid, EcsWorld ecs, ScriptEventBus events) {
+        this.uuid = uuid;
         this.ecs = ecs;
-        this.app = app;
         this.events = events;
     }
 
     @HostAccess.Export
-    public int id() {
-        return entityId;
+    public String uuid() {
+        return uuid;
     }
 
     @HostAccess.Export
     public void info(String msg) {
-        log.info("[JS:e{}] {}", entityId, msg);
+        log.info("[JS:{}] {}", uuid, msg);
     }
 
     // ---------- Events ----------
@@ -43,6 +40,7 @@ public final class EntityScriptAPI {
     // ---------- Transform ----------
     @HostAccess.Export
     public void setPos(float x, float y, float z) {
+        int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);
         if (t == null) {
             t = new TransformComponent();
@@ -55,12 +53,14 @@ public final class EntityScriptAPI {
 
     @HostAccess.Export
     public float getX() {
+        int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);
         return t != null ? t.x : 0f;
     }
 
     @HostAccess.Export
     public void rotateY(float radians) {
+        int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);
         if (t == null) {
             t = new TransformComponent();

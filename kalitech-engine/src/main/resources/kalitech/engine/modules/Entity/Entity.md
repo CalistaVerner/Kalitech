@@ -40,7 +40,7 @@ const e = ENT.create({
     attachSurface: true
 });
 
-LOG.info("entityId=" + e.id() + " surfaceId=" + e.surfaceHandleId());
+LOG.info("uuid=" + e.uuidString() + " surfaceId=" + e.surfaceHandleId());
 ```
 
 ### 2) Сущность с физикой (body создаётся ровно один раз)
@@ -80,7 +80,7 @@ e.applyImpulse([0, 6, 0]);
 
 `ENT.create(cfg)` возвращает **`EntityHandle`** — объект-обёртку с:
 
-* `entityId`, `surfaceId`, `bodyId` (примитивы)
+* `uuid`, `surfaceId`, `bodyId` (примитивы)
 * ссылками `surface` и `body` (если были созданы)
 * удобными методами (transform/forces/components/destroy)
 
@@ -97,7 +97,7 @@ e.applyImpulse([0, 6, 0]);
 |-----------------|------------:|-------------:|---------------------------------------------------------------------------|
 | `name`          |      string |   `"entity"` | имя сущности (уходит в Java `engine.entity().create(name)`)               |
 | `surface`       | object/null |            — | конфиг для `engine.mesh().create(surfaceCfg)`                             |
-| `attachSurface` |     boolean |       `true` | прикрепить surface к entity: `engine.surface().attach(surface, entityId)` |
+| `attachSurface` |     boolean |       `true` | прикрепить surface к entity: `engine.surface().attachEntity(surface, uuid)` |
 | `body`          | object/null |            — | конфиг для `engine.physics().body(bodyCfg)`                               |
 | `components`    | object/null |            — | карта компонентов: `{ name: dataOrFn }`                                   |
 | `debug`         |     boolean |      `false` | вывести лог создания (`engine.log().info`)                                |
@@ -149,7 +149,7 @@ const e = ENT.create({
         tag: {kind: "npc"},
         ai: (ctx) => ({
             state: "idle",
-            entityId: ctx.entityId,
+            uuid: ctx.uuid,
             bodyId: ctx.bodyId
         })
     }
@@ -160,7 +160,7 @@ const e = ENT.create({
 
 ```js
 ({
-    entityId,
+    uuid,
     surface,
     body,
     surfaceId,

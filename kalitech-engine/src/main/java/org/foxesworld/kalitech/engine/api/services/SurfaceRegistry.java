@@ -9,8 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.module.EngineService;
-import org.foxesworld.kalitech.engine.ecs.EntityId;
-import org.foxesworld.kalitech.engine.ecs.EntityUuids;
+import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 
 import java.util.HashMap;
@@ -32,12 +31,12 @@ public final class SurfaceRegistry implements EngineService {
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> kindById = new ConcurrentHashMap<>();
 
-    // surfaceId -> entityId (internal)
-    private final ConcurrentHashMap<Integer, Integer> surfaceToEntity = new ConcurrentHashMap<>();
-    // entityId -> surfaceId
-    private final ConcurrentHashMap<Integer, Integer> entityToSurface = new ConcurrentHashMap<>();
+    // surfaceId -> entityUuid (internal)
+    private final ConcurrentHashMap<Integer, String> surfaceToEntity = new ConcurrentHashMap<>();
+    // entityUuid -> surfaceId
+    private final ConcurrentHashMap<String, Integer> entityToSurface = new ConcurrentHashMap<>();
 
-    private EntityUuids uuids;
+    private EcsWorld ecs;
 
     private final ConcurrentLinkedQueue<Integer> pendingAttach = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean attachFlushScheduled = new AtomicBoolean(false);
@@ -62,9 +61,8 @@ public final class SurfaceRegistry implements EngineService {
         this.app = Objects.requireNonNull(ctx.app, "ctx.app");
         this.busSupplier = ctx.engine::getBus;
 
-        if (ctx.ecs == null) throw new IllegalStateException("SurfaceRegistry: ctx.ecs is null");
-        this.uuids = Objects.requireNonNull(ctx.ecs.uuids(), "ctx.ecs.uuids()");
-        if (log.isDebugEnabled()) log.debug("[service] attached id='{}' uuidsBound=true", id());
+        this.ecs = Objects.requireNonNull(ctx.ecs, "ctx.ecs");
+        if (log.isDebugEnabled()) log.debug("[service] attached id='{}' ecsBound=true", id());
     }
 
     @Override
@@ -75,7 +73,7 @@ public final class SurfaceRegistry implements EngineService {
         surfaceToEntity.clear();
         entityToSurface.clear();
         attachFlushScheduled.set(false);
-        uuids = null;
+        ecs = null;
         busSupplier = () -> null;
         if (log.isDebugEnabled()) log.debug("[service] detached id='{}'", id());
     }
@@ -117,26 +115,25 @@ public final class SurfaceRegistry implements EngineService {
 
     public void attach(int surfaceId, String entityUuid) {
         if (!exists(surfaceId)) throw new IllegalStateException("attach: unknown surfaceId=" + surfaceId);
-        int entityId = requireEntityIdFromUuid(entityUuid);
+        String uuid = requireAliveUuid(entityUuid);
 
-        Integer oldSurface = entityToSurface.put(entityId, surfaceId);
+        Integer oldSurface = entityToSurface.put(uuid, surfaceId);
         if (oldSurface != null && oldSurface != surfaceId) surfaceToEntity.remove(oldSurface);
 
-        surfaceToEntity.put(surfaceId, entityId);
+        surfaceToEntity.put(surfaceId, uuid);
 
-        if (log.isDebugEnabled()) log.debug("[surface] attached surfaceId={} entityUuid={}", surfaceId, entityUuid);
-        emit("engine.surface.attached", "surfaceId", surfaceId, "entityUuid", entityUuid);
+        if (log.isDebugEnabled()) log.debug("[surface] attached surfaceId={} entityUuid={}", surfaceId, uuid);
+        emit("engine.surface.attached", "surfaceId", surfaceId, "entityUuid", uuid);
     }
 
     /**
      * Detach binding by surfaceId. Returns detached uuid or "" if none.
      */
     public String detachSurface(int surfaceId) {
-        Integer ent = surfaceToEntity.remove(surfaceId);
-        if (ent != null) entityToSurface.remove(ent);
+        String uuid = surfaceToEntity.remove(surfaceId);
+        if (uuid != null) entityToSurface.remove(uuid);
 
-        if (ent != null) {
-            String uuid = requireUuidOfEntityId(ent);
+        if (uuid != null) {
             if (log.isDebugEnabled()) log.debug("[surface] detached surfaceId={} entityUuid={}", surfaceId, uuid);
             emit("engine.surface.detached", "surfaceId", surfaceId, "entityUuid", uuid);
             return uuid;
@@ -148,9 +145,8 @@ public final class SurfaceRegistry implements EngineService {
      * Detach binding by entityUuid. Returns detached surfaceId or null.
      */
     public Integer detachEntity(String entityUuid) {
-        int entityId = requireEntityIdFromUuid(entityUuid);
-
-        Integer surf = entityToSurface.remove(entityId);
+        if (entityUuid == null || entityUuid.isBlank()) return null;
+        Integer surf = entityToSurface.remove(entityUuid);
         if (surf != null) surfaceToEntity.remove(surf);
 
         if (surf != null) {
@@ -161,9 +157,8 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     public String attachedEntityUuid(int surfaceId) {
-        Integer ent = surfaceToEntity.get(surfaceId);
-        if (ent == null || ent <= 0) return "";
-        return requireUuidOfEntityId(ent);
+        String uuid = surfaceToEntity.get(surfaceId);
+        return (uuid != null) ? uuid : "";
     }
 
     // ------------------------------------------------------------
@@ -224,6 +219,15 @@ public final class SurfaceRegistry implements EngineService {
         if (log.isDebugEnabled()) log.debug("[surface] destroyed surfaceId={} entityUuid={}", id, uuid);
     }
 
+    private String requireAliveUuid(String uuid) {
+        if (uuid == null || uuid.isBlank()) throw new IllegalArgumentException("entityUuid is required");
+        String trimmed = uuid.trim();
+        EcsWorld e = ecs;
+        if (e == null) throw new IllegalStateException("SurfaceRegistry: ecs is null");
+        if (!e.exists(trimmed)) throw new IllegalArgumentException("unknown entityUuid=" + trimmed);
+        return trimmed;
+    }
+
     // ------------------------------------------------------------
     // attach-to-root batching
     // ------------------------------------------------------------
@@ -260,25 +264,6 @@ public final class SurfaceRegistry implements EngineService {
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
-
-    private int requireEntityIdFromUuid(String uuid) {
-        if (uuid == null || uuid.isBlank()) throw new IllegalArgumentException("uuid is blank");
-        EntityUuids u = uuids;
-        if (u == null)
-            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
-        int id = u.entityIdOf(uuid);
-        if (id == EntityId.NULL) throw new IllegalArgumentException("unknown entityUuid=" + uuid);
-        return id;
-    }
-
-    private String requireUuidOfEntityId(int entityId) {
-        EntityUuids u = uuids;
-        if (u == null)
-            throw new IllegalStateException("UUID registry is not bound (SurfaceRegistry.attach(ctx) not called?)");
-        String uuid = u.uuidStringOf(entityId);
-        if (uuid == null || uuid.isBlank()) throw new IllegalStateException("no uuid for entityId=" + entityId);
-        return uuid;
-    }
 
     private ScriptEventBus bus() {
         Supplier<ScriptEventBus> s = busSupplier;

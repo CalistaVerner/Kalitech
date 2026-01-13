@@ -18,7 +18,6 @@ class EntityCore {
         this.bodyAccess = null;
 
         this.uuid = "";     // ✅ UUID-only
-        this.entityId = 0;  // optional internal
         this.surfaceId = 0;
         this.bodyId = 0;
 
@@ -78,7 +77,6 @@ class EntityCore {
         this.uuid = String(u || "");
         if (!this.uuid) throw new Error("[EntityCore] missing uuid (UUID-only)");
 
-        this.entityId = (handle.entityId | 0) || 0; // optional internal (may be 0)
         this.surfaceId = (handle.surfaceId | 0) || 0;
         this.bodyId = (handle.bodyId | 0) || 0;
 
@@ -153,7 +151,6 @@ class EntityCore {
         this.bodyAccess = null;
 
         this.uuid = "";
-        this.entityId = 0;
         this.surfaceId = 0;
         this.bodyId = 0;
 

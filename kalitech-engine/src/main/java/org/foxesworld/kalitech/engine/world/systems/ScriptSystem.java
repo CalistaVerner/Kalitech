@@ -170,7 +170,14 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
             ScriptComponent sc = e.getValue();
             if (sc == null || sc.assetPath == null) continue;
 
-            ensureStarted(entityId, sc);
+            String uuid = ecs.uuids().uuidStringOf(entityId);
+            if (uuid == null || uuid.isBlank()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("ScriptSystem skipped script without uuid entityId={}", entityId);
+                }
+                continue;
+            }
+            ensureStarted(uuid, entityId, sc);
             callIfExists(sc.instance, "update", tpf);
         }
     }
@@ -241,7 +248,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         }
     }
 
-    private void ensureStarted(int entityId, ScriptComponent sc) {
+    private void ensureStarted(String uuid, int entityId, ScriptComponent sc) {
         String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
                 ? sc.moduleId
                 : normalize(sc.assetPath);
@@ -265,7 +272,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         sc.instance = instance;
         sc.moduleVersion = v;
 
-        EntityScriptAPI api = new EntityScriptAPI(entityId, ecs, app, bus);
+        EntityScriptAPI api = new EntityScriptAPI(uuid, ecs, bus);
         callIfExists(sc.instance, "init", api);
     }
 }
