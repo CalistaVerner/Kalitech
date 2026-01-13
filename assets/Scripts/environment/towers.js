@@ -43,7 +43,6 @@ function randNum(min, max, opts) {
 }
 
 function buildEm(engine, state) {
-    // state.created = array of uuids OR handles
     if (!state.created) state.created = [];
 
     const TOTAL = 70;
@@ -81,8 +80,7 @@ function buildEm(engine, state) {
                 Math.pow(size, 3) *
                 (1 + size * weightBias);
 
-            // IMPORTANT: capture return value from create()
-            // In your engine this should be an EntityHandle (best) or uuid string.
+
             const h = ENGINE.mesh
                 .box$()
                 .size(size)
@@ -100,45 +98,11 @@ function buildEm(engine, state) {
     }
 }
 
-function destroyCreated(state) {
-    const list = (state && Array.isArray(state.created)) ? state.created : null;
-    if (!list || list.length === 0) return;
-
-    // Prefer ENT.destroy(ref) because it should remove: visual + physics + ecs (uuid-only contract)
-    const destroyFn =
-        (globalThis.ENT && typeof globalThis.ENT.destroy === "function")
-            ? (ref) => {
-                try {
-                    ENT.destroy(ref);
-                } catch (_) {
-                }
-            }
-            : (ref) => {
-                // fallback: if ref is uuid string
-                try {
-                    if (typeof ref === "string" && ref) ENGINE.entity.destroy(ref);
-                } catch (_) {
-                }
-            };
-
-    // destroy in reverse order (top blocks first) for stability and fewer physics issues
-    for (let i = list.length - 1; i >= 0; i--) {
-        destroyFn(list[i]);
-    }
-
-    list.length = 0;
-}
-
 module.exports = {
     _state: null,
 
     init(ctx) {
         const E = resolveEngineApi(ctx);
-
-        // if script is reloaded without destroy called, be safe
-        if (this._state && this._state.created && this._state.created.length) {
-            destroyCreated(this._state);
-        }
 
         this._state = {created: []};
         buildEm(E, this._state);
@@ -148,7 +112,5 @@ module.exports = {
     },
 
     destroy() {
-        destroyCreated(this._state);
-        this._state = null;
     }
 };

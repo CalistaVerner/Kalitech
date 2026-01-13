@@ -198,45 +198,7 @@ class PlayerPawn {
     }
 
     destroy() {
-        if (!this.alive) return;
 
-        // capture BEFORE nulling (old code lost uuid because handle became null)
-        const handle = this.handle;
-        const core = this.core;
-        const uuid = this.uuid;
-
-        this.alive = false;
-
-        // drop gameplay side first (no more reads)
-        this.inputRouter = null;
-        this.d = null;
-
-        this.handle = null;
-        this.core = null;
-
-        // ✅ single universal path: ENT.destroy(ref)
-        // (will remove visual + physics + ecs if handle/core supports it)
-        try {
-            if (globalThis.ENT && typeof globalThis.ENT.destroy === "function") {
-                ENT.destroy(handle || core || uuid);
-                return;
-            }
-        } catch (_) {
-        }
-
-        // fallback (should be rare)
-        try {
-            if (uuid) ENGINE.entity.destroy(uuid);
-        } catch (_) {
-        }
-        try {
-            if (core && typeof core.destroy === "function") core.destroy();
-        } catch (_) {
-        }
-        try {
-            if (handle && typeof handle.destroy === "function") handle.destroy();
-        } catch (_) {
-        }
     }
 
     getModel() {
