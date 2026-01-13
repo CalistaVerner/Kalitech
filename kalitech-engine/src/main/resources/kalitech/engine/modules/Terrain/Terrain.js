@@ -134,12 +134,21 @@ function makeApi(engine) {
         return terr.rebuild(surfaceHandle);
     }
 
-    function attach(surfaceHandle, entityId) {
-        return terr.attach(surfaceHandle, entityId | 0);
+    function attachEntity(surfaceHandle, entityUuid) {
+        if (!entityUuid) throw new Error("TERR.attachEntity(surface,uuid): uuid required");
+        return terr.attachEntity(surfaceHandle, entityUuid);
+    }
+
+    function attach(surfaceHandle, entityUuid) {
+        return attachEntity(surfaceHandle, entityUuid);
+    }
+
+    function detachEntity(surfaceHandle) {
+        return terr.detachEntity(surfaceHandle);
     }
 
     function detach(surfaceHandle) {
-        return terr.detach(surfaceHandle);
+        return detachEntity(surfaceHandle);
     }
 
     const heightsNS = Object.freeze({
@@ -171,6 +180,8 @@ function makeApi(engine) {
             setHeight,
             adjustHeight,
             rebuild,
+            attachEntity,
+            detachEntity,
             attach,
             detach
         }
@@ -204,6 +215,8 @@ function makeApi(engine) {
         adjustHeight,
         rebuild,
 
+        attachEntity,
+        detachEntity,
         attach,
         detach,
     });

@@ -179,10 +179,30 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
             if (attach) api.attachToRoot(h);
 
             if (cfg != null && !cfg.isNull()) {
-                Value ent = member(cfg, "entityId");
-                if (ent != null && !ent.isNull() && ent.fitsInInt()) {
-                    int entityId = ent.asInt();
-                    if (entityId > 0) api.attachEntity(h, entityId);
+                Value entId = member(cfg, "entityId");
+                if (entId != null && !entId.isNull()) {
+                    throw new IllegalArgumentException("assets.loadModel: cfg.entityId is legacy; use cfg.entityUuid");
+                }
+
+                String entityUuid = null;
+                Value entUuid = member(cfg, "entityUuid");
+                if (entUuid != null && !entUuid.isNull()) {
+                    if (!entUuid.isString()) {
+                        throw new IllegalArgumentException("assets.loadModel: cfg.entityUuid must be a string UUID");
+                    }
+                    entityUuid = entUuid.asString();
+                } else {
+                    Value ent = member(cfg, "entity");
+                    if (ent != null && !ent.isNull()) {
+                        if (!ent.isString()) {
+                            throw new IllegalArgumentException("assets.loadModel: cfg.entity must be a string UUID");
+                        }
+                        entityUuid = ent.asString();
+                    }
+                }
+
+                if (entityUuid != null && !entityUuid.isBlank()) {
+                    api.attachEntity(h, entityUuid.trim());
                 }
             }
 

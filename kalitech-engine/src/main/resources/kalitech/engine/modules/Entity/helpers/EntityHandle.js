@@ -7,7 +7,7 @@ class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
-        // entityId теперь может быть 0 (UUID-only)
+        // entityId is legacy; kept only for internal compatibility (always 0 in UUID-only flow)
         this.entityId = (ctx.entityId | 0);
         this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
 
@@ -30,7 +30,7 @@ class EntityHandle {
 
     id() {
         return (this.entityId | 0);
-    } // optional
+    } // legacy (always 0 in UUID-only)
     uuidString() {
         return this.uuid || "";
     }
@@ -48,7 +48,7 @@ class EntityHandle {
     }
 
     valueOf() {
-        return (this.entityId | 0);
+        return 0;
     }
 
     toString() {
@@ -56,7 +56,7 @@ class EntityHandle {
     }
 
     [Symbol.toPrimitive](hint) {
-        if (hint === "number") return (this.entityId | 0);
+        if (hint === "number") return 0;
         return this.uuidString();
     }
 
@@ -140,7 +140,6 @@ class EntityHandle {
         const phys = subsystem(engine, "physics");
 
         const uuid = this.uuid;
-        const eid = (this.entityId | 0);
         const sid = (this.surfaceId | 0);
         const bid = (this.bodyId | 0);
 
@@ -177,11 +176,6 @@ class EntityHandle {
         if (uuid && typeof ent.destroy === "function") {
             try {
                 ent.destroy(uuid);
-            } catch (_) {
-            }
-        } else if (eid > 0 && typeof ent.destroy === "function") {
-            try {
-                ent.destroy(eid);
             } catch (_) {
             }
         }
