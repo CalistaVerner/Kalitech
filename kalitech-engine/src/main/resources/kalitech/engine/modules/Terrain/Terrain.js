@@ -134,8 +134,12 @@ function makeApi(engine) {
         return terr.rebuild(surfaceHandle);
     }
 
-    function attach(surfaceHandle, entityId) {
-        return terr.attach(surfaceHandle, entityId | 0);
+    function attachEntity(surfaceHandle, entityUuid) {
+        return terr.attachEntity(surfaceHandle, entityUuid);
+    }
+
+    function attach(surfaceHandle, entityUuid) {
+        return attachEntity(surfaceHandle, entityUuid);
     }
 
     function detach(surfaceHandle) {
@@ -172,6 +176,7 @@ function makeApi(engine) {
             adjustHeight,
             rebuild,
             attach,
+            attachEntity,
             detach
         }
     );
@@ -205,6 +210,7 @@ function makeApi(engine) {
         rebuild,
 
         attach,
+        attachEntity,
         detach,
     });
 }

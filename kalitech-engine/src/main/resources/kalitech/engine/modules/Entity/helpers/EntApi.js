@@ -65,24 +65,13 @@ function isUuidString(s) {
     return x.length >= 32 && x.indexOf("-") > 0;
 }
 
-function resolveEntityId(entApi, uuid) {
-    if (!entApi || typeof entApi.entityIdOf !== "function") return 0;
-    const id = entApi.entityIdOf(String(uuid));
-    return (typeof id === "number") ? (id | 0) : (id | 0);
-}
-
-function attachSurfaceSmart(surfApi, surfaceHandle, uuid, entityId) {
+function attachSurfaceUuid(surfApi, surfaceHandle, uuid) {
     // UUID-first attach if available
     if (uuid && typeof surfApi.attachEntity === "function") {
         surfApi.attachEntity(surfaceHandle, uuid);
         return;
     }
-    // Legacy fallback (only if needed)
-    if (typeof surfApi.attach === "function") {
-        surfApi.attach(surfaceHandle, entityId | 0);
-        return;
-    }
-    throw new Error("[ENT] surface attach missing (no attachEntity(uuid) nor attach(entityId))");
+    throw new Error("[ENT] surface attach missing (no attachEntity(uuid))");
 }
 
 class EntApi {
@@ -194,7 +183,6 @@ class EntApi {
         const debug = !!cfg.debug;
 
         const ctx = {
-            entityId: 0,      // optional internal
             uuid: "",         // ✅ primary
             surface: null,
             body: null,
@@ -217,7 +205,6 @@ class EntApi {
         }
 
         ctx.uuid = created.trim();
-        ctx.entityId = resolveEntityId(ent, ctx.uuid) | 0; // optional
 
         // 2) surface (optional)
         const surfCfg = cfg.surface || null;
@@ -244,7 +231,7 @@ class EntApi {
 
             const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
             if (attachSurface) {
-                attachSurfaceSmart(surfApi, ctx.surface, ctx.uuid, ctx.entityId);
+                attachSurfaceUuid(surfApi, ctx.surface, ctx.uuid);
             }
         }
 
@@ -270,7 +257,6 @@ class EntApi {
 
                 if (typeof v === "function") {
                     data = v({
-                        entityId: ctx.entityId, // optional
                         uuid: ctx.uuid,
                         surface: ctx.surface,
                         body: ctx.body,
@@ -294,7 +280,6 @@ class EntApi {
             this._log.info(
                 "[ENT] created name=" + name +
                 " uuid=" + ctx.uuid +
-                " entityId=" + (ctx.entityId | 0) +
                 " surfaceId=" + (ctx.surfaceId | 0) +
                 " bodyId=" + (ctx.bodyId | 0)
             );
@@ -332,16 +317,6 @@ class EntApi {
             if (typeof ref.uuid === "function") return String(ref.uuid() || "");
             if (typeof ref.uuid === "string") return String(ref.uuid || "");
         }
-
-        // if someone passed numeric entityId
-        const id = idOf(ref, "entity") | 0;
-        if (id <= 0) return "";
-
-        if (typeof subsystem(this.engine, "entity").uuidOf === "function") {
-            const u = subsystem(this.engine, "entity").uuidOf(id);
-            return (typeof u === "string") ? u : "";
-        }
-
         return "";
     }
 }
