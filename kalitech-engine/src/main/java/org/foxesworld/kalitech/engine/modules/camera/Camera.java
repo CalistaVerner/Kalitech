@@ -1,17 +1,23 @@
 package org.foxesworld.kalitech.engine.modules.camera;
 
+import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 
+import java.util.Objects;
+
 /**
- * Owns batched desired camera transform + applies it once per frame on JME thread.
- * <p>
- * Threading:
- * - set* methods are thread-safe (volatile writes + dirty bits).
- * - flush() must be called from JME thread (EngineApiImpl.__updateTime).
+ * Owns batched desired camera transform and applies it once per frame on the JME thread.
+ *
+ * <p>Threading:
+ * <ul>
+ *   <li>{@code set*}/{@code move*}/{@code rotate*} are thread-safe (volatile writes + dirty bits).</li>
+ *   <li>{@link #flushOncePerFrame()} must be called from the JME thread.</li>
+ *   <li>Views returned by {@code *View()} are reused and mutable (no allocations).</li>
+ * </ul>
  */
 public final class Camera {
 
@@ -19,50 +25,30 @@ public final class Camera {
 
     private final EngineApiImpl engine;
     private final CameraDirty dirty = new CameraDirty();
-    // temps (JME thread only)
+
     private final Vector3f tmpV = new Vector3f();
     private final Quaternion tmpQ = new Quaternion();
-    // views
+
     private final Vec3View locView = new Vec3View();
     private final Vec3View fwdView = new Vec3View();
     private final Vec3View rightView = new Vec3View();
     private final Vec3View upView = new Vec3View();
-    // desired (thread-safe)
+
     private volatile float desiredX;
     private volatile float desiredY;
     private volatile float desiredZ;
     private volatile float desiredYaw;
     private volatile float desiredPitch;
-    // cached (last applied/read)
+
     private volatile float cachedYaw;
     private volatile float cachedPitch;
 
+    private volatile float pitchLimitRad = (FastMath.HALF_PI - 0.001f);
+
     public Camera(EngineApiImpl engine) {
-        this.engine = engine;
-        //this.state = state;
-
-        // init from native camera (best effort)
-        try {
-            var cam = engine.getApp().getCamera();
-            Vector3f p = cam.getLocation();
-            desiredX = p.x;
-            desiredY = p.y;
-            desiredZ = p.z;
-
-            float[] ang = new float[3];
-            cam.getRotation().toAngles(ang);
-            desiredPitch = ang[0];
-            desiredYaw = ang[1];
-
-            cachedPitch = desiredPitch;
-            cachedYaw = desiredYaw;
-
-            locView.set(p.x, p.y, p.z);
-        } catch (Throwable ignored) {
-        }
+        this.engine = Objects.requireNonNull(engine, "engine");
+        initFromNativeBestEffort();
     }
-
-    // ---------- Flush ----------
 
     public void flushOncePerFrame() {
         if (!engine.isJmeThread()) return;
@@ -70,7 +56,11 @@ public final class Camera {
         final int mask = dirty.take();
         if (mask == 0) return;
 
-        final var cam = engine.getApp().getCamera();
+        final var app = engine.getApp();
+        if (app == null) return;
+
+        final var cam = app.getCamera();
+        if (cam == null) return;
 
         if ((mask & CameraDirty.LOC) != 0) {
             tmpV.set(desiredX, desiredY, desiredZ);
@@ -81,14 +71,14 @@ public final class Camera {
         if ((mask & CameraDirty.ROT) != 0) {
             final float p = clampPitch(desiredPitch);
             final float y = desiredYaw;
+
             tmpQ.fromAngles(p, y, 0f);
             cam.setRotation(tmpQ);
+
             cachedPitch = p;
             cachedYaw = y;
         }
     }
-
-    // ---------- Desired setters (thread-safe) ----------
 
     public void setLocation(double x, double y, double z) {
         desiredX = (float) x;
@@ -132,23 +122,19 @@ public final class Camera {
         final float y = cachedYaw;
         final float p = cachedPitch;
 
-        // compute basis cheaply; no allocations
-        // forward
-        final float cp = com.jme3.math.FastMath.cos(p);
-        final float sp = com.jme3.math.FastMath.sin(p);
-        final float cy = com.jme3.math.FastMath.cos(y);
-        final float sy = com.jme3.math.FastMath.sin(y);
+        final float cp = FastMath.cos(p);
+        final float sp = FastMath.sin(p);
+        final float cy = FastMath.cos(y);
+        final float sy = FastMath.sin(y);
 
         final float fx = -sy * cp;
         final float fy = sp;
         final float fz = -cy * cp;
 
-        // right (roll=0)
         final float rx = cy;
         final float ry = 0f;
         final float rz = -sy;
 
-        // up = cross(right, forward)
         final float ux = (ry * fz) - (rz * fy);
         final float uy = (rz * fx) - (rx * fz);
         final float uz = (rx * fy) - (ry * fx);
@@ -159,8 +145,6 @@ public final class Camera {
 
         dirty.mark(CameraDirty.LOC);
     }
-
-    // ---------- Getters / views ----------
 
     public Vec3View locationView() {
         locView.set(desiredX, desiredY, desiredZ);
@@ -190,12 +174,59 @@ public final class Camera {
         return upView;
     }
 
-    // ---------- helpers ----------
+    public void setPitchLimitRad(double limitRad) {
+        float v = (float) limitRad;
+        if (!Float.isFinite(v) || v <= 0f) throw new IllegalArgumentException("limitRad must be > 0");
+        pitchLimitRad = v;
 
-    @Deprecated
+        cachedPitch = clampPitch(desiredPitch);
+        dirty.mark(CameraDirty.ROT);
+    }
+
+    public double pitchLimitRad() {
+        return pitchLimitRad;
+    }
+
+    public void syncFromNativeNow() {
+        initFromNativeStrict();
+    }
+
+    private void initFromNativeBestEffort() {
+        try {
+            initFromNativeStrict();
+        } catch (Throwable t) {
+            if (log.isDebugEnabled()) {
+                log.debug("[camera] init from native skipped", t);
+            }
+        }
+    }
+
+    private void initFromNativeStrict() {
+        final var app = engine.getApp();
+        if (app == null) throw new IllegalStateException("engine.app is null");
+
+        final var cam = app.getCamera();
+        if (cam == null) throw new IllegalStateException("engine.app.camera is null");
+
+        Vector3f p = cam.getLocation();
+        desiredX = p.x;
+        desiredY = p.y;
+        desiredZ = p.z;
+
+        float[] ang = new float[3];
+        cam.getRotation().toAngles(ang);
+
+        desiredPitch = ang[0];
+        desiredYaw = ang[1];
+
+        cachedPitch = clampPitch(desiredPitch);
+        cachedYaw = desiredYaw;
+
+        locView.set(p.x, p.y, p.z);
+    }
+
     private float clampPitch(float pitch) {
-        float limit = 1;
-        if (limit <= 0f) return pitch;
+        final float limit = pitchLimitRad;
         if (pitch > limit) return limit;
         if (pitch < -limit) return -limit;
         return pitch;
