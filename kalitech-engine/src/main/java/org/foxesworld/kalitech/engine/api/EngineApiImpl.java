@@ -110,6 +110,9 @@ public final class EngineApiImpl implements EngineApi {
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
+        // ✅ NO legacy ctor
+        this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
+
         this.logApi = apiRegistry.register(new LogApiImpl());
         this.assetsApi = apiRegistry.register(new AssetsApiImpl());
         this.eventsApi = apiRegistry.register(new EventsApiImpl());
@@ -121,8 +124,7 @@ public final class EngineApiImpl implements EngineApi {
         this.entityApi = apiRegistry.register(new EntityApiImpl());
         this.cameraApi = apiRegistry.register(new CameraApiImpl());
 
-        // ✅ NO legacy ctor
-        this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
+
 
         this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
         this.surfaceApi = apiRegistry.register(new SurfaceApiImpl());
@@ -375,25 +377,51 @@ public final class EngineApiImpl implements EngineApi {
     }
 
     /**
-     * ✅ UUID-only surface cleanup hook.
+     * UUID-only surface cleanup hook.
      * Call this from ECS when an entity is destroyed.
      */
     public void __surfaceCleanupOnEntityDestroy(String entityUuid) {
-        if (entityUuid == null || entityUuid.isBlank()) return;
+        if (entityUuid == null) return;
+        String uuid = entityUuid.trim();
+        if (uuid.isEmpty()) return;
 
+        Integer surfaceId;
         try {
-            Integer surfaceId = surfaceRegistry.detachEntity(entityUuid);
-            if (surfaceId != null) {
-                try { physicsApi.__cleanupSurface(surfaceId); } catch (Throwable ignored) {}
-                surfaceRegistry.destroy(surfaceId);
+            surfaceId = surfaceRegistry.detachEntity(uuid);
+        } catch (Throwable t) {
+            LOG.warn("__surfaceCleanupOnEntityDestroy: detachEntity failed entityUuid={}", uuid, t);
+            surfaceId = null;
+        }
+
+        if (surfaceId != null) {
+            try {
+                physicsApi.__cleanupSurface(surfaceId);
+            } catch (Throwable t) {
+                LOG.warn("__surfaceCleanupOnEntityDestroy: physics cleanup failed surfaceId={} entityUuid={}",
+                        surfaceId, uuid, t);
             }
 
             try {
-                ecs.removeComponentByName(entityUuid, "Surface");
-            } catch (Throwable ignored) {
+                if (isJmeThread()) {
+                    surfaceRegistry.destroy(surfaceId);
+                } else {
+                    Integer finalSurfaceId = surfaceId;
+                    Future<?> f = app.enqueue(() -> {
+                        surfaceRegistry.destroy(finalSurfaceId);
+                        return null;
+                    });
+                    f.get(2, TimeUnit.SECONDS);
+                }
+            } catch (Throwable t) {
+                LOG.warn("__surfaceCleanupOnEntityDestroy: registry destroy failed surfaceId={} entityUuid={}",
+                        surfaceId, uuid, t);
             }
+        }
+
+        try {
+            ecs.removeComponentByName(uuid, "Surface");
         } catch (Throwable t) {
-            LOG.warn("__surfaceCleanupOnEntityDestroy failed entityUuid={}", entityUuid, t);
+            LOG.warn("__surfaceCleanupOnEntityDestroy: ecs component cleanup failed entityUuid={}", uuid, t);
         }
     }
 
