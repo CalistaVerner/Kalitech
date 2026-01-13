@@ -1,4 +1,3 @@
-// FILE: engine/api/impl/EditorLinesApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.material.Material;

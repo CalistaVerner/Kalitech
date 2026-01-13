@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/LogApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import org.apache.logging.log4j.Logger;

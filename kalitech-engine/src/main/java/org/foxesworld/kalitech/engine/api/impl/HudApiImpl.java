@@ -11,6 +11,7 @@ import com.simsilica.lemur.Label;
 import com.simsilica.lemur.Panel;
 import com.simsilica.lemur.component.QuadBackgroundComponent;
 import com.simsilica.lemur.style.BaseStyles;
+import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.HudApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -21,62 +22,68 @@ import org.graalvm.polyglot.HostAccess;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
 
 /**
- * HUD API (script-facing).
+ * HudApiImpl (thin bridge).
  *
- * <p>Coordinate contract:
- * <ul>
- *   <li>Top-left origin</li>
- *   <li>Y grows downward</li>
- * </ul>
+ *  Responsibilities:
+ *  - Registry (layers/elements)
+ *  - Thread hop (rt -> JME thread)
+ *  - Call into engine.modules.hud for math/sizing
  *
- * <p>Threading:
- * <ul>
- *   <li>All Lemur/JME scenegraph interactions are executed on the JME thread.</li>
- *   <li>Handles are stable integers stored in a registry.</li>
- * </ul>
+ * Script coordinate contract:
+ *  - TOP-LEFT origin, y grows DOWN
  */
 public final class HudApiImpl extends AbstractApiModule implements HudApi {
+
+    // AAA: keep explicit sizes to stabilize math even on forked Lemur
+    private final HudSizeCache sizeCache = new HudSizeCache();
+    private EngineApiImpl engine;
 
     private static final AtomicInteger IDS = new AtomicInteger(1000);
 
     private final ConcurrentHashMap<Integer, Layer> layers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, SpatialHolder> elements = new ConcurrentHashMap<>();
+    private volatile boolean inited;
 
-    private final HudSizeCache sizeCache = new HudSizeCache();
-
-    private final AtomicBoolean inited = new AtomicBoolean(false);
-
+    // --- Module ctor (for ApiRegistry.register(new HudApiImpl())) ---
     public HudApiImpl() {
         super("hud", "Hud", "1.0.0");
     }
 
+    private static float clamp01(float v) {
+        if (!Float.isFinite(v)) return 0f;
+        if (v < 0f) return 0f;
+        if (v > 1f) return 1f;
+        return v;
+    }
+
+    // --- Module lifecycle ---
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
+        bind(ctx.engine);
+    }
+
+    private void bind(EngineApiImpl engine) {
+        this.engine = Objects.requireNonNull(engine, "engine");
         initOnce();
     }
 
-    @Override
-    public void detach() {
-        layers.clear();
-        elements.clear();
-        try {
-            sizeCache.clear();
-        } catch (Throwable ignored) {
-        }
-        super.detach();
+    private void initOnce() {
+        if (inited) return;
+        inited = true;
+        ensureLemur();
     }
 
-    // ---------------------------------------------------------------------
-    // Internal data
-    // ---------------------------------------------------------------------
+    // ------------------------------------------------------------
+    // internal holders
+    // ------------------------------------------------------------
 
     private static final class Layer {
         final int id;
@@ -100,13 +107,23 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         }
     }
 
-    // ---------------------------------------------------------------------
+    // ------------------------------------------------------------
     // JME helpers
-    // ---------------------------------------------------------------------
+    // ------------------------------------------------------------
 
-    private Application app() {
-        var e = engine;
-        return (e == null) ? null : e.getApp();
+    private void ensureLemur() {
+        try {
+            if (GuiGlobals.getInstance() == null) {
+                GuiGlobals.initialize(engine.getApp());
+            }
+        } catch (Throwable ignore) {
+        }
+
+        try {
+            BaseStyles.loadGlassStyle();
+            GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
+        } catch (Throwable ignore) {
+        }
     }
 
     private Node guiNode() {
@@ -115,21 +132,18 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return n;
     }
 
+    private Application app() {
+        return engine.getApp();
+    }
 
     private int vpW() {
-        var a = app();
-        var cam = (a == null) ? null : a.getCamera();
-        return (cam != null) ? cam.getWidth() : 0;
+        var cam = app().getCamera();
+        return cam != null ? cam.getWidth() : 0;
     }
 
     private int vpH() {
-        var a = app();
-        var cam = (a == null) ? null : a.getCamera();
-        return (cam != null) ? cam.getHeight() : 0;
-    }
-
-    private void rt(String where, Runnable r) {
-        onJmeVoid(where, r);
+        var cam = app().getCamera();
+        return cam != null ? cam.getHeight() : 0;
     }
 
     private Layer reqLayer(int id) {
@@ -152,63 +166,49 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return false;
     }
 
-    private float parentHeightOf(Spatial parent) {
-        if (parent == null) return 0f;
-
-        for (SpatialHolder sh : elements.values()) {
-            if (sh != null && sh.spatial == parent) {
-                float h = sizeCache.getH(sh.id);
-                if (h > 0f) return h;
-                break;
-            }
-        }
-
-        return HudSizing.preferredH(parent);
+    private void rt(Runnable r) {
+        app().enqueue(() -> {
+            r.run();
+            return null;
+        });
     }
 
     private static void attachTo(Spatial parent, Spatial child) {
         if (parent instanceof Node n) n.attachChild(child);
     }
 
-    private void initOnce() {
-        if (!inited.compareAndSet(false, true)) return;
+    private float parentHeightOf(Spatial parent) {
+        if (parent == null) return 0f;
 
-        rt("hud.init", () -> {
-            try {
-                if (GuiGlobals.getInstance() == null) {
-                    GuiGlobals.initialize(app());
-                }
-            } catch (Throwable t) {
-                if (log != null && log.isDebugEnabled()) log.debug("[hud] GuiGlobals init skipped", t);
+        // if parent is one of our elements, prefer cached size
+        for (Map.Entry<Integer, SpatialHolder> e : elements.entrySet()) {
+            SpatialHolder sh = e.getValue();
+            if (sh != null && sh.spatial == parent) {
+                float h = sizeCache.getH(sh.id);
+                if (h > 0f) return h;
+                break;
             }
-
-            try {
-                BaseStyles.loadGlassStyle();
-                if (GuiGlobals.getInstance() != null) {
-                    GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
-                }
-            } catch (Throwable t) {
-                if (log != null && log.isDebugEnabled()) log.debug("[hud] style init skipped", t);
-            }
-        });
+        }
+        // fallback to Lemur preferred
+        return HudSizing.preferredH(parent);
     }
 
-    // ---------------------------------------------------------------------
+    // ------------------------------------------------------------
     // HudApi exports
-    // ---------------------------------------------------------------------
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
     public HudLayerHandle createLayer(String name) {
         final int id = IDS.incrementAndGet();
-        final String nm = (name == null || name.isBlank()) ? ("layer-" + id) : name.trim();
+        final String nm = (name == null || name.isBlank()) ? ("layer-" + id) : name;
 
         final Node root = new Node("hud:" + nm + ":" + id);
         root.setLocalTranslation(0, 0, 0);
 
         layers.put(id, new Layer(id, root));
 
-        rt("hud.createLayer", () -> guiNode().attachChild(root));
+        rt(() -> guiNode().attachChild(root));
         return new HudLayerHandle(id);
     }
 
@@ -218,21 +218,21 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return;
 
-        final Layer l = layers.remove(lid);
+        Layer l = layers.remove(lid);
         if (l == null) return;
 
-        rt("hud.destroyLayer", () -> {
-            for (Iterator<Map.Entry<Integer, SpatialHolder>> it = elements.entrySet().iterator(); it.hasNext(); ) {
-                Map.Entry<Integer, SpatialHolder> e = it.next();
-                SpatialHolder sh = e.getValue();
-                if (sh != null && sh.layerId == lid) {
-                    it.remove();
-                    sizeCache.remove(sh.id);
-                    if (sh.spatial != null) sh.spatial.removeFromParent();
-                }
+        for (Iterator<Map.Entry<Integer, SpatialHolder>> it = elements.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, SpatialHolder> e = it.next();
+            SpatialHolder sh = e.getValue();
+            if (sh != null && sh.layerId == lid) {
+                it.remove();
+                sizeCache.remove(sh.id);
+                Spatial s = sh.spatial;
+                if (s != null) rt(s::removeFromParent);
             }
-            l.root.removeFromParent();
-        });
+        }
+
+        rt(l.root::removeFromParent);
     }
 
     @Override
@@ -241,22 +241,26 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return;
 
-        final Layer l = layers.get(lid);
+        Layer l = layers.get(lid);
         if (l == null) return;
 
-        rt("hud.clearLayer", () -> {
-            for (Iterator<Map.Entry<Integer, SpatialHolder>> it = elements.entrySet().iterator(); it.hasNext(); ) {
-                Map.Entry<Integer, SpatialHolder> e = it.next();
-                SpatialHolder sh = e.getValue();
-                if (sh != null && sh.layerId == lid) {
-                    it.remove();
-                    sizeCache.remove(sh.id);
-                    if (sh.spatial != null) sh.spatial.removeFromParent();
-                }
+        for (Iterator<Map.Entry<Integer, SpatialHolder>> it = elements.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, SpatialHolder> e = it.next();
+            SpatialHolder sh = e.getValue();
+            if (sh != null && sh.layerId == lid) {
+                it.remove();
+                sizeCache.remove(sh.id);
+                Spatial s = sh.spatial;
+                if (s != null) rt(s::removeFromParent);
             }
-            l.root.detachAllChildren();
-        });
+        }
+
+        rt(l.root::detachAllChildren);
     }
+
+    // ------------------------------------------------------------
+    // elements (root)
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -265,19 +269,17 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         if (lid <= 0) return new HudElementHandle(0);
 
         final Layer l = reqLayer(lid);
-        final int id = IDS.incrementAndGet();
 
+        final int id = IDS.incrementAndGet();
         final Container c = new Container();
         c.setName("hud.container:" + id);
 
-        elements.put(id, new SpatialHolder(id, l.id, c));
+        float elemH = HudSizing.heightOf(id, c, sizeCache);
+        float guiY = HudCoords.toGuiYBox(vpH(), y, elemH);
+        c.setLocalTranslation(x, guiY, 0);
 
-        rt("hud.addContainer", () -> {
-            float elemH = HudSizing.heightOf(id, c, sizeCache);
-            float guiY = HudCoords.toGuiYBox(vpH(), y, elemH);
-            c.setLocalTranslation(x, guiY, 0);
-            l.root.attachChild(c);
-        });
+        elements.put(id, new SpatialHolder(id, l.id, c));
+        rt(() -> l.root.attachChild(c));
 
         return new HudElementHandle(id);
     }
@@ -289,23 +291,23 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         if (lid <= 0) return new HudElementHandle(0);
 
         final Layer l = reqLayer(lid);
-        final int id = IDS.incrementAndGet();
 
+        final int id = IDS.incrementAndGet();
         final Panel p = new Panel();
         p.setName("hud.panel:" + id);
 
+        if (w > 0f && h > 0f) {
+            HudSizing.forceSize(id, p, w, h, sizeCache);
+        }
+
+        float elemH = HudSizing.heightOf(id, p, sizeCache);
+        if (elemH <= 0f && h > 0f) elemH = h;
+
+        float guiY = HudCoords.toGuiYBox(vpH(), y, elemH);
+        p.setLocalTranslation(x, guiY, 0);
+
         elements.put(id, new SpatialHolder(id, l.id, p));
-
-        rt("hud.addPanel", () -> {
-            if (w > 0f && h > 0f) HudSizing.forceSize(id, p, w, h, sizeCache);
-
-            float elemH = HudSizing.heightOf(id, p, sizeCache);
-            if (elemH <= 0f && h > 0f) elemH = h;
-
-            float guiY = HudCoords.toGuiYBox(vpH(), y, elemH);
-            p.setLocalTranslation(x, guiY, 0);
-            l.root.attachChild(p);
-        });
+        rt(() -> l.root.attachChild(p));
 
         return new HudElementHandle(id);
     }
@@ -317,21 +319,23 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         if (lid <= 0) return new HudElementHandle(0);
 
         final Layer l = reqLayer(lid);
-        final int id = IDS.incrementAndGet();
 
+        final int id = IDS.incrementAndGet();
         final Label label = new Label(text != null ? text : "");
         label.setName("hud.label:" + id);
 
-        elements.put(id, new SpatialHolder(id, l.id, label));
+        float guiY = HudCoords.toGuiYPoint(vpH(), y);
+        label.setLocalTranslation(x, guiY, 0);
 
-        rt("hud.addLabel", () -> {
-            float guiY = HudCoords.toGuiYPoint(vpH(), y);
-            label.setLocalTranslation(x, guiY, 0);
-            l.root.attachChild(label);
-        });
+        elements.put(id, new SpatialHolder(id, l.id, label));
+        rt(() -> l.root.attachChild(label));
 
         return new HudElementHandle(id);
     }
+
+    // ------------------------------------------------------------
+    // elements (with parent)
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -347,18 +351,16 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final Container c = new Container();
         c.setName("hud.container:" + id);
 
+        float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
+        if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
+
+        float childH = HudSizing.heightOf(id, c, sizeCache);
+        float localY = HudCoords.toLocalYBox(y, parentH, childH);
+
+        c.setLocalTranslation(x, localY, 0);
+
         elements.put(id, new SpatialHolder(id, l.id, c));
-
-        rt("hud.addContainerChild", () -> {
-            float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
-            if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
-
-            float childH = HudSizing.heightOf(id, c, sizeCache);
-            float localY = HudCoords.toLocalYBox(y, parentH, childH);
-
-            c.setLocalTranslation(x, localY, 0);
-            attachTo(ph.spatial, c);
-        });
+        rt(() -> attachTo(ph.spatial, c));
 
         return new HudElementHandle(id);
     }
@@ -377,21 +379,21 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final Panel p = new Panel();
         p.setName("hud.panel:" + id);
 
+        if (w > 0f && h > 0f) {
+            HudSizing.forceSize(id, p, w, h, sizeCache);
+        }
+
+        float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
+        if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
+
+        float childH = HudSizing.heightOf(id, p, sizeCache);
+        if (childH <= 0f && h > 0f) childH = h;
+
+        float localY = HudCoords.toLocalYBox(y, parentH, childH);
+        p.setLocalTranslation(x, localY, 0);
+
         elements.put(id, new SpatialHolder(id, l.id, p));
-
-        rt("hud.addPanelChild", () -> {
-            if (w > 0f && h > 0f) HudSizing.forceSize(id, p, w, h, sizeCache);
-
-            float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
-            if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
-
-            float childH = HudSizing.heightOf(id, p, sizeCache);
-            if (childH <= 0f && h > 0f) childH = h;
-
-            float localY = HudCoords.toLocalYBox(y, parentH, childH);
-            p.setLocalTranslation(x, localY, 0);
-            attachTo(ph.spatial, p);
-        });
+        rt(() -> attachTo(ph.spatial, p));
 
         return new HudElementHandle(id);
     }
@@ -410,19 +412,21 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final Label label = new Label(text != null ? text : "");
         label.setName("hud.label:" + id);
 
+        float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
+        if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
+
+        float localY = HudCoords.toLocalYPoint(y, parentH);
+        label.setLocalTranslation(x, localY, 0);
+
         elements.put(id, new SpatialHolder(id, l.id, label));
-
-        rt("hud.addLabelChild", () -> {
-            float parentH = HudSizing.heightOf(ph.id, ph.spatial, sizeCache);
-            if (parentH <= 0f) parentH = parentHeightOf(ph.spatial);
-
-            float localY = HudCoords.toLocalYPoint(y, parentH);
-            label.setLocalTranslation(x, localY, 0);
-            attachTo(ph.spatial, label);
-        });
+        rt(() -> attachTo(ph.spatial, label));
 
         return new HudElementHandle(id);
     }
+
+    // ------------------------------------------------------------
+    // cursor
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -433,17 +437,19 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
     @Override
     @HostAccess.Export
     public void setCursorEnabled(boolean enabled, boolean force) {
-        rt("hud.setCursorEnabled", () -> {
+        rt(() -> {
             try {
                 if (GuiGlobals.getInstance() != null) {
                     GuiGlobals.getInstance().setCursorEventsEnabled(enabled);
                 }
-            } catch (Throwable t) {
-                if (log != null && log.isDebugEnabled())
-                    log.debug("[hud] cursor toggle skipped enabled={}", enabled, t);
+            } catch (Throwable ignore) {
             }
         });
     }
+
+    // ------------------------------------------------------------
+    // ops
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -453,7 +459,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
         final String t = (text != null) ? text : "";
 
-        rt("hud.setText", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
             if (sh.spatial instanceof Label l) l.setText(t);
@@ -466,7 +472,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
 
-        rt("hud.setVisible", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
             sh.spatial.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
@@ -479,16 +485,16 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
 
-        rt("hud.setPosition", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
 
             Spatial s = sh.spatial;
             Spatial parent = s.getParent();
 
-            final float newY;
-            boolean rooted = (parent == null) || parentIsLayerRoot(parent);
+            float newY;
 
+            boolean rooted = (parent == null) || parentIsLayerRoot(parent);
             if (rooted) {
                 if (HudSizing.isBoxLike(s)) {
                     float eh = HudSizing.heightOf(id, s, sizeCache);
@@ -518,12 +524,13 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
 
-        rt("hud.setSize", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
 
-            Spatial s = sh.spatial;
-            boolean box = HudSizing.isBoxLike(s);
+            final Spatial s = sh.spatial;
+
+            final boolean box = HudSizing.isBoxLike(s);
 
             float oldH = 0f;
             if (box) {
@@ -545,6 +552,8 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
                     float x0 = (lt != null) ? lt.x : 0f;
                     float y0 = (lt != null) ? lt.y : 0f;
                     float z0 = (lt != null) ? lt.z : 0f;
+
+                    // keep TOP pinned
                     s.setLocalTranslation(x0, y0 - dh, z0);
                 }
             }
@@ -559,19 +568,24 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
         final float size = (Float.isFinite(px) && px > 0f) ? Math.max(6f, px) : 16f;
 
-        rt("hud.setFontSize", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
             if (sh.spatial instanceof Label l) {
                 try {
                     l.setFontSize(size);
-                } catch (Throwable t) {
-                    if (log != null && log.isDebugEnabled()) log.debug("[hud] fontSize skipped id={}", id, t);
+                } catch (Throwable ignore) {
                 }
             }
         });
     }
 
+    /**
+     * New: set solid background color (with alpha) for Panel/Container.
+     * Used by Hud.js v2.5.0 for style.bg + style.border colors.
+     * <p>
+     * NOTE: add this method to HudApi interface too, or JS won't see it.
+     */
     @Override
     @HostAccess.Export
     public void setBgColor(HudElementHandle element, double r, double g, double b, double a) {
@@ -583,7 +597,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final float bb = clamp01f(b);
         final float aa = clamp01f(a);
 
-        rt("hud.setBgColor", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
 
@@ -593,9 +607,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
                 if (s instanceof Panel p) {
                     p.setBackground(bg);
                 }
-            } catch (Throwable t) {
-                if (log != null && log.isDebugEnabled()) log.debug("[hud] bgColor skipped id={}", id, t);
-            }
+            } catch (Throwable ignore) {}
         });
     }
 
@@ -610,16 +622,14 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         final float bb = clamp01f(b);
         final float aa = clamp01f(a);
 
-        rt("hud.setTextColor", () -> {
+        rt(() -> {
             SpatialHolder sh = elements.get(id);
             if (sh == null || sh.spatial == null) return;
 
             if (sh.spatial instanceof Label l) {
                 try {
                     l.setColor(new ColorRGBA(rr, gg, bb, aa));
-                } catch (Throwable t) {
-                    if (log != null && log.isDebugEnabled()) log.debug("[hud] textColor skipped id={}", id, t);
-                }
+                } catch (Throwable ignore) {}
             }
         });
     }
@@ -634,8 +644,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         sizeCache.remove(id);
         if (sh == null || sh.spatial == null) return;
 
-        rt("hud.remove", sh.spatial::removeFromParent);
+        rt(sh.spatial::removeFromParent);
     }
+
+    // ------------------------------------------------------------
+    // viewport
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export

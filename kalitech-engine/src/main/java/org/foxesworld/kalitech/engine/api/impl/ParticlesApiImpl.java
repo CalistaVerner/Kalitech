@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/ParticlesApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;

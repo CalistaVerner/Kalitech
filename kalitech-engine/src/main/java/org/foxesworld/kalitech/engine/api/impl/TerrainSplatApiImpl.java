@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/TerrainSplatApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetManager;
