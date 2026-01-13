@@ -1,11 +1,11 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/TerrainApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 import com.jme3.terrain.geomipmap.TerrainQuad;
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
@@ -16,11 +16,23 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
+import java.util.Map;
+import java.util.Objects;
+
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
+/**
+ * Terrain API (script-facing).
+ *
+ * <p>Contract:
+ * <ul>
+ *   <li>All scene graph mutations and TerrainQuad edits happen on the JME thread via {@code onJme*} helpers.</li>
+ *   <li>Surface/entity binding is UUID-only (delegated to {@link SurfaceApi}).</li>
+ *   <li>No legacy constructors and no manual ApiContext wiring.</li>
+ * </ul>
+ */
 public final class TerrainApiImpl extends AbstractApiModule implements TerrainApi {
 
-    private EngineApiImpl engine;
     private SurfaceRegistry registry;
 
     private TerrainEmitter emitter;
@@ -32,22 +44,11 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     private TerrainNoise noise;
 
     public TerrainApiImpl() {
-        super("terrain", "Terrain", "3.0.0"); // UUID-only binding
+        super("terrain", "Terrain", "3.0.0");
     }
 
-    @Override
-    public void attach(ApiContext ctx) {
-        super.attach(ctx);
-        this.engine = ctx.engine;
-        this.registry = engine.getSurfaceRegistry();
-
-        this.emitter = new TerrainEmitter(engine);
-        this.factory = new TerrainFactory(engine.getAssets());
-        this.uv = new TerrainUV();
-        this.ops = new TerrainOps(engine.getApp().getCamera());
-        this.editOps = new TerrainEditOps();
-        this.physics = new TerrainPhysics(engine);
-        this.noise = new TerrainNoise();
+    private static void requireCfg(Value cfg, String where) {
+        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException(where + ": cfg is null");
     }
 
     @Override
@@ -60,55 +61,38 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         this.factory = null;
         this.emitter = null;
         this.registry = null;
-        this.engine = null;
         super.detach();
     }
 
     // ---------------------------------------------------------------------
-    // CREATION
+    // Validation
     // ---------------------------------------------------------------------
 
-    private static void requireCfg(Value cfg, String where) {
-        if (cfg == null || cfg.isNull()) {
-            throw new IllegalArgumentException(where + ": cfg is null");
+    private static double heightAtSafe(TerrainQuad tq, double x, double z, boolean world) {
+        Vector3f local;
+        if (world) {
+            local = tq.worldToLocal(new Vector3f((float) x, 0f, (float) z), null);
+        } else {
+            local = new Vector3f((float) x, 0f, (float) z);
         }
+
+        float hLocal = tq.getHeight(new Vector2f(local.x, local.z));
+        if (!Float.isFinite(hLocal)) return Double.NaN;
+        if (!world) return (double) hLocal;
+
+        Vector3f wp = tq.localToWorld(new Vector3f(local.x, hLocal, local.z), null);
+        return (double) wp.y;
     }
 
     private static void requireHandle(SurfaceApi.SurfaceHandle handle, String where) {
         if (handle == null) throw new IllegalArgumentException(where + ": handle is required");
     }
 
-    /**
-     * Correct world/local height:
-     * - If world=false: x,z are local; returns local height.
-     * - If world=true: x,z are world; returns world Y (full transform-aware).
-     */
-    private static double heightAtSafe(TerrainQuad tq, double x, double z, boolean world) {
-        Vector3f localXZ;
-        if (world) {
-            // Convert world (x,?,z) into terrain local space for sampling.
-            localXZ = tq.worldToLocal(new Vector3f((float) x, 0f, (float) z), null);
-        } else {
-            localXZ = new Vector3f((float) x, 0f, (float) z);
-        }
+    // ---------------------------------------------------------------------
+    // Height/normal sampling (transform-aware)
+    // ---------------------------------------------------------------------
 
-        // TerrainQuad sampling is in local x/z.
-        // getHeight can return NaN outside the terrain; keep as NaN.
-        float hLocal = tq.getHeight(new com.jme3.math.Vector2f(localXZ.x, localXZ.z));
-        if (!Float.isFinite(hLocal)) return Double.NaN;
-
-        if (!world) return (double) hLocal;
-
-        // Convert sampled local point back to world to get final Y.
-        Vector3f wp = tq.localToWorld(new Vector3f(localXZ.x, hLocal, localXZ.z), null);
-        return (double) wp.y;
-    }
-
-    /**
-     * Finite-difference normal in local space, then transform to world if needed.
-     */
     private static Vector3f normalAtSafe(TerrainQuad tq, double x, double z, boolean world) {
-        // Choose epsilon based on terrain scale in X/Z to stay stable.
         Vector3f s = tq.getWorldScale();
         float eps = 0.25f;
         if (s != null) {
@@ -117,48 +101,63 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
             eps = Math.max(0.05f, Math.min(1.0f, 0.25f * Math.max(sx, sz)));
         }
 
-        // We compute heights in the same coordinate mode the caller requested.
         double hR = heightAtSafe(tq, x + eps, z, world);
         double hL = heightAtSafe(tq, x - eps, z, world);
         double hU = heightAtSafe(tq, x, z + eps, world);
         double hD = heightAtSafe(tq, x, z - eps, world);
 
         if (!(Double.isFinite(hR) && Double.isFinite(hL) && Double.isFinite(hU) && Double.isFinite(hD))) {
-            return new Vector3f(0, 1, 0);
+            return new Vector3f(0f, 1f, 0f);
         }
 
-        // Build normal from slopes.
-        // If world=true these heights are world-y; if world=false they are local-y.
         float dx = (float) (hR - hL);
         float dz = (float) (hU - hD);
 
-        // "Up" component relative to eps. Bigger up makes smoother normals.
         Vector3f n = new Vector3f(-dx, 2f * eps, -dz);
         n.normalizeLocal();
 
-        // If world=false we’re done (local normal).
         if (!world) return n;
 
-        // For world normals, ensure direction respects terrain rotation.
-        // n is already in world-space slope basis because h* are world-y, but
-        // rotation still matters if terrain is rotated (rare). Apply rotation only.
-        tq.getWorldRotation().mult(n, n);
+        Quaternion wr = tq.getWorldRotation();
+        wr.mult(n, n);
         n.normalizeLocal();
         return n;
     }
+
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+
+        this.registry = Objects.requireNonNull(engine.getSurfaceRegistry(), "engine.surfaceRegistry");
+
+        this.emitter = new TerrainEmitter(engine);
+        this.factory = new TerrainFactory(engine.getAssets());
+        this.uv = new TerrainUV();
+        this.ops = new TerrainOps(engine.getApp().getCamera());
+        this.editOps = new TerrainEditOps();
+        this.physics = new TerrainPhysics(engine);
+        this.noise = new TerrainNoise();
+    }
+
+    // ---------------------------------------------------------------------
+    // Creation
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
     public SurfaceApi.SurfaceHandle terrain(Value cfg) {
         requireCfg(cfg, "terrain.terrain(cfg)");
-        TerrainQuad tq = factory.createTerrainFromHeightmap(cfg);
+
+        // Parse/create on caller thread (keeps Value away from JME thread).
+        final TerrainQuad tq = factory.createTerrainFromHeightmap(cfg);
         return registerTerrainLike(tq, "terrain", cfg);
     }
 
     @HostAccess.Export
     public SurfaceApi.SurfaceHandle terrainHeights(Value cfg) {
         requireCfg(cfg, "terrain.terrainHeights(cfg)");
-        TerrainQuad tq = factory.createTerrainFromHeights(cfg);
+
+        final TerrainQuad tq = factory.createTerrainFromHeights(cfg);
         return registerTerrainLike(tq, "terrainHeights", cfg);
     }
 
@@ -166,19 +165,17 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     @Override
     public SurfaceApi.SurfaceHandle quad(Value cfg) {
         requireCfg(cfg, "terrain.quad(cfg)");
-        Geometry g = factory.createQuad(cfg);
+
+        final Geometry g = factory.createQuad(cfg);
         return registerSpatialLike(g, "quad", cfg);
     }
-
-    // ---------------------------------------------------------------------
-    // OPS
-    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
     public SurfaceApi.SurfaceHandle plane(Value cfg) {
         requireCfg(cfg, "terrain.plane(cfg)");
-        Geometry g = factory.createPlane(cfg);
+
+        final Geometry g = factory.createPlane(cfg);
         return registerSpatialLike(g, "plane", cfg);
     }
 
@@ -194,56 +191,71 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         return h;
     }
 
+    private SurfaceApi.SurfaceHandle registerSpatialLike(Spatial s, String type, Value cfg) {
+        requireCfg(cfg, "terrain.registerSpatialLike(cfg)");
+
+        final Value matCfg = member(cfg, "material");
+        final Value uvCfg = member(cfg, "uv");
+        final boolean attach = bool(cfg, "attach", TerrainDefaults.ATTACH_DEFAULT);
+
+        return onJmeSync("terrain.registerSpatialLike", () -> {
+            SurfaceApi.SurfaceHandle h = registry.register(s, type, engine.surface());
+
+            if (matCfg != null && !matCfg.isNull()) {
+                engine.surface().setMaterial(h, matCfg);
+            }
+
+            if (uvCfg != null && !uvCfg.isNull()) {
+                Spatial live = registry.get(h.id());
+                if (live != null) uv.apply(live, uvCfg);
+            }
+
+            if (attach) {
+                registry.attachToRoot(h.id());
+            }
+
+            return h;
+        }, null);
+    }
+
+    // ---------------------------------------------------------------------
+    // Ops (JME thread)
+    // ---------------------------------------------------------------------
+
     @HostAccess.Export
     public void lod(SurfaceApi.SurfaceHandle handle, Value cfg) {
-        TerrainQuad tq = requireTerrain(handle);
-        ops.lod(tq, cfg);
+        requireHandle(handle, "terrain.lod");
+        requireCfg(cfg, "terrain.lod(cfg)");
+
+        onJmeSyncVoid("terrain.lod", () -> ops.lod(requireTerrain(handle), cfg));
     }
 
     @HostAccess.Export
     public void scale(SurfaceApi.SurfaceHandle handle, double xzScale, Value cfg) {
-        TerrainQuad tq = requireTerrain(handle);
-        ops.scale(tq, xzScale, cfg);
+        requireHandle(handle, "terrain.scale");
+        onJmeSyncVoid("terrain.scale", () -> ops.scale(requireTerrain(handle), xzScale, cfg));
     }
 
     // ---------------------------------------------------------------------
-    // TERRAINQUAD (editing/query)
+    // TerrainQuad editing/query (JME thread)
     // ---------------------------------------------------------------------
-
-    private SurfaceApi.SurfaceHandle registerSpatialLike(Spatial s, String type, Value cfg) {
-        SurfaceApiImpl.applyTransform(s, cfg);
-
-        SurfaceApi.SurfaceHandle h = registry.register(s, type, engine.surface());
-
-        Value mh = member(cfg, "material");
-        if (mh != null && !mh.isNull()) engine.surface().setMaterial(h, mh);
-
-        Value u = member(cfg, "uv");
-        if (u != null && !u.isNull()) uv(h, u);
-
-        if (bool(cfg, "attach", TerrainDefaults.ATTACH_DEFAULT)) {
-            registry.attachToRoot(h.id());
-        }
-
-        return h;
-    }
 
     @HostAccess.Export
     public float[] heightmap(SurfaceApi.SurfaceHandle handle) {
-        TerrainQuad tq = requireTerrain(handle);
-        return editOps.heightmapCopy(tq);
+        requireHandle(handle, "terrain.heightmap");
+        return onJmeSync("terrain.heightmap", () -> editOps.heightmapCopy(requireTerrain(handle)), new float[0]);
     }
 
     @HostAccess.Export
     public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height, boolean world) {
-        TerrainQuad tq = requireTerrain(handle);
-        editOps.setHeight(tq, x, z, height, world);
+        requireHandle(handle, "terrain.setHeight");
+        onJmeSyncVoid("terrain.setHeight", () -> editOps.setHeight(requireTerrain(handle), x, z, height, world));
     }
 
     @HostAccess.Export
     public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta, boolean world) {
-        TerrainQuad tq = requireTerrain(handle);
-        editOps.adjustHeight(tq, x, z, delta, world);
+        requireHandle(handle, "terrain.adjustHeight");
+        onJmeSyncVoid("terrain.adjustHeight", () -> editOps.adjustHeight(requireTerrain(handle), x, z, delta, world));
     }
 
     @HostAccess.Export
@@ -258,12 +270,79 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     public void rebuild(SurfaceApi.SurfaceHandle handle) {
-        TerrainQuad tq = requireTerrain(handle);
-        editOps.rebuild(tq);
+        requireHandle(handle, "terrain.rebuild");
+        onJmeSyncVoid("terrain.rebuild", () -> editOps.rebuild(requireTerrain(handle)));
+    }
+
+    @HostAccess.Export
+    public void setHeightmap(SurfaceApi.SurfaceHandle handle, Value cfg) {
+        requireHandle(handle, "terrain.setHeightmap");
+        requireCfg(cfg, "terrain.setHeightmap(handle,cfg)");
+
+        Value hv = member(cfg, "heights");
+        if (hv == null || hv.isNull()) throw new IllegalArgumentException("terrain.setHeightmap: cfg.heights is required");
+
+        float[] heights = readFloatArray(hv);
+        int size = i32(cfg, "size", 0);
+        if (size > 0) {
+            int need = size * size;
+            if (heights.length != need) {
+                throw new IllegalArgumentException(
+                        "terrain.setHeightmap: heights length=" + heights.length + " expected=" + need + " (size=" + size + ")"
+                );
+            }
+        }
+
+        final boolean doRebuild = bool(cfg, "rebuild", true);
+
+        onJmeSyncVoid("terrain.setHeightmap", () -> editOps.setHeightmap(requireTerrain(handle), heights, doRebuild));
+    }
+
+    @HostAccess.Export
+    public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
+        return heightAt(handle, x, z, true);
+    }
+
+    @HostAccess.Export
+    public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
+        requireHandle(handle, "terrain.heightAt");
+        return onJmeSync("terrain.heightAt", () -> heightAtSafe(requireTerrain(handle), x, z, world), Double.NaN);
+    }
+
+    @HostAccess.Export
+    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
+        return normalAt(handle, x, z, true);
+    }
+
+    @HostAccess.Export
+    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
+        requireHandle(handle, "terrain.normalAt");
+        Vector3f n = onJmeSync("terrain.normalAt", () -> normalAtSafe(requireTerrain(handle), x, z, world), new Vector3f(0f, 1f, 0f));
+        return ProxyObject.fromMap(Map.of(
+                "x", (double) n.x,
+                "y", (double) n.y,
+                "z", (double) n.z
+        ));
     }
 
     // ---------------------------------------------------------------------
-    // PROCEDURAL
+    // Procedural helpers (caller thread)
+    // ---------------------------------------------------------------------
+
+    @HostAccess.Export
+    public float[] perlinHeights(Value cfg) {
+        requireCfg(cfg, "terrain.perlinHeights(cfg)");
+        return noise.perlinHeights(cfg);
+    }
+
+    @HostAccess.Export
+    public float[] ridgedHeights(Value cfg) {
+        requireCfg(cfg, "terrain.ridgedHeights(cfg)");
+        return noise.ridgedHeights(cfg);
+    }
+
+    // ---------------------------------------------------------------------
+    // Material / UV (JME thread)
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
@@ -275,96 +354,24 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     @HostAccess.Export
     public void uv(SurfaceApi.SurfaceHandle handle, Value cfgOrUv) {
         requireHandle(handle, "terrain.uv");
-        Spatial s = requireSurface(handle);
-        uv.apply(s, cfgOrUv);
-    }
+        requireCfg(cfgOrUv, "terrain.uv(cfg)");
 
-    @HostAccess.Export
-    public void setHeightmap(SurfaceApi.SurfaceHandle handle, Value cfg) {
-        requireHandle(handle, "terrain.setHeightmap");
-        requireCfg(cfg, "terrain.setHeightmap(handle,cfg)");
-
-        TerrainQuad tq = requireTerrain(handle);
-
-        Value hv = member(cfg, "heights");
-        if (hv == null || hv.isNull()) throw new IllegalArgumentException("terrain.setHeightmap: cfg.heights is required");
-
-        float[] heights = readFloatArray(hv);
-        int size = i32(cfg, "size", 0);
-        if (size > 0) {
-            int need = size * size;
-            if (heights.length != need) {
-                throw new IllegalArgumentException("terrain.setHeightmap: heights length=" + heights.length + " expected=" + need + " (size=" + size + ")");
-            }
-        }
-
-        editOps.setHeightmap(tq, heights, bool(cfg, "rebuild", true));
-    }
-
-    @HostAccess.Export
-    public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
-        return heightAt(handle, x, z, true);
-    }
-
-    @HostAccess.Export
-    public float[] perlinHeights(Value cfg) {
-        requireCfg(cfg, "terrain.perlinHeights(cfg)");
-        return noise.perlinHeights(cfg);
-    }
-
-    @HostAccess.Export
-    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
-        return normalAt(handle, x, z, true);
+        onJmeSyncVoid("terrain.uv", () -> uv.apply(requireSurface(handle), cfgOrUv));
     }
 
     // ---------------------------------------------------------------------
-    // PHYSICS
+    // Physics bridge
     // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    public float[] ridgedHeights(Value cfg) {
-        requireCfg(cfg, "terrain.ridgedHeights(cfg)");
-        return noise.ridgedHeights(cfg);
-    }
-
-    // ---------------------------------------------------------------------
-    // ATTACH / DETACH (UUID-only)
-    // ---------------------------------------------------------------------
-
-    /**
-     * IMPORTANT:
-     * We compute world/local height robustly here to avoid wrong world conversions
-     * (your camera logs show terrY ~ -790 while the world is ~ -10).
-     */
-    @HostAccess.Export
-    public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
-        TerrainQuad tq = requireTerrain(handle);
-        return heightAtSafe(tq, x, z, world);
-    }
-
-    /**
-     * Stable normal via finite differences around the query point.
-     * Works for any TerrainQuad transform and avoids ops.normalAt inconsistencies.
-     */
-    @HostAccess.Export
-    public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
-        TerrainQuad tq = requireTerrain(handle);
-        Vector3f n = normalAtSafe(tq, x, z, world);
-        return ProxyObject.fromMap(java.util.Map.of(
-                "x", (double) n.x,
-                "y", (double) n.y,
-                "z", (double) n.z
-        ));
-    }
 
     @HostAccess.Export
     public Object physics(SurfaceApi.SurfaceHandle surface, Value cfg) {
         requireHandle(surface, "terrain.physics");
+        requireCfg(cfg, "terrain.physics(cfg)");
         return physics.bind(surface, cfg);
     }
 
     // ---------------------------------------------------------------------
-    // internals
+    // Entity binding (UUID-only, delegated)
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
@@ -373,21 +380,6 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         requireHandle(handle, "terrain.attachEntity");
         engine.surface().attachEntity(handle, entityUuid);
         emitter.emit("engine.terrain.attached", "surfaceId", handle.id(), "uuid", String.valueOf(entityUuid));
-    }
-
-    private Spatial requireSurface(SurfaceApi.SurfaceHandle handle) {
-        Spatial s = registry.get(handle.id());
-        if (s == null) throw new IllegalArgumentException("terrain: unknown surface id=" + handle.id());
-        return s;
-    }
-
-    private TerrainQuad requireTerrain(SurfaceApi.SurfaceHandle handle) {
-        Spatial s = requireSurface(handle);
-        if (!(s instanceof TerrainQuad tq)) {
-            throw new IllegalArgumentException("terrain: surface id=" + handle.id()
-                    + " is not TerrainQuad (type=" + s.getClass().getSimpleName() + ")");
-        }
-        return tq;
     }
 
     @HostAccess.Export
@@ -404,5 +396,23 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         requireHandle(handle, "terrain.detach");
         engine.surface().detachFromEntity(handle);
         emitter.emit("engine.terrain.detached", "surfaceId", handle.id());
+    }
+
+    // ---------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------
+
+    private Spatial requireSurface(SurfaceApi.SurfaceHandle handle) {
+        Spatial s = registry.get(handle.id());
+        if (s == null) throw new IllegalArgumentException("terrain: unknown surface id=" + handle.id());
+        return s;
+    }
+
+    private TerrainQuad requireTerrain(SurfaceApi.SurfaceHandle handle) {
+        Spatial s = requireSurface(handle);
+        if (s instanceof TerrainQuad tq) return tq;
+
+        String type = s.getClass().getSimpleName();
+        throw new IllegalArgumentException("terrain: surface id=" + handle.id() + " is not TerrainQuad (type=" + type + ")");
     }
 }

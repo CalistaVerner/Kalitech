@@ -28,6 +28,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.Future;
 
+@Deprecated
 public final class EditorLinesApiImpl extends AbstractApiModule implements EditorLinesApi {
 
     private EngineApiImpl engine;

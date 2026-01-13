@@ -8,25 +8,26 @@ import org.graalvm.polyglot.Value;
 
 import java.util.List;
 
+/**
+ * Script event bus facade.
+ */
 public final class EventsApiImpl extends AbstractApiModule implements EventsApi {
 
     public EventsApiImpl() {
         super("bus", "Events", "1.0.0");
     }
 
-    private ScriptEventBus b() {
-        // keep dynamic resolve (tolerate null)
-        return (engine == null) ? null : engine.getBus();
+    private static ScriptEventBus.Phase parsePhase(String s) {
+        if (s == null) return ScriptEventBus.Phase.MAIN;
+        try {
+            return ScriptEventBus.Phase.valueOf(s.trim().toUpperCase());
+        } catch (Throwable t) {
+            return ScriptEventBus.Phase.MAIN;
+        }
     }
 
-    @HostAccess.Export
-    @Override
-    public void emit(String topic, Object payload) {
-        profiledVoid(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return;
-            b.emit(topic, payload);
-        });
+    private ScriptEventBus bus() {
+        return (engine == null) ? null : engine.getBus();
     }
 
     @HostAccess.Export
@@ -36,11 +37,19 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
 
     @HostAccess.Export
     @Override
+    public void emit(String topic, Object payload) {
+        profiledVoid(() -> {
+            ScriptEventBus b = bus();
+            if (b != null) b.emit(topic, payload);
+        });
+    }
+
+    @HostAccess.Export
+    @Override
     public int on(String topic, Value handler) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.on(topic, handler);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.on(topic, handler);
         });
     }
 
@@ -48,9 +57,8 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     @Override
     public int once(String topic, Value handler) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.once(topic, handler);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.once(topic, handler);
         });
     }
 
@@ -58,9 +66,8 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     @Override
     public boolean off(String topic, int token) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return false;
-            return b.off(topic, token);
+            ScriptEventBus b = bus();
+            return b != null && b.off(topic, token);
         });
     }
 
@@ -68,31 +75,16 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     @Override
     public void clear(String topic) {
         profiledVoid(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return;
-            b.clear(topic);
+            ScriptEventBus b = bus();
+            if (b != null) b.clear(topic);
         });
     }
 
     @HostAccess.Export
     public boolean off(int token) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return false;
-            return b.off(token);
-        });
-    }
-
-    @HostAccess.Export
-    public void emitEvent(String topic, Object payload, Object meta) {
-        profiledVoid(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return;
-
-            ScriptEventBus.Meta m = null;
-            if (meta instanceof ScriptEventBus.Meta mm) m = mm;
-
-            b.emitEvent(topic, payload, m);
+            ScriptEventBus b = bus();
+            return b != null && b.off(token);
         });
     }
 
@@ -102,56 +94,53 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     }
 
     @HostAccess.Export
+    public void emitEvent(String topic, Object payload, Object meta) {
+        profiledVoid(() -> {
+            ScriptEventBus b = bus();
+            if (b == null) return;
+
+            ScriptEventBus.Meta m = (meta instanceof ScriptEventBus.Meta mm) ? mm : null;
+            b.emitEvent(topic, payload, m);
+        });
+    }
+
+    @HostAccess.Export
     public int onEvent(String topic, Value handler, String phase, int priority) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.onEvent(topic, handler, parsePhase(phase), priority);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.onEvent(topic, handler, parsePhase(phase), priority);
         });
     }
 
     @HostAccess.Export
     public int onceEvent(String topic, Value handler, String phase, int priority) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.onceEvent(topic, handler, parsePhase(phase), priority);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.onceEvent(topic, handler, parsePhase(phase), priority);
         });
     }
 
     @HostAccess.Export
     public int onAny(Value handler, String phase, int priority) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.onAny(handler, parsePhase(phase), priority);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.onAny(handler, parsePhase(phase), priority);
         });
     }
 
     @HostAccess.Export
     public int onceAny(Value handler, String phase, int priority) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.onceAny(handler, parsePhase(phase), priority);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.onceAny(handler, parsePhase(phase), priority);
         });
     }
 
     @HostAccess.Export
     public int onPattern(String pattern, Value handler, String phase, int priority) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.onPattern(pattern, handler, parsePhase(phase), priority);
-        });
-    }
-
-    @HostAccess.Export
-    public int oncePattern(String pattern, Value handler, String phase, int priority) {
-        return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.oncePattern(pattern, handler, parsePhase(phase), priority);
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.onPattern(pattern, handler, parsePhase(phase), priority);
         });
     }
 
@@ -166,47 +155,42 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     }
 
     @HostAccess.Export
+    public int oncePattern(String pattern, Value handler, String phase, int priority) {
+        return profiled(() -> {
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.oncePattern(pattern, handler, parsePhase(phase), priority);
+        });
+    }
+
+    @HostAccess.Export
     public void setHistoryMax(int max) {
         profiledVoid(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return;
-            b.setHistoryMax(max);
+            ScriptEventBus b = bus();
+            if (b != null) b.setHistoryMax(max);
         });
     }
 
     @HostAccess.Export
     public List<ScriptEventBus.EventEnvelope> getHistory(int limit) {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return List.of();
-            return b.getHistory(limit);
+            ScriptEventBus b = bus();
+            return (b == null) ? List.of() : b.getHistory(limit);
         });
     }
 
     @HostAccess.Export
     public int queuedEventsApprox() {
         return profiled(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return 0;
-            return b.queuedEventsApprox();
+            ScriptEventBus b = bus();
+            return (b == null) ? 0 : b.queuedEventsApprox();
         });
     }
 
     @HostAccess.Export
     public void clearAll() {
         profiledVoid(() -> {
-            ScriptEventBus b = b();
-            if (b == null) return;
-            b.clearAll();
+            ScriptEventBus b = bus();
+            if (b != null) b.clearAll();
         });
-    }
-
-    private static ScriptEventBus.Phase parsePhase(String s) {
-        if (s == null) return ScriptEventBus.Phase.MAIN;
-        try {
-            return ScriptEventBus.Phase.valueOf(s.trim().toUpperCase());
-        } catch (Throwable ignored) {
-            return ScriptEventBus.Phase.MAIN;
-        }
     }
 }

@@ -4,11 +4,23 @@ import com.jme3.input.InputManager;
 import com.jme3.math.Vector2f;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.modules.input.*;
 import org.graalvm.polyglot.HostAccess;
 
 import java.util.Arrays;
+import java.util.Objects;
 
+/**
+ * Input API.
+ *
+ * <p>Contract:
+ * <ul>
+ *   <li>Raw input is collected via {@link RawCollector}.</li>
+ *   <li>Mouse deltas are resilient to missing raw motion events.</li>
+ *   <li>Cursor grab/visibility is controlled via {@link CursorGrabController}.</li>
+ * </ul>
+ */
 public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     private InputManager input;
@@ -28,10 +40,11 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     }
 
     @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+    public void attach(ApiContext ctx) {
         super.attach(ctx);
 
-        this.input = ctx.app.getInputManager();
+        Objects.requireNonNull(ctx.app, "ctx.app");
+        this.input = Objects.requireNonNull(ctx.app.getInputManager(), "ctx.app.inputManager");
 
         this.cursor = new CursorGrabController(ctx.engine, input, mouse);
         this.bindings = new InputBindings(input, mouse, frame);
@@ -40,20 +53,19 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
         this.input.addRawInputListener(rawListener);
         this.bindings.installMouseAxisMappings();
 
-        ctx.app.enqueue(() -> {
-            try { input.setCursorVisible(true); } catch (Exception ignored) {}
-            return null;
+        onJmeVoid("input.cursorVisible(true)", () -> {
+            InputManager im = input;
+            if (im != null) im.setCursorVisible(true);
         });
     }
 
     @Override
     public void detach() {
         try {
-            if (input != null && rawListener != null) {
-                try {
-                    input.removeRawInputListener(rawListener);
-                } catch (Throwable ignored) {
-                }
+            InputManager im = input;
+            RawCollector rl = rawListener;
+            if (im != null && rl != null) {
+                im.removeRawInputListener(rl);
             }
         } finally {
             rawListener = null;
@@ -64,6 +76,10 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
         }
     }
 
+    /**
+     * Legacy snapshot contract retained for compatibility with older scripts.
+     * Prefer granular getters + {@link #endFrame()}.
+     */
     @HostAccess.Export
     @Deprecated
     public Object consumeSnapshot() {
@@ -96,7 +112,8 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     public boolean keyDown(String key) {
         return profiled(() -> {
             int code = keyboard.keyCode(key);
-            if (bindings != null) bindings.ensureKeyMapping(code);
+            InputBindings b = bindings;
+            if (b != null) b.ensureKeyMapping(code);
             return keyboard.keyDown(code);
         });
     }
@@ -106,7 +123,8 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     public boolean keyDown(int keyCode) {
         return profiled(() -> {
             if (keyCode < 0) return false;
-            if (bindings != null) bindings.ensureKeyMapping(keyCode);
+            InputBindings b = bindings;
+            if (b != null) b.ensureKeyMapping(keyCode);
             return keyboard.keyDown(keyCode);
         });
     }
@@ -116,13 +134,23 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     public int keyCode(String name) {
         return profiled(() -> {
             int code = keyboard.keyCode(name);
-            if (bindings != null) bindings.ensureKeyMapping(code);
+            InputBindings b = bindings;
+            if (b != null) b.ensureKeyMapping(code);
             return code;
         });
     }
 
-    @HostAccess.Export @Override public double mouseX() { return mouse.mouseX(); }
-    @HostAccess.Export @Override public double mouseY() { return mouse.mouseY(); }
+    @HostAccess.Export
+    @Override
+    public double mouseX() {
+        return mouse.mouseX();
+    }
+
+    @HostAccess.Export
+    @Override
+    public double mouseY() {
+        return mouse.mouseY();
+    }
 
     @HostAccess.Export
     @Override
@@ -186,7 +214,11 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
         });
     }
 
-    @HostAccess.Export @Override public double wheelDelta() { return mouse.peekWheel(); }
+    @HostAccess.Export
+    @Override
+    public double wheelDelta() {
+        return mouse.peekWheel();
+    }
 
     @HostAccess.Export
     @Override
@@ -204,7 +236,8 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     @Override
     public void cursorVisible(boolean visible) {
         profiledVoid(() -> {
-            if (cursor != null) cursor.setCursorVisible(visible);
+            CursorGrabController c = cursor;
+            if (c != null) c.setCursorVisible(visible);
         });
     }
 
@@ -218,9 +251,11 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     @Override
     public void grabMouse(boolean grab) {
         profiledVoid(() -> {
-            if (cursor == null) return;
-            cursor.setGrabbed(grab);
-            cursor.setCursorVisible(!grab);
+            CursorGrabController c = cursor;
+            if (c == null) return;
+
+            c.setGrabbed(grab);
+            c.setCursorVisible(!grab);
             mouse.resetBaselines();
         });
     }
@@ -242,10 +277,16 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
     }
 
     private void refreshAbsoluteCursorBestEffort() {
+        InputManager im = input;
+        if (im == null) return;
+
         try {
-            if (input == null) return;
-            Vector2f c = input.getCursorPosition();
+            Vector2f c = im.getCursorPosition();
             if (c != null) mouse.setAbsolute(c.x, c.y);
-        } catch (Exception ignored) {}
+        } catch (Throwable t) {
+            if (log != null && log.isDebugEnabled()) {
+                log.debug("[input] cursor refresh failed", t);
+            }
+        }
     }
 }

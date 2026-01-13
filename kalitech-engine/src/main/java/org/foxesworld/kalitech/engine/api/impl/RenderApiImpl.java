@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/RenderApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
@@ -8,10 +7,9 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.modules.render.*;
 import org.graalvm.polyglot.HostAccess;
@@ -19,11 +17,15 @@ import org.graalvm.polyglot.Value;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.intClampR;
 
+/**
+ * Render API (script-facing).
+ *
+ * <p>Threading:
+ * all JME scene/view modifications are executed on the JME thread via {@code onJme*()} helpers.
+ */
 public final class RenderApiImpl extends AbstractApiModule implements RenderApi {
 
-    private static final Logger log = LogManager.getLogger(RenderApiImpl.class);
-
-    private static final int   DEFAULT_SHADOW_SPLITS = 3;
+    private static final int DEFAULT_SHADOW_SPLITS = 3;
     private static final float DEFAULT_SHADOW_LAMBDA = 0.65f;
     private static final float DEFAULT_SHADOW_INTENSITY = 0.65f;
 
@@ -34,88 +36,92 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     private volatile boolean sceneReady = false;
 
-    // Core modules
     private ViewportContract viewport;
     private LightRigModule lights;
     private ShadowModule shadows;
 
-    // Moved responsibilities
     private SkyModule sky;
     private PostModule post;
 
-    // Light caches (API-layer: "do-not-spam apply" policy)
-    private float ambR = Float.NaN, ambG = Float.NaN, ambB = Float.NaN, ambI = Float.NaN;
-    private float sunDx = Float.NaN, sunDy = Float.NaN, sunDz = Float.NaN;
-    private float sunR = Float.NaN, sunG = Float.NaN, sunB = Float.NaN, sunI = Float.NaN;
-    private float moonDx = Float.NaN, moonDy = Float.NaN, moonDz = Float.NaN;
-    private float moonR = Float.NaN, moonG = Float.NaN, moonB = Float.NaN, moonI = Float.NaN;
+    private volatile float ambR = Float.NaN, ambG = Float.NaN, ambB = Float.NaN, ambI = Float.NaN;
+    private volatile float sunDx = Float.NaN, sunDy = Float.NaN, sunDz = Float.NaN;
+    private volatile float sunR = Float.NaN, sunG = Float.NaN, sunB = Float.NaN, sunI = Float.NaN;
+    private volatile float moonDx = Float.NaN, moonDy = Float.NaN, moonDz = Float.NaN;
+    private volatile float moonR = Float.NaN, moonG = Float.NaN, moonB = Float.NaN, moonI = Float.NaN;
 
     public RenderApiImpl() {
         super("render", "Render", "1.0.0");
     }
 
+    private static DirLightConfig parseSun(Value cfg) {
+        Value dir = RenderCfg.member(cfg, "dir");
+        Value col = RenderCfg.member(cfg, "color");
+
+        float dx = RenderCfg.vec3x(dir, -1f);
+        float dy = RenderCfg.vec3y(dir, -1f);
+        float dz = RenderCfg.vec3z(dir, -0.3f);
+
+        float r = RenderCfg.vec3x(col, 1f);
+        float g = RenderCfg.vec3y(col, 0.98f);
+        float b = RenderCfg.vec3z(col, 0.9f);
+
+        float i = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 1.2));
+        return new DirLightConfig(dx, dy, dz, r, g, b, i);
+    }
+
+    private static DirLightConfig parseMoon(Value cfg) {
+        Value dir = RenderCfg.member(cfg, "dir");
+        Value col = RenderCfg.member(cfg, "color");
+
+        float dx = RenderCfg.vec3x(dir, 1f);
+        float dy = RenderCfg.vec3y(dir, -1f);
+        float dz = RenderCfg.vec3z(dir, 0.3f);
+
+        float r = RenderCfg.vec3x(col, 0.45f);
+        float g = RenderCfg.vec3y(col, 0.55f);
+        float b = RenderCfg.vec3z(col, 0.85f);
+
+        float i = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 0.0));
+        return new DirLightConfig(dx, dy, dz, r, g, b, i);
+    }
+
     @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+    public void attach(ApiContext ctx) {
         super.attach(ctx);
 
         this.app = ctx.app;
         this.assets = ctx.assets;
         this.ecs = ctx.ecs;
 
+        RenderThread rt = new RenderThread(ctx.engine, ctx.app);
+
         this.viewport = new ViewportContract(app, log);
-        this.lights = new LightRigModule(new RenderThread(ctx.engine, ctx.app), app);
-        this.shadows = new ShadowModule(new RenderThread(ctx.engine, app), app, assets, log, lights);
+        this.lights = new LightRigModule(rt, app);
+        this.shadows = new ShadowModule(rt, app, assets, log, lights);
 
         this.sky = new SkyModule(app, assets, log);
         this.post = new PostModule(app, assets, log);
     }
 
-    public void __resetWorldCache(String reason) {
-        ambR = Float.NaN;
-        ambG = Float.NaN;
-        ambB = Float.NaN;
-        ambI = Float.NaN;
-
-        sunDx = Float.NaN;
-        sunDy = Float.NaN;
-        sunDz = Float.NaN;
-        sunR = Float.NaN;
-        sunG = Float.NaN;
-        sunB = Float.NaN;
-        sunI = Float.NaN;
-
-        moonDx = Float.NaN;
-        moonDy = Float.NaN;
-        moonDz = Float.NaN;
-        moonR = Float.NaN;
-        moonG = Float.NaN;
-        moonB = Float.NaN;
-        moonI = Float.NaN;
-
-        final String why = (reason == null || reason.isBlank()) ? "worldReset" : reason.trim();
-        onJmeSyncVoid("render.__resetWorldCache", () -> {
-            if (post != null) post.resetCache();
-            if (shadows != null) shadows.clearShadowMaps(why);
-        });
-    }
-
-    @HostAccess.Export
     @Override
-    public void ensureScene() {
-        profiledVoid(() -> {
-            if (sceneReady) return;
-            sceneReady = true;
+    public void detach() {
+        sceneReady = false;
+        viewport = null;
+        lights = null;
+        shadows = null;
+        sky = null;
+        post = null;
 
-            onJmeSyncVoid("render.ensureScene", () -> {
-                viewport.ensure("ensureScene");
-                lights.ensure();
-                post.ensureMainFpp("ensureScene");
-                log.info("RenderApi: scene ensured");
-            });
-        });
+        app = null;
+        assets = null;
+        ecs = null;
+
+        super.detach();
     }
 
-    // --------------------- sky dome ---------------------
+    // ---------------------------------------------------------------------
+    // Sky dome
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     public void skyDomeClear() {
@@ -172,83 +178,113 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // --------------------- ambient ---------------------
+    // ---------------------------------------------------------------------
+    // Ambient
+    // ---------------------------------------------------------------------
+
+    public void __resetWorldCache(String reason) {
+        ambR = ambG = ambB = ambI = Float.NaN;
+        sunDx = sunDy = sunDz = Float.NaN;
+        sunR = sunG = sunB = sunI = Float.NaN;
+        moonDx = moonDy = moonDz = Float.NaN;
+        moonR = moonG = moonB = moonI = Float.NaN;
+
+        final String why = (reason == null || reason.isBlank()) ? "worldReset" : reason.trim();
+        onJmeSyncVoid("render.__resetWorldCache", () -> {
+            PostModule p = post;
+            if (p != null) p.resetCache();
+
+            ShadowModule s = shadows;
+            if (s != null) s.clearShadowMaps(why);
+        });
+    }
+
+    @HostAccess.Export
+    @Override
+    public void ensureScene() {
+        profiledVoid(() -> {
+            if (sceneReady) return;
+            sceneReady = true;
+
+            onJmeSyncVoid("render.ensureScene", () -> {
+                ViewportContract vp = viewport;
+                if (vp != null) vp.ensure("ensureScene");
+
+                LightRigModule lr = lights;
+                if (lr != null) lr.ensure();
+
+                PostModule p = post;
+                if (p != null) p.ensureMainFpp("ensureScene");
+
+                if (log != null) log.info("[render] scene ensured");
+            });
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Sun / Moon
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
     public void ambientCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
+
+            AmbientConfig c = AmbientConfig.parse(cfg);
+
+            if (RenderCfg.approx(c.r, ambR) && RenderCfg.approx(c.g, ambG) && RenderCfg.approx(c.b, ambB) && RenderCfg.approx(c.intensity, ambI)) {
+                return;
+            }
+
+            ambR = c.r;
+            ambG = c.g;
+            ambB = c.b;
+            ambI = c.intensity;
+
             onJmeSyncVoid("render.ambientCfg", () -> {
                 viewport.ensure("ambientCfg");
-                lights.ensure();//ensureAmbient();
-
-                double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", 0.25));
-                double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", 0.28));
-                double b = RenderCfg.num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", 0.35));
-                double intensity = RenderCfg.num(cfg, "intensity", 1.0);
-
-                float fr = (float) r, fg = (float) g, fb = (float) b;
-                float fi = (float) Math.max(0.0, intensity);
-
-                if (RenderCfg.approx(fr, ambR) && RenderCfg.approx(fg, ambG) && RenderCfg.approx(fb, ambB) && RenderCfg.approx(fi, ambI))
-                    return;
-
-                ambR = fr;
-                ambG = fg;
-                ambB = fb;
-                ambI = fi;
+                lights.ensure();
 
                 AmbientLight a = lights.ambient();
-                a.setColor(new ColorRGBA(fr, fg, fb, 1f).mult(fi));
+                a.setColor(new ColorRGBA(c.r, c.g, c.b, 1f).mult(c.intensity));
             });
         });
     }
-
-    // --------------------- sun / moon ---------------------
 
     @HostAccess.Export
     @Override
     public void sunCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
+
+            DirLightConfig c = parseSun(cfg);
+
+            if (RenderCfg.approx(c.dx, sunDx) && RenderCfg.approx(c.dy, sunDy) && RenderCfg.approx(c.dz, sunDz)
+                    && RenderCfg.approx(c.r, sunR) && RenderCfg.approx(c.g, sunG) && RenderCfg.approx(c.b, sunB)
+                    && RenderCfg.approx(c.intensity, sunI)) {
+                return;
+            }
+
+            sunDx = c.dx;
+            sunDy = c.dy;
+            sunDz = c.dz;
+            sunR = c.r;
+            sunG = c.g;
+            sunB = c.b;
+            sunI = c.intensity;
+
             onJmeSyncVoid("render.sunCfg", () -> {
                 viewport.ensure("sunCfg");
                 lights.ensure();
 
-                Value dir = RenderCfg.member(cfg, "dir");
-                Value col = RenderCfg.member(cfg, "color");
-
-                float dx = RenderCfg.vec3x(dir, -1f);
-                float dy = RenderCfg.vec3y(dir, -1f);
-                float dz = RenderCfg.vec3z(dir, -0.3f);
-
-                float r = RenderCfg.vec3x(col, 1f);
-                float g = RenderCfg.vec3y(col, 0.98f);
-                float b = RenderCfg.vec3z(col, 0.9f);
-
-                float intensity = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 1.2));
-
-                if (RenderCfg.approx(dx, sunDx) && RenderCfg.approx(dy, sunDy) && RenderCfg.approx(dz, sunDz) &&
-                        RenderCfg.approx(r, sunR) && RenderCfg.approx(g, sunG) && RenderCfg.approx(b, sunB) && RenderCfg.approx(intensity, sunI)) {
-                    return;
-                }
-
-                sunDx = dx;
-                sunDy = dy;
-                sunDz = dz;
-                sunR = r;
-                sunG = g;
-                sunB = b;
-                sunI = intensity;
-
-                Vector3f v = new Vector3f(dx, dy, dz);
-                if (v.lengthSquared() < 1e-6f) v.set(-1, -1, -1);
+                Vector3f v = new Vector3f(c.dx, c.dy, c.dz);
+                if (v.lengthSquared() < 1e-6f) v.set(-1f, -1f, -1f);
                 v.normalizeLocal();
 
                 DirectionalLight sun = lights.sun();
                 sun.setDirection(v);
-                sun.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
+                sun.setColor(new ColorRGBA(c.r, c.g, c.b, 1f).mult(c.intensity));
             });
         });
     }
@@ -257,43 +293,34 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     public void moonCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
+
+            DirLightConfig c = parseMoon(cfg);
+
+            if (RenderCfg.approx(c.dx, moonDx) && RenderCfg.approx(c.dy, moonDy) && RenderCfg.approx(c.dz, moonDz)
+                    && RenderCfg.approx(c.r, moonR) && RenderCfg.approx(c.g, moonG) && RenderCfg.approx(c.b, moonB)
+                    && RenderCfg.approx(c.intensity, moonI)) {
+                return;
+            }
+
+            moonDx = c.dx;
+            moonDy = c.dy;
+            moonDz = c.dz;
+            moonR = c.r;
+            moonG = c.g;
+            moonB = c.b;
+            moonI = c.intensity;
+
             onJmeSyncVoid("render.moonCfg", () -> {
                 viewport.ensure("moonCfg");
                 lights.ensure();
 
-                Value dir = RenderCfg.member(cfg, "dir");
-                Value col = RenderCfg.member(cfg, "color");
-
-                float dx = RenderCfg.vec3x(dir, 1f);
-                float dy = RenderCfg.vec3y(dir, -1f);
-                float dz = RenderCfg.vec3z(dir, 0.3f);
-
-                float r = RenderCfg.vec3x(col, 0.45f);
-                float g = RenderCfg.vec3y(col, 0.55f);
-                float b = RenderCfg.vec3z(col, 0.85f);
-
-                float intensity = (float) Math.max(0.0, RenderCfg.num(cfg, "intensity", 0.0));
-
-                if (RenderCfg.approx(dx, moonDx) && RenderCfg.approx(dy, moonDy) && RenderCfg.approx(dz, moonDz) &&
-                        RenderCfg.approx(r, moonR) && RenderCfg.approx(g, moonG) && RenderCfg.approx(b, moonB) && RenderCfg.approx(intensity, moonI)) {
-                    return;
-                }
-
-                moonDx = dx;
-                moonDy = dy;
-                moonDz = dz;
-                moonR = r;
-                moonG = g;
-                moonB = b;
-                moonI = intensity;
-
-                Vector3f v = new Vector3f(dx, dy, dz);
-                if (v.lengthSquared() < 1e-6f) v.set(1, -1, 0);
+                Vector3f v = new Vector3f(c.dx, c.dy, c.dz);
+                if (v.lengthSquared() < 1e-6f) v.set(1f, -1f, 0f);
                 v.normalizeLocal();
 
                 DirectionalLight moon = lights.moon();
                 moon.setDirection(v);
-                moon.setColor(new ColorRGBA(r, g, b, 1f).mult(intensity));
+                moon.setColor(new ColorRGBA(c.r, c.g, c.b, 1f).mult(c.intensity));
             });
         });
     }
@@ -316,12 +343,68 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 lights.setPrimaryDirectional(w);
                 shadows.renderer();
 
-                log.info("RenderApi: primaryDirectional={}", w);
+                if (log != null) log.info("[render] primaryDirectional={}", w);
             });
         });
     }
 
-    // --------------------- shadows ---------------------
+    @HostAccess.Export
+    @Override
+    public void sunShadowsCfg(Value cfg) {
+        int map = intClampR(cfg, "mapSize", 2048, 0, 16384);
+        int splits = intClampR(cfg, "splits", DEFAULT_SHADOW_SPLITS, 1, 8);
+        double lambda = RenderCfg.num(cfg, "lambda", DEFAULT_SHADOW_LAMBDA);
+        double intensity = RenderCfg.num(cfg, "intensity", DEFAULT_SHADOW_INTENSITY);
+        boolean snap = RenderCfg.bool(cfg, "snap", true);
+
+        RenderCfg.num(cfg, "softness", 0.0);
+        intClampR(cfg, "pcfSamples", 16, 1, 64);
+        RenderCfg.bool(cfg, "pcss", false);
+        RenderCfg.num(cfg, "lightRadius", 0.0);
+
+        profiledVoid(() -> {
+            ensureScene();
+            onJmeSyncVoid("render.sunShadowsCfg", () -> {
+                viewport.ensure("sunShadowsCfg");
+                lights.ensure();
+
+                shadows.setSnapEnabled(snap);
+                shadows.applyCfg(map, splits, (float) lambda, (float) intensity);
+
+                DirectionalLightShadowRenderer r = shadows.renderer();
+                if (r != null) r.setLight(lights.primaryLight());
+            });
+        });
+    }
+
+    private static final class AmbientConfig {
+        final float r, g, b, intensity;
+
+        AmbientConfig(float r, float g, float b, float intensity) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.intensity = intensity;
+        }
+
+        static AmbientConfig parse(Value cfg) {
+            double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", 0.25));
+            double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", 0.28));
+            double b = RenderCfg.num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", 0.35));
+            double i = RenderCfg.num(cfg, "intensity", 1.0);
+
+            float fr = (float) r;
+            float fg = (float) g;
+            float fb = (float) b;
+            float fi = (float) Math.max(0.0, i);
+
+            return new AmbientConfig(fr, fg, fb, fi);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Shadows
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -341,38 +424,25 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    @HostAccess.Export
-    @Override
-    public void sunShadowsCfg(Value cfg) {
-        int map = intClampR(cfg, "mapSize", 2048, 0, 16384);
-        int splits = intClampR(cfg, "splits", DEFAULT_SHADOW_SPLITS, 1, 8);
-        double lambda = RenderCfg.num(cfg, "lambda", DEFAULT_SHADOW_LAMBDA);
-        double intensity = RenderCfg.num(cfg, "intensity", DEFAULT_SHADOW_INTENSITY);
+    private static final class DirLightConfig {
+        final float dx, dy, dz;
+        final float r, g, b;
+        final float intensity;
 
-        boolean snap = RenderCfg.bool(cfg, "snap", true);
-
-        // cache-only knobs for future (оставляем контракт)
-        RenderCfg.num(cfg, "softness", 0.0);
-        intClampR(cfg, "pcfSamples", 16, 1, 64);
-        RenderCfg.bool(cfg, "pcss", false);
-        RenderCfg.num(cfg, "lightRadius", 0.0);
-
-        profiledVoid(() -> {
-            ensureScene();
-            onJmeSyncVoid("render", () -> {
-                viewport.ensure("sunShadowsCfg");
-                lights.ensure();
-
-                shadows.setSnapEnabled(snap);
-                shadows.applyCfg(map, splits, (float) lambda, (float) intensity);
-
-                DirectionalLightShadowRenderer r = shadows.renderer();
-                if (r != null) r.setLight(lights.primaryLight());
-            });
-        });
+        DirLightConfig(float dx, float dy, float dz, float r, float g, float b, float intensity) {
+            this.dx = dx;
+            this.dy = dy;
+            this.dz = dz;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.intensity = intensity;
+        }
     }
 
-    // --------------------- fog ---------------------
+    // ---------------------------------------------------------------------
+    // Fog
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -386,7 +456,9 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
-    // --------------------- post ---------------------
+    // ---------------------------------------------------------------------
+    // Post
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override

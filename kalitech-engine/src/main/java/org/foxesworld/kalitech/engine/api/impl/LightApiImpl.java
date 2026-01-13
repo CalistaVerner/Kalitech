@@ -1,11 +1,9 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/LightApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.light.*;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.LightApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -21,11 +19,17 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
-
+/**
+ * Light API.
+ *
+ * <p>Threading:
+ * <ul>
+ *   <li>Config parsing happens on the caller thread.</li>
+ *   <li>All scenegraph light mutations (create/attach/detach/set/destroy) happen on the JME thread.</li>
+ * </ul>
+ */
 public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
-    private EngineApiImpl engine;
     private SimpleApplication app;
 
     private final AtomicInteger ids = new AtomicInteger(1);
@@ -36,79 +40,149 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         super("light", "Light", "1.0.0");
     }
 
-    public LightApiImpl(EngineApiImpl engine) {
-        this();
-        bind(engine);
+    private static void applyConfigOnJme(int id, Light l, LightState st, LightConfig c) {
+        if (c.enabled != null) {
+            l.setEnabled(c.enabled);
+            st.enabled = c.enabled;
+        }
+
+        ColorRGBA base = new ColorRGBA(c.colorR, c.colorG, c.colorB, c.colorA);
+        float intensity = c.intensity != null ? c.intensity : st.intensity;
+
+        st.colorR = base.r;
+        st.colorG = base.g;
+        st.colorB = base.b;
+        st.colorA = base.a;
+        st.intensity = intensity;
+
+        l.setColor(base.mult(intensity));
+
+        if (l instanceof DirectionalLight dl) {
+            Vector3f dir = (c.dir != null) ? c.dir : new Vector3f(-1f, -1f, -0.3f);
+            if (dir.lengthSquared() < 1e-8f) dir.set(-1f, -1f, -0.3f);
+            dir.normalizeLocal();
+            dl.setDirection(dir);
+
+            st.type = "directional";
+            st.dir = dir.clone();
+            st.pos = null;
+            st.radius = st.range = st.innerDeg = st.outerDeg = null;
+            return;
+        }
+
+        if (l instanceof AmbientLight) {
+            st.type = "ambient";
+            st.dir = null;
+            st.pos = null;
+            st.radius = st.range = st.innerDeg = st.outerDeg = null;
+            return;
+        }
+
+        if (l instanceof PointLight pl) {
+            Vector3f pos = (c.pos != null) ? c.pos : new Vector3f(0f, 3f, 0f);
+            pl.setPosition(pos);
+
+            st.type = "point";
+            st.pos = pos.clone();
+            st.dir = null;
+
+            if (c.radius != null && c.radius > 0f) {
+                pl.setRadius(c.radius);
+                st.radius = c.radius;
+            }
+
+            st.range = st.innerDeg = st.outerDeg = null;
+            return;
+        }
+
+        if (l instanceof SpotLight sl) {
+            Vector3f pos = (c.pos != null) ? c.pos : new Vector3f(0f, 3f, 0f);
+            Vector3f dir = (c.dir != null) ? c.dir : new Vector3f(0f, -1f, 0f);
+            if (dir.lengthSquared() < 1e-8f) dir.set(0f, -1f, 0f);
+
+            sl.setPosition(pos);
+            sl.setDirection(dir.normalizeLocal());
+
+            st.type = "spot";
+            st.pos = pos.clone();
+            st.dir = dir.clone();
+
+            float range = (c.range != null) ? c.range : (st.range != null ? st.range : 100f);
+            sl.setSpotRange(range);
+            st.range = range;
+
+            float innerDeg = (c.innerDeg != null) ? c.innerDeg : (st.innerDeg != null ? st.innerDeg : 15f);
+            float outerDeg = (c.outerDeg != null) ? c.outerDeg : (st.outerDeg != null ? st.outerDeg : 25f);
+
+            innerDeg = clamp(innerDeg, 0.0f, 89.0f);
+            outerDeg = clamp(outerDeg, innerDeg, 90.0f);
+
+            sl.setSpotInnerAngle((float) Math.toRadians(innerDeg));
+            sl.setSpotOuterAngle((float) Math.toRadians(outerDeg));
+
+            st.innerDeg = innerDeg;
+            st.outerDeg = outerDeg;
+            st.radius = null;
+        }
+    }
+
+    private static String normalizeType(String type) {
+        String t = type.trim().toLowerCase();
+        if (t.equals("dir") || t.equals("sun")) return "directional";
+        return t;
     }
 
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
-        bind(ctx.engine);
+        this.app = Objects.requireNonNull(ctx.app, "ctx.app");
     }
 
-    private void bind(EngineApiImpl engine) {
-        this.engine = Objects.requireNonNull(engine, "engine");
-        this.app = engine.getApp();
+    @Override
+    public void detach() {
+        SimpleApplication a = app;
+
+        if (a != null) {
+            onJmeVoid("light.detach", () -> {
+                for (Light l : lights.values()) {
+                    if (l != null) detachFromRoot(l);
+                }
+            });
+        }
+
+        lights.clear();
+        states.clear();
+        ids.set(1);
+
+        this.app = null;
+        super.detach();
     }
 
     @HostAccess.Export
     @Override
     public LightHandle create(Value cfg) {
-        // engine.render().ensureScene();
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("light.create(cfg): cfg is null");
 
-        String type = str(cfg, "type", null);
-        if (type == null || type.isBlank()) throw new IllegalArgumentException("light.create: type is required");
-
-        String normType = normalizeType(type);
-        Light l = createLightByType(normType);
-
+        LightConfig c = LightConfig.from(cfg);
         int id = ids.getAndIncrement();
-        lights.put(id, l);
 
-        LightState st = LightState.defaults(id, normType);
-        states.put(id, st);
+        return profiled(() -> onJmeSyncStrict("light.create", () -> {
+            Light l = createLightByType(c.type);
+            lights.put(id, l);
 
-        boolean attach = bool(cfg, "attach", true);
-        if (attach) {
-            attachToRoot(l);
-            st.attached = true;
-        }
+            LightState st = LightState.defaults(id, c.type);
+            states.put(id, st);
 
-        setInternal(id, l, cfg);
-        return new LightHandle(id, normType);
-    }
+            if (c.attach) {
+                attachToRoot(l);
+                st.attached = true;
+            } else {
+                st.attached = false;
+            }
 
-    @HostAccess.Export
-    @Override
-    public void set(LightHandle handle, Value cfg) {
-        Light l = require(handle);
-        if (cfg == null || cfg.isNull()) return;
-
-        LightState st = requireState(handle.id());
-
-        boolean attach = bool(cfg, "attach", false);
-        boolean detach = bool(cfg, "detach", false);
-        if (detach) {
-            detachFromRoot(l);
-            st.attached = false;
-        }
-        if (attach) {
-            attachToRoot(l);
-            st.attached = true;
-        }
-
-        setInternal(handle.id(), l, cfg);
-    }
-
-    @HostAccess.Export
-    @Override
-    public void enable(LightHandle handle, boolean enabled) {
-        Light l = require(handle);
-        l.setEnabled(enabled);
-        LightState st = states.get(handle.id());
-        if (st != null) st.enabled = enabled;
+            applyConfigOnJme(id, l, st, c);
+            return new LightHandle(id, c.type);
+        }));
     }
 
     @HostAccess.Export
@@ -119,52 +193,54 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    public void set(LightHandle handle, Value cfg) {
+        if (handle == null) throw new IllegalArgumentException("light.set(handle,cfg): handle is null");
+        if (cfg == null || cfg.isNull()) return;
+
+        LightConfig c = LightConfig.from(cfg);
+
+        profiledVoid(() -> onJmeVoid("light.set", () -> {
+            Light l = require(handle);
+            LightState st = requireState(handle.id());
+
+            if (c.detach) {
+                detachFromRoot(l);
+                st.attached = false;
+            }
+            if (c.attach) {
+                attachToRoot(l);
+                st.attached = true;
+            }
+
+            applyConfigOnJme(handle.id(), l, st, c);
+        }));
+    }
+
+    @HostAccess.Export
+    @Override
+    public void enable(LightHandle handle, boolean enabled) {
+        if (handle == null) return;
+
+        profiledVoid(() -> onJmeVoid("light.enable", () -> {
+            Light l = lights.get(handle.id());
+            if (l == null) return;
+
+            l.setEnabled(enabled);
+            LightState st = states.get(handle.id());
+            if (st != null) st.enabled = enabled;
+        }));
+    }
+
+    @HostAccess.Export
+    @Override
     public void destroy(LightHandle handle) {
         if (handle == null) return;
 
-        Light l = lights.remove(handle.id());
-        if (l != null) detachFromRoot(l);
-
-        states.remove(handle.id());
-    }
-
-    // ---------------- NEW: get/list ----------------
-
-    @HostAccess.Export
-    @Override
-    public Value get(LightHandle handle) {
-        if (handle == null) return null;
-
-        LightState st = states.get(handle.id());
-        if (st == null) return null;
-
-        Context ctx = engine.getRuntime().getCtx();
-        if (ctx == null) return null;
-
-        return ctx.asValue(stateToProxy(st));
-    }
-
-    @HostAccess.Export
-    @Override
-    public Value list() {
-        Context ctx = engine.getRuntime().getCtx();
-        if (ctx == null) return null;
-
-        var idsSorted = states.keySet().stream().sorted().toList();
-        Object[] arr = new Object[idsSorted.size()];
-
-        for (int i = 0; i < idsSorted.size(); i++) {
-            LightState st = states.get(idsSorted.get(i));
-            if (st == null) continue;
-
-            Map<String, Object> o = new LinkedHashMap<>();
-            o.put("id", st.id);
-            o.put("type", st.type);
-
-            arr[i] = ProxyObject.fromMap(o);
-        }
-
-        return ctx.asValue(ProxyArray.fromArray(arr));
+        profiledVoid(() -> onJmeVoid("light.destroy", () -> {
+            Light l = lights.remove(handle.id());
+            if (l != null) detachFromRoot(l);
+            states.remove(handle.id());
+        }));
     }
 
     private static ProxyObject stateToProxy(LightState st) {
@@ -189,17 +265,18 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         return ProxyObject.fromMap(o);
     }
 
-    public static final class LightHandle {
-        private final int id;
-        private final String type;
+    @HostAccess.Export
+    @Override
+    public Value get(LightHandle handle) {
+        if (handle == null) return null;
 
-        public LightHandle(int id, String type) {
-            this.id = id;
-            this.type = type;
-        }
+        LightState st = states.get(handle.id());
+        if (st == null) return null;
 
-        @HostAccess.Export public int id() { return id; }
-        @HostAccess.Export public String type() { return type; }
+        Context ctx = (engine == null || engine.getRuntime() == null) ? null : engine.getRuntime().getCtx();
+        if (ctx == null) return null;
+
+        return ctx.asValue(stateToProxy(st));
     }
 
     private Light require(LightHandle h) {
@@ -218,14 +295,32 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         return st;
     }
 
-    private void attachToRoot(Light l) {
-        if (app == null || app.getRootNode() == null) return;
-        app.getRootNode().addLight(l);
+    @HostAccess.Export
+    @Override
+    public Value list() {
+        Context ctx = (engine == null || engine.getRuntime() == null) ? null : engine.getRuntime().getCtx();
+        if (ctx == null) return null;
+
+        var idsSorted = states.keySet().stream().sorted().toList();
+        Object[] arr = new Object[idsSorted.size()];
+
+        for (int i = 0; i < idsSorted.size(); i++) {
+            LightState st = states.get(idsSorted.get(i));
+            if (st == null) continue;
+
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("id", st.id);
+            o.put("type", st.type);
+            arr[i] = ProxyObject.fromMap(o);
+        }
+
+        return ctx.asValue(ProxyArray.fromArray(arr));
     }
 
-    private void detachFromRoot(Light l) {
-        if (app == null || app.getRootNode() == null) return;
-        app.getRootNode().removeLight(l);
+    private void attachToRoot(Light l) {
+        SimpleApplication a = app;
+        if (a == null || a.getRootNode() == null) return;
+        a.getRootNode().addLight(l);
     }
 
     private static Light createLightByType(String type) {
@@ -238,149 +333,254 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         };
     }
 
-    private static String normalizeType(String type) {
-        String t = type.trim().toLowerCase();
-        if (t.equals("dir") || t.equals("sun")) return "directional";
-        return t;
-    }
-
-    private void setInternal(int id, Light l, Value cfg) {
-        if (cfg == null || cfg.isNull()) return;
-
-        LightState st = requireState(id);
-
-        if (cfg.hasMember("enabled")) {
-            try {
-                boolean en = cfg.getMember("enabled").asBoolean();
-                l.setEnabled(en);
-                st.enabled = en;
-            } catch (Throwable ignored) {}
-        }
-
-        ColorRGBA c = parseColor(cfg.getMember("color"), 1f, 1f, 1f, 1f);
-        float intensity = (float) num(cfg, "intensity", st.intensity);
-
-        st.colorR = c.r; st.colorG = c.g; st.colorB = c.b; st.colorA = c.a;
-        st.intensity = intensity;
-
-        l.setColor(c.mult(intensity));
-
-        if (l instanceof DirectionalLight dl) {
-            Vector3f dir = parseVec3(cfg.getMember("dir"), -1f, -1f, -0.3f);
-            if (dir.lengthSquared() < 1e-8f) dir.set(-1, -1, -0.3f);
-            dir.normalizeLocal();
-            dl.setDirection(dir);
-            st.type = "directional";
-            st.dir = dir.clone();
-            st.pos = null;
-            st.radius = st.range = st.innerDeg = st.outerDeg = null;
-            return;
-        }
-
-        if (l instanceof AmbientLight) {
-            st.type = "ambient";
-            st.dir = null;
-            st.pos = null;
-            st.radius = st.range = st.innerDeg = st.outerDeg = null;
-            return;
-        }
-
-        if (l instanceof PointLight pl) {
-            Vector3f pos = parseVec3(cfg.getMember("pos"), 0f, 3f, 0f);
-            pl.setPosition(pos);
-            st.type = "point";
-            st.pos = pos.clone();
-            st.dir = null;
-
-            float radius = (float) num(cfg, "radius", (st.radius != null ? st.radius : 0.0));
-            if (radius > 0f) {
-                pl.setRadius(radius);
-                st.radius = radius;
-            }
-            st.range = st.innerDeg = st.outerDeg = null;
-            return;
-        }
-
-        if (l instanceof SpotLight sl) {
-            Vector3f pos = parseVec3(cfg.getMember("pos"), 0f, 3f, 0f);
-            Vector3f dir = parseVec3(cfg.getMember("dir"), 0f, -1f, 0f);
-            if (dir.lengthSquared() < 1e-8f) dir.set(0, -1, 0);
-
-            sl.setPosition(pos);
-            sl.setDirection(dir.normalizeLocal());
-
-            st.type = "spot";
-            st.pos = pos.clone();
-            st.dir = dir.clone();
-
-            float range = (float) num(cfg, "range", (st.range != null ? st.range : 100f));
-            sl.setSpotRange(range);
-            st.range = range;
-
-            float innerDeg = (float) num(cfg, "innerDeg", (st.innerDeg != null ? st.innerDeg : 15f));
-            float outerDeg = (float) num(cfg, "outerDeg", (st.outerDeg != null ? st.outerDeg : 25f));
-            innerDeg = clamp(innerDeg, 0.0f, 89.0f);
-            outerDeg = clamp(outerDeg, innerDeg, 90.0f);
-
-            sl.setSpotInnerAngle((float) Math.toRadians(innerDeg));
-            sl.setSpotOuterAngle((float) Math.toRadians(outerDeg));
-
-            st.innerDeg = innerDeg;
-            st.outerDeg = outerDeg;
-            st.radius = null;
-        }
+    private void detachFromRoot(Light l) {
+        SimpleApplication a = app;
+        if (a == null || a.getRootNode() == null) return;
+        a.getRootNode().removeLight(l);
     }
 
     private static float clamp(float v, float a, float b) {
         return Math.max(a, Math.min(b, v));
     }
 
-    private static ColorRGBA parseColor(Value v, float dr, float dg, float db, float da) {
-        if (v == null || v.isNull()) return new ColorRGBA(dr, dg, db, da);
+    public static final class LightHandle {
+        private final int id;
+        private final String type;
 
-        try {
-            if (v.hasArrayElements()) {
-                long n = v.getArraySize();
-                if (n >= 3) {
-                    float r = (float) v.getArrayElement(0).asDouble();
-                    float g = (float) v.getArrayElement(1).asDouble();
-                    float b = (float) v.getArrayElement(2).asDouble();
-                    float a = (n >= 4) ? (float) v.getArrayElement(3).asDouble() : da;
-                    return new ColorRGBA(r, g, b, a);
-                }
-            }
-            if (v.hasMembers() && (v.hasMember("r") || v.hasMember("g") || v.hasMember("b"))) {
-                float r = (float) num(v, "r", dr);
-                float g = (float) num(v, "g", dg);
-                float b = (float) num(v, "b", db);
-                float a = (float) num(v, "a", da);
-                return new ColorRGBA(r, g, b, a);
-            }
-        } catch (Throwable ignored) {}
+        public LightHandle(int id, String type) {
+            this.id = id;
+            this.type = type;
+        }
 
-        return new ColorRGBA(dr, dg, db, da);
+        @HostAccess.Export
+        public int id() {
+            return id;
+        }
+
+        @HostAccess.Export
+        public String type() {
+            return type;
+        }
     }
 
-    private static Vector3f parseVec3(Value v, float dx, float dy, float dz) {
-        if (v == null || v.isNull()) return new Vector3f(dx, dy, dz);
+    private static final class LightConfig {
+        final String type;
 
-        try {
-            if (v.hasArrayElements() && v.getArraySize() >= 3) {
-                return new Vector3f(
-                        (float) v.getArrayElement(0).asDouble(),
-                        (float) v.getArrayElement(1).asDouble(),
-                        (float) v.getArrayElement(2).asDouble()
-                );
-            }
-            if (v.hasMembers()) {
-                float x = (float) num(v, "x", dx);
-                float y = (float) num(v, "y", dy);
-                float z = (float) num(v, "z", dz);
-                return new Vector3f(x, y, z);
-            }
-        } catch (Throwable ignored) {}
+        final Boolean enabled;
 
-        return new Vector3f(dx, dy, dz);
+        final boolean attach;
+        final boolean detach;
+
+        final float colorR;
+        final float colorG;
+        final float colorB;
+        final float colorA;
+
+        final Float intensity;
+
+        final Vector3f dir;
+        final Vector3f pos;
+
+        final Float radius;
+        final Float range;
+        final Float innerDeg;
+        final Float outerDeg;
+
+        private LightConfig(
+                String type,
+                Boolean enabled,
+                boolean attach,
+                boolean detach,
+                float colorR, float colorG, float colorB, float colorA,
+                Float intensity,
+                Vector3f dir,
+                Vector3f pos,
+                Float radius,
+                Float range,
+                Float innerDeg,
+                Float outerDeg
+        ) {
+            this.type = type;
+            this.enabled = enabled;
+            this.attach = attach;
+            this.detach = detach;
+            this.colorR = colorR;
+            this.colorG = colorG;
+            this.colorB = colorB;
+            this.colorA = colorA;
+            this.intensity = intensity;
+            this.dir = dir;
+            this.pos = pos;
+            this.radius = radius;
+            this.range = range;
+            this.innerDeg = innerDeg;
+            this.outerDeg = outerDeg;
+        }
+
+        static LightConfig from(Value cfg) {
+            Objects.requireNonNull(cfg, "cfg");
+
+            String type = str(cfg, "type", null);
+            if (type == null || type.isBlank()) throw new IllegalArgumentException("light: type is required");
+            String normType = normalizeType(type);
+
+            Boolean enabled = has(cfg, "enabled") ? boolObj(cfg, "enabled") : null;
+
+            boolean attach = bool(cfg, "attach", true);
+            boolean detach = bool(cfg, "detach", false);
+
+            ColorRGBA col = parseColor(member(cfg, "color"), 1f, 1f, 1f, 1f);
+
+            Float intensity = has(cfg, "intensity") ? (float) num(cfg, "intensity", 1.0) : null;
+
+            Vector3f dir = parseVec3Nullable(member(cfg, "dir"));
+            Vector3f pos = parseVec3Nullable(member(cfg, "pos"));
+
+            Float radius = has(cfg, "radius") ? (float) num(cfg, "radius", 0.0) : null;
+            Float range = has(cfg, "range") ? (float) num(cfg, "range", 100.0) : null;
+            Float innerDeg = has(cfg, "innerDeg") ? (float) num(cfg, "innerDeg", 15.0) : null;
+            Float outerDeg = has(cfg, "outerDeg") ? (float) num(cfg, "outerDeg", 25.0) : null;
+
+            return new LightConfig(
+                    normType,
+                    enabled,
+                    attach,
+                    detach,
+                    col.r, col.g, col.b, col.a,
+                    intensity,
+                    dir,
+                    pos,
+                    radius,
+                    range,
+                    innerDeg,
+                    outerDeg
+            );
+        }
+
+        private static boolean has(Value v, String key) {
+            try {
+                return v != null && !v.isNull() && v.hasMember(key) && !v.getMember(key).isNull();
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+
+        private static Value member(Value v, String key) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return null;
+                return v.getMember(key);
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+
+        private static String str(Value v, String key, String def) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return def;
+                Value m = v.getMember(key);
+                if (m == null || m.isNull()) return def;
+                String s = m.asString();
+                return (s == null) ? def : s;
+            } catch (Throwable t) {
+                return def;
+            }
+        }
+
+        private static double num(Value v, String key, double def) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return def;
+                Value m = v.getMember(key);
+                if (m == null || m.isNull()) return def;
+                return m.asDouble();
+            } catch (Throwable t) {
+                return def;
+            }
+        }
+
+        private static boolean bool(Value v, String key, boolean def) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return def;
+                Value m = v.getMember(key);
+                if (m == null || m.isNull()) return def;
+                return m.asBoolean();
+            } catch (Throwable t) {
+                return def;
+            }
+        }
+
+        private static Boolean boolObj(Value v, String key) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return null;
+                Value m = v.getMember(key);
+                if (m == null || m.isNull()) return null;
+                return m.asBoolean();
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+
+        private static ColorRGBA parseColor(Value v, float dr, float dg, float db, float da) {
+            if (v == null || v.isNull()) return new ColorRGBA(dr, dg, db, da);
+
+            try {
+                if (v.hasArrayElements()) {
+                    long n = v.getArraySize();
+                    if (n >= 3) {
+                        float r = (float) v.getArrayElement(0).asDouble();
+                        float g = (float) v.getArrayElement(1).asDouble();
+                        float b = (float) v.getArrayElement(2).asDouble();
+                        float a = (n >= 4) ? (float) v.getArrayElement(3).asDouble() : da;
+                        return new ColorRGBA(r, g, b, a);
+                    }
+                }
+                if (v.hasMembers() && (v.hasMember("r") || v.hasMember("g") || v.hasMember("b"))) {
+                    float r = (float) numMember(v, "r", dr);
+                    float g = (float) numMember(v, "g", dg);
+                    float b = (float) numMember(v, "b", db);
+                    float a = (float) numMember(v, "a", da);
+                    return new ColorRGBA(r, g, b, a);
+                }
+            } catch (Throwable t) {
+                return new ColorRGBA(dr, dg, db, da);
+            }
+
+            return new ColorRGBA(dr, dg, db, da);
+        }
+
+        private static double numMember(Value v, String key, double def) {
+            try {
+                if (v == null || v.isNull() || !v.hasMember(key)) return def;
+                Value m = v.getMember(key);
+                if (m == null || m.isNull()) return def;
+                return m.asDouble();
+            } catch (Throwable t) {
+                return def;
+            }
+        }
+
+        private static Vector3f parseVec3Nullable(Value v) {
+            if (v == null || v.isNull()) return null;
+
+            try {
+                if (v.hasArrayElements() && v.getArraySize() >= 3) {
+                    return new Vector3f(
+                            (float) v.getArrayElement(0).asDouble(),
+                            (float) v.getArrayElement(1).asDouble(),
+                            (float) v.getArrayElement(2).asDouble()
+                    );
+                }
+                if (v.hasMembers()) {
+                    float x = (float) numMember(v, "x", 0.0);
+                    float y = (float) numMember(v, "y", 0.0);
+                    float z = (float) numMember(v, "z", 0.0);
+                    return new Vector3f(x, y, z);
+                }
+            } catch (Throwable t) {
+                return null;
+            }
+
+            return null;
+        }
     }
 
     private static final class LightState {

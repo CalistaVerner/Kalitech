@@ -1,14 +1,12 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/AssetsApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetLoader;
 import com.jme3.asset.AssetManager;
 import com.jme3.scene.Spatial;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.AssetsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.asset.AssetIO;
 import org.graalvm.polyglot.HostAccess;
@@ -16,12 +14,19 @@ import org.graalvm.polyglot.Value;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
+/**
+ * Assets API (script-facing).
+ *
+ * <p>Contract:
+ * - Paths are validated and normalized.
+ * - Emits engine events for load lifecycle.
+ * - Does not expose engine internals.
+ */
 public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi {
-
-    private static final Logger L = LogManager.getLogger(AssetsApiImpl.class);
 
     private AssetManager assets;
     private SurfaceRegistry surfaceRegistry;
@@ -31,15 +36,10 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
     }
 
     private static String normalizePath(String api, String assetPath) {
-        if (assetPath == null || assetPath.isBlank()) throw new IllegalArgumentException(api + ": path is empty");
-        return assetPath.trim();
-    }
-
-    @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
-        super.attach(ctx);
-        this.assets = ctx.assets;
-        this.surfaceRegistry = ctx.engine.getSurfaceRegistry();
+        if (assetPath == null) throw new IllegalArgumentException(api + ": path is null");
+        String p = assetPath.trim();
+        if (p.isEmpty()) throw new IllegalArgumentException(api + ": path is blank");
+        return p;
     }
 
     private static Map<String, Object> m(Object... kv) {
@@ -49,52 +49,24 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
         return out;
     }
 
-    private void emit(String topic, Map<String, Object> payload) {
-        try {
-            var b = engine.getBus();
-            if (b != null) b.emit(topic, payload);
-        } catch (Throwable t) {
-            L.debug("[assets] emit failed topic={}", topic, t);
-        }
+    @Override
+    public void attach(ApiContext ctx) {
+        super.attach(ctx);
+        this.assets = Objects.requireNonNull(ctx.assets, "ctx.assets");
+        this.surfaceRegistry = Objects.requireNonNull(ctx.engine.getSurfaceRegistry(), "surfaceRegistry");
     }
 
-    @SuppressWarnings("unchecked")
-    private void tryRegisterLoaderReflect(String loaderClassName, String... extensions) {
-        profiledVoid(() -> {
-            try {
-                Class<?> c = Class.forName(loaderClassName);
-                if (!AssetLoader.class.isAssignableFrom(c)) {
-                    L.warn("[assets] class {} is not an AssetLoader", loaderClassName);
-                    return;
-                }
-                assets.registerLoader((Class<? extends AssetLoader>) c, extensions);
-                L.info("[assets] registered loader={} extensions={}", loaderClassName, String.join(",", extensions));
-            } catch (ClassNotFoundException e) {
-                L.warn("[assets] loader not on classpath: {} (skip)", loaderClassName);
-            } catch (Throwable t) {
-                L.warn("[assets] failed to register loader: {}", loaderClassName, t);
-            }
-        });
-    }
-
-    private void safeRegisterLoader(Class<? extends AssetLoader> loader, String... extensions) {
-        profiledVoid(() -> {
-            try {
-                assets.registerLoader(loader, extensions);
-                L.info("[assets] registered loader={} extensions={}", loader.getName(), String.join(",", extensions));
-            } catch (Throwable t) {
-                L.warn("[assets] failed to register loader={} extensions={}", loader.getName(), String.join(",", extensions), t);
-            }
-        });
+    @Override
+    public void detach() {
+        this.surfaceRegistry = null;
+        this.assets = null;
+        super.detach();
     }
 
     @HostAccess.Export
     @Override
     public String readText(String assetPath) {
-        return profiled(() -> {
-            String path = normalizePath("assets.readText(path)", assetPath);
-            return AssetIO.readTextUtf8(assets, path);
-        });
+        return profiled(() -> AssetIO.readTextUtf8(assets, normalizePath("assets.readText(path)", assetPath)));
     }
 
     @HostAccess.Export
@@ -104,17 +76,14 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
 
             try {
                 Object obj = assets.loadAsset(path);
-                if (!(obj instanceof String s)) {
-                    throw new IllegalStateException("JS loader returned non-string for path='" + path + "': " +
-                            (obj == null ? "null" : obj.getClass().getName()));
-                }
-                return s;
-            } catch (Throwable t) {
+                if (obj instanceof String s) return s;
+                throw new IllegalStateException("JS loader returned non-string for path='" + path + "'");
+            } catch (Throwable primary) {
                 try {
                     return AssetIO.readTextUtf8(assets, path);
-                } catch (Throwable t2) {
-                    t2.addSuppressed(t);
-                    throw t2;
+                } catch (Throwable fallback) {
+                    fallback.addSuppressed(primary);
+                    throw fallback;
                 }
             }
         });
@@ -136,24 +105,25 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
                 model = assets.loadModel(path);
             } catch (Throwable t) {
                 emit("engine.assets.model.load.error", m("path", path, "error", String.valueOf(t)));
-                throw new IllegalStateException("assets.loadModel: failed to load model path='" + path + "'", t);
+                throw new IllegalStateException("assets.loadModel: failed path='" + path + "'", t);
             }
 
-            if (model == null)
-                throw new IllegalStateException("assets.loadModel: model is null for path='" + path + "'");
+            if (model == null) {
+                throw new IllegalStateException("assets.loadModel: model is null path='" + path + "'");
+            }
 
             if (cfg != null && !cfg.isNull()) {
                 Value n = member(cfg, "name");
                 if (n != null && !n.isNull() && n.isString()) {
                     String name = n.asString();
-                    if (name != null && !name.isBlank()) model.setName(name);
+                    if (name != null && !name.isBlank()) model.setName(name.trim());
                 }
             }
 
             SurfaceApi api = engine.surface();
             SurfaceApi.SurfaceHandle h = surfaceRegistry.register(model, "model", api);
 
-            SurfaceApiImpl.applyTransform(model, cfg);
+            //SurfaceApiImpl.applyTransform(model, cfg); LEGACY
 
             if (cfg != null && !cfg.isNull()) {
                 Value sm = member(cfg, "shadow");
@@ -166,7 +136,8 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
                     try {
                         api.setMaterial(h, mat);
                     } catch (Throwable t) {
-                        L.warn("[assets] loadModel: material override failed path={} id={}", path, h.id(), t);
+                        if (log != null)
+                            log.warn("[assets] loadModel: material override failed path={} id={}", path, h.id(), t);
                     }
                 }
             }
@@ -180,12 +151,10 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
 
             if (cfg != null && !cfg.isNull()) {
                 Value ent = member(cfg, "entityUuid");
-                if (ent == null || ent.isNull()) {
-                    ent = member(cfg, "entity");
-                }
+                if (ent == null || ent.isNull()) ent = member(cfg, "entity");
                 if (ent != null && !ent.isNull() && ent.isString()) {
                     String uuid = ent.asString();
-                    if (uuid != null && !uuid.isBlank()) api.attachEntity(h, uuid);
+                    if (uuid != null && !uuid.isBlank()) api.attachEntity(h, uuid.trim());
                 }
             }
 
@@ -197,5 +166,49 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
 
             return h;
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void tryRegisterLoaderReflect(String loaderClassName, String... extensions) {
+        profiledVoid(() -> {
+            Objects.requireNonNull(loaderClassName, "loaderClassName");
+            try {
+                Class<?> c = Class.forName(loaderClassName);
+                if (!AssetLoader.class.isAssignableFrom(c)) {
+                    if (log != null) log.warn("[assets] class {} is not an AssetLoader", loaderClassName);
+                    return;
+                }
+                assets.registerLoader((Class<? extends AssetLoader>) c, extensions);
+                if (log != null)
+                    log.info("[assets] registered loader={} extensions={}", loaderClassName, String.join(",", extensions));
+            } catch (ClassNotFoundException e) {
+                if (log != null) log.warn("[assets] loader not on classpath: {} (skip)", loaderClassName);
+            } catch (Throwable t) {
+                if (log != null) log.warn("[assets] failed to register loader: {}", loaderClassName, t);
+            }
+        });
+    }
+
+    public void safeRegisterLoader(Class<? extends AssetLoader> loader, String... extensions) {
+        profiledVoid(() -> {
+            Objects.requireNonNull(loader, "loader");
+            try {
+                assets.registerLoader(loader, extensions);
+                if (log != null)
+                    log.info("[assets] registered loader={} extensions={}", loader.getName(), String.join(",", extensions));
+            } catch (Throwable t) {
+                if (log != null)
+                    log.warn("[assets] failed to register loader={} extensions={}", loader.getName(), String.join(",", extensions), t);
+            }
+        });
+    }
+
+    private void emit(String topic, Map<String, Object> payload) {
+        try {
+            var b = (engine == null) ? null : engine.getBus();
+            if (b != null) b.emit(topic, payload);
+        } catch (Throwable t) {
+            if (log != null && log.isDebugEnabled()) log.debug("[assets] emit failed topic={}", topic, t);
+        }
     }
 }

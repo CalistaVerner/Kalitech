@@ -1,17 +1,19 @@
-// FILE: org/foxesworld/kalitech/engine/api/impl/EditorApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.SimpleApplication;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.EditorApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 
-public final class EditorApiImpl extends AbstractApiModule implements EditorApi {
+import java.util.Objects;
 
-    private static final Logger log = LogManager.getLogger(EditorApiImpl.class);
+/**
+ * Editor runtime toggles (flycam, stats).
+ *
+ * <p>Threading: all JME state changes are executed on the JME thread.
+ */
+@Deprecated
+public final class EditorApiImpl extends AbstractApiModule implements EditorApi {
 
     private SimpleApplication app;
     private volatile boolean enabled;
@@ -20,19 +22,16 @@ public final class EditorApiImpl extends AbstractApiModule implements EditorApi 
         super("editor", "Editor", "1.0.0");
     }
 
-    public EditorApiImpl(EngineApiImpl engineApi) {
-        this();
-        bind(engineApi);
-    }
-
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
-        bind(ctx.engine);
+        this.app = Objects.requireNonNull(ctx.app, "ctx.app");
     }
 
-    private void bind(EngineApiImpl engineApi) {
-        this.app = engineApi.getApp();
+    @Override
+    public void detach() {
+        this.app = null;
+        super.detach();
     }
 
     @Override
@@ -45,10 +44,14 @@ public final class EditorApiImpl extends AbstractApiModule implements EditorApi 
         if (this.enabled == enabled) return;
         this.enabled = enabled;
 
-        setFlyCam(enabled);
-        setStatsView(enabled);
+        onJmeVoid("editor.setEnabled", () -> {
+            applyFlyCam(enabled);
+            applyStatsView(enabled);
+        });
 
-        log.info("Editor mode {}", enabled ? "ENABLED" : "DISABLED");
+        if (log != null) {
+            log.info("[editor] {}", enabled ? "enabled" : "disabled");
+        }
     }
 
     @Override
@@ -58,14 +61,29 @@ public final class EditorApiImpl extends AbstractApiModule implements EditorApi 
 
     @Override
     public void setFlyCam(boolean enabled) {
-        if (app.getFlyByCamera() != null) {
-            app.getFlyByCamera().setEnabled(enabled);
-        }
+        this.enabled = enabled;
+        onJmeVoid("editor.setFlyCam", () -> applyFlyCam(enabled));
     }
 
     @Override
     public void setStatsView(boolean enabled) {
-        app.setDisplayFps(enabled);
-        app.setDisplayStatView(enabled);
+        this.enabled = enabled;
+        onJmeVoid("editor.setStatsView", () -> applyStatsView(enabled));
+    }
+
+    private void applyFlyCam(boolean enabled) {
+        SimpleApplication a = app;
+        if (a == null) return;
+
+        var fly = a.getFlyByCamera();
+        if (fly != null) fly.setEnabled(enabled);
+    }
+
+    private void applyStatsView(boolean enabled) {
+        SimpleApplication a = app;
+        if (a == null) return;
+
+        a.setDisplayFps(enabled);
+        a.setDisplayStatView(enabled);
     }
 }
