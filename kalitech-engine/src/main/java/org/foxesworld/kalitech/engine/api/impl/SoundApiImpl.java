@@ -27,6 +27,50 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
         bind(engineApi);
     }
 
+    private static boolean hasText(String s) {
+        return s != null && !s.isEmpty() && !s.isBlank();
+    }
+
+    private static AudioData.DataType parseType(String s) {
+        if (s == null) return AudioData.DataType.Buffer;
+        String v = s.trim().toLowerCase();
+        return switch (v) {
+            case "stream" -> AudioData.DataType.Stream;
+            case "buffer" -> AudioData.DataType.Buffer;
+            default -> AudioData.DataType.Buffer;
+        };
+    }
+
+    private static String str(Value v, String key, String def) {
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asString();
+            }
+        } catch (Exception e) { /* ignore */ }
+        return def;
+    }
+
+    private static double num(Value v, String key, double def) {
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asDouble();
+            }
+        } catch (Exception e) { /* ignore */ }
+        return def;
+    }
+
+    private static boolean bool(Value v, String key, boolean def) {
+        try {
+            if (v.hasMember(key)) {
+                Value m = v.getMember(key);
+                if (m != null && !m.isNull()) return m.asBoolean();
+            }
+        } catch (Exception e) { /* ignore */ }
+        return def;
+    }
+
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
@@ -143,6 +187,8 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
         audioNode.setVolume(volume);
     }
 
+    // -------------------- helpers --------------------
+
     @HostAccess.Export
     @Override
     public void setPitch(AudioNode audioNode, float pitch) {
@@ -176,51 +222,5 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     public void setDryFilter(AudioNode audioNode, Object filter) {
         if (audioNode == null) throw new IllegalArgumentException("setDryFilter: audioNode is required");
         audioNode.setDryFilter((com.jme3.audio.Filter) filter);
-    }
-
-    // -------------------- helpers --------------------
-
-    private static boolean hasText(String s) {
-        return s != null && !s.isEmpty() && !s.isBlank();
-    }
-
-    private static AudioData.DataType parseType(String s) {
-        if (s == null) return AudioData.DataType.Buffer;
-        String v = s.trim().toLowerCase();
-        return switch (v) {
-            case "stream" -> AudioData.DataType.Stream;
-            case "buffer" -> AudioData.DataType.Buffer;
-            default -> AudioData.DataType.Buffer;
-        };
-    }
-
-    private static String str(Value v, String key, String def) {
-        try {
-            if (v.hasMember(key)) {
-                Value m = v.getMember(key);
-                if (m != null && !m.isNull()) return m.asString();
-            }
-        } catch (Exception e) { /* ignore */ }
-        return def;
-    }
-
-    private static double num(Value v, String key, double def) {
-        try {
-            if (v.hasMember(key)) {
-                Value m = v.getMember(key);
-                if (m != null && !m.isNull()) return m.asDouble();
-            }
-        } catch (Exception e) { /* ignore */ }
-        return def;
-    }
-
-    private static boolean bool(Value v, String key, boolean def) {
-        try {
-            if (v.hasMember(key)) {
-                Value m = v.getMember(key);
-                if (m != null && !m.isNull()) return m.asBoolean();
-            }
-        } catch (Exception e) { /* ignore */ }
-        return def;
     }
 }

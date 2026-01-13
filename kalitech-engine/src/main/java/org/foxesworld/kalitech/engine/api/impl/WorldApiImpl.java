@@ -81,6 +81,29 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return s;
     }
 
+    private static Object toProxy(Value v) {
+        if (v == null || v.isNull()) return null;
+
+        if (v.isBoolean()) return v.asBoolean();
+        if (v.isNumber()) return v.asDouble();
+        if (v.isString()) return v.asString();
+
+        if (v.hasArrayElements()) {
+            final int len = (int) Math.min(v.getArraySize(), Integer.MAX_VALUE);
+            final Object[] arr = new Object[len];
+            for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
+            return ProxyArray.fromArray(arr);
+        }
+
+        if (v.hasMembers()) {
+            final Map<String, Object> map = new LinkedHashMap<>();
+            for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
+            return ProxyObject.fromMap(map);
+        }
+
+        return v;
+    }
+
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
@@ -103,29 +126,6 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     private void emit(String name, Object payload) {
         final ScriptEventBus b = busOrNull();
         if (b != null) b.emit(name, payload);
-    }
-
-    private static Object toProxy(Value v) {
-        if (v == null || v.isNull()) return null;
-
-        if (v.isBoolean()) return v.asBoolean();
-        if (v.isNumber()) return v.asDouble();
-        if (v.isString()) return v.asString();
-
-        if (v.hasArrayElements()) {
-            final int len = (int) Math.min(v.getArraySize(), Integer.MAX_VALUE);
-            final Object[] arr = new Object[len];
-            for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
-            return ProxyArray.fromArray(arr);
-        }
-
-        if (v.hasMembers()) {
-            final Map<String, Object> map = new LinkedHashMap<>();
-            for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
-            return ProxyObject.fromMap(map);
-        }
-
-        return v;
     }
 
     @HostAccess.Export

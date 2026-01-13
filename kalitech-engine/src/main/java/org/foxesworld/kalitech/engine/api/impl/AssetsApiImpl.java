@@ -45,18 +45,18 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
         return assetPath.trim();
     }
 
-    @Override
-    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
-        super.attach(ctx);
-        this.assets = ctx.assets;
-        this.surfaceRegistry = ctx.engine.getSurfaceRegistry();
-    }
-
     private static Map<String, Object> m(Object... kv) {
         Map<String, Object> out = new HashMap<>();
         if (kv == null) return out;
         for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
         return out;
+    }
+
+    @Override
+    public void attach(org.foxesworld.kalitech.engine.api.module.ApiContext ctx) {
+        super.attach(ctx);
+        this.assets = ctx.assets;
+        this.surfaceRegistry = ctx.engine.getSurfaceRegistry();
     }
 
     private void emit(String topic, Map<String, Object> payload) {

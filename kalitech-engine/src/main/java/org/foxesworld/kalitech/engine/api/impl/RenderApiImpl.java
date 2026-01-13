@@ -377,6 +377,56 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
         });
     }
 
+    @HostAccess.Export
+    @Override
+    public void sunShadows(int mapSize) {
+        sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
+    }
+
+    // ---------------------------------------------------------------------
+    // Shadows
+    // ---------------------------------------------------------------------
+
+    @HostAccess.Export
+    public void sunShadowsEx(int mapSize, int splits, double lambda, double intensity) {
+        profiledVoid(() -> {
+            ensureScene();
+            onJmeSyncVoid("render.sunShadowsEx", () -> {
+                viewport.ensure("sunShadowsEx");
+                lights.ensure();
+                shadows.applyCfg(mapSize, splits, (float) lambda, (float) intensity);
+            });
+        });
+    }
+
+    @HostAccess.Export
+    @Override
+    public void fogCfg(Value cfg) {
+        profiledVoid(() -> {
+            ensureScene();
+            onJmeSyncVoid("render.fogCfg", () -> {
+                viewport.ensure("fogCfg");
+                post.fogCfg(cfg);
+            });
+        });
+    }
+
+    @HostAccess.Export
+    @Override
+    public void postCfg(Value cfg) {
+        profiledVoid(() -> {
+            ensureScene();
+            onJmeSyncVoid("render.postCfg", () -> {
+                viewport.ensure("postCfg");
+                post.postCfg(cfg);
+            });
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Fog
+    // ---------------------------------------------------------------------
+
     private static final class AmbientConfig {
         final float r, g, b, intensity;
 
@@ -403,26 +453,8 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     // ---------------------------------------------------------------------
-    // Shadows
+    // Post
     // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void sunShadows(int mapSize) {
-        sunShadowsEx(mapSize, DEFAULT_SHADOW_SPLITS, DEFAULT_SHADOW_LAMBDA, DEFAULT_SHADOW_INTENSITY);
-    }
-
-    @HostAccess.Export
-    public void sunShadowsEx(int mapSize, int splits, double lambda, double intensity) {
-        profiledVoid(() -> {
-            ensureScene();
-            onJmeSyncVoid("render.sunShadowsEx", () -> {
-                viewport.ensure("sunShadowsEx");
-                lights.ensure();
-                shadows.applyCfg(mapSize, splits, (float) lambda, (float) intensity);
-            });
-        });
-    }
 
     private static final class DirLightConfig {
         final float dx, dy, dz;
@@ -438,37 +470,5 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             this.b = b;
             this.intensity = intensity;
         }
-    }
-
-    // ---------------------------------------------------------------------
-    // Fog
-    // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void fogCfg(Value cfg) {
-        profiledVoid(() -> {
-            ensureScene();
-            onJmeSyncVoid("render.fogCfg", () -> {
-                viewport.ensure("fogCfg");
-                post.fogCfg(cfg);
-            });
-        });
-    }
-
-    // ---------------------------------------------------------------------
-    // Post
-    // ---------------------------------------------------------------------
-
-    @HostAccess.Export
-    @Override
-    public void postCfg(Value cfg) {
-        profiledVoid(() -> {
-            ensureScene();
-            onJmeSyncVoid("render.postCfg", () -> {
-                viewport.ensure("postCfg");
-                post.postCfg(cfg);
-            });
-        });
     }
 }

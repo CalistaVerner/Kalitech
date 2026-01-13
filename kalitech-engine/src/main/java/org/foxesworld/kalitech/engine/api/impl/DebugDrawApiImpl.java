@@ -41,22 +41,17 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
  */
 public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi {
 
-    private SimpleApplication app;
     private final AtomicBoolean inited = new AtomicBoolean(false);
-
     private final Node node = new Node("__kt_debugDraw");
-
     private final Geometry geomDepth = new Geometry("__kt_debugLines_depth");
     private final Geometry geomNoDepth = new Geometry("__kt_debugLines_nodepth");
     private final Mesh meshDepth = new Mesh();
     private final Mesh meshNoDepth = new Mesh();
-
-    private Material matDepth;
-    private Material matNoDepth;
-
     private final ArrayList<LineCmd> cmds = new ArrayList<>(2048);
     private final ConcurrentLinkedQueue<LineCmd> pending = new ConcurrentLinkedQueue<>();
-
+    private SimpleApplication app;
+    private Material matDepth;
+    private Material matNoDepth;
     private boolean enabled = true;
     private boolean attached = false;
 
@@ -116,12 +111,6 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         return new Vector3f(dx, dy, dz);
     }
 
-    @HostAccess.Export
-    @Override
-    public boolean enabled() {
-        return enabled;
-    }
-
     private static Quaternion parseQuat(Value v) {
         if (v == null || v.isNull()) return null;
         try {
@@ -171,6 +160,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         }
 
         return new ColorRGBA(dr, dg, db, da);
+    }
+
+    @HostAccess.Export
+    @Override
+    public boolean enabled() {
+        return enabled;
     }
 
     @Override

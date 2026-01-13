@@ -23,14 +23,11 @@ import java.util.Objects;
  */
 public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
-    private InputManager input;
-
-    private long frameId = 0;
-
     private final InputFrame frame = new InputFrame();
     private final KeyboardState keyboard = new KeyboardState();
     private final MouseState mouse = new MouseState();
-
+    private InputManager input;
+    private long frameId = 0;
     private CursorGrabController cursor;
     private InputBindings bindings;
     private RawCollector rawListener;

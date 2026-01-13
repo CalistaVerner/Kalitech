@@ -5,15 +5,17 @@ import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 
 public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
 
-    private volatile double tpf;
     private final long startNs = System.nanoTime();
+    private volatile double tpf;
     private volatile long frame;
 
     public TimeApiImpl() {
         super("time", "Time", "1.0.0");
     }
 
-    /** Called from main update thread once per frame. */
+    /**
+     * Called from main update thread once per frame.
+     */
     public void update(double tpfSeconds) {
         // keep hot path minimal
         if (!(tpfSeconds > 0.0) || !Double.isFinite(tpfSeconds)) tpfSeconds = 0.0;
@@ -21,8 +23,15 @@ public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
         this.frame++;
     }
 
-    @Override public double tpf() { return tpf; }
-    @Override public double dt()  { return tpf; }
+    @Override
+    public double tpf() {
+        return tpf;
+    }
+
+    @Override
+    public double dt() {
+        return tpf;
+    }
 
     @Override
     public double now() {
@@ -30,5 +39,8 @@ public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
         return ns / 1_000_000_000.0;
     }
 
-    @Override public long frame() { return frame; }
+    @Override
+    public long frame() {
+        return frame;
+    }
 }

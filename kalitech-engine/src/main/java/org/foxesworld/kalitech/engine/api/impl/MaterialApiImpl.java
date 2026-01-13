@@ -26,18 +26,90 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
 public final class MaterialApiImpl extends AbstractApiModule implements MaterialApi {
 
     private static final Logger log = LogManager.getLogger(MaterialApiImpl.class);
-
-    private AssetManager assets;
     private final AtomicInteger ids = new AtomicInteger(1);
-
     private final Cache<MaterialKey, Material> templateCache = Caffeine.newBuilder()
             .maximumSize(4096)
             .softValues()
             .recordStats()
             .build();
+    private AssetManager assets;
 
     public MaterialApiImpl() {
         super("material", "Material", "1.0.0");
+    }
+
+    private static int stableParamsHash(Value params) {
+        if (params == null || params.isNull() || !params.hasMembers()) return 0;
+
+        ArrayList<String> keys = new ArrayList<>(params.getMemberKeys());
+        keys.sort(String::compareTo);
+
+        int h = 1;
+        for (String k : keys) {
+            h = 31 * h + k.hashCode();
+            h = 31 * h + stableValueHash(params.getMember(k));
+        }
+        return h;
+    }
+
+    private static int stableValueHash(Value v) {
+        if (v == null || v.isNull()) return 0;
+
+        try {
+            if (v.isBoolean()) return v.asBoolean() ? 1231 : 1237;
+
+            if (v.isNumber()) {
+                long bits = Double.doubleToLongBits(v.asDouble());
+                return (int) (bits ^ (bits >>> 32));
+            }
+
+            if (v.isString()) {
+                MaterialTypes.ParsedTex pt = MaterialUtils.parseTextureShorthand(v.asString());
+                if (pt.path() != null && !pt.path().isBlank()) {
+                    String wrap = (pt.wrap() == null) ? "" : pt.wrap().name();
+                    return Objects.hash("tex", pt.path().trim(), wrap);
+                }
+                return Objects.hash("s", v.asString());
+            }
+
+            if (v.hasArrayElements()) {
+                int h = 1;
+                long n = v.getArraySize();
+                for (int i = 0; i < n; i++) {
+                    h = 31 * h + stableValueHash(v.getArrayElement(i));
+                }
+                return Objects.hash("a", h, (int) n);
+            }
+
+            if (v.hasMembers()) {
+                if (v.hasMember("texture")) {
+                    MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(v);
+                    if (td != null) {
+                        return Objects.hash(
+                                "texo",
+                                td.texture(),
+                                td.wrap() == null ? "" : td.wrap().name(),
+                                td.minFilter() == null ? "" : td.minFilter().name(),
+                                td.magFilter() == null ? "" : td.magFilter().name(),
+                                td.anisotropy()
+                        );
+                    }
+                }
+
+                ArrayList<String> keys = new ArrayList<>(v.getMemberKeys());
+                keys.sort(String::compareTo);
+
+                int h = 1;
+                for (String k : keys) {
+                    h = 31 * h + k.hashCode();
+                    h = 31 * h + stableValueHash(v.getMember(k));
+                }
+                return Objects.hash("o", h);
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return 777;
     }
 
     @Override
@@ -137,8 +209,8 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
     }
 
     public static final class MaterialHandle {
-        private final int id;
         final Material material;
+        private final int id;
 
         public MaterialHandle(int id, Material material) {
             this.id = id;
@@ -146,9 +218,13 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
         }
 
         @HostAccess.Export
-        public int id() { return id; }
+        public int id() {
+            return id;
+        }
 
-        public Material __material() { return material; }
+        public Material __material() {
+            return material;
+        }
     }
 
     private record MaterialKey(String def, String alias, int paramsHash, int hash) {
@@ -158,87 +234,18 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
             return new MaterialKey(def, alias, pHash, h);
         }
 
-        @Override public int hashCode() { return hash; }
+        @Override
+        public int hashCode() {
+            return hash;
+        }
 
-        @Override public boolean equals(Object o) {
+        @Override
+        public boolean equals(Object o) {
             if (!(o instanceof MaterialKey k)) return false;
             return hash == k.hash &&
                     paramsHash == k.paramsHash &&
                     Objects.equals(def, k.def) &&
                     Objects.equals(alias, k.alias);
         }
-    }
-
-    private static int stableParamsHash(Value params) {
-        if (params == null || params.isNull() || !params.hasMembers()) return 0;
-
-        ArrayList<String> keys = new ArrayList<>(params.getMemberKeys());
-        keys.sort(String::compareTo);
-
-        int h = 1;
-        for (String k : keys) {
-            h = 31 * h + k.hashCode();
-            h = 31 * h + stableValueHash(params.getMember(k));
-        }
-        return h;
-    }
-
-    private static int stableValueHash(Value v) {
-        if (v == null || v.isNull()) return 0;
-
-        try {
-            if (v.isBoolean()) return v.asBoolean() ? 1231 : 1237;
-
-            if (v.isNumber()) {
-                long bits = Double.doubleToLongBits(v.asDouble());
-                return (int) (bits ^ (bits >>> 32));
-            }
-
-            if (v.isString()) {
-                MaterialTypes.ParsedTex pt = MaterialUtils.parseTextureShorthand(v.asString());
-                if (pt.path() != null && !pt.path().isBlank()) {
-                    String wrap = (pt.wrap() == null) ? "" : pt.wrap().name();
-                    return Objects.hash("tex", pt.path().trim(), wrap);
-                }
-                return Objects.hash("s", v.asString());
-            }
-
-            if (v.hasArrayElements()) {
-                int h = 1;
-                long n = v.getArraySize();
-                for (int i = 0; i < n; i++) {
-                    h = 31 * h + stableValueHash(v.getArrayElement(i));
-                }
-                return Objects.hash("a", h, (int) n);
-            }
-
-            if (v.hasMembers()) {
-                if (v.hasMember("texture")) {
-                    MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(v);
-                    if (td != null) {
-                        return Objects.hash(
-                                "texo",
-                                td.texture(),
-                                td.wrap() == null ? "" : td.wrap().name(),
-                                td.minFilter() == null ? "" : td.minFilter().name(),
-                                td.magFilter() == null ? "" : td.magFilter().name(),
-                                td.anisotropy()
-                        );
-                    }
-                }
-
-                ArrayList<String> keys = new ArrayList<>(v.getMemberKeys());
-                keys.sort(String::compareTo);
-
-                int h = 1;
-                for (String k : keys) {
-                    h = 31 * h + k.hashCode();
-                    h = 31 * h + stableValueHash(v.getMember(k));
-                }
-                return Objects.hash("o", h);
-            }
-        } catch (Throwable ignored) {}
-
-        return 777;
     }
 }

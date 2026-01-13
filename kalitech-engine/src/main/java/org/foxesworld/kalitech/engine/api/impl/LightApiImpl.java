@@ -30,11 +30,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
-    private SimpleApplication app;
-
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Light> lights = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, LightState> states = new ConcurrentHashMap<>();
+    private SimpleApplication app;
 
     public LightApiImpl() {
         super("light", "Light", "1.0.0");
@@ -130,6 +129,42 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         String t = type.trim().toLowerCase();
         if (t.equals("dir") || t.equals("sun")) return "directional";
         return t;
+    }
+
+    private static ProxyObject stateToProxy(LightState st) {
+        Map<String, Object> o = new LinkedHashMap<>();
+
+        o.put("id", st.id);
+        o.put("type", st.type);
+        o.put("enabled", st.enabled);
+        o.put("attached", st.attached);
+
+        o.put("intensity", st.intensity);
+        o.put("color", ProxyArray.fromArray(st.colorR, st.colorG, st.colorB, st.colorA));
+
+        if (st.dir != null) o.put("dir", ProxyArray.fromArray(st.dir.x, st.dir.y, st.dir.z));
+        if (st.pos != null) o.put("pos", ProxyArray.fromArray(st.pos.x, st.pos.y, st.pos.z));
+
+        if (st.radius != null) o.put("radius", st.radius);
+        if (st.range != null) o.put("range", st.range);
+        if (st.innerDeg != null) o.put("innerDeg", st.innerDeg);
+        if (st.outerDeg != null) o.put("outerDeg", st.outerDeg);
+
+        return ProxyObject.fromMap(o);
+    }
+
+    private static Light createLightByType(String type) {
+        return switch (type) {
+            case "ambient" -> new AmbientLight();
+            case "directional" -> new DirectionalLight();
+            case "point" -> new PointLight();
+            case "spot" -> new SpotLight();
+            default -> throw new IllegalArgumentException("light.create: unsupported type=" + type);
+        };
+    }
+
+    private static float clamp(float v, float a, float b) {
+        return Math.max(a, Math.min(b, v));
     }
 
     @Override
@@ -243,28 +278,6 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }));
     }
 
-    private static ProxyObject stateToProxy(LightState st) {
-        Map<String, Object> o = new LinkedHashMap<>();
-
-        o.put("id", st.id);
-        o.put("type", st.type);
-        o.put("enabled", st.enabled);
-        o.put("attached", st.attached);
-
-        o.put("intensity", st.intensity);
-        o.put("color", ProxyArray.fromArray(st.colorR, st.colorG, st.colorB, st.colorA));
-
-        if (st.dir != null) o.put("dir", ProxyArray.fromArray(st.dir.x, st.dir.y, st.dir.z));
-        if (st.pos != null) o.put("pos", ProxyArray.fromArray(st.pos.x, st.pos.y, st.pos.z));
-
-        if (st.radius != null) o.put("radius", st.radius);
-        if (st.range != null) o.put("range", st.range);
-        if (st.innerDeg != null) o.put("innerDeg", st.innerDeg);
-        if (st.outerDeg != null) o.put("outerDeg", st.outerDeg);
-
-        return ProxyObject.fromMap(o);
-    }
-
     @HostAccess.Export
     @Override
     public Value get(LightHandle handle) {
@@ -323,24 +336,10 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         a.getRootNode().addLight(l);
     }
 
-    private static Light createLightByType(String type) {
-        return switch (type) {
-            case "ambient" -> new AmbientLight();
-            case "directional" -> new DirectionalLight();
-            case "point" -> new PointLight();
-            case "spot" -> new SpotLight();
-            default -> throw new IllegalArgumentException("light.create: unsupported type=" + type);
-        };
-    }
-
     private void detachFromRoot(Light l) {
         SimpleApplication a = app;
         if (a == null || a.getRootNode() == null) return;
         a.getRootNode().removeLight(l);
-    }
-
-    private static float clamp(float v, float a, float b) {
-        return Math.max(a, Math.min(b, v));
     }
 
     public static final class LightHandle {

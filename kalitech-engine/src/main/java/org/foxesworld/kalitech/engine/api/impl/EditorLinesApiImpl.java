@@ -38,6 +38,118 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         super("editorLines", "EditorLines", "1.0.0");
     }
 
+    private static Mesh buildGridQuadsMesh(int halfLines, float worldHalf, float step, float y,
+                                           float thickness, int majorStep, boolean majorOnly) {
+
+        int countAxis = 0;
+        for (int i = -halfLines; i <= halfLines; i++) {
+            boolean isMajor = (i % majorStep) == 0;
+            if (majorOnly ? isMajor : !isMajor) countAxis++;
+        }
+
+        int lineCount = countAxis * 2;
+        int vCount = lineCount * 4;
+        int iCount = lineCount * 6;
+
+        FloatBuffer pos = BufferUtils.createFloatBuffer(vCount * 3);
+        IntBuffer idx = BufferUtils.createIntBuffer(iCount);
+
+        float halfT = thickness * 0.5f;
+        int v = 0;
+
+        for (int i = -halfLines; i <= halfLines; i++) {
+            boolean isMajor = (i % majorStep) == 0;
+            if (majorOnly ? !isMajor : isMajor) continue;
+
+            float x = i * step;
+
+            int v0 = v++;
+            int v1 = v++;
+            int v2 = v++;
+            int v3 = v++;
+
+            pos.put(x - halfT).put(y).put(-worldHalf);
+            pos.put(x + halfT).put(y).put(-worldHalf);
+            pos.put(x + halfT).put(y).put(+worldHalf);
+            pos.put(x - halfT).put(y).put(+worldHalf);
+
+            idx.put(v0).put(v1).put(v2);
+            idx.put(v0).put(v2).put(v3);
+        }
+
+        for (int i = -halfLines; i <= halfLines; i++) {
+            boolean isMajor = (i % majorStep) == 0;
+            if (majorOnly ? !isMajor : isMajor) continue;
+
+            float z = i * step;
+
+            int v0 = v++;
+            int v1 = v++;
+            int v2 = v++;
+            int v3 = v++;
+
+            pos.put(-worldHalf).put(y).put(z - halfT);
+            pos.put(+worldHalf).put(y).put(z - halfT);
+            pos.put(+worldHalf).put(y).put(z + halfT);
+            pos.put(-worldHalf).put(y).put(z + halfT);
+
+            idx.put(v0).put(v1).put(v2);
+            idx.put(v0).put(v2).put(v3);
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.setMode(Mesh.Mode.Triangles);
+        mesh.setBuffer(VertexBuffer.Type.Position, 3, pos);
+        mesh.setBuffer(VertexBuffer.Type.Index, 3, idx);
+        mesh.updateBound();
+        return mesh;
+    }
+
+    private static Value member(Value v, String k) {
+        return (v != null && v.hasMember(k)) ? v.getMember(k) : null;
+    }
+
+    private static boolean bool(Value v, String k, boolean def) {
+        try {
+            Value m = member(v, k);
+            return (m == null || m.isNull()) ? def : m.asBoolean();
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private static double num(Value v, String k, double def) {
+        try {
+            Value m = member(v, k);
+            return (m == null || m.isNull()) ? def : m.asDouble();
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private static double numPath(Value v, String k1, String k2, double def) {
+        try {
+            Value a = member(v, k1);
+            if (a == null || a.isNull() || !a.hasMember(k2)) return def;
+            Value b = a.getMember(k2);
+            return (b == null || b.isNull()) ? def : b.asDouble();
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private static int clamp(int v, int lo, int hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private static float clamp(float v, float lo, float hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
@@ -180,6 +292,30 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         return h;
     }
 
+    @HostAccess.Export
+    @Override
+    public void destroy(Object handle) {
+        if (handle == null) return;
+
+        Runnable r = () -> {
+            int id = handleId(handle);
+            surfaces.destroy(id);
+            log.info("EditorLines: destroyed handle={}", id);
+        };
+
+        if (engine.isJmeThread()) r.run();
+        else engine.getApp().enqueue(() -> {
+            r.run();
+            return null;
+        });
+    }
+
+    private int handleId(Object handle) {
+        if (handle instanceof SurfaceApi.SurfaceHandle h) return h.id();
+        if (handle instanceof Number n) return n.intValue();
+        throw new IllegalArgumentException("EditorLines.destroy: invalid handle type: " + handle.getClass().getName());
+    }
+
     private static final class UnderCameraGridControl extends AbstractControl {
         private final EngineApiImpl engine;
         private final float step;
@@ -257,127 +393,4 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         protected void controlRender(RenderManager rm, ViewPort vp) {
         }
     }
-
-    @HostAccess.Export
-    @Override
-    public void destroy(Object handle) {
-        if (handle == null) return;
-
-        Runnable r = () -> {
-            int id = handleId(handle);
-            surfaces.destroy(id);
-            log.info("EditorLines: destroyed handle={}", id);
-        };
-
-        if (engine.isJmeThread()) r.run();
-        else engine.getApp().enqueue(() -> { r.run(); return null; });
-    }
-
-    private int handleId(Object handle) {
-        if (handle instanceof SurfaceApi.SurfaceHandle h) return h.id();
-        if (handle instanceof Number n) return n.intValue();
-        throw new IllegalArgumentException("EditorLines.destroy: invalid handle type: " + handle.getClass().getName());
-    }
-
-    private static Mesh buildGridQuadsMesh(int halfLines, float worldHalf, float step, float y,
-                                           float thickness, int majorStep, boolean majorOnly) {
-
-        int countAxis = 0;
-        for (int i = -halfLines; i <= halfLines; i++) {
-            boolean isMajor = (i % majorStep) == 0;
-            if (majorOnly ? isMajor : !isMajor) countAxis++;
-        }
-
-        int lineCount = countAxis * 2;
-        int vCount = lineCount * 4;
-        int iCount = lineCount * 6;
-
-        FloatBuffer pos = BufferUtils.createFloatBuffer(vCount * 3);
-        IntBuffer idx = BufferUtils.createIntBuffer(iCount);
-
-        float halfT = thickness * 0.5f;
-        int v = 0;
-
-        for (int i = -halfLines; i <= halfLines; i++) {
-            boolean isMajor = (i % majorStep) == 0;
-            if (majorOnly ? !isMajor : isMajor) continue;
-
-            float x = i * step;
-
-            int v0 = v++;
-            int v1 = v++;
-            int v2 = v++;
-            int v3 = v++;
-
-            pos.put(x - halfT).put(y).put(-worldHalf);
-            pos.put(x + halfT).put(y).put(-worldHalf);
-            pos.put(x + halfT).put(y).put(+worldHalf);
-            pos.put(x - halfT).put(y).put(+worldHalf);
-
-            idx.put(v0).put(v1).put(v2);
-            idx.put(v0).put(v2).put(v3);
-        }
-
-        for (int i = -halfLines; i <= halfLines; i++) {
-            boolean isMajor = (i % majorStep) == 0;
-            if (majorOnly ? !isMajor : isMajor) continue;
-
-            float z = i * step;
-
-            int v0 = v++;
-            int v1 = v++;
-            int v2 = v++;
-            int v3 = v++;
-
-            pos.put(-worldHalf).put(y).put(z - halfT);
-            pos.put(+worldHalf).put(y).put(z - halfT);
-            pos.put(+worldHalf).put(y).put(z + halfT);
-            pos.put(-worldHalf).put(y).put(z + halfT);
-
-            idx.put(v0).put(v1).put(v2);
-            idx.put(v0).put(v2).put(v3);
-        }
-
-        Mesh mesh = new Mesh();
-        mesh.setMode(Mesh.Mode.Triangles);
-        mesh.setBuffer(VertexBuffer.Type.Position, 3, pos);
-        mesh.setBuffer(VertexBuffer.Type.Index, 3, idx);
-        mesh.updateBound();
-        return mesh;
-    }
-
-    private static Value member(Value v, String k) { return (v != null && v.hasMember(k)) ? v.getMember(k) : null; }
-
-    private static boolean bool(Value v, String k, boolean def) {
-        try {
-            Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asBoolean();
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private static double num(Value v, String k, double def) {
-        try {
-            Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asDouble();
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private static double numPath(Value v, String k1, String k2, double def) {
-        try {
-            Value a = member(v, k1);
-            if (a == null || a.isNull() || !a.hasMember(k2)) return def;
-            Value b = a.getMember(k2);
-            return (b == null || b.isNull()) ? def : b.asDouble();
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
-    private static double clamp(double v, double lo, double hi) { return Math.max(lo, Math.min(hi, v)); }
-    private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
 }

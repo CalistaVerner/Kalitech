@@ -1,4 +1,3 @@
-// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.asset.AssetLoader;
@@ -15,6 +14,7 @@ import com.jme3.scene.shape.Sphere;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.*;
 import org.foxesworld.kalitech.engine.api.interfaces.MeshApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
@@ -23,6 +23,7 @@ import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +35,9 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     private static final AtomicBoolean LOADERS_REGISTERED = new AtomicBoolean(false);
 
+    // ---- Contract method cache ----
+    private static final Method M_CREATE = method(MeshApiImpl.class, "create", Value.class);
+
     private EngineApiImpl engine;
     private AssetManager assets;
     private SurfaceRegistry registry;
@@ -44,6 +48,55 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         super("mesh", "Mesh", "1.0.0");
     }
 
+    private static Value member(Value v, String k) {
+        return (v != null && !v.isNull() && v.hasMember(k)) ? v.getMember(k) : null;
+    }
+
+    private static String str(Value v, String k, String def) {
+        Value m = member(v, k);
+        if (m == null || m.isNull()) return def;
+        try {
+            String s = m.asString();
+            return (s == null || s.isBlank()) ? def : s;
+        } catch (Throwable ignored) {
+            return def;
+        }
+    }
+
+    // ---------- small helpers ----------
+
+    private static double num(Value v, String k, double def) {
+        Value m = member(v, k);
+        if (m == null || m.isNull() || !m.isNumber()) return def;
+        try {
+            return m.asDouble();
+        } catch (Throwable ignored) {
+            return def;
+        }
+    }
+
+    private static boolean bool(Value v, String k, boolean def) {
+        Value m = member(v, k);
+        if (m == null || m.isNull() || !m.isBoolean()) return def;
+        try {
+            return m.asBoolean();
+        } catch (Throwable ignored) {
+            return def;
+        }
+    }
+
+    private static double clamp(double x, double a, double b) {
+        return Math.max(a, Math.min(b, x));
+    }
+
+    private static String normType(String type) {
+        if (type == null) return "box";
+        String t = type.trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty()) return "box";
+        if ("cube".equals(t)) return "box";
+        return t;
+    }
+
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
@@ -51,15 +104,6 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         this.engine = ctx.engine;
         this.assets = ctx.assets;
         this.registry = engine.getSurfaceRegistry();
-
-        ensureModelLoadersRegistered(); // то же поведение, что было в конструкторе
-    }
-
-    private void ensureModelLoadersRegistered() {
-        if (!LOADERS_REGISTERED.compareAndSet(false, true)) return;
-
-        tryRegisterLoader("com.jme3.scene.plugins.OBJLoader", "obj", "mtl");
-        tryRegisterLoader("com.jme3.scene.plugins.fbx.FbxLoader", "fbx");
     }
 
     @SuppressWarnings("unchecked")
@@ -77,47 +121,6 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         } catch (Throwable t) {
             log.warn("MeshApi: failed to register loader: {}", loaderClassName, t);
         }
-    }
-
-    // ---------- small helpers ----------
-
-    private static Value member(Value v, String k) {
-        return (v != null && !v.isNull() && v.hasMember(k)) ? v.getMember(k) : null;
-    }
-
-    private static String str(Value v, String k, String def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull()) return def;
-        try {
-            String s = m.asString();
-            return (s == null || s.isBlank()) ? def : s;
-        } catch (Throwable ignored) {
-            return def;
-        }
-    }
-
-    private static double num(Value v, String k, double def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull() || !m.isNumber()) return def;
-        try { return m.asDouble(); } catch (Throwable ignored) { return def; }
-    }
-
-    private static boolean bool(Value v, String k, boolean def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull() || !m.isBoolean()) return def;
-        try { return m.asBoolean(); } catch (Throwable ignored) { return def; }
-    }
-
-    private static double clamp(double x, double a, double b) {
-        return Math.max(a, Math.min(b, x));
-    }
-
-    private static String normType(String type) {
-        if (type == null) return "box";
-        String t = type.trim().toLowerCase(Locale.ROOT);
-        if (t.isEmpty()) return "box";
-        if ("cube".equals(t)) return "box";
-        return t;
     }
 
     private Material defaultMat() {
@@ -167,11 +170,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
                 if (my != null && my.isNumber()) ry = (float) my.asDouble();
                 if (mz != null && mz.isNumber()) rz = (float) mz.asDouble();
             }
-            s.setLocalRotation(new com.jme3.math.Quaternion().fromAngles(
-                    (float) Math.toRadians(rx),
-                    (float) Math.toRadians(ry),
-                    (float) Math.toRadians(rz)
-            ));
+            s.setLocalRotation(new com.jme3.math.Quaternion().fromAngles((float) Math.toRadians(rx), (float) Math.toRadians(ry), (float) Math.toRadians(rz)));
         }
 
         Value sc = member(cfg, "scale");
@@ -273,8 +272,6 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
             throw new IllegalArgumentException("mesh.create: type='model' requires cfg.path");
         }
 
-        ensureModelLoadersRegistered();
-
         Spatial loaded;
         try {
             loaded = assets.loadModel(path.trim());
@@ -370,10 +367,9 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
                 col.put("radius", r);
                 col.put("height", cylH);
             }
-            case "model" -> {
-                col.put("type", "mesh");
+            case "model" -> col.put("type", "mesh");
+            default -> {
             }
-            default -> { }
         }
         return col;
     }
@@ -447,16 +443,19 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     @HostAccess.Export
     @Override
-    public SurfaceApi.SurfaceHandle create(Value cfg) {
-        if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("mesh.create(cfg): cfg is required");
+    @ApiMethod(thread = ApiThreadRule.JME, sync = true, flags = {ApiFlag.SANDBOX_ALLOWED, ApiFlag.EDITOR_VISIBLE}, cost = ApiCostHint.EXPENSIVE)
+    public SurfaceApi.SurfaceHandle create(@NotNull Value cfg) {
+        return profiled(() -> apiCall(M_CREATE, new Object[]{cfg}, () -> {
+            if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("mesh.create(cfg): cfg is required");
 
-        String type = str(cfg, "type", "box");
-        String kind = normType(type);
+            String type = str(cfg, "type", "box");
+            String kind = normType(type);
 
-        Spatial s = buildSpatial(kind, cfg);
-        if (s instanceof Geometry g && g.getMaterial() == null) g.setMaterial(defaultMat());
+            Spatial s = buildSpatial(kind, cfg);
+            if (s instanceof Geometry g && g.getMaterial() == null) g.setMaterial(defaultMat());
 
-        applyTransform(s, cfg);
-        return register(s, kind, cfg);
+            applyTransform(s, cfg);
+            return register(s, kind, cfg);
+        }));
     }
 }

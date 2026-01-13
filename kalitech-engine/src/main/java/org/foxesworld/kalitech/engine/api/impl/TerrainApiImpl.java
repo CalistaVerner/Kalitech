@@ -51,23 +51,6 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException(where + ": cfg is null");
     }
 
-    @Override
-    public void detach() {
-        this.noise = null;
-        this.physics = null;
-        this.editOps = null;
-        this.ops = null;
-        this.uv = null;
-        this.factory = null;
-        this.emitter = null;
-        this.registry = null;
-        super.detach();
-    }
-
-    // ---------------------------------------------------------------------
-    // Validation
-    // ---------------------------------------------------------------------
-
     private static double heightAtSafe(TerrainQuad tq, double x, double z, boolean world) {
         Vector3f local;
         if (world) {
@@ -84,13 +67,13 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         return (double) wp.y;
     }
 
+    // ---------------------------------------------------------------------
+    // Validation
+    // ---------------------------------------------------------------------
+
     private static void requireHandle(SurfaceApi.SurfaceHandle handle, String where) {
         if (handle == null) throw new IllegalArgumentException(where + ": handle is required");
     }
-
-    // ---------------------------------------------------------------------
-    // Height/normal sampling (transform-aware)
-    // ---------------------------------------------------------------------
 
     private static Vector3f normalAtSafe(TerrainQuad tq, double x, double z, boolean world) {
         Vector3f s = tq.getWorldScale();
@@ -122,6 +105,23 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         wr.mult(n, n);
         n.normalizeLocal();
         return n;
+    }
+
+    // ---------------------------------------------------------------------
+    // Height/normal sampling (transform-aware)
+    // ---------------------------------------------------------------------
+
+    @Override
+    public void detach() {
+        this.noise = null;
+        this.physics = null;
+        this.editOps = null;
+        this.ops = null;
+        this.uv = null;
+        this.factory = null;
+        this.emitter = null;
+        this.registry = null;
+        super.detach();
     }
 
     @Override
@@ -280,7 +280,8 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
         requireCfg(cfg, "terrain.setHeightmap(handle,cfg)");
 
         Value hv = member(cfg, "heights");
-        if (hv == null || hv.isNull()) throw new IllegalArgumentException("terrain.setHeightmap: cfg.heights is required");
+        if (hv == null || hv.isNull())
+            throw new IllegalArgumentException("terrain.setHeightmap: cfg.heights is required");
 
         float[] heights = readFloatArray(hv);
         int size = i32(cfg, "size", 0);

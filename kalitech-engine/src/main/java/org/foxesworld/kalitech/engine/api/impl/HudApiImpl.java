@@ -30,25 +30,23 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
 
 /**
  * HudApiImpl (thin bridge).
- *
- *  Responsibilities:
- *  - Registry (layers/elements)
- *  - Thread hop (rt -> JME thread)
- *  - Call into engine.modules.hud for math/sizing
- *
+ * <p>
+ * Responsibilities:
+ * - Registry (layers/elements)
+ * - Thread hop (rt -> JME thread)
+ * - Call into engine.modules.hud for math/sizing
+ * <p>
  * Script coordinate contract:
- *  - TOP-LEFT origin, y grows DOWN
+ * - TOP-LEFT origin, y grows DOWN
  */
 public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
+    private static final AtomicInteger IDS = new AtomicInteger(1000);
     // AAA: keep explicit sizes to stabilize math even on forked Lemur
     private final HudSizeCache sizeCache = new HudSizeCache();
-    private EngineApiImpl engine;
-
-    private static final AtomicInteger IDS = new AtomicInteger(1000);
-
     private final ConcurrentHashMap<Integer, Layer> layers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, SpatialHolder> elements = new ConcurrentHashMap<>();
+    private EngineApiImpl engine;
     private volatile boolean inited;
 
     // --- Module ctor (for ApiRegistry.register(new HudApiImpl())) ---
@@ -63,6 +61,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return v;
     }
 
+    private static void attachTo(Spatial parent, Spatial child) {
+        if (parent instanceof Node n) n.attachChild(child);
+    }
+
     // --- Module lifecycle ---
     @Override
     public void attach(ApiContext ctx) {
@@ -75,41 +77,15 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         initOnce();
     }
 
+    // ------------------------------------------------------------
+    // internal holders
+    // ------------------------------------------------------------
+
     private void initOnce() {
         if (inited) return;
         inited = true;
         ensureLemur();
     }
-
-    // ------------------------------------------------------------
-    // internal holders
-    // ------------------------------------------------------------
-
-    private static final class Layer {
-        final int id;
-        final Node root;
-
-        Layer(int id, Node root) {
-            this.id = id;
-            this.root = root;
-        }
-    }
-
-    private static final class SpatialHolder {
-        final int id;
-        final int layerId;
-        final Spatial spatial;
-
-        SpatialHolder(int id, int layerId, Spatial spatial) {
-            this.id = id;
-            this.layerId = layerId;
-            this.spatial = spatial;
-        }
-    }
-
-    // ------------------------------------------------------------
-    // JME helpers
-    // ------------------------------------------------------------
 
     private void ensureLemur() {
         try {
@@ -125,6 +101,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         } catch (Throwable ignore) {
         }
     }
+
+    // ------------------------------------------------------------
+    // JME helpers
+    // ------------------------------------------------------------
 
     private Node guiNode() {
         Node n = engine.getApp().getGuiNode();
@@ -173,10 +153,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         });
     }
 
-    private static void attachTo(Spatial parent, Spatial child) {
-        if (parent instanceof Node n) n.attachChild(child);
-    }
-
     private float parentHeightOf(Spatial parent) {
         if (parent == null) return 0f;
 
@@ -192,10 +168,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         // fallback to Lemur preferred
         return HudSizing.preferredH(parent);
     }
-
-    // ------------------------------------------------------------
-    // HudApi exports
-    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -235,6 +207,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         rt(l.root::removeFromParent);
     }
 
+    // ------------------------------------------------------------
+    // HudApi exports
+    // ------------------------------------------------------------
+
     @Override
     @HostAccess.Export
     public void clearLayer(HudLayerHandle layer) {
@@ -257,10 +233,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
         rt(l.root::detachAllChildren);
     }
-
-    // ------------------------------------------------------------
-    // elements (root)
-    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -312,6 +284,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return new HudElementHandle(id);
     }
 
+    // ------------------------------------------------------------
+    // elements (root)
+    // ------------------------------------------------------------
+
     @Override
     @HostAccess.Export
     public HudElementHandle addLabel(HudLayerHandle layer, String text, float x, float y) {
@@ -332,10 +308,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
         return new HudElementHandle(id);
     }
-
-    // ------------------------------------------------------------
-    // elements (with parent)
-    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -398,6 +370,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return new HudElementHandle(id);
     }
 
+    // ------------------------------------------------------------
+    // elements (with parent)
+    // ------------------------------------------------------------
+
     @Override
     @HostAccess.Export
     public HudElementHandle addLabel(HudLayerHandle layer, HudElementHandle parent, String text, float x, float y) {
@@ -424,10 +400,6 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         return new HudElementHandle(id);
     }
 
-    // ------------------------------------------------------------
-    // cursor
-    // ------------------------------------------------------------
-
     @Override
     @HostAccess.Export
     public void setCursorEnabled(boolean enabled) {
@@ -448,7 +420,7 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
     }
 
     // ------------------------------------------------------------
-    // ops
+    // cursor
     // ------------------------------------------------------------
 
     @Override
@@ -478,6 +450,10 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
             sh.spatial.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
         });
     }
+
+    // ------------------------------------------------------------
+    // ops
+    // ------------------------------------------------------------
 
     @Override
     @HostAccess.Export
@@ -607,7 +583,8 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
                 if (s instanceof Panel p) {
                     p.setBackground(bg);
                 }
-            } catch (Throwable ignore) {}
+            } catch (Throwable ignore) {
+            }
         });
     }
 
@@ -629,7 +606,8 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
             if (sh.spatial instanceof Label l) {
                 try {
                     l.setColor(new ColorRGBA(rr, gg, bb, aa));
-                } catch (Throwable ignore) {}
+                } catch (Throwable ignore) {
+                }
             }
         });
     }
@@ -647,13 +625,35 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
         rt(sh.spatial::removeFromParent);
     }
 
-    // ------------------------------------------------------------
-    // viewport
-    // ------------------------------------------------------------
-
     @Override
     @HostAccess.Export
     public HudViewport viewport() {
         return new HudViewport(vpW(), vpH());
+    }
+
+    private static final class Layer {
+        final int id;
+        final Node root;
+
+        Layer(int id, Node root) {
+            this.id = id;
+            this.root = root;
+        }
+    }
+
+    // ------------------------------------------------------------
+    // viewport
+    // ------------------------------------------------------------
+
+    private static final class SpatialHolder {
+        final int id;
+        final int layerId;
+        final Spatial spatial;
+
+        SpatialHolder(int id, int layerId, Spatial spatial) {
+            this.id = id;
+            this.layerId = layerId;
+            this.spatial = spatial;
+        }
     }
 }

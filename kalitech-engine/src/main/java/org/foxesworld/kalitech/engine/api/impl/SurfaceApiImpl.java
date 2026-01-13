@@ -243,6 +243,108 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }
     }
 
+    private static void applyMaterialRecursive(Spatial root, Material mat) {
+        if (root == null || mat == null) return;
+
+        ArrayDeque<Spatial> stack = new ArrayDeque<>();
+        stack.push(root);
+
+        while (!stack.isEmpty()) {
+            Spatial s = stack.pop();
+
+            if (s instanceof Geometry g) {
+                if (g.getMaterial() != mat) g.setMaterial(mat);
+                continue;
+            }
+            if (s instanceof TerrainQuad tq) {
+                if (tq.getMaterial() != mat) tq.setMaterial(mat);
+                continue;
+            }
+            if (s instanceof Node n) {
+                for (Spatial child : n.getChildren()) if (child != null) stack.push(child);
+            }
+        }
+    }
+
+    private static MaterialTypes.TextureDesc tryTex(Value params, String name) {
+        if (params == null || params.isNull() || !params.hasMember(name)) return null;
+        MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
+        return (td != null && td.tileWorld() != null) ? td : null;
+    }
+
+    private static Hit[] collide(Spatial root, Ray ray, boolean onlyClosest, int limit) {
+        if (root == null) return new Hit[0];
+
+        CollisionResults results = new CollisionResults();
+        root.collideWith(ray, results);
+
+        if (results.size() <= 0) return new Hit[0];
+
+        if (onlyClosest) {
+            CollisionResult cr = results.getClosestCollision();
+            if (cr == null) return new Hit[0];
+
+            Vector3f p = cr.getContactPoint();
+            Vector3f n = cr.getContactNormal();
+
+            return new Hit[]{
+                    new Hit(
+                            spatialName(cr.getGeometry()),
+                            cr.getDistance(),
+                            p.x, p.y, p.z,
+                            n.x, n.y, n.z
+                    )
+            };
+        }
+
+        int nHits = Math.min(limit, results.size());
+        Hit[] out = new Hit[nHits];
+
+        for (int i = 0; i < nHits; i++) {
+            CollisionResult cr = results.getCollision(i);
+            Vector3f p = cr.getContactPoint();
+            Vector3f n = cr.getContactNormal();
+
+            out[i] = new Hit(
+                    spatialName(cr.getGeometry()),
+                    cr.getDistance(),
+                    p.x, p.y, p.z,
+                    n.x, n.y, n.z
+            );
+        }
+
+        return out;
+    }
+
+    // ---------------------------------------------------------------------
+    // Material application
+    // ---------------------------------------------------------------------
+
+    private static Spatial.CullHint parseCullHint(String hint) {
+        if (hint == null) return Spatial.CullHint.Inherit;
+        String m = hint.trim().toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "inherit", "parent" -> Spatial.CullHint.Inherit;
+            case "always", "hidden", "hide" -> Spatial.CullHint.Always;
+            case "never", "show" -> Spatial.CullHint.Never;
+            case "dynamic" -> Spatial.CullHint.Dynamic;
+            default -> Spatial.CullHint.Inherit;
+        };
+    }
+
+    private static RenderQueue.ShadowMode parseShadowMode(String mode) {
+        if (mode == null) return RenderQueue.ShadowMode.Inherit;
+        String m = mode.trim().toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "inherit" -> RenderQueue.ShadowMode.Inherit;
+            case "off", "none", "disable" -> RenderQueue.ShadowMode.Off;
+            case "cast" -> RenderQueue.ShadowMode.Cast;
+            case "receive" -> RenderQueue.ShadowMode.Receive;
+            case "castandreceive", "both" -> RenderQueue.ShadowMode.CastAndReceive;
+            default -> RenderQueue.ShadowMode.Inherit;
+        };
+    }
+
     @Override
     public void attach(ApiContext ctx) {
         super.attach(ctx);
@@ -266,33 +368,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     private ScriptEventBus bus() {
         return engine != null ? engine.getBus() : null;
-    }
-
-    // ---------------------------------------------------------------------
-    // Material application
-    // ---------------------------------------------------------------------
-
-    private static void applyMaterialRecursive(Spatial root, Material mat) {
-        if (root == null || mat == null) return;
-
-        ArrayDeque<Spatial> stack = new ArrayDeque<>();
-        stack.push(root);
-
-        while (!stack.isEmpty()) {
-            Spatial s = stack.pop();
-
-            if (s instanceof Geometry g) {
-                if (g.getMaterial() != mat) g.setMaterial(mat);
-                continue;
-            }
-            if (s instanceof TerrainQuad tq) {
-                if (tq.getMaterial() != mat) tq.setMaterial(mat);
-                continue;
-            }
-            if (s instanceof Node n) {
-                for (Spatial child : n.getChildren()) if (child != null) stack.push(child);
-            }
-        }
     }
 
     private void emit(String topic, Object... kv) {
@@ -321,11 +396,9 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!r.exists(h.id())) throw new IllegalStateException("surface: unknown handle id=" + h.id());
     }
 
-    private static MaterialTypes.TextureDesc tryTex(Value params, String name) {
-        if (params == null || params.isNull() || !params.hasMember(name)) return null;
-        MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
-        return (td != null && td.tileWorld() != null) ? td : null;
-    }
+    // ---------------------------------------------------------------------
+    // Exports: entity binding
+    // ---------------------------------------------------------------------
 
     private Spatial requireSpatial(SurfaceHandle h) {
         requireHandle(h);
@@ -359,7 +432,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: entity binding
+    // Exports: scene graph ops
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
@@ -393,10 +466,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             emit("engine.surface.detachFromEntity", "surfaceId", target.id(), "uuid", uuid, "kind", target.kind());
         });
     }
-
-    // ---------------------------------------------------------------------
-    // Exports: scene graph ops
-    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -503,6 +572,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.setTransform", () -> t.apply(requireSpatial(target)));
     }
 
+    // ---------------------------------------------------------------------
+    // Exports: bounds + picking
+    // ---------------------------------------------------------------------
+
     @HostAccess.Export
     @Override
     public void applyMaterialToChildren(SurfaceHandle target, Object materialHandle) {
@@ -590,10 +663,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             return new WorldBounds("other", c.x, c.y, c.z, 0, 0, 0, 0);
         }, new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
     }
-
-    // ---------------------------------------------------------------------
-    // Exports: bounds + picking
-    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -685,6 +754,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new Hit[0]);
     }
 
+    // ---------------------------------------------------------------------
+    // Exports: physics bridge
+    // ---------------------------------------------------------------------
+
     @HostAccess.Export
     @Override
     public int attachedBody(int surfaceId) {
@@ -700,6 +773,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             return 0;
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Exports: destroy
+    // ---------------------------------------------------------------------
 
     @HostAccess.Export
     @Override
@@ -723,52 +800,8 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    private static Hit[] collide(Spatial root, Ray ray, boolean onlyClosest, int limit) {
-        if (root == null) return new Hit[0];
-
-        CollisionResults results = new CollisionResults();
-        root.collideWith(ray, results);
-
-        if (results.size() <= 0) return new Hit[0];
-
-        if (onlyClosest) {
-            CollisionResult cr = results.getClosestCollision();
-            if (cr == null) return new Hit[0];
-
-            Vector3f p = cr.getContactPoint();
-            Vector3f n = cr.getContactNormal();
-
-            return new Hit[]{
-                    new Hit(
-                            spatialName(cr.getGeometry()),
-                            cr.getDistance(),
-                            p.x, p.y, p.z,
-                            n.x, n.y, n.z
-                    )
-            };
-        }
-
-        int nHits = Math.min(limit, results.size());
-        Hit[] out = new Hit[nHits];
-
-        for (int i = 0; i < nHits; i++) {
-            CollisionResult cr = results.getCollision(i);
-            Vector3f p = cr.getContactPoint();
-            Vector3f n = cr.getContactNormal();
-
-            out[i] = new Hit(
-                    spatialName(cr.getGeometry()),
-                    cr.getDistance(),
-                    p.x, p.y, p.z,
-                    n.x, n.y, n.z
-            );
-        }
-
-        return out;
-    }
-
     // ---------------------------------------------------------------------
-    // Exports: physics bridge
+    // Parsing: cull/shadow/transform
     // ---------------------------------------------------------------------
 
     private static final class TileWorld {
@@ -780,10 +813,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             this.tileZ = tileZ;
         }
     }
-
-    // ---------------------------------------------------------------------
-    // Exports: destroy
-    // ---------------------------------------------------------------------
 
     private static final class RaycastCfg {
         final Vector3f origin;
@@ -816,35 +845,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
             return new RaycastCfg(o, d, max, limit, onlyClosest);
         }
-    }
-
-    // ---------------------------------------------------------------------
-    // Parsing: cull/shadow/transform
-    // ---------------------------------------------------------------------
-
-    private static Spatial.CullHint parseCullHint(String hint) {
-        if (hint == null) return Spatial.CullHint.Inherit;
-        String m = hint.trim().toLowerCase(Locale.ROOT);
-        return switch (m) {
-            case "inherit", "parent" -> Spatial.CullHint.Inherit;
-            case "always", "hidden", "hide" -> Spatial.CullHint.Always;
-            case "never", "show" -> Spatial.CullHint.Never;
-            case "dynamic" -> Spatial.CullHint.Dynamic;
-            default -> Spatial.CullHint.Inherit;
-        };
-    }
-
-    private static RenderQueue.ShadowMode parseShadowMode(String mode) {
-        if (mode == null) return RenderQueue.ShadowMode.Inherit;
-        String m = mode.trim().toLowerCase(Locale.ROOT);
-        return switch (m) {
-            case "inherit" -> RenderQueue.ShadowMode.Inherit;
-            case "off", "none", "disable" -> RenderQueue.ShadowMode.Off;
-            case "cast" -> RenderQueue.ShadowMode.Cast;
-            case "receive" -> RenderQueue.ShadowMode.Receive;
-            case "castandreceive", "both" -> RenderQueue.ShadowMode.CastAndReceive;
-            default -> RenderQueue.ShadowMode.Inherit;
-        };
     }
 
     private static final class TransformCfg {
@@ -943,8 +943,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     // ---------------------------------------------------------------------
 
     public static final class SurfaceComponent {
-        @HostAccess.Export public final int surfaceId;
-        @HostAccess.Export public final String kind;
+        @HostAccess.Export
+        public final int surfaceId;
+        @HostAccess.Export
+        public final String kind;
 
         public SurfaceComponent(int surfaceId, String kind) {
             this.surfaceId = surfaceId;
