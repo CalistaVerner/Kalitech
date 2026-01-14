@@ -1,5 +1,5 @@
 // FILE: org/foxesworld/kalitech/engine/modules/render/LightRig.java
-package org.foxesworld.kalitech.engine.modules.render;
+package org.foxesworld.kalitech.engine.modules.render.light;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.light.AmbientLight;
@@ -8,9 +8,12 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.modules.render.RenderThread;
 import org.graalvm.polyglot.Value;
 
 import static org.foxesworld.kalitech.engine.modules.render.RenderCfg.*;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
 public final class LightRigModule {
 

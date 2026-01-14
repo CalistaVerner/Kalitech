@@ -4,9 +4,7 @@ import com.jme3.app.DebugKeysAppState;
 import com.jme3.app.FlyCamAppState;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.StatsAppState;
-import com.simsilica.lemur.Container;
 import com.simsilica.lemur.GuiGlobals;
-import com.simsilica.lemur.Label;
 import com.simsilica.lemur.style.BaseStyles;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,10 +37,6 @@ public class KalitechApplication extends SimpleApplication {
         BaseStyles.loadGlassStyle();
         GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
 
-        Container c = new Container();
-        c.addChild(new Label("LEMUR OK"));
-        guiNode.attachChild(c);
-
 
         var ecs = new org.foxesworld.kalitech.engine.ecs.EcsWorld();
         var bus = new org.foxesworld.kalitech.engine.script.events.ScriptEventBus();
@@ -50,13 +44,14 @@ public class KalitechApplication extends SimpleApplication {
         stateManager.detach(stateManager.getState(StatsAppState.class));
         stateManager.detach(stateManager.getState(DebugKeysAppState.class));
         stateManager.detach(stateManager.getState(FlyCamAppState.class));
+
         stateManager.attach(new org.foxesworld.kalitech.engine.app.RuntimeAppState(
                 "Scripts/main.js",
                 Path.of(assetsDir),
                 ecs,
                 bus
         ));
-        flyCam.setEnabled(false);
+
     }
 
     public String getVersion() {

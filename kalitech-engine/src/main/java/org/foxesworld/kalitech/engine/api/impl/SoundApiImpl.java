@@ -13,6 +13,9 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+
 public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     private EngineApiImpl engine;
@@ -51,25 +54,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
         return def;
     }
 
-    private static double num(Value v, String key, double def) {
-        try {
-            if (v.hasMember(key)) {
-                Value m = v.getMember(key);
-                if (m != null && !m.isNull()) return m.asDouble();
-            }
-        } catch (Exception e) { /* ignore */ }
-        return def;
-    }
-
-    private static boolean bool(Value v, String key, boolean def) {
-        try {
-            if (v.hasMember(key)) {
-                Value m = v.getMember(key);
-                if (m != null && !m.isNull()) return m.asBoolean();
-            }
-        } catch (Exception e) { /* ignore */ }
-        return def;
-    }
 
     @Override
     public void attach(ApiContext ctx) {

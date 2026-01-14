@@ -8,8 +8,8 @@ import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.modules.render.LightRigModule;
 import org.foxesworld.kalitech.engine.modules.render.RenderThread;
+import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule;
 import org.foxesworld.kalitech.engine.modules.render.shadow.filters.*;
 import org.graalvm.polyglot.Value;
 

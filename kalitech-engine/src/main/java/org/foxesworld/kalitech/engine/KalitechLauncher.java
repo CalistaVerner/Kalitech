@@ -36,7 +36,7 @@ public final class KalitechLauncher {
         KalitechApplication app = new KalitechApplication();
         AppSettings settings = KalitechWindowSettings.build(KalitechLauncher.class.getClassLoader());
         var screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-        settings.setResolution(1280, 720);
+        settings.setResolution(2560, 1440);
         settings.setRenderer(AppSettings.LWJGL_OPENGL45);
         //settings.setCustomRenderer(AWTSettingsDialog.class);
         settings.setSettingsDialogImage(System.getProperty("banner.path"));

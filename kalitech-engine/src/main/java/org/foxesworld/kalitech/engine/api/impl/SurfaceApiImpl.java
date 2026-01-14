@@ -30,6 +30,7 @@ import org.graalvm.polyglot.Value;
 import java.util.*;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
 /**
  * Surface API.
@@ -65,11 +66,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return x;
     }
 
-    private static double num(Value v, String k, double def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull() || !m.isNumber()) return def;
-        return m.asDouble();
-    }
 
     // ---------------------------------------------------------------------
     // Utilities

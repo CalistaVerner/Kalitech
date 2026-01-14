@@ -3,32 +3,14 @@ package org.foxesworld.kalitech.engine.modules.render;
 
 import org.graalvm.polyglot.Value;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+
 public final class RenderCfg {
 
     private RenderCfg() {
     }
 
-    public static Value member(Value v, String key) {
-        if (v == null || v.isNull()) return null;
-        if (!v.hasMember(key)) return null;
-        Value m = v.getMember(key);
-        if (m == null || m.isNull()) return null;
-        return m;
-    }
-
-    public static boolean bool(Value v, String key, boolean def) {
-        Value m = member(v, key);
-        if (m == null) return def;
-        if (!m.isBoolean()) throw new IllegalArgumentException("[render] cfg '" + key + "' must be boolean");
-        return m.asBoolean();
-    }
-
-    public static double num(Value v, String key, double def) {
-        Value m = member(v, key);
-        if (m == null) return def;
-        if (!m.fitsInDouble()) throw new IllegalArgumentException("[render] cfg '" + key + "' must be number");
-        return m.asDouble();
-    }
 
     public static double numPath(Value cfg, String objKey, String key, double def) {
         Value o = member(cfg, objKey);

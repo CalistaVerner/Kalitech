@@ -45,13 +45,6 @@ public interface RenderApi {
     // ---------------------------
 
     /**
-     * Sets directional sun shadow map size (e.g. 1024, 2048, 4096).
-     * Pass <=0 to disable shadows.
-     */
-    @HostAccess.Export
-    void sunShadows(int mapSize);
-
-    /**
      * Same as sunShadows(mapSize), but accepts cfg:
      *   - mapSize
      */

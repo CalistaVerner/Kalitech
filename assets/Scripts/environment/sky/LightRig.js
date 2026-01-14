@@ -137,19 +137,21 @@ class LightRig {
             this._lastShadowKey = key;
 
             render.sunShadowsCfg({
-                mapSize: s.mapSize | 0,
-                splits: s.splits | 0,
-                lambda: +s.lambda,
-                intensity: +s.intensity,
-                snap: true,//!!s.snap,
-                stabilizeExtents: true,
-                extentsPadding: 1.12,
-                zExtend: 2500,
-                zFadeLength: 250,
-                debug: true,
-                debugEveryFrames: 120,
-                debugSnapIntervalMs: 500
+                shadows: {
+                    enabled: s.enabled,
+                    mapSizeDay: 16384,        // можешь использовать в SkySystem и выбирать mapSize
+                    mapSizeNight: 8192,       // но в render.sunShadowsCfg всё равно передай mapSize итоговый
+                    mapSize: 16384,           // итоговое значение на кадр
+                    splits: s.splits,
+                    lambda: s.lambda,
+                    intensity: 0.65,
+                    zExtend: 6000,
+                    snap: false,
+                    snapFirstCascades: 2,
+                    extentsPadding: 1.12
+                }
             });
+
 
         }
     }

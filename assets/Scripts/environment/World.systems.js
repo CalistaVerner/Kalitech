@@ -72,7 +72,7 @@ const worldSystems = [
                 mapSizeDay: 16384,
                 mapSizeNight: 8192,
                 splits: 4,
-                lambda: 0.65,
+                lambda: 0.85,
                 intensityDay: 0.65,
                 intensityNight: 0.35,
 

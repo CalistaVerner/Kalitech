@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package org.foxesworld.kalitech.engine.modules.render;
+package org.foxesworld.kalitech.engine.modules.render.sky;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetInfo;
@@ -36,9 +36,13 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 import com.jme3.texture.Texture;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
 import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
+
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
 /**
  * SkyDome integration (CDPR-style): minimal state, stable updates, zero per-frame allocations.
@@ -172,12 +176,12 @@ public final class SkyModule {
 
         // Extract parameters with sensible defaults. These helpers clamp or
         // approximate values to prevent invalid inputs. See RenderCfg for details.
-        Value sunDir = RenderCfg.member(cfg, "sunDir");
-        Value moonDir = RenderCfg.member(cfg, "moonDir");
-        Value sunCol = RenderCfg.member(cfg, "sunColor");
-        Value moonCol = RenderCfg.member(cfg, "moonColor");
-        Value zen = RenderCfg.member(cfg, "zenithColor");
-        Value hor = RenderCfg.member(cfg, "horizonColor");
+        Value sunDir = member(cfg, "sunDir");
+        Value moonDir = member(cfg, "moonDir");
+        Value sunCol = member(cfg, "sunColor");
+        Value moonCol = member(cfg, "moonColor");
+        Value zen = member(cfg, "zenithColor");
+        Value hor = member(cfg, "horizonColor");
 
         float sdx = RenderCfg.vec3x(sunDir, -1f);
         float sdy = RenderCfg.vec3y(sunDir, -1f);
@@ -193,8 +197,8 @@ public final class SkyModule {
         float mg = RenderCfg.vec3y(moonCol, 0.55f);
         float mb = RenderCfg.vec3z(moonCol, 0.85f);
 
-        float sunInt = (float) Math.max(0.0, RenderCfg.num(cfg, "sunIntensity", 1.0));
-        float moonInt = (float) Math.max(0.0, RenderCfg.num(cfg, "moonIntensity", 0.0));
+        float sunInt = (float) Math.max(0.0, num(cfg, "sunIntensity", 1.0));
+        float moonInt = (float) Math.max(0.0, num(cfg, "moonIntensity", 0.0));
 
         float zr = RenderCfg.vec3x(zen, 0.10f);
         float zg = RenderCfg.vec3y(zen, 0.17f);
@@ -203,13 +207,13 @@ public final class SkyModule {
         float hg = RenderCfg.vec3y(hor, 0.72f);
         float hb = RenderCfg.vec3z(hor, 0.82f);
 
-        float haze = RenderCfg.clamp01((float) RenderCfg.num(cfg, "haze", 0.55));
-        float sunDisk = RenderCfg.clamp((float) RenderCfg.num(cfg, "sunDisk", 45.0), 0.5f, 500f);
-        float moonDisk = RenderCfg.clamp((float) RenderCfg.num(cfg, "moonDisk", 120.0), 0.5f, 2000f);
-        float exposure = RenderCfg.clamp((float) RenderCfg.num(cfg, "exposure", 1.0), 0.05f, 10f);
-        float skyBlend = RenderCfg.clamp01((float) RenderCfg.num(cfg, "skyBlend", 0.0));
-        float texBlend = RenderCfg.clamp01((float) RenderCfg.num(cfg, "texBlend", 0.0));
-        float texExposure = RenderCfg.clamp((float) RenderCfg.num(cfg, "texExposure", 8.0), 0.001f, 100.0f);
+        float haze = RenderCfg.clamp01((float) num(cfg, "haze", 0.55));
+        float sunDisk = RenderCfg.clamp((float) num(cfg, "sunDisk", 45.0), 0.5f, 500f);
+        float moonDisk = RenderCfg.clamp((float) num(cfg, "moonDisk", 120.0), 0.5f, 2000f);
+        float exposure = RenderCfg.clamp((float) num(cfg, "exposure", 1.0), 0.05f, 10f);
+        float skyBlend = RenderCfg.clamp01((float) num(cfg, "skyBlend", 0.0));
+        float texBlend = RenderCfg.clamp01((float) num(cfg, "texBlend", 0.0));
+        float texExposure = RenderCfg.clamp((float) num(cfg, "texExposure", 8.0), 0.001f, 100.0f);
 
         // Determine whether any sky texture is currently assigned. 2D textures and
         // cubemaps use separate parameters on the material; if none are defined

@@ -1,5 +1,5 @@
 // FILE: org/foxesworld/kalitech/engine/modules/render/PostModule.java
-package org.foxesworld.kalitech.engine.modules.render;
+package org.foxesworld.kalitech.engine.modules.render.post;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
@@ -9,8 +9,11 @@ import com.jme3.post.filters.BloomFilter;
 import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
 import org.foxesworld.kalitech.engine.render.post.TonemapFilter;
 import org.graalvm.polyglot.Value;
+
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 public final class PostModule {
 
@@ -62,12 +65,12 @@ public final class PostModule {
     public void fogCfg(Value cfg) {
         ensureFogExists();
 
-        double r = RenderCfg.num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", fogBaseR));
-        double g = RenderCfg.num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", fogBaseG));
-        double b = RenderCfg.num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", fogBaseB));
+        double r = num(cfg, "r", RenderCfg.numPath(cfg, "color", "r", fogBaseR));
+        double g = num(cfg, "g", RenderCfg.numPath(cfg, "color", "g", fogBaseG));
+        double b = num(cfg, "b", RenderCfg.numPath(cfg, "color", "b", fogBaseB));
 
-        double density = RenderCfg.num(cfg, "density", fogDensity);
-        double distance = RenderCfg.num(cfg, "distance", fogDistance);
+        double density = num(cfg, "density", fogDensity);
+        double distance = num(cfg, "distance", fogDistance);
 
         fogBaseR = r;
         fogBaseG = g;
@@ -87,7 +90,7 @@ public final class PostModule {
     public void postCfg(Value cfg) {
         ensureMainFpp("postCfg");
 
-        boolean enabled = RenderCfg.bool(cfg, "enabled", true);
+        boolean enabled = bool(cfg, "enabled", true);
         if (enabled != postEnabled) postEnabled = enabled;
 
         if (!postEnabled) {
@@ -101,14 +104,14 @@ public final class PostModule {
 
         ensureTonemapExists();
 
-        float exposure = (float) Math.max(0.0, RenderCfg.num(cfg, "exposure", 1.0));
+        float exposure = (float) Math.max(0.0, num(cfg, "exposure", 1.0));
 
-        Value tm = RenderCfg.member(cfg, "tonemap");
-        float whitePoint = (float) Math.max(0.01, RenderCfg.num(tm, "whitePoint", 11.2));
-        float shoulder = RenderCfg.clamp01((float) RenderCfg.num(tm, "shoulder", 0.22));
-        float toe = RenderCfg.clamp01((float) RenderCfg.num(tm, "toe", 0.08));
+        Value tm = member(cfg, "tonemap");
+        float whitePoint = (float) Math.max(0.01, num(tm, "whitePoint", 11.2));
+        float shoulder = RenderCfg.clamp01((float) num(tm, "shoulder", 0.22));
+        float toe = RenderCfg.clamp01((float) num(tm, "toe", 0.08));
 
-        float saturation = (float) Math.max(0.0, RenderCfg.num(cfg, "saturation", 1.0));
+        float saturation = (float) Math.max(0.0, num(cfg, "saturation", 1.0));
 
         if (RenderCfg.approx(exposure, postExposure) &&
                 RenderCfg.approx(whitePoint, postWhitePoint) &&

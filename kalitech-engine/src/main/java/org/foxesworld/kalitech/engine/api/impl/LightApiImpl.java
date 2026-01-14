@@ -19,6 +19,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+
 /**
  * Light API.
  *
@@ -485,27 +488,6 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             }
         }
 
-        private static double num(Value v, String key, double def) {
-            try {
-                if (v == null || v.isNull() || !v.hasMember(key)) return def;
-                Value m = v.getMember(key);
-                if (m == null || m.isNull()) return def;
-                return m.asDouble();
-            } catch (Throwable t) {
-                return def;
-            }
-        }
-
-        private static boolean bool(Value v, String key, boolean def) {
-            try {
-                if (v == null || v.isNull() || !v.hasMember(key)) return def;
-                Value m = v.getMember(key);
-                if (m == null || m.isNull()) return def;
-                return m.asBoolean();
-            } catch (Throwable t) {
-                return def;
-            }
-        }
 
         private static Boolean boolObj(Value v, String key) {
             try {

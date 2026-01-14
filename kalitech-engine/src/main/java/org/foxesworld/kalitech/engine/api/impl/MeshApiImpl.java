@@ -29,6 +29,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+
 public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     private static final Logger log = LogManager.getLogger(MeshApiImpl.class);
@@ -64,26 +67,6 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
     }
 
     // ---------- small helpers ----------
-
-    private static double num(Value v, String k, double def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull() || !m.isNumber()) return def;
-        try {
-            return m.asDouble();
-        } catch (Throwable ignored) {
-            return def;
-        }
-    }
-
-    private static boolean bool(Value v, String k, boolean def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull() || !m.isBoolean()) return def;
-        try {
-            return m.asBoolean();
-        } catch (Throwable ignored) {
-            return def;
-        }
-    }
 
     private static double clamp(double x, double a, double b) {
         return Math.max(a, Math.min(b, x));
