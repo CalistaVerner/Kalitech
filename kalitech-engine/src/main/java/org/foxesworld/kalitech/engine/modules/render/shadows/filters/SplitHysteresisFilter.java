@@ -10,16 +10,19 @@ public final class SplitHysteresisFilter implements ShadowFilter {
 
     private SplitHysteresisManager hysteresis = new SplitHysteresisManager();
 
-    /**
-     * Resets internal history by recreating manager instance.
-     * Works even if SplitHysteresisManager has no reset/clear API.
-     */
+    public boolean enabled = true;
+
+    public SplitHysteresisManager.Cfg cfg() {
+        return hysteresis.cfg();
+    }
+
     public void resetHistory() {
-        hysteresis = new SplitHysteresisManager();
+        hysteresis.reset();
     }
 
     @Override
     public void beforeSplits(ShadowFrameContext ctx) {
+        if (!enabled) return;
         if (ctx == null || ctx.splitFarsWanted == null || ctx.splitFarsFinal == null) return;
         float[] stable = hysteresis.stabilize(ctx.splitFarsWanted, ctx.cameraSpeed);
         System.arraycopy(stable, 0, ctx.splitFarsFinal, 0, ctx.cascades);

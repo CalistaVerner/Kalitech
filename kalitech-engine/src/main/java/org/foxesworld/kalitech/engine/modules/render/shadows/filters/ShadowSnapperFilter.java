@@ -19,14 +19,20 @@ public final class ShadowSnapperFilter implements ShadowFilter {
     }
 
     @Override
-    public void afterFit(ShadowFrameContext ctx, int cascade) {
-        // Snap happens inside renderer after it places the shadow cam.
-        // This filter just exists as "owned config + hook point".
+    public String id() {
+        return "ShadowSnapper";
     }
 
-    public boolean snap(int cascade, Camera sc, ShadowFrameContext ctx, float dt) {
-        if (!enabled || snapper == null || sc == null) return false;
-        return snapper.snap(cascade, sc, ctx.basis, dt, out);
-    }
+    @Override
+    public void afterSnap(ShadowFrameContext ctx, int cascade) {
+        if (!enabled) return;
+        if (snapper == null) return;
+        if (ctx == null) return;
 
+        Camera sc = ctx.shadowCam;
+        if (sc == null) return;
+
+        boolean snapped = snapper.snap(cascade, sc, ctx.basis, ctx.dt, out);
+        ctx.c[cascade].snapped = snapped;
+    }
 }
