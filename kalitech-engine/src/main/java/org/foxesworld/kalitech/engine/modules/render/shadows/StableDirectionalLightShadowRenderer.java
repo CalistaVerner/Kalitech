@@ -1,4 +1,5 @@
 // FILE: org/foxesworld/kalitech/engine/modules/render/shadows/StableDirectionalLightShadowRenderer.java
+// Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadows;
 
 import com.jme3.asset.AssetManager;
@@ -15,66 +16,116 @@ import com.jme3.renderer.ViewPort;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import com.jme3.texture.FrameBuffer;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.modules.render.shadows.filters.ShadowSnapperFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadows.filters.SplitHysteresisFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadows.filters.StableCascadeFitterFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadows.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadows.pipeline.ShadowFrameContext;
+import org.foxesworld.kalitech.engine.modules.render.shadows.pipeline.ShadowPipeline;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
 
-public class StableDirectionalLightShadowRenderer extends DirectionalLightShadowRenderer implements ShadowRenderer, ShadowTunable {
+/**
+ * Stable Cascaded Shadow Maps with modular pipeline (CDPR-style).
+ * <p>
+ * Pipeline order:
+ * beginFrame
+ * - split compute -> beforeSplits -> afterSplits
+ * - per cascade:
+ * beforeCascade
+ * raw fit (sphere) -> afterFit (stable fit / quant / z-fit)
+ * place camera (stable basis) -> snap via ShadowSnapperFilter -> afterSnap
+ * endFrame
+ */
+public class StableDirectionalLightShadowRenderer extends DirectionalLightShadowRenderer
+        implements ShadowRenderer, ShadowTunable {
 
-    private final ShadowSnapper snapper;
-    private final ShadowSnapper.SnapResult snapResult = new ShadowSnapper.SnapResult();
-    private final StableLightBasis stableBasis;
-    private final SplitHysteresisManager hysteresis = new SplitHysteresisManager();
-    private final StableCascadeFitter fitter = new StableCascadeFitter();
-    private final ShadowCascadeMath cascadeMath = new ShadowCascadeMath();
-    private final ShadowCascadeMath.CascadeFit fit = new ShadowCascadeMath.CascadeFit();
-    private final Matrix3f basis = new Matrix3f();
-    private final Vector3f axisRight = new Vector3f();
-    private final Vector3f axisUp = new Vector3f();
-    private final Vector3f axisDir = new Vector3f();
-    private final Vector3f lightDir = new Vector3f();
     private Logger log;
     private boolean dbgEnabled = false;
     private int dbgEveryFrames = 60;
     private long dbgFrame = 0;
 
+    // pipeline
+    private final ShadowPipeline pipeline = new ShadowPipeline();
+    private final ShadowFrameContext frameCtx = new ShadowFrameContext();
+
+    // stable components
+    private final StableLightBasis stableBasis;
+    private final ShadowSnapper snapper;
+
+    // default baseline filters (installed by default)
+    private final SplitHysteresisFilter hysteresisFilter = new SplitHysteresisFilter();
+    private final StableCascadeFitterFilter fitterFilter = new StableCascadeFitterFilter();
+    private final ShadowSnapperFilter snapperFilter;
+    private final Vector4f splitFars4 = new Vector4f();
+    private float backOffset = 1.10f;
+    private float minNear = 1.0f;
+    // temps
+    private final Vector3f lightDir = new Vector3f();
+    private float shadowSlopeBias = 2.0f;
+    private float shadowNormalOffset = 0.0f;
+    private final Matrix3f basis = new Matrix3f();
+    private float cascadeBlendLen = 1.5f;
+    private final Vector3f axisRight = new Vector3f();
+    private final Vector3f axisUp = new Vector3f();
+    private final Vector3f axisDir = new Vector3f();
     private final Vector3f camPos = new Vector3f();
     private final Vector3f camDir = new Vector3f();
     private final Vector3f camUp = new Vector3f();
     private final Vector3f camLeft = new Vector3f();
-
+    private final Vector3f sphereCenter = new Vector3f();
     private final Vector3f tmp = new Vector3f();
-
-    private final Vector4f splitFars4 = new Vector4f();
-    private float[] fixedSplitDistances = null;
+    // tunables
     private boolean snapEnabled = true;
-    private float extentsPadding = 1.10f;
-    private float backOffset = 1.10f;
-    private float minNear = 1.0f;
-
-    private float zPadding = 25.0f;
-    private float minZSpan = 50.0f;
-    private float quantTexels = 2.0f;
-
+    // bias knobs
     private float shadowBias = 0.0008f;
-    private float shadowSlopeBias = 2.0f;
-    private float shadowNormalOffset = 0.0f;
-
+    // cascade blend uniforms
     private boolean cascadeBlendEnabled = true;
-    private float cascadeBlendLen = 1.5f;
-
-    private float cameraSpeed = 0f;
-
-    private long lastNs = 0L;
+    // fixed split distances (optional)
+    private float[] fixedSplitDistances = null;
+    // cached reflection access
     private volatile Camera[] shadowCamsCached = null;
+    // dt helper
+    private long lastNs = 0L;
+    // external input
+    private float cameraSpeed = 0f;
 
     public StableDirectionalLightShadowRenderer(AssetManager assets, int shadowMapSize, int nbSplits) {
         super(assets, shadowMapSize, nbSplits);
-        this.snapper = new ShadowSnapper(shadowMapSize);
+
         this.stableBasis = new StableLightBasis(Math.max(1, nbSplits), null);
+        this.snapper = new ShadowSnapper(shadowMapSize);
+        this.snapperFilter = new ShadowSnapperFilter(this.snapper);
+
+        // Default CDPR baseline pipeline
+        pipeline.add(hysteresisFilter);
+        pipeline.add(fitterFilter);
+        pipeline.add(snapperFilter);
     }
 
-    // ---- ShadowTunable ----
+    // ---------------- pipeline API ----------------
+
+    private static boolean isValidSplitArray(float[] a) {
+        if (a == null || a.length == 0) return false;
+        for (float v : a) if (!(v > 0f)) return false;
+        return true;
+    }
+
+    private static float fovToRadians(float fov) {
+        if (fov > FastMath.PI) return fov * FastMath.DEG_TO_RAD;
+        return fov;
+    }
+
+    private static void normLocal(Vector3f v) {
+        float x = v.x, y = v.y, z = v.z;
+        float len2 = x * x + y * y + z * z;
+        if (len2 <= 1e-20f) return;
+        float inv = FastMath.invSqrt(len2);
+        v.x = x * inv;
+        v.y = y * inv;
+        v.z = z * inv;
+    }
 
     private static Camera[] tryGetShadowCamsByReflection(Object self) {
         try {
@@ -96,11 +147,20 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         return null;
     }
 
+    // ---------------- ShadowTunable ----------------
+
+    @Override
+    public void setDebug(Logger log, boolean enabled, int everyFrames) {
+        this.log = log;
+        this.dbgEnabled = enabled;
+        this.dbgEveryFrames = Math.max(1, everyFrames);
+    }
+
     private static FrameBuffer[] tryGetShadowFbsByReflection(Object self) {
         try {
             Class<?> c = self.getClass();
             while (c != null && c != Object.class) {
-                for (String n : new String[]{"shadowFB", "shadowFbs", "shadowFBOs", "shadowFramebuffers"}) {
+                for (String n : new String[]{"shadowFB", "shadowFbs", "shadowFBOs", "shadowFbo", "shadowFramebuffers"}) {
                     try {
                         Field f = c.getDeclaredField(n);
                         f.setAccessible(true);
@@ -116,58 +176,14 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         return null;
     }
 
-    private static float maxAbs4(float a, float b, float c, float d) {
-        float m = Math.abs(a);
-        float x = Math.abs(b);
-        if (x > m) m = x;
-        x = Math.abs(c);
-        if (x > m) m = x;
-        x = Math.abs(d);
-        if (x > m) m = x;
-        return Math.max(0.001f, m);
-    }
-
-    private static void normLocal(Vector3f v) {
-        float x = v.x, y = v.y, z = v.z;
-        float len2 = x * x + y * y + z * z;
-        if (len2 <= 1e-20f) return;
-        float inv = FastMath.invSqrt(len2);
-        v.x = x * inv;
-        v.y = y * inv;
-        v.z = z * inv;
-    }
-
     private static String f3(float v) {
         return String.format("%.3f", v);
-    }
-
-    private static String f6(float v) {
-        return String.format("%.6f", v);
-    }
-
-    @Override
-    public void setDebug(Logger log, boolean enabled, int everyFrames) {
-        this.log = log;
-        this.dbgEnabled = enabled;
-        this.dbgEveryFrames = Math.max(1, everyFrames);
-    }
-
-    @Override
-    public void setSnapEnabled(boolean enabled) {
-        this.snapEnabled = enabled;
-    }
-
-    @Override
-    public void setExtentsPadding(float padding) {
-        this.extentsPadding = Math.max(1.0f, padding);
     }
 
     @Override
     public void setShadowBias(float bias) {
         this.shadowBias = Math.max(0f, bias);
     }
-
-    // ---- Material ----
 
     @Override
     public void setShadowSlopeBias(float slopeBias) {
@@ -179,8 +195,6 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         this.shadowNormalOffset = Math.max(0f, normalOffset);
     }
 
-    // ---- Core ----
-
     @Override
     public void setCascadeBlendEnabled(boolean enabled) {
         this.cascadeBlendEnabled = enabled;
@@ -191,22 +205,51 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         this.cascadeBlendLen = Math.max(0f, len);
     }
 
+    public StableDirectionalLightShadowRenderer addFilter(ShadowFilter f) {
+        pipeline.add(f);
+        return this;
+    }
+
+    public StableDirectionalLightShadowRenderer removeFilter(ShadowFilter f) {
+        pipeline.remove(f);
+        return this;
+    }
+
+    public void clearFilters(boolean keepBaseline) {
+        pipeline.clear();
+        if (keepBaseline) {
+            pipeline.add(hysteresisFilter);
+            pipeline.add(fitterFilter);
+            pipeline.add(snapperFilter);
+        }
+    }
+
+    public ShadowPipeline pipeline() {
+        return pipeline;
+    }
+
+    @Override public void setSnapEnabled(boolean enabled) {
+        this.snapEnabled = enabled;
+    }
+
+    @Override
+    public void setExtentsPadding(float padding) {
+        fitterFilter.extentsPadding = Math.max(1.0f, padding);
+    }
+
     @Override
     public void setSplitDistances(float... distances) {
         if (distances == null || distances.length == 0) {
-            this.fixedSplitDistances = null;
-            hysteresis.reset();
+            fixedSplitDistances = null;
+            hysteresisFilter.resetHistory();
             return;
         }
-        this.fixedSplitDistances = distances.clone();
-        Arrays.sort(this.fixedSplitDistances);
-        hysteresis.reset();
+        fixedSplitDistances = distances.clone();
+        Arrays.sort(fixedSplitDistances);
+        hysteresisFilter.resetHistory();
     }
 
-    // Optional: feed from engine
-    public void setCameraSpeed(float speed) {
-        this.cameraSpeed = Math.max(0f, speed);
-    }
+    // ---------------- material params ----------------
 
     @Override
     protected void setMaterialParameters(Material material) {
@@ -240,6 +283,65 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         if (material.getParam("ShadowSplitFars") != null) material.clearParam("ShadowSplitFars");
     }
 
+    // ---------------- hard clear ----------------
+
+    // Extra knobs (still accessible)
+    public void setBackOffset(float backOffset) {
+        this.backOffset = Math.max(0.5f, backOffset);
+    }
+
+    // ---------------- core: orchestrated pipeline ----------------
+
+    public void setMinNear(float minNear) {
+        this.minNear = Math.max(0.01f, minNear);
+    }
+
+    // ---------------- split compute ----------------
+
+    public void setZPadding(float zPadding) {
+        fitterFilter.zPadding = Math.max(0f, zPadding);
+    }
+
+    public void setMinZSpan(float minZSpan) {
+        fitterFilter.minZSpan = Math.max(1f, minZSpan);
+    }
+
+    // ---------------- fit sphere ----------------
+
+    public void setQuantTexels(float quantTexels) {
+        fitterFilter.quantTexels = Math.max(0f, quantTexels);
+    }
+
+    // ---------------- helpers / reflection ----------------
+
+    public void setCameraSpeed(float worldUnitsPerSecond) {
+        this.cameraSpeed = Math.max(0f, worldUnitsPerSecond);
+    }
+
+    @Override
+    public void clearShadows(RenderManager rm, ViewPort vp) {
+        FrameBuffer[] fbs = tryGetShadowFbsByReflection(this);
+        if (fbs == null || fbs.length == 0) return;
+        if (rm == null) return;
+        Renderer r = rm.getRenderer();
+        if (r == null) return;
+
+        FrameBuffer prev = r.getCurrentFrameBuffer();
+        try {
+            for (FrameBuffer fb : fbs) {
+                if (fb == null) continue;
+                r.setFrameBuffer(fb);
+                r.clearBuffers(false, true, false);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            try {
+                r.setFrameBuffer(prev);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     @Override
     protected void updateShadowCams(Camera viewCam) {
         super.updateShadowCams(viewCam);
@@ -247,7 +349,6 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         final DirectionalLight dl = getLight();
         if (dl == null || viewCam == null) return;
 
-        // dt (for basis stabilization & snapper)
         long now = System.nanoTime();
         float dt = 1f / 60f;
         if (lastNs != 0L) {
@@ -282,144 +383,199 @@ public class StableDirectionalLightShadowRenderer extends DirectionalLightShadow
         final boolean emit = dbgEnabled && log != null && log.isDebugEnabled()
                 && ((dbgFrame++ % (long) dbgEveryFrames) == 0L);
 
-        // 1) split fars (stable)
-        float[] splitFars = computeStableSplits(vNear, vFar, cams.length, cameraSpeed);
+        // init frame context
+        frameCtx.ensure(cams.length);
+        frameCtx.viewCam = viewCam;
+        frameCtx.light = dl;
+        frameCtx.dt = dt;
+        frameCtx.cameraSpeed = cameraSpeed;
+        frameCtx.viewNear = vNear;
+        frameCtx.viewFar = vFar;
+        frameCtx.mapSize = snapper.getShadowMapSize();
+        frameCtx.lightDir.set(lightDir);
 
-        // 2) cascades
+        pipeline.beginFrame(frameCtx);
+
+        // 1) compute split fars wanted
+        computeSplitsWanted(frameCtx);
+
+        // 2) allow filters to stabilize / override split fars
+        pipeline.beforeSplits(frameCtx);
+
+        // if nobody wrote final splits, default to wanted
+        if (!isValidSplitArray(frameCtx.splitFarsFinal)) {
+            System.arraycopy(frameCtx.splitFarsWanted, 0, frameCtx.splitFarsFinal, 0, frameCtx.cascades);
+        }
+
+        pipeline.afterSplits(frameCtx);
+
+        // 3) per cascade
         for (int i = 0; i < cams.length; i++) {
             Camera sc = cams[i];
             if (sc == null) continue;
 
-            float cNear = (i == 0) ? Math.max(minNear, vNear) : Math.max(minNear, splitFars[i - 1]);
-            float cFar = Math.max(cNear + 0.001f, splitFars[i]);
+            float cNear = (i == 0) ? Math.max(minNear, vNear) : Math.max(minNear, frameCtx.splitFarsFinal[i - 1]);
+            float cFar = Math.max(cNear + 0.001f, frameCtx.splitFarsFinal[i]);
 
-            // stable basis
+            ShadowFrameContext.CascadeData cd = frameCtx.c[i];
+            cd.rangeNear = cNear;
+            cd.rangeFar = cFar;
+
+            pipeline.beforeCascade(frameCtx, i);
+
+            // raw fit (sphere around frustum slice)
+            float fovY = fovToRadians(viewCam.getFov());
+            float rawRadius = fitCascadeSphere(fovY, viewCam.getAspect(), cNear, cFar, sphereCenter);
+
+            cd.centerWS.set(sphereCenter);
+            cd.radius = rawRadius;
+            cd.zNearRel = -rawRadius;
+            cd.zFarRel = +rawRadius;
+            cd.quantized = false;
+            cd.snapped = false;
+
+            // stable fit / quant / z-fit via filters
+            pipeline.afterFit(frameCtx, i);
+
+            // stable basis for this cascade (deterministic)
             stableBasis.computeBasis(i, lightDir, dt, basis);
+            frameCtx.basis.set(basis);
+
             basis.getColumn(0, axisRight);
             basis.getColumn(1, axisUp);
             basis.getColumn(2, axisDir);
 
-            // fit split in LIGHT space (robust, no sphere wobble)
-            cascadeMath.fitSplit(viewCam, cNear, cFar, axisDir, fit);
+            // place shadow camera from fitted data
+            float radius = Math.max(0.001f, cd.radius);
+            Vector3f center = cd.centerWS;
 
-            // square radius + padding
-            float r0 = maxAbs4(fit.left, fit.right, fit.bottom, fit.top);
-            r0 *= Math.max(1.0f, extentsPadding);
+            Vector3f camLoc = tmp.set(axisDir).multLocal(-radius * backOffset).addLocal(center);
 
-            // quantize radius in texel space (this is the big anti-shimmer piece)
-            float texel0 = (2f * r0) / (float) Math.max(1, snapper.getShadowMapSize());
-            float step = (quantTexels > 0f) ? (texel0 * quantTexels) : 0f;
-            float r = (step > 0f) ? (float) (Math.ceil(r0 / step) * step) : r0;
+            float distToCenter = radius * backOffset;
+            float near = distToCenter + cd.zNearRel;
+            float far = distToCenter + cd.zFarRel;
 
-            // recompute texel (after quantization)
-            float texel = (2f * r) / (float) Math.max(1, snapper.getShadowMapSize());
-
-            // stable z-fit (use split min/max z from fit, pad + min span)
-            float z0 = fit.minZ - zPadding;
-            float z1 = fit.maxZ + zPadding;
-            float span = z1 - z0;
-            if (span < minZSpan) {
-                float mid = 0.5f * (z0 + z1);
-                float half = 0.5f * minZSpan;
-                z0 = mid - half;
-                z1 = mid + half;
-            }
-
-            // place camera
-            Vector3f center = fit.centerWorld;
-            Vector3f camLoc = tmp.set(axisDir).multLocal(-(r * backOffset)).addLocal(center);
-
-            float distToCenter = r * backOffset;
-            float near = distToCenter + z0;
-            float far = distToCenter + z1;
             if (near < minNear) near = minNear;
             if (far <= near + 0.001f) far = near + 0.001f;
 
-            // ortho
             sc.setParallelProjection(true);
             sc.setLocation(camLoc);
-            sc.setAxes(axisRight.negate(), axisUp, axisDir); // left=-right
-            sc.setFrustum(near, far, -r, r, r, -r);
+            sc.setAxes(axisRight.negate(), axisUp, axisDir);
+            sc.setFrustum(near, far, -radius, radius, radius, -radius);
 
+            // snap (baseline snapper filter owns the snapping call)
             boolean snapped = false;
             if (snapEnabled) {
-                snapped = snapper.snap(i, sc, basis, dt, snapResult);
+                snapped = snapperFilter.snap(i, sc, frameCtx, dt);
             } else {
                 sc.update();
             }
+            cd.snapped = snapped;
+
+            pipeline.afterSnap(frameCtx, i);
 
             if (emit) {
-                log.debug("[shadow][stable] split={} range=[{}..{}] r0={} r={} texel={} snapped={} td=({}, {})",
-                        i, f3(cNear), f3(cFar),
-                        f3(r0), f3(r), f6(texel),
-                        snapped,
-                        snapResult.texelDx, snapResult.texelDy
-                );
+                log.debug("[shadow][pipe] split={} range=[{}..{}] r={} quant={} snapped={}",
+                        i, f3(cNear), f3(cFar), f3(radius), cd.quantized, snapped);
             }
         }
 
-        // export split fars
+        pipeline.endFrame(frameCtx);
+
+        // export split far vector to shader
+        float[] sf = frameCtx.splitFarsFinal;
         splitFars4.set(
-                (splitFars.length > 0) ? splitFars[0] : vFar,
-                (splitFars.length > 1) ? splitFars[1] : vFar,
-                (splitFars.length > 2) ? splitFars[2] : vFar,
-                (splitFars.length > 3) ? splitFars[3] : vFar
+                (sf.length > 0) ? sf[0] : vFar,
+                (sf.length > 1) ? sf[1] : vFar,
+                (sf.length > 2) ? sf[2] : vFar,
+                (sf.length > 3) ? sf[3] : vFar
         );
     }
 
-    private float[] computeStableSplits(float near, float far, int n, float camSpeed) {
-        if (n <= 0) return new float[0];
-
-        float[] wanted = new float[n];
+    private void computeSplitsWanted(ShadowFrameContext ctx) {
+        int n = ctx.cascades;
+        float near = ctx.viewNear;
+        float far = ctx.viewFar;
 
         if (fixedSplitDistances != null && fixedSplitDistances.length >= n) {
-            for (int i = 0; i < n; i++) wanted[i] = Math.max(near, fixedSplitDistances[i]);
-        } else {
-            float lambda = 0.65f;
-            try {
-                lambda = getLambda();
-            } catch (Throwable ignored) {
-            }
-
-            float N = Math.max(minNear, near);
-            float F = Math.max(N + 0.001f, far);
-
-            float range = F - N;
-            float ratio = F / N;
-
-            for (int i = 0; i < n; i++) {
-                float p = (i + 1f) / (float) n;
-                float log = N * (float) Math.pow(ratio, p);
-                float lin = N + range * p;
-                wanted[i] = FastMath.interpolateLinear(FastMath.clamp(lambda, 0f, 1f), lin, log);
-            }
+            for (int i = 0; i < n; i++) ctx.splitFarsWanted[i] = Math.max(near, fixedSplitDistances[i]);
+            // default: if filters don't override, copy to final
+            System.arraycopy(ctx.splitFarsWanted, 0, ctx.splitFarsFinal, 0, n);
+            return;
         }
 
-        return hysteresis.stabilize(wanted, camSpeed);
+        float lambda = 0.65f;
+        try {
+            lambda = getLambda();
+        } catch (Throwable ignored) {
+        }
+
+        float N = Math.max(minNear, near);
+        float F = Math.max(N + 0.001f, far);
+
+        float range = F - N;
+        float ratio = F / N;
+
+        for (int i = 0; i < n; i++) {
+            float p = (i + 1f) / (float) n;
+            float log = N * (float) Math.pow(ratio, p);
+            float lin = N + range * p;
+            ctx.splitFarsWanted[i] = FastMath.interpolateLinear(FastMath.clamp(lambda, 0f, 1f), lin, log);
+        }
+
+        // default: if filters don't override, copy to final
+        System.arraycopy(ctx.splitFarsWanted, 0, ctx.splitFarsFinal, 0, n);
     }
 
-    @Override
-    public void clearShadows(RenderManager rm, ViewPort vp) {
-        if (rm == null) return;
-        Renderer r = rm.getRenderer();
-        if (r == null) return;
+    private float fitCascadeSphere(float fovY, float aspect, float sliceNear, float sliceFar, Vector3f outCenter) {
+        float tanY = FastMath.tan(0.5f * fovY);
+        float tanX = tanY * aspect;
 
-        FrameBuffer[] fbs = tryGetShadowFbsByReflection(this);
-        if (fbs == null || fbs.length == 0) return;
+        // centers of near/far planes
+        Vector3f cn = tmp.set(camDir).multLocal(sliceNear).addLocal(camPos);
+        Vector3f cf = new Vector3f(camDir).multLocal(sliceFar).addLocal(camPos);
 
-        FrameBuffer prev = r.getCurrentFrameBuffer();
-        try {
-            for (FrameBuffer fb : fbs) {
-                if (fb == null) continue;
-                r.setFrameBuffer(fb);
-                r.clearBuffers(false, true, false);
-            }
-        } catch (Throwable ignored) {
-        } finally {
-            try {
-                r.setFrameBuffer(prev);
-            } catch (Throwable ignored) {
-            }
+        float nh = sliceNear * tanY;
+        float nw = sliceNear * tanX;
+        float fh = sliceFar * tanY;
+        float fw = sliceFar * tanX;
+
+        // 8 corners (no allocations other than the one "cf" above)
+        Vector3f[] c = new Vector3f[8];
+        for (int i = 0; i < 8; i++) c[i] = new Vector3f();
+
+        // near
+        c[0].set(cn).addLocal(camUp.x * nh + camLeft.x * nw, camUp.y * nh + camLeft.y * nw, camUp.z * nh + camLeft.z * nw);
+        c[1].set(cn).addLocal(camUp.x * nh - camLeft.x * nw, camUp.y * nh - camLeft.y * nw, camUp.z * nh - camLeft.z * nw);
+        c[2].set(cn).addLocal(-camUp.x * nh - camLeft.x * nw, -camUp.y * nh - camLeft.y * nw, -camUp.z * nh - camLeft.z * nw);
+        c[3].set(cn).addLocal(-camUp.x * nh + camLeft.x * nw, -camUp.y * nh + camLeft.y * nw, -camUp.z * nh + camLeft.z * nw);
+
+        // far
+        c[4].set(cf).addLocal(camUp.x * fh + camLeft.x * fw, camUp.y * fh + camLeft.y * fw, camUp.z * fh + camLeft.z * fw);
+        c[5].set(cf).addLocal(camUp.x * fh - camLeft.x * fw, camUp.y * fh - camLeft.y * fw, camUp.z * fh - camLeft.z * fw);
+        c[6].set(cf).addLocal(-camUp.x * fh - camLeft.x * fw, -camUp.y * fh - camLeft.y * fw, -camUp.z * fh - camLeft.z * fw);
+        c[7].set(cf).addLocal(-camUp.x * fh + camLeft.x * fw, -camUp.y * fh + camLeft.y * fw, -camUp.z * fh + camLeft.z * fw);
+
+        // sphere center = AABB center
+        Vector3f min = new Vector3f(c[0]);
+        Vector3f max = new Vector3f(c[0]);
+        for (int i = 1; i < 8; i++) {
+            Vector3f p = c[i];
+            if (p.x < min.x) min.x = p.x;
+            if (p.y < min.y) min.y = p.y;
+            if (p.z < min.z) min.z = p.z;
+            if (p.x > max.x) max.x = p.x;
+            if (p.y > max.y) max.y = p.y;
+            if (p.z > max.z) max.z = p.z;
         }
+
+        outCenter.set(min).addLocal(max).multLocal(0.5f);
+
+        float r = 0f;
+        for (int i = 0; i < 8; i++) {
+            float d = c[i].distance(outCenter);
+            if (d > r) r = d;
+        }
+        return Math.max(0.001f, r);
     }
 }
