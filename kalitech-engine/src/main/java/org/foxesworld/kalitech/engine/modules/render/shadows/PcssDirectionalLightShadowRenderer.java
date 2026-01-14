@@ -61,9 +61,9 @@ public class PcssDirectionalLightShadowRenderer extends StableDirectionalLightSh
     }
 
     public static final class PcssSettings {
-        public float lightSize = 0.004f; // было 0.02f -> мыло. 0.003..0.006 ок
-        public int searchSamples = 12;   // 8..16
-        public int filterSamples = 8;    // 6..10 (16 = сильно мягко)
+        public float lightSize = 0.004f;
+        public int searchSamples = 12;
+        public int filterSamples = 8;
         public Logger debugLog = null;
         public boolean debug = false;
     }

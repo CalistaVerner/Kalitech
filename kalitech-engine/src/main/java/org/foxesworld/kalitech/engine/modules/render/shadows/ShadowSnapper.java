@@ -21,24 +21,28 @@ public final class ShadowSnapper {
 
     private final int shadowMapSize;
     private final Config cfg;
-    // per-cascade history
+
     private final Vector3f[] lastWorldPos;
     private final Quaternion[] lastRot;
     private final float[] motionWeight;
-    // temps
+
     private final Matrix3f tBasisT = new Matrix3f();
     private final Vector3f tLightPos = new Vector3f();
     private final Vector3f tWorld = new Vector3f();
+
     public ShadowSnapper(int shadowMapSize) {
-        this(shadowMapSize, null, 16);
+        this(shadowMapSize, new Config(), 16);
     }
+
     public ShadowSnapper(int shadowMapSize, Config config, int maxCascades) {
         this.shadowMapSize = Math.max(64, shadowMapSize);
         this.cfg = (config != null) ? config : new Config();
+
         int n = Math.max(1, maxCascades);
         this.lastWorldPos = new Vector3f[n];
         this.lastRot = new Quaternion[n];
         this.motionWeight = new float[n];
+
         for (int i = 0; i < n; i++) {
             lastWorldPos[i] = new Vector3f();
             lastRot[i] = new Quaternion(0, 0, 0, 1);
@@ -46,13 +50,8 @@ public final class ShadowSnapper {
         }
     }
 
-    public void updateConfig(Config c) {
-        if (c == null) return;
-        cfg.enablePositionSnap = c.enablePositionSnap;
-        cfg.positionThreshold = Math.max(0.01f, c.positionThreshold);
-        cfg.maxSnapDistanceTexels = Math.max(0.1f, c.maxSnapDistanceTexels);
-        cfg.adaptiveSnapping = c.adaptiveSnapping;
-        cfg.conservative = c.conservative;
+    public Config cfg() {
+        return cfg;
     }
 
     public float getMotionWeight(int cascadeIdx) {
@@ -87,7 +86,6 @@ public final class ShadowSnapper {
     }
 
     private boolean snapPosition(int cascadeIdx, Camera cam, Matrix3f basis, float dt, SnapResult out) {
-        // Orthonormal basis -> inverse = transpose
         tBasisT.set(basis).transposeLocal();
 
         Vector3f worldPos = cam.getLocation();
@@ -118,7 +116,6 @@ public final class ShadowSnapper {
         if (cfg.conservative) {
             ok &= (dx <= maxDelta && dy <= maxDelta);
 
-            // protect against huge jumps (teleports)
             Vector3f last = lastWorldPos[cascadeIdx];
             if (last.lengthSquared() > 0f) {
                 float moved = worldPos.distance(last);
@@ -128,18 +125,15 @@ public final class ShadowSnapper {
 
         if (!ok) return false;
 
-        // compute snapped world position (basis * lightPos)
         tLightPos.set(sx, sy, tLightPos.z);
         basis.mult(tLightPos, tWorld);
 
         out.deltaWorld.set(tWorld).subtractLocal(worldPos);
         out.positionSnapped = true;
 
-        // texel delta in integer texels (from original x,y!)
         out.texelDx = Math.round((sx - x) / texel);
         out.texelDy = Math.round((sy - y) / texel);
 
-        // confidence
         float maxPossible = threshold * FastMath.sqrt(2f);
         float dist = FastMath.sqrt(dx * dx + dy * dy);
         out.confidence = 1f - (dist / Math.max(1e-6f, maxPossible));
@@ -161,14 +155,13 @@ public final class ShadowSnapper {
         float dp = pos.distance(lastP);
         float posSpeed = dp / dt;
 
-        // angular delta: angle = 2*acos(|dot(q1,q2)|)
         float dot = Math.abs(rot.dot(lastR));
         dot = FastMath.clamp(dot, -1f, 1f);
         float ang = 2f * FastMath.acos(dot);
         float angSpeed = ang / dt;
 
-        float posW = Math.min(1f, posSpeed / 10f);         // 10 units/sec
-        float angW = Math.min(1f, angSpeed / (FastMath.HALF_PI)); // 90°/sec
+        float posW = Math.min(1f, posSpeed / 10f);
+        float angW = Math.min(1f, angSpeed / (FastMath.HALF_PI));
         float w = Math.max(posW, angW);
 
         float a = Math.min(1f, dt * 5f);
@@ -195,8 +188,8 @@ public final class ShadowSnapper {
 
     public static final class Config {
         public boolean enablePositionSnap = true;
-        public float positionThreshold = 0.5f;     // fraction of texel
-        public float maxSnapDistanceTexels = 2.0f; // safety clamp
+        public float positionThreshold = 0.5f;
+        public float maxSnapDistanceTexels = 2.0f;
         public boolean adaptiveSnapping = true;
         public boolean conservative = true;
     }

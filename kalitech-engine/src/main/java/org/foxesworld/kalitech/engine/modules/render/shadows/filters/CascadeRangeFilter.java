@@ -5,41 +5,48 @@ package org.foxesworld.kalitech.engine.modules.render.shadows.filters;
 import org.foxesworld.kalitech.engine.modules.render.shadows.pipeline.ShadowFilter;
 import org.foxesworld.kalitech.engine.modules.render.shadows.pipeline.ShadowFrameContext;
 
+import java.util.Objects;
+
+/**
+ * Validates and clamps cascade ranges (near/far) to keep them monotonic and sane.
+ */
 public final class CascadeRangeFilter implements ShadowFilter {
 
-    private final Cfg cfg = new Cfg();
-
-    @Override
-    public String id() {
-        return "CascadeRange";
-    }
-
-    public Cfg cfg() {
-        return cfg;
-    }
-
-    @Override
-    public void beforeCascade(ShadowFrameContext ctx, int cascade) {
-        if (!cfg.enabled) return;
-        if (ctx == null) return;
-        if (ctx.splitFarsFinal == null) return;
-        if (cascade < 0 || cascade >= ctx.cascades) return;
-
-        float vNear = ctx.viewNear;
-        float cNear = (cascade == 0) ? vNear : ctx.splitFarsFinal[cascade - 1];
-        float cFar = ctx.splitFarsFinal[cascade];
-
-        if (cNear < cfg.minNear) cNear = cfg.minNear;
-        if (cFar <= cNear + cfg.minGap) cFar = cNear + cfg.minGap;
-
-        ShadowFrameContext.CascadeData cd = ctx.c[cascade];
-        cd.rangeNear = cNear;
-        cd.rangeFar = cFar;
-    }
-
     public static final class Cfg {
-        public boolean enabled = true;
         public float minNear = 1.0f;
         public float minGap = 0.001f;
+    }
+
+    public final Cfg cfg;
+
+    public CascadeRangeFilter() {
+        this(new Cfg());
+    }
+
+    public CascadeRangeFilter(Cfg cfg) {
+        this.cfg = Objects.requireNonNull(cfg, "cfg");
+    }
+
+    @Override
+    public void afterSplits(ShadowFrameContext ctx) {
+        int n = ctx.cascades;
+        if (n <= 0) return;
+
+        float near = Math.max(cfg.minNear, ctx.viewNear);
+        float gap = Math.max(1e-6f, cfg.minGap);
+
+        float prevFar = near;
+        for (int i = 0; i < n; i++) {
+            ShadowFrameContext.CascadeData cd = ctx.c[i];
+
+            float sFar = ctx.splitFarsFinal[i];
+            if (sFar <= prevFar + gap) sFar = prevFar + gap;
+            if (ctx.viewFar > 0f && sFar > ctx.viewFar) sFar = ctx.viewFar;
+
+            cd.rangeNear = (i == 0) ? near : prevFar;
+            cd.rangeFar = sFar;
+
+            prevFar = sFar;
+        }
     }
 }

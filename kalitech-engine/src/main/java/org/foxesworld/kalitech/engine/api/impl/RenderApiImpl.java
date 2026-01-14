@@ -6,12 +6,12 @@ import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
-import com.jme3.shadow.DirectionalLightShadowRenderer;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.modules.render.*;
+import org.foxesworld.kalitech.engine.modules.render.shadows.ShadowSystemConfig;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -341,7 +341,7 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 if (w.equals(lights.primaryDirectional())) return;
 
                 lights.setPrimaryDirectional(w);
-                shadows.renderer();
+                shadows.rebuild();//renderer();
 
                 if (log != null) log.info("[render] primaryDirectional={}", w);
             });
@@ -368,11 +368,40 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
                 viewport.ensure("sunShadowsCfg");
                 lights.ensure();
 
-                shadows.setSnapEnabled(snap);
-                shadows.applyCfg(map, splits, (float) lambda, (float) intensity);
+                shadows.setEnabled(snap);
+                ShadowSystemConfig shadowSystemConfig = new ShadowSystemConfig();
 
-                DirectionalLightShadowRenderer r = shadows.renderer();
-                if (r != null) r.setLight(lights.primaryLight());
+                // базовые параметры
+                shadowSystemConfig.mapSize = map;
+                shadowSystemConfig.splits = splits;
+                shadowSystemConfig.intensity = (float) intensity;
+                shadowSystemConfig.rendererType = ShadowSystemConfig.RendererType.PCSS;
+
+                // splits (lambda)
+                shadowSystemConfig.splitCfg.lambda = (float) lambda;
+
+                // стабилизация каскадов (убирает shimmer)
+                shadowSystemConfig.fitterCfg.extentsPadding = 1.10f;
+                shadowSystemConfig.fitterCfg.zPadding = 25f;
+                shadowSystemConfig.fitterCfg.quantTexels = 2.0f;
+
+                // snap на тексель (убирает дрожание при движении камеры)
+                shadowSystemConfig.enableSnap = true;
+                shadowSystemConfig.snapCfg.enablePositionSnap = true;
+                shadowSystemConfig.snapCfg.positionThreshold = 0.5f;
+                shadowSystemConfig.snapCfg.maxSnapDistanceTexels = 2.0f;
+
+                // hysteresis границ каскадов (убирает дергание стыков)
+                shadowSystemConfig.enableSplitHysteresis = true;
+                shadowSystemConfig.hysteresisCfg.minHalfLifeSeconds = 0.10f;
+                shadowSystemConfig.hysteresisCfg.maxHalfLifeSeconds = 0.60f;
+
+                // применить (это перестроит pipeline внутри)
+                shadows.apply(shadowSystemConfig);
+
+
+                //DirectionalLightShadowRenderer r = shadows.renderer();
+                //if (r != null) r.setLight(lights.primaryLight());
             });
         });
     }
@@ -394,7 +423,23 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             onJmeSyncVoid("render.sunShadowsEx", () -> {
                 viewport.ensure("sunShadowsEx");
                 lights.ensure();
-                shadows.applyCfg(mapSize, splits, (float) lambda, (float) intensity);
+                ShadowSystemConfig shadowSystemConfig = new ShadowSystemConfig();
+                shadowSystemConfig.mapSize = mapSize;
+                shadowSystemConfig.splits = splits;
+                shadowSystemConfig.intensity = (float) intensity;
+                shadowSystemConfig.rendererType = ShadowSystemConfig.RendererType.PCSS;
+                shadowSystemConfig.splitCfg.lambda = (float) lambda;
+                shadowSystemConfig.fitterCfg.extentsPadding = 1.10f;
+                shadowSystemConfig.fitterCfg.zPadding = 25f;
+                shadowSystemConfig.fitterCfg.quantTexels = 2.0f;
+                shadowSystemConfig.enableSnap = true;
+                shadowSystemConfig.snapCfg.enablePositionSnap = true;
+                shadowSystemConfig.snapCfg.positionThreshold = 0.5f;
+                shadowSystemConfig.snapCfg.maxSnapDistanceTexels = 2.0f;
+                shadowSystemConfig.enableSplitHysteresis = true;
+                shadowSystemConfig.hysteresisCfg.minHalfLifeSeconds = 0.10f;
+                shadowSystemConfig.hysteresisCfg.maxHalfLifeSeconds = 0.60f;
+                shadows.apply(shadowSystemConfig);
             });
         });
     }

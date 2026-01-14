@@ -2,6 +2,12 @@
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadows.pipeline;
 
+/**
+ * A deterministic stage in the shadow pipeline.
+ * <p>
+ * IMPORTANT: Filters must be controlled ONLY by being present/absent in the pipeline.
+ * Do not add "enabled" flags – create/remove the filter instead.
+ */
 public interface ShadowFilter {
 
     default String id() {
@@ -21,37 +27,37 @@ public interface ShadowFilter {
     }
 
     /**
-     * Called once per frame at the start of shadow update.
+     * Called once per frame before any processing.
      */
     default void beginFrame(ShadowFrameContext ctx) {
     }
 
     /**
-     * Called before split computation is finalized. You may write ctx.splitFarsFinal.
+     * Called before split distances are produced.
      */
     default void beforeSplits(ShadowFrameContext ctx) {
     }
 
     /**
-     * Called after split fars are finalized.
+     * Called after split distances are produced.
      */
     default void afterSplits(ShadowFrameContext ctx) {
     }
 
     /**
-     * Per-cascade hook (before fitting / before camera placement).
+     * Called before cascade fitting/placement for the given cascade index.
      */
     default void beforeCascade(ShadowFrameContext ctx, int cascade) {
     }
 
     /**
-     * Per-cascade hook after raw fit (sphere/frustum fit is known) – can modify radius/center/z.
+     * Called after cascade fitting stage (sphere fit / ortho extents etc.).
      */
     default void afterFit(ShadowFrameContext ctx, int cascade) {
     }
 
     /**
-     * Per-cascade hook after shadow camera was placed and snapped (if used).
+     * Called after snap stage (texel grid snapping).
      */
     default void afterSnap(ShadowFrameContext ctx, int cascade) {
     }
@@ -63,7 +69,7 @@ public interface ShadowFilter {
     }
 
     /**
-     * Called once per frame.
+     * Called once per frame at the end.
      */
     default void endFrame(ShadowFrameContext ctx) {
     }
