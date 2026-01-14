@@ -65,4 +65,16 @@ public final class CascadeHysteresisFilter implements ShadowFilter {
         prev[0] = s[0];
         prev[s.length - 1] = s[s.length - 1];
     }
+
+    public void setHysteresis(float hysteresis) {
+        this.hysteresis = hysteresis;
+    }
+
+    public void setPrev(float[] prev) {
+        this.prev = prev;
+    }
+
+    public void setSmoothing(float smoothing) {
+        this.smoothing = smoothing;
+    }
 }

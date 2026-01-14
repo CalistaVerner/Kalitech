@@ -96,4 +96,20 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
         // If you want precise move gating, store prevPos before overwrite; kept minimal for now.
         return texelWorld > 0f;
     }
+
+    public void setMinMoveTexels(float minMoveTexels) {
+        this.minMoveTexels = minMoveTexels;
+    }
+
+    public void setMinRotateDeg(float minRotateDeg) {
+        this.minRotateDeg = minRotateDeg;
+    }
+
+    public void setGatedFirstCascades(int gatedFirstCascades) {
+        this.gatedFirstCascades = gatedFirstCascades;
+    }
+
+    public void setHasLast(boolean hasLast) {
+        this.hasLast = hasLast;
+    }
 }

@@ -53,4 +53,7 @@ public final class ShadowTraceFilter implements ShadowFilter {
         );
     }
 
+    public void setEveryFrames(int everyFrames) {
+        this.everyFrames = everyFrames;
+    }
 }

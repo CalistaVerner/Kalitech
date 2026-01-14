@@ -146,4 +146,32 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
 
         return true;
     }
+
+    public void setSizeQuantizeTexels(float sizeQuantizeTexels) {
+        this.sizeQuantizeTexels = sizeQuantizeTexels;
+    }
+
+    public void setForceSquare(boolean forceSquare) {
+        this.forceSquare = forceSquare;
+    }
+
+    public void setReceiverFrontBase(float receiverFrontBase) {
+        this.receiverFrontBase = receiverFrontBase;
+    }
+
+    public void setCasterBackCascadeMul(float casterBackCascadeMul) {
+        this.casterBackCascadeMul = casterBackCascadeMul;
+    }
+
+    public void setCasterBackBase(float casterBackBase) {
+        this.casterBackBase = casterBackBase;
+    }
+
+    public void setMinNear(float minNear) {
+        this.minNear = minNear;
+    }
+
+    public void setExtentsPadding(float extentsPadding) {
+        this.extentsPadding = extentsPadding;
+    }
 }

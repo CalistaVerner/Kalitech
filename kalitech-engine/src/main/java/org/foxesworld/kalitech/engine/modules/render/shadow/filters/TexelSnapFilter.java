@@ -52,4 +52,20 @@ public final class TexelSnapFilter implements ShadowFilter {
         snapper.snap(sc);
         sc.update();
     }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public void setSnapFirstCascades(int snapFirstCascades) {
+        this.snapFirstCascades = snapFirstCascades;
+    }
+
+    public void setGate(TemporalSnapGateFilter gate) {
+        this.gate = gate;
+    }
+
+    public void setSnapper(Snapper snapper) {
+        this.snapper = snapper;
+    }
 }

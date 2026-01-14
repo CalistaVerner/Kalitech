@@ -1,4 +1,3 @@
-// FILE: org/foxesworld/kalitech/engine/modules/render/shadow/filters/TightStableFitShadowCamFilter.java
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 
@@ -10,24 +9,51 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplit
 
 /**
  * Tight stable cascade fitting in light space with texel-snapped bounds.
- * <p>
- * Key points:
- * - Uses light-space AABB of the 8 frustum slice points.
- * - Expands Z for casters/receivers.
- * - Snaps min/max XY to worldUnitsPerTexel grid to eliminate shimmering.
+ * Adds near-cascade size stabilization (tier quantization + grow-only hysteresis)
+ * to further reduce residual shimmering.
  */
 public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
-    private final Vector3f tmp = new Vector3f();
-    private final Vector3f tmp2 = new Vector3f();
-    private final Vector3f camLoc = new Vector3f();
     public float minNear = 0.5f;
+
     public float casterBackBase = 140f;
     public float casterBackCascadeMul = 0.9f;
     public float receiverFrontBase = 40f;
+
     public float xyPadding = 1.02f;
+
     public boolean forceSquare = true;
+
+    private final Vector3f tmp = new Vector3f();
+
+    // ---------------- Near cascade stabilization ----------------
+    private final Vector3f tmp2 = new Vector3f();
+    private final Vector3f camLoc = new Vector3f();
+    /**
+     * Quantize ortho size by texel steps (1 = stable).
+     */
     public float sizeQuantizeTexels = 1.0f;
+    /**
+     * Stabilize split 0 ortho size by quantizing it into larger "tiers".
+     * This reduces ortho breathing and residual shimmer.
+     */
+    public boolean lockNearCascadeSize = true;
+    /**
+     * Tier size in texels for split 0. Recommended: 64..256 for 8192 maps.
+     * Larger value => more stable, but may waste some resolution occasionally.
+     */
+    public float nearTierTexels = 128f;
+    /**
+     * Grow-only hysteresis for split 0 size (in tier units).
+     * Prevents shrinking unless the requested size is sufficiently smaller.
+     */
+    public float nearShrinkHysteresisTiers = 1.0f;
+    private float lastNearSize = Float.NaN;
+
+    @Override
+    public int order() {
+        return -500;
+    }
 
     private static void normalizeSafe(Vector3f v) {
         float len2 = v.x * v.x + v.y * v.y + v.z * v.z;
@@ -36,11 +62,6 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         v.x *= inv;
         v.y *= inv;
         v.z *= inv;
-    }
-
-    @Override
-    public int order() {
-        return -500;
     }
 
     @Override
@@ -105,14 +126,40 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
         if (!(baseSize > 0f)) baseSize = 1.0f;
 
+        // Base quantization to keep texelWorld stable
         float texel = baseSize / (float) map;
-
         if (sizeQuantizeTexels > 0f) {
             float q = Math.max(1.0f, sizeQuantizeTexels);
             float step = texel * q;
             if (step > 0f) {
-                float snappedSize = (float) Math.ceil(baseSize / step) * step;
-                baseSize = snappedSize;
+                baseSize = (float) Math.ceil(baseSize / step) * step;
+                texel = baseSize / (float) map;
+            }
+        }
+
+        // Near cascade tier lock (split 0): reduce ortho breathing
+        if (lockNearCascadeSize && ctx.splitIndex == 0 && nearTierTexels > 0f) {
+            float tierStep = texel * Math.max(1.0f, nearTierTexels);
+            if (tierStep > 0f) {
+                float tiered = (float) Math.ceil(baseSize / tierStep) * tierStep;
+
+                // Grow-only hysteresis: avoid frequent shrinking
+                if (!Float.isNaN(lastNearSize)) {
+                    float shrinkGate = lastNearSize - (tierStep * Math.max(0f, nearShrinkHysteresisTiers));
+                    if (tiered < shrinkGate) {
+                        // allow shrink only if significantly smaller
+                        lastNearSize = tiered;
+                    } else if (tiered < lastNearSize) {
+                        // keep old size
+                        tiered = lastNearSize;
+                    } else {
+                        lastNearSize = tiered;
+                    }
+                } else {
+                    lastNearSize = tiered;
+                }
+
+                baseSize = tiered;
                 texel = baseSize / (float) map;
             }
         }
@@ -134,6 +181,7 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         float minYs = cy0 - halfH0;
         float maxYs = cy0 + halfH0;
 
+        // Snap bounds to texel grid (core shimmer fix)
         minXs = FastMath.floor(minXs / texel) * texel;
         minYs = FastMath.floor(minYs / texel) * texel;
         maxXs = FastMath.floor(maxXs / texel) * texel;
@@ -164,5 +212,49 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         sc.update();
 
         return true;
+    }
+
+    public void setMinNear(float minNear) {
+        this.minNear = minNear;
+    }
+
+    public void setCasterBackBase(float casterBackBase) {
+        this.casterBackBase = casterBackBase;
+    }
+
+    public void setCasterBackCascadeMul(float casterBackCascadeMul) {
+        this.casterBackCascadeMul = casterBackCascadeMul;
+    }
+
+    public void setReceiverFrontBase(float receiverFrontBase) {
+        this.receiverFrontBase = receiverFrontBase;
+    }
+
+    public void setXyPadding(float xyPadding) {
+        this.xyPadding = xyPadding;
+    }
+
+    public void setForceSquare(boolean forceSquare) {
+        this.forceSquare = forceSquare;
+    }
+
+    public void setSizeQuantizeTexels(float sizeQuantizeTexels) {
+        this.sizeQuantizeTexels = sizeQuantizeTexels;
+    }
+
+    public void setLockNearCascadeSize(boolean lockNearCascadeSize) {
+        this.lockNearCascadeSize = lockNearCascadeSize;
+    }
+
+    public void setNearTierTexels(float nearTierTexels) {
+        this.nearTierTexels = nearTierTexels;
+    }
+
+    public void setNearShrinkHysteresisTiers(float nearShrinkHysteresisTiers) {
+        this.nearShrinkHysteresisTiers = nearShrinkHysteresisTiers;
+    }
+
+    public void setLastNearSize(float lastNearSize) {
+        this.lastNearSize = lastNearSize;
     }
 }
