@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
  * PCSS layer on top of StableDirectionalLightShadowRenderer.
  * Only sets uniforms if material supports them.
  */
-public final class PcssDirectionalLightShadowRenderer extends StableDirectionalLightShadowRenderer implements ShadowRenderer {
+public class PcssDirectionalLightShadowRenderer extends StableDirectionalLightShadowRenderer implements ShadowRenderer {
 
     private final PcssSettings pcss = new PcssSettings();
 
@@ -61,10 +61,11 @@ public final class PcssDirectionalLightShadowRenderer extends StableDirectionalL
     }
 
     public static final class PcssSettings {
-        public float lightSize = 0.02f;   // bigger => softer
-        public int searchSamples = 16;    // blocker search
-        public int filterSamples = 16;    // PCF filter
+        public float lightSize = 0.004f; // было 0.02f -> мыло. 0.003..0.006 ок
+        public int searchSamples = 12;   // 8..16
+        public int filterSamples = 8;    // 6..10 (16 = сильно мягко)
         public Logger debugLog = null;
         public boolean debug = false;
     }
+
 }

@@ -6,13 +6,17 @@ import com.jme3.app.state.BaseAppState;
 import com.jme3.asset.AssetManager;
 import com.jme3.light.DirectionalLight;
 import com.jme3.renderer.RenderManager;
+import com.jme3.renderer.Renderer;
 import com.jme3.renderer.ViewPort;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
+import com.jme3.texture.FrameBuffer;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.modules.render.shadows.PcssDirectionalLightShadowRenderer;
 import org.foxesworld.kalitech.engine.modules.render.shadows.ShadowRenderer;
+import org.foxesworld.kalitech.engine.modules.render.shadows.ShadowTunable;
 import org.foxesworld.kalitech.engine.modules.render.shadows.StableDirectionalLightShadowRenderer;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 
@@ -25,6 +29,9 @@ public final class ShadowModule {
     private final LightRigModule lights;
 
     private DirectionalLightShadowRenderer dlsr;
+    private ShadowRenderer shadowRenderer;
+    private ShadowTunable tunable;
+
     private final int reattachEveryFrames = 10;
 
     private int mapSize = 2048;
@@ -41,9 +48,11 @@ public final class ShadowModule {
     private boolean dbg = true;
     private int dbgEveryFrames = 60;
     private float[] splitDistances = null;
-    private boolean usePcss = true;
-    // unified handle (no instanceof in public API)
-    private ShadowRenderer shadowRenderer;
+
+    // mode flags
+    private boolean useUnified = true; // StableDirectionalLightShadowRenderer = unified pipeline
+    private boolean usePcss = true;    // PCSS layer on top of stable renderer
+
     private boolean autoStateAttached = false;
     private int frame = 0;
 
@@ -63,19 +72,54 @@ public final class ShadowModule {
         attachAutoStateOnce();
     }
 
-    private static String vpInfo(ViewPort vp) {
-        if (vp == null) return "null";
-        StringBuilder sb = new StringBuilder(256);
-        sb.append("name=").append(vp.getName());
-        sb.append(" camHash=").append(vp.getCamera() != null ? vp.getCamera().hashCode() : 0);
-        sb.append(" scenes=").append(vp.getScenes() != null ? vp.getScenes().size() : 0);
-        sb.append(" procs=").append(vp.getProcessors() != null ? vp.getProcessors().size() : 0);
-        return sb.toString();
-    }
-
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         rebuild();
+    }
+
+    public void setUseUnified(boolean enabled) {
+        this.useUnified = enabled;
+        rebuild();
+    }
+
+    public void setUsePcss(boolean enabled) {
+        this.usePcss = enabled;
+        rebuild();
+    }
+
+    public void setSnapEnabled(boolean enabled) {
+        this.snapEnabled = enabled;
+        if (tunable != null) tunable.setSnapEnabled(enabled);
+        log.info("[shadow] snapEnabled={}", enabled);
+    }
+
+    public void applyCfg(int mapSize, int splits, float lambda, float intensity) {
+        this.mapSize = mapSize;
+        this.splits = splits;
+        this.lambda = lambda;
+        this.intensity = intensity;
+        rebuild();
+    }
+
+    public void setSplitDistances(float... distances) {
+        if (distances == null || distances.length == 0) this.splitDistances = null;
+        else this.splitDistances = distances.clone();
+
+        if (tunable != null && splitDistances != null) tunable.setSplitDistances(splitDistances);
+        log.info("[shadow] splitDistances updated: {}", Arrays.toString(this.splitDistances));
+    }
+
+    public void setExtentsPadding(float padding) {
+        this.extentsPadding = Math.max(1.0f, padding);
+        if (tunable != null) tunable.setExtentsPadding(this.extentsPadding);
+        log.info("[shadow] extentsPadding={}", this.extentsPadding);
+    }
+
+    public void setDebug(boolean enabled, int everyFrames) {
+        this.dbg = enabled;
+        this.dbgEveryFrames = Math.max(1, everyFrames);
+        if (tunable != null) tunable.setDebug(log, dbg, dbgEveryFrames);
+        log.info("[shadow] debug={} everyFrames={}", dbg, dbgEveryFrames);
     }
 
     private void attachAutoStateOnce() {
@@ -118,54 +162,6 @@ public final class ShadowModule {
         });
     }
 
-    public void setSnapEnabled(boolean enabled) {
-        this.snapEnabled = enabled;
-        if (shadowRenderer instanceof StableDirectionalLightShadowRenderer s) s.setSnapEnabled(enabled);
-        log.info("[shadow] snapEnabled={}", enabled);
-    }
-
-    public void applyCfg(int mapSize, int splits, float lambda, float intensity) {
-        this.mapSize = mapSize;
-        this.splits = splits;
-        this.lambda = lambda;
-        this.intensity = intensity;
-        rebuild();
-    }
-
-    public void setUsePcss(boolean enabled) {
-        this.usePcss = enabled;
-        rebuild();
-    }
-
-    public void setSplitDistances(float... distances) {
-        if (distances == null || distances.length == 0) {
-            this.splitDistances = null;
-        } else {
-            this.splitDistances = distances.clone();
-        }
-        if (shadowRenderer instanceof StableDirectionalLightShadowRenderer s) {
-            s.setSplitDistances(this.splitDistances);
-        }
-        log.info("[shadow] splitDistances updated: {}", Arrays.toString(this.splitDistances));
-    }
-
-    public void setExtentsPadding(float padding) {
-        this.extentsPadding = Math.max(1.0f, padding);
-        if (shadowRenderer instanceof StableDirectionalLightShadowRenderer s) s.setExtentsPadding(this.extentsPadding);
-        log.info("[shadow] extentsPadding={}", this.extentsPadding);
-    }
-
-    public void setDebug(boolean enabled, int everyFrames) {
-        this.dbg = enabled;
-        this.dbgEveryFrames = Math.max(1, everyFrames);
-        if (shadowRenderer instanceof StableDirectionalLightShadowRenderer s) {
-            s.setDebugLogger(log);
-            s.setDebugEnabled(dbg);
-            s.setDebugEveryFrames(dbgEveryFrames);
-        }
-        log.info("[shadow] debug={} everyFrames={}", dbg, dbgEveryFrames);
-    }
-
     private void detachOld() {
         if (attachedVp != null && dlsr != null) {
             try {
@@ -199,9 +195,7 @@ public final class ShadowModule {
     }
 
     private ViewPort findFirstNonGuiWithScene(List<ViewPort> vps, ViewPort gui) {
-        for (ViewPort vp : vps) {
-            if (isCandidate(vp, gui)) return vp;
-        }
+        for (ViewPort vp : vps) if (isCandidate(vp, gui)) return vp;
         return null;
     }
 
@@ -218,6 +212,7 @@ public final class ShadowModule {
             detachOld();
             dlsr = null;
             shadowRenderer = null;
+            tunable = null;
 
             if (!enabled) {
                 log.info("[shadow] disabled");
@@ -233,47 +228,56 @@ public final class ShadowModule {
             final ViewPort vp = pickSceneViewPort();
             if (vp == null) {
                 log.warn("[shadow] cannot attach: no suitable scene viewport found.");
-                dumpAllViewPorts("noSuitableVp");
                 return;
             }
 
-            shadowRenderer = usePcss
-                    ? new PcssDirectionalLightShadowRenderer(assets, mapSize, splits)
-                    : new StableDirectionalLightShadowRenderer(assets, mapSize, splits);
+            // choose implementation
+            final ShadowRenderer r;
+            if (usePcss) {
+                r = new PcssDirectionalLightShadowRenderer(assets, mapSize, splits);
+            } else if (useUnified) {
+                // "Unified" = stable pipeline (snap + stable basis + hysteresis + stable fitter)
+                r = new StableDirectionalLightShadowRenderer(assets, mapSize, splits);
+            } else {
+                // basic JME-like (still supports clearShadows contract)
+                r = new BasicShadowRenderer(assets, mapSize, splits);
+            }
 
-            shadowRenderer.setLight(primary);
-            shadowRenderer.setLambda(lambda);
-            shadowRenderer.setShadowIntensity(intensity);
+            r.setLight(primary);
+            r.setLambda(lambda);
+            r.setShadowIntensity(intensity);
 
-            // stable knobs are common base for both
-            StableDirectionalLightShadowRenderer s = (StableDirectionalLightShadowRenderer) shadowRenderer;
-            s.setExtentsPadding(extentsPadding);
-            s.setSnapEnabled(snapEnabled);
+            shadowRenderer = r;
+            tunable = (r instanceof ShadowTunable) ? (ShadowTunable) r : null;
 
-            s.setDebugLogger(log);
-            s.setDebugEnabled(dbg);
-            s.setDebugEveryFrames(dbgEveryFrames);
+            if (tunable != null) {
+                tunable.setExtentsPadding(extentsPadding);
+                tunable.setSnapEnabled(snapEnabled);
+                tunable.setDebug(log, dbg, dbgEveryFrames);
 
-            s.setShadowBias(0.0008f);
-            s.setShadowSlopeBias(2.0f);
-            s.setShadowNormalOffset(0.0f);
+                tunable.setShadowBias(0.0008f);
+                tunable.setShadowSlopeBias(2.0f);
+                tunable.setShadowNormalOffset(0.0f);
 
-            s.setCascadeBlendEnabled(true);
-            s.setCascadeBlendLength(1.5f);
+                tunable.setCascadeBlendEnabled(true);
+                tunable.setCascadeBlendLength(1.5f);
 
-            if (splitDistances != null) s.setSplitDistances(splitDistances);
+                if (splitDistances != null) tunable.setSplitDistances(splitDistances);
+            }
 
-            dlsr = (DirectionalLightShadowRenderer) shadowRenderer;
+            dlsr = (DirectionalLightShadowRenderer) r;
             attachedVp = vp;
 
             if (!vp.getProcessors().contains(dlsr)) vp.addProcessor(dlsr);
 
-            log.info("[shadow] attached vp='{}' cam={} scenes={}",
+            log.info("[shadow] attached vp='{}' cam={} scenes={} renderer={} unified={} pcss={}",
                     vp.getName(),
                     vp.getCamera() != null ? vp.getCamera().hashCode() : 0,
-                    vp.getScenes() != null ? vp.getScenes().size() : 0);
-
-            dumpAllViewPorts("afterAttach");
+                    vp.getScenes() != null ? vp.getScenes().size() : 0,
+                    dlsr.getClass().getSimpleName(),
+                    useUnified,
+                    usePcss
+            );
         });
     }
 
@@ -317,12 +321,6 @@ public final class ShadowModule {
         });
     }
 
-    /**
-     * The ONE correct public API to kill "ghost shadows".
-     * - Runs on JME thread
-     * - Ensures viewport attach
-     * - Clears GPU shadow maps via ShadowRenderer.clearShadows()
-     */
     public void clearShadowMaps(String reason) {
         final String why = (reason == null || reason.isBlank()) ? "manual" : reason.trim();
 
@@ -355,27 +353,63 @@ public final class ShadowModule {
         });
     }
 
-    /**
-     * Convenience overload.
-     */
     public void clearShadowMaps() {
         clearShadowMaps("manual");
     }
 
-    private void dumpAllViewPorts(String tag) {
-        RenderManager rm = app.getRenderManager();
-        if (rm == null) return;
+    /**
+     * Minimal "vanilla-like" renderer that still respects ShadowRenderer contract.
+     * Uses the same GPU-clear reflection strategy as stable renderer.
+     */
+    private static final class BasicShadowRenderer extends DirectionalLightShadowRenderer implements ShadowRenderer {
 
-        log.info("[shadow][vpDump] {} PRE:", tag);
-        for (ViewPort vp : rm.getPreViews()) log.info("[shadow][vpDump]   {}", vpInfo(vp));
+        BasicShadowRenderer(AssetManager assets, int shadowMapSize, int nbSplits) {
+            super(assets, shadowMapSize, nbSplits);
+        }
 
-        log.info("[shadow][vpDump] {} MAIN:", tag);
-        for (ViewPort vp : rm.getMainViews()) log.info("[shadow][vpDump]   {}", vpInfo(vp));
+        private static FrameBuffer[] tryGetShadowFbsByReflection(Object self) {
+            try {
+                Class<?> c = self.getClass();
+                while (c != null && c != Object.class) {
+                    for (String n : new String[]{"shadowFB", "shadowFbs", "shadowFBOs", "shadowFbo", "shadowFramebuffers"}) {
+                        try {
+                            Field f = c.getDeclaredField(n);
+                            f.setAccessible(true);
+                            Object v = f.get(self);
+                            if (v instanceof FrameBuffer[]) return (FrameBuffer[]) v;
+                        } catch (NoSuchFieldException ignored) {
+                        }
+                    }
+                    c = c.getSuperclass();
+                }
+            } catch (Throwable ignored) {
+            }
+            return null;
+        }
 
-        log.info("[shadow][vpDump] {} POST:", tag);
-        for (ViewPort vp : rm.getPostViews()) log.info("[shadow][vpDump]   {}", vpInfo(vp));
+        @Override
+        public void clearShadows(RenderManager rm, ViewPort vp) {
+            if (rm == null) return;
+            Renderer r = rm.getRenderer();
+            if (r == null) return;
 
-        log.info("[shadow][vpDump] {} GUI:", tag);
-        log.info("[shadow][vpDump]   {}", vpInfo(app.getGuiViewPort()));
+            FrameBuffer[] fbs = tryGetShadowFbsByReflection(this);
+            if (fbs == null || fbs.length == 0) return;
+
+            FrameBuffer prev = r.getCurrentFrameBuffer();
+            try {
+                for (FrameBuffer fb : fbs) {
+                    if (fb == null) continue;
+                    r.setFrameBuffer(fb);
+                    r.clearBuffers(false, true, false);
+                }
+            } catch (Throwable ignored) {
+            } finally {
+                try {
+                    r.setFrameBuffer(prev);
+                } catch (Throwable ignored) {
+                }
+            }
+        }
     }
 }
