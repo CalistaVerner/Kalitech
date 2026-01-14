@@ -42,12 +42,12 @@ import java.util.ArrayList;
 
 /**
  * SkyDome integration (CDPR-style): minimal state, stable updates, zero per-frame allocations.
- *
+ * <p>
  * Rendering model:
- *  - A single shared material for all dome geometries.
- *  - Dome is always centered on camera in the vertex shader (no parallax).
- *  - For 2D skies we rely on mesh-authored seam-safe UVs (not atan() mapping).
- *  - For cubemaps we sample by direction.
+ * - A single shared material for all dome geometries.
+ * - Dome is always centered on camera in the vertex shader (no parallax).
+ * - For 2D skies we rely on mesh-authored seam-safe UVs (not atan() mapping).
+ * - For cubemaps we sample by direction.
  */
 public final class SkyModule {
 
@@ -55,7 +55,9 @@ public final class SkyModule {
      * The relative path to the sky dome model.
      */
     private static final String SKYDOME_MODEL_ASSET = "Models/Sky/skydome.obj";
-    /** The world scale applied to the sky dome. */
+    /**
+     * The world scale applied to the sky dome.
+     */
     private static final float SKYDOME_SCALE = 1000f;
 
     private final SimpleApplication app;
@@ -67,11 +69,17 @@ public final class SkyModule {
      * directly to the application's root node and detached on clear.
      */
     private Spatial skydome;
-    /** Material shared by all geometry making up the dome. */
+    /**
+     * Material shared by all geometry making up the dome.
+     */
     private Material skydomeMat;
-    /** Tracks whether currently loaded sky textures are cubemaps or 2D textures. */
+    /**
+     * Tracks whether currently loaded sky textures are cubemaps or 2D textures.
+     */
     private Boolean sdUseCube = null;
-    /** Cached references to the geometries comprising the dome. */
+    /**
+     * Cached references to the geometries comprising the dome.
+     */
     private Geometry[] skydomeGeoms;
 
     // Cached uniform values to avoid redundant material updates.
@@ -93,6 +101,31 @@ public final class SkyModule {
         this.app = app;
         this.assets = assets;
         this.log = log;
+    }
+
+    /**
+     * Clears a parameter on the material if it exists. This helper checks that
+     * the material definition declares the parameter and that it currently has
+     * a value before attempting to clear it. Avoids unnecessary exceptions from
+     * the underlying Material class.
+     *
+     * @param m    material on which to clear a parameter
+     * @param name the name of the parameter to clear
+     */
+    private static void safeClearParam(Material m, String name) {
+        if (m == null || name == null) {
+            return;
+        }
+        if (m.getMaterialDef() == null) {
+            return;
+        }
+        if (m.getMaterialDef().getMaterialParam(name) == null) {
+            return;
+        }
+        if (m.getParam(name) == null) {
+            return;
+        }
+        m.clearParam(name);
     }
 
     /**
@@ -282,30 +315,7 @@ public final class SkyModule {
         }
     }
 
-    /**
-     * Clears a parameter on the material if it exists. This helper checks that
-     * the material definition declares the parameter and that it currently has
-     * a value before attempting to clear it. Avoids unnecessary exceptions from
-     * the underlying Material class.
-     *
-     * @param m    material on which to clear a parameter
-     * @param name the name of the parameter to clear
-     */
-    private static void safeClearParam(Material m, String name) {
-        if (m == null || name == null) {
-            return;
-        }
-        if (m.getMaterialDef() == null) {
-            return;
-        }
-        if (m.getMaterialDef().getMaterialParam(name) == null) {
-            return;
-        }
-        if (m.getParam(name) == null) {
-            return;
-        }
-        m.clearParam(name);
-    }
+
 
     /**
      * Assigns the first sky texture to the dome. The supplied asset may be a
@@ -411,7 +421,9 @@ public final class SkyModule {
                 SKYDOME_MODEL_ASSET, (skydomeGeoms == null ? 0 : skydomeGeoms.length));
     }
 
-    /** Assigns the provided material to all geometries inside the loaded dome. */
+    /**
+     * Assigns the provided material to all geometries inside the loaded dome.
+     */
     private void bindSkyMaterial(Spatial root, Material m) {
         ArrayList<Geometry> list = new ArrayList<>(8);
 

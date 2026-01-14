@@ -1,5 +1,5 @@
-// FILE: org/foxesworld/kalitech/engine/modules/render/ShadowSnapper.java
-package org.foxesworld.kalitech.engine.modules.render;
+// FILE: org/foxesworld/kalitech/engine/modules/render/Snapper.java
+package org.foxesworld.kalitech.engine.modules.render.shadow;
 
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
@@ -8,7 +8,7 @@ import com.jme3.renderer.Camera;
  * Snaps a parallel-projection camera to a shadow-map texel grid (world-units).
  * This removes shimmering caused by sub-texel movement.
  */
-public final class ShadowSnapper {
+public final class Snapper {
 
     private final Vector3f tmp = new Vector3f();
 
@@ -18,7 +18,8 @@ public final class ShadowSnapper {
     private final Vector3f tmpLeft = new Vector3f();
     private final Vector3f tmpUp = new Vector3f();
     private final Vector3f delta = new Vector3f();
-    public ShadowSnapper(int shadowMapSize) {
+
+    public Snapper(int shadowMapSize) {
         if (shadowMapSize <= 0) throw new IllegalArgumentException("shadowMapSize must be > 0");
         this.shadowMapSize = shadowMapSize;
     }
