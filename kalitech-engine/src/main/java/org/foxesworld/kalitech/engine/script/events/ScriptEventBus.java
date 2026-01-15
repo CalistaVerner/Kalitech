@@ -1,10 +1,12 @@
-// FILE: ScriptEventBus.java
+// FILE: org/foxesworld/kalitech/engine/script/events/ScriptEventBus.java
 package org.foxesworld.kalitech.engine.script.events;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.Value;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -14,22 +16,28 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * ScriptEventBus (REDengine-style, AAA-contract) — BACKWARD COMPATIBLE.
  * <p>
- *  Keeps legacy API + behavior:
- * - emit(name, payload) enqueues raw event
- * - on(name, fn) / once(name, fn) => fn(payload?) exactly as before
- * - off(name, id), clear(name), clearAll(), pump(...)
- * <p>
- *  Adds AAA-contract API (envelope):
- * - emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)
- * - onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)
- * - onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)
- * - onPattern/oncePattern(pattern, fn, phase, priority) => fn(EventEnvelope)
- * - off(token) => token-based unsubscribe (topic not required)
- * - history ring buffer: setHistoryMax(), getHistory()
- * <p>
+ * Keeps legacy API + behavior:
+ * <ul>
+ *   <li>emit(name, payload) enqueues raw event</li>
+ *   <li>on(name, fn) / once(name, fn) => fn(payload?) exactly as before</li>
+ *   <li>off(name, id), clear(name), clearAll(), pump(...)</li>
+ * </ul>
+ *
+ * Adds AAA-contract API (envelope):
+ * <ul>
+ *   <li>emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)</li>
+ *   <li>onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)</li>
+ *   <li>onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)</li>
+ *   <li>onPattern/oncePattern(pattern, fn, phase, priority) => fn(EventEnvelope)</li>
+ *   <li>off(token) => token-based unsubscribe (topic not required)</li>
+ *   <li>history ring buffer: setHistoryMax(), getHistory()</li>
+ * </ul>
+ *
  * Threading model:
- * - emit/emitEvent are thread-safe and only enqueue
- * - pump() must be called from main thread once per frame (or more) to dispatch
+ * <ul>
+ *   <li>emit/emitEvent are thread-safe and only enqueue</li>
+ *   <li>pump() must be called from main thread once per frame (or more) to dispatch</li>
+ * </ul>
  */
 public final class ScriptEventBus {
 
@@ -41,28 +49,48 @@ public final class ScriptEventBus {
     private final Queue<QEvent> queue = new ConcurrentLinkedQueue<>();
     private final AtomicInteger nextSubId = new AtomicInteger(1);
     private final AtomicLong nextSeq = new AtomicLong(1);
+
     /**
      * token -> location of subscription (for off(token))
      */
     private final ConcurrentHashMap<Integer, SubRef> byToken = new ConcurrentHashMap<>();
+
     /**
      * exact-topic legacy handlers
      */
     private final Map<String, LegacySubList> legacyHandlers = new ConcurrentHashMap<>();
-    // exact-topic AAA listeners: topic -> [phase0, phase1, phase2] lists
+
+    /**
+     * exact-topic AAA listeners: topic -> [phase0, phase1, phase2] lists
+     */
     private final Map<String, OrderedSubList[]> eventTopic = new ConcurrentHashMap<>();
 
-    // -------------------- internal event queue --------------------
     // any AAA listeners by phase
-    private final OrderedSubList[] any = new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()};
-    // pattern AAA listeners by phase
-    private final OrderedSubList[] patterns = new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()};
+    private final OrderedSubList[] any = new OrderedSubList[]{
+            new OrderedSubList(), new OrderedSubList(), new OrderedSubList()
+    };
 
-    // -------------------- ids/tokens --------------------
+    // pattern AAA listeners by phase
+    private final OrderedSubList[] patterns = new OrderedSubList[]{
+            new OrderedSubList(), new OrderedSubList(), new OrderedSubList()
+    };
+
+    // -------------------- legacy payload normalization --------------------
+
+    /**
+     * Topic-specific legacy adapters. They transform arbitrary engine objects into JS-friendly maps
+     * (stable property access, predictable field names).
+     */
+    private final ConcurrentHashMap<String, LegacyPayloadAdapter> legacyAdapters = new ConcurrentHashMap<>();
+
     private final Object histLock = new Object();
     private final ArrayDeque<EventEnvelope> history = new ArrayDeque<>();
     private volatile TimeProvider time = TimeProvider.SYSTEM;
     private volatile int historyMax = 0;
+
+    public ScriptEventBus() {
+        installDefaultLegacyAdapters();
+    }
 
     private static String normalizeTopic(String t) {
         String s = t.trim();
@@ -71,6 +99,43 @@ public final class ScriptEventBus {
         while (s.endsWith(".")) s = s.substring(0, s.length() - 1);
         while (s.contains("..")) s = s.replace("..", ".");
         return s;
+    }
+
+    /**
+     * Register (or replace) a legacy payload adapter for exact topic.
+     * Adapter must be deterministic and never throw.
+     */
+    public void setLegacyAdapter(String topic, LegacyPayloadAdapter adapter) {
+        if (topic == null) return;
+        String key = normalizeTopic(topic);
+        if (key.isEmpty()) return;
+        if (adapter == null) legacyAdapters.remove(key);
+        else legacyAdapters.put(key, adapter);
+    }
+
+    private void installDefaultLegacyAdapters() {
+        LegacyPayloadAdapter collision = new CollisionLegacyAdapter();
+        legacyAdapters.put("engine.physics.collision.begin", collision);
+        legacyAdapters.put("engine.physics.collision.end", collision);
+        legacyAdapters.put("engine.physics.collision.persist", collision);
+    }
+
+    public void clearAll() {
+        legacyHandlers.clear();
+        eventTopic.clear();
+        any[0].clear();
+        any[1].clear();
+        any[2].clear();
+        patterns[0].clear();
+        patterns[1].clear();
+        patterns[2].clear();
+        byToken.clear();
+        queue.clear();
+        legacyAdapters.clear();
+        installDefaultLegacyAdapters();
+        synchronized (histLock) {
+            history.clear();
+        }
     }
 
     // -------------------- legacy subscriptions (exact topic, raw payload) --------------------
@@ -181,7 +246,6 @@ public final class ScriptEventBus {
         legacyHandlers.remove(key);
         OrderedSubList[] arr = eventTopic.remove(key);
         if (arr != null) {
-            // also remove from token map
             for (int pi = 0; pi < 3; pi++) {
                 OrderedSubList l = arr[pi];
                 for (int i = 0; i < l.size(); i++) {
@@ -192,22 +256,37 @@ public final class ScriptEventBus {
         }
     }
 
-    // -------------------- history ring buffer --------------------
+    private void dispatchLegacy(String topic, Object payload) {
+        LegacySubList list = legacyHandlers.get(topic);
+        if (list == null || list.isEmpty()) return;
 
-    public void clearAll() {
-        legacyHandlers.clear();
-        eventTopic.clear();
-        any[0].clear();
-        any[1].clear();
-        any[2].clear();
-        patterns[0].clear();
-        patterns[1].clear();
-        patterns[2].clear();
-        byToken.clear();
-        queue.clear();
-        synchronized (histLock) {
-            history.clear();
+        Object normalized = normalizeLegacyPayload(topic, payload);
+
+        for (int i = 0; i < list.size(); ) {
+            LegacySub s = list.get(i);
+            if (s == null) {
+                i++;
+                continue;
+            }
+
+            try {
+                if (normalized == null) s.fn.execute();
+                else s.fn.execute(normalized);
+            } catch (Throwable t) {
+                String pCls = (normalized == null) ? "null" : normalized.getClass().getName();
+                log.error("Event handler failed (legacy): {} (subId={}, payloadClass={})", topic, s.id, pCls, t);
+            }
+
+            if (s.once) {
+                list.removeById(s.id);
+                byToken.remove(s.id);
+                continue;
+            }
+
+            i++;
         }
+
+        if (list.isEmpty()) legacyHandlers.remove(topic, list);
     }
 
     public int onEvent(String topic, Value fn, Phase phase, int priority) {
@@ -232,8 +311,6 @@ public final class ScriptEventBus {
         if (p.isEmpty()) return 0;
         return addAaaSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, false, phase, priority);
     }
-
-    // -------------------- legacy emit API --------------------
 
     public int oncePattern(String pattern, Value fn, Phase phase, int priority) {
         if (pattern == null) return 0;
@@ -278,8 +355,6 @@ public final class ScriptEventBus {
         return false;
     }
 
-    // -------------------- AAA emit API --------------------
-
     private int addAaaTopic(String topic, Value fn, boolean once, Phase phase, int priority) {
         if (topic == null) return 0;
         String key = normalizeTopic(topic);
@@ -299,8 +374,6 @@ public final class ScriptEventBus {
         byToken.put(id, new SubRef(SubKind.EVENT_TOPIC, key, phaseIdx, id));
         return id;
     }
-
-    // -------------------- legacy subscribe API --------------------
 
     private int addAaaSpecial(SubKind kind, String key, Matcher matcher, Value fn, boolean once, Phase phase, int priority) {
         if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
@@ -353,12 +426,8 @@ public final class ScriptEventBus {
     }
 
     private void dispatch(QEvent qe) {
-        // 1) legacy exact-topic listeners (raw payload or no args) — ALWAYS for both emit() and emitEvent()
         dispatchLegacy(qe.topic, qe.payload);
 
-        // 2) AAA envelope listeners:
-        //    - if emitEvent() -> always
-        //    - if legacy emit() -> still create envelope for any/pattern/event-topic listeners (telemetry-friendly)
         EventEnvelope env = buildEnvelope(qe.topic, qe.payload, qe.metaOrNull);
         record(env);
 
@@ -367,56 +436,44 @@ public final class ScriptEventBus {
         dispatchAaa(env, Phase.POST);
     }
 
-    private void dispatchLegacy(String topic, Object payload) {
-        LegacySubList list = legacyHandlers.get(topic);
-        if (list == null || list.isEmpty()) return;
+    private Object normalizeLegacyPayload(String topic, Object payload) {
+        if (payload == null) return null;
 
-        for (int i = 0; i < list.size(); ) {
-            LegacySub s = list.get(i);
-            if (s == null) {
-                i++;
-                continue;
-            }
+        LegacyPayloadAdapter adapter = legacyAdapters.get(topic);
+        if (adapter == null) return payload;
 
-            try {
-                if (payload == null) s.fn.execute();
-                else s.fn.execute(payload);
-            } catch (Throwable t) {
-                log.error("Event handler failed (legacy): {} (subId={})", topic, s.id, t);
-            }
-
-            if (s.once) {
-                list.removeById(s.id);
-                byToken.remove(s.id);
-                continue; // swap-last semantics -> keep i
-            }
-
-            i++;
+        try {
+            Object out = adapter.adapt(topic, payload);
+            return (out != null) ? out : null;
+        } catch (Throwable t) {
+            log.warn("Legacy payload adapter failed: topic={} adapter={} payloadClass={}",
+                    topic, adapter.getClass().getName(), payload.getClass().getName(), t);
+            return payload;
         }
+    }
 
-        if (list.isEmpty()) legacyHandlers.remove(topic, list);
+    /**
+     * Adapter contract: convert raw payload into a JS-friendly object.
+     * Must never throw; return original payload if unsure.
+     */
+    @FunctionalInterface
+    public interface LegacyPayloadAdapter {
+        Object adapt(String topic, Object payload);
     }
 
     private void dispatchAaa(EventEnvelope env, Phase phase) {
         int pi = phase.ordinal();
 
-        // exact topic AAA
         OrderedSubList[] tLists = eventTopic.get(env.topic);
         if (tLists != null) runAaaList(tLists[pi], env, SubKind.EVENT_TOPIC);
 
-        // any
         runAaaList(any[pi], env, SubKind.ANY);
-
-        // patterns
         runAaaList(patterns[pi], env, SubKind.PATTERN);
     }
-
-    // -------------------- AAA subscribe API --------------------
 
     private void runAaaList(OrderedSubList list, EventEnvelope env, SubKind kind) {
         if (list == null || list.isEmpty()) return;
 
-        // NOTE: OrderedSubList removal shifts. We'll iterate with index and adjust.
         for (int i = 0; i < list.size(); ) {
             AaaSub s = list.get(i);
             if (s == null) {
@@ -436,9 +493,7 @@ public final class ScriptEventBus {
             }
 
             if (s.once) {
-                // token-based off ensures correct removal no matter where it lives
                 off(s.id);
-                // list has shifted; stay at same i
                 continue;
             }
 
@@ -449,7 +504,6 @@ public final class ScriptEventBus {
     private EventEnvelope buildEnvelope(String topic, Object payload, Meta metaIn) {
         Meta m = (metaIn != null) ? metaIn : new Meta();
 
-        // Fill guaranteed fields
         if (m.ts == 0L) m.ts = time.nowMs();
         if (m.frame == 0L) m.frame = time.frame();
         if (m.thread == null) m.thread = Thread.currentThread().getName();
@@ -498,13 +552,13 @@ public final class ScriptEventBus {
      * Stable meta for telemetry/debug. Fill what you have; bus fills missing ts/thread/seq.
      */
     public static final class Meta {
-        public long ts;          // ms since epoch or custom clock
-        public long frame;       // frame index (optional)
-        public String thread;    // filled automatically if null
-        public long seq;         // filled automatically if 0
-        public String source;    // e.g. "physics", "world", "scripts"
-        public String world;     // optional world id/name
-        public String entityUuid; // optional entity
+        public long ts;
+        public long frame;
+        public String thread;
+        public long seq;
+        public String source;
+        public String world;
+        public String entityUuid;
     }
 
     /**
@@ -522,15 +576,13 @@ public final class ScriptEventBus {
         }
     }
 
-    // -------------------- pump/dispatch (budget-aware) --------------------
-
     private record QEvent(String topic, Object payload, Meta metaOrNull, boolean isEnvelope) {
     }
 
     private static final class SubRef {
         final SubKind kind;
-        final String key; // topic for topic kinds; null for any/pattern
-        final int phaseIdx; // 0..2 for AAA lists; -1 for legacy
+        final String key;
+        final int phaseIdx;
         final int subId;
 
         SubRef(SubKind kind, String key, int phaseIdx, int subId) {
@@ -553,11 +605,6 @@ public final class ScriptEventBus {
         }
     }
 
-    /**
-     * Small, allocation-light subscription list.
-     * Not thread-safe by itself; ScriptEventBus controls access patterns (single-thread dispatch).
-     * NOTE: legacy list removal uses swap-last (as before).
-     */
     private static final class LegacySubList {
         private LegacySub[] arr = new LegacySub[8];
         private int size = 0;
@@ -649,9 +696,9 @@ public final class ScriptEventBus {
             int i = 0;
             for (; i < p.length; i++) {
                 String seg = p[i];
-                if ("**".equals(seg)) return true;         // match the rest
+                if ("**".equals(seg)) return true;
                 if (i >= t.length) return false;
-                if ("*".equals(seg)) continue;             // one segment wildcard
+                if ("*".equals(seg)) continue;
                 if (!seg.equals(t[i])) return false;
             }
             return i == t.length;
@@ -663,11 +710,9 @@ public final class ScriptEventBus {
         }
     }
 
-    // -------------------- misc --------------------
-
     private static final class AaaSub {
         final int id;
-        final Value fn;          // called with (EventEnvelope)
+        final Value fn;
         final boolean once;
         final int priority;
         final Phase phase;
@@ -683,10 +728,6 @@ public final class ScriptEventBus {
         }
     }
 
-    /**
-     * Ordered list by priority DESC.
-     * Removal keeps order (shift), because order matters for AAA.
-     */
     private static final class OrderedSubList {
         private AaaSub[] arr = new AaaSub[8];
         private int size = 0;
@@ -708,7 +749,6 @@ public final class ScriptEventBus {
             if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
 
             int i = size;
-            // insert so that higher priority comes first
             while (i > 0) {
                 AaaSub prev = arr[i - 1];
                 if (prev == null || prev.priority >= s.priority) break;
@@ -725,7 +765,6 @@ public final class ScriptEventBus {
                 AaaSub s = arr[i];
                 if (s != null && s.id == id) {
                     int last = size - 1;
-                    // shift left from i
                     if (i < last) System.arraycopy(arr, i + 1, arr, i, last - i);
                     arr[last] = null;
                     size = last;
@@ -738,6 +777,128 @@ public final class ScriptEventBus {
         void clear() {
             Arrays.fill(arr, 0, size, null);
             size = 0;
+        }
+    }
+
+    // -------------------- built-in legacy adapters --------------------
+
+    /**
+     * Normalizes collision payload into a stable map:
+     * { a: <obj>, b: <obj>, step: int, dt: double, contact: <obj> }
+     */
+    private static final class CollisionLegacyAdapter implements LegacyPayloadAdapter {
+
+        private static Object firstPresent(Map<?, ?> m, String... keys) {
+            for (String k : keys) {
+                if (m.containsKey(k)) return m.get(k);
+            }
+            return null;
+        }
+
+        private static Object reflectFirst(Object obj, String... names) {
+            for (String n : names) {
+                Object v = getFieldValue(obj, n);
+                if (v != null) return v;
+                v = callGetter(obj, n);
+                if (v != null) return v;
+            }
+            return null;
+        }
+
+        private static Object getFieldValue(Object obj, String fieldName) {
+            try {
+                Field f = findField(obj.getClass(), fieldName);
+                if (f == null) return null;
+                f.setAccessible(true);
+                return f.get(obj);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static Field findField(Class<?> c, String name) {
+            Class<?> cur = c;
+            while (cur != null && cur != Object.class) {
+                try {
+                    return cur.getDeclaredField(name);
+                } catch (NoSuchFieldException e) {
+                    cur = cur.getSuperclass();
+                }
+            }
+            return null;
+        }
+
+        private static Object callGetter(Object obj, String nameOrMethod) {
+            try {
+                String methodName = nameOrMethod;
+                if (!nameOrMethod.startsWith("get") && !nameOrMethod.startsWith("is")) {
+                    methodName = "get" + Character.toUpperCase(nameOrMethod.charAt(0)) + nameOrMethod.substring(1);
+                }
+                Method m = findNoArgMethod(obj.getClass(), methodName);
+                if (m == null) return null;
+                m.setAccessible(true);
+                return m.invoke(obj);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static Method findNoArgMethod(Class<?> c, String name) {
+            Class<?> cur = c;
+            while (cur != null && cur != Object.class) {
+                for (Method m : cur.getDeclaredMethods()) {
+                    if (m.getName().equals(name) && m.getParameterCount() == 0) return m;
+                }
+                cur = cur.getSuperclass();
+            }
+            return null;
+        }
+
+        @Override
+        public Object adapt(String topic, Object payload) {
+            if (payload == null) return null;
+
+            if (payload instanceof Map<?, ?> m) {
+                Object a = firstPresent(m, "a", "objA", "A", "first", "0");
+                Object b = firstPresent(m, "b", "objB", "B", "second", "1");
+                Object step = firstPresent(m, "step", "frame", "tick");
+                Object dt = firstPresent(m, "dt", "delta", "timeStep");
+                Object contact = firstPresent(m, "contact", "manifold", "point", "info");
+
+                HashMap<String, Object> out = new HashMap<>(8);
+                out.put("a", a);
+                out.put("b", b);
+                if (step != null) out.put("step", step);
+                if (dt != null) out.put("dt", dt);
+                if (contact != null) out.put("contact", contact);
+                return out;
+            }
+
+            if (payload instanceof Object[] arr) {
+                HashMap<String, Object> out = new HashMap<>(8);
+                if (arr.length > 0) out.put("a", arr[0]);
+                if (arr.length > 1) out.put("b", arr[1]);
+                if (arr.length > 2) out.put("contact", arr[2]);
+                return out;
+            }
+
+            Object a = reflectFirst(payload, "a", "objA", "A", "first", "getA", "getObjA", "getObjectA", "getNodeA", "getFirst");
+            Object b = reflectFirst(payload, "b", "objB", "B", "second", "getB", "getObjB", "getObjectB", "getNodeB", "getSecond");
+            Object step = reflectFirst(payload, "step", "frame", "tick", "getStep", "getFrame", "getTick");
+            Object dt = reflectFirst(payload, "dt", "delta", "timeStep", "getDt", "getDelta", "getTimeStep");
+            Object contact = reflectFirst(payload, "contact", "manifold", "point", "info", "getContact", "getManifold", "getPoint", "getInfo");
+
+            if (a == null && b == null && step == null && dt == null && contact == null) {
+                return payload;
+            }
+
+            HashMap<String, Object> out = new HashMap<>(8);
+            out.put("a", a);
+            out.put("b", b);
+            if (step != null) out.put("step", step);
+            if (dt != null) out.put("dt", dt);
+            if (contact != null) out.put("contact", contact);
+            return out;
         }
     }
 }

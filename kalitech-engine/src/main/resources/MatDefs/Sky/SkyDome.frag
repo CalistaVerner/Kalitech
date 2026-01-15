@@ -37,6 +37,19 @@ uniform float m_MoonDisk;
 
 uniform float m_Exposure;
 
+// ---- Clouds ----
+uniform bool  m_CloudsEnabled;
+uniform float m_Time;
+uniform float m_CloudsScale;
+uniform vec2  m_CloudsSpeed;
+uniform float m_CloudsCoverage;
+uniform float m_CloudsSharpness;
+uniform float m_CloudsOpacity;
+uniform float m_CloudsHeightBlend;
+uniform vec4  m_CloudsColor;
+uniform float m_CloudsLightPow;
+uniform float m_CloudsAmbient;
+
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
 vec3 safeNormalize(vec3 v) {
@@ -62,33 +75,27 @@ vec3 tonemapReinhard(vec3 x) {
 #define SKY_UV_MODE 2
 #endif
 
-// For sky panoramas, forcing LOD0 is a pragmatic fix.
 #ifndef SKY_FORCE_LOD0
 #define SKY_FORCE_LOD0 1
 #endif
 
-const float INV_PI     = 0.3183098861837907;// 1 / PI
-const float INV_TWO_PI = 0.15915494309189535;// 1 / (2*PI)
+const float INV_PI     = 0.3183098861837907;
+const float INV_TWO_PI = 0.15915494309189535;
 
 float clamp01Safe(float x) {
-    // Avoid sampling exactly at 0/1 to reduce seam bleed in bilinear filtering
     return clamp(x, 0.001, 0.999);
 }
 
 vec2 equirectUvAnalytic(vec3 dirN) {
     float u = atan(dirN.z, dirN.x) * INV_TWO_PI + 0.5;
     float v = asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5;
-
-    // DO NOT use fract(u): it forces repetition and causes visible duplication.
     return vec2(clamp01Safe(u), clamp01Safe(v));
 }
 
 vec2 skyUv2D(vec3 dirN) {
     #if SKY_UV_MODE == 1
-    // Mesh UVs can be outside [0..1] depending on exporter; clamp to prevent repeat.
     return vec2(clamp01Safe(vUv.x), clamp01Safe(vUv.y));
     #elif SKY_UV_MODE == 2
-    // U from mesh (seam padding friendly), V from analytic
     float v = asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5;
     return vec2(clamp01Safe(vUv.x), clamp01Safe(v));
     #else
@@ -122,6 +129,88 @@ vec3 sampleSkyMixed(vec3 dirN) {
     return mix(a, b, sb);
 }
 
+// ----------------- Clouds (procedural FBM) -----------------
+float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float noise2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash12(i);
+    float b = hash12(i + vec2(1.0, 0.0));
+    float c = hash12(i + vec2(0.0, 1.0));
+    float d = hash12(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    mat2 m = mat2(1.6, -1.2, 1.2, 1.6);
+    for (int i = 0; i < 5; i++) {
+        v += a * noise2(p);
+        p = m * p;
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec2 cloudUv(vec3 dirN) {
+    // stable lat-long UV for clouds independent from sky texture UV
+    float u = atan(dirN.z, dirN.x) * INV_TWO_PI + 0.5;
+    float v = asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5;
+
+    // tiling for clouds is fine; it avoids stretching and keeps motion stable
+    u = fract(u);
+    v = clamp(v, 0.0, 1.0);
+    return vec2(u, v);
+}
+
+vec3 applyClouds(vec3 skyColor, vec3 dirN, vec3 sunDirN) {
+    if (!m_CloudsEnabled) return skyColor;
+
+    float up = saturate(dirN.y * 0.5 + 0.5);
+
+    // fade clouds near horizon (prevents harsh banding)
+    float heightBlend = saturate(m_CloudsHeightBlend);
+    float horizonFade = smoothstep(0.0, 1.0, (up - 0.08) / max(0.001, 1.0 - 0.08));
+    horizonFade = mix(1.0, horizonFade, heightBlend);
+
+    vec2 uv = cloudUv(dirN);
+    vec2 motion = m_CloudsSpeed * m_Time;
+    float scale = max(0.001, m_CloudsScale);
+
+    // main + detail layers
+    float n1 = fbm((uv * scale) + motion);
+    float n2 = fbm((uv * (scale * 2.25)) - motion * 1.37);
+
+    float density = (n1 * 0.72 + n2 * 0.28);
+
+    // coverage shifts average density to control overall cloud amount
+    float coverage = saturate(m_CloudsCoverage);
+    density = density - (1.0 - coverage);
+
+    // sharpness controls edge hardness
+    float sharp = max(0.001, m_CloudsSharpness);
+    float mask = saturate(density * sharp);
+    mask = smoothstep(0.0, 1.0, mask);
+
+    // lighting: simple forward scattering approximation
+    float sunFacing = saturate(dot(dirN, sunDirN));
+    float light = pow(sunFacing, max(0.25, m_CloudsLightPow));
+    float ambient = saturate(m_CloudsAmbient);
+
+    vec3 cloudCol = m_CloudsColor.rgb;
+    vec3 lit = cloudCol * (ambient + light * saturate(m_SunIntensity));
+
+    float opacity = saturate(m_CloudsOpacity) * mask * horizonFade;
+    return mix(skyColor, lit, opacity);
+}
+
 void main() {
     vec3 dir = safeNormalize(vDir);
 
@@ -151,6 +240,9 @@ void main() {
         tex = tonemapReinhard(tex);
         color = mix(color, tex, tb);
     }
+
+    // ----------------- clouds -----------------
+    color = applyClouds(color, dir, sunDir);
 
     color *= max(0.05, m_Exposure);
     fragColor = vec4(color, 1.0);

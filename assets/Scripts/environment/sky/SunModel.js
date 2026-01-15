@@ -9,9 +9,15 @@ class SunModel {
 
         this.nightIntensity = 0.02;
         this.dayIntensity = 1.35;
-        this.sunsetWarmth = 0.35;
 
+        this.sunsetWarmth = 0.35;
         this.baseSun = { r: 1.0, g: 0.98, b: 0.90 };
+
+        this.dayStart = 0.02;
+        this.dayFull = 0.25;
+
+        this.twilightStart = -0.08;
+        this.twilightEnd = 0.10;
     }
 
     applyCfg(cfg) {
@@ -35,21 +41,48 @@ class SunModel {
             if (c.g != null) this.baseSun.g = +c.g;
             if (c.b != null) this.baseSun.b = +c.b;
         }
+
+        if (cfg.dayStart != null) {
+            const v = +cfg.dayStart;
+            if (Number.isFinite(v)) this.dayStart = v;
+        }
+        if (cfg.dayFull != null) {
+            const v = +cfg.dayFull;
+            if (Number.isFinite(v)) this.dayFull = v;
+        }
+
+        if (cfg.twilightStart != null) {
+            const v = +cfg.twilightStart;
+            if (Number.isFinite(v)) this.twilightStart = v;
+        }
+        if (cfg.twilightEnd != null) {
+            const v = +cfg.twilightEnd;
+            if (Number.isFinite(v)) this.twilightEnd = v;
+        }
     }
 
     evaluate(time01) {
         const phase = SkyMath.wrap(+time01, 0, 1);
 
-        const alt = Math.sin((phase * Math.PI * 2.0) - Math.PI * 0.5);
+        const altSin = Math.sin((phase * Math.PI * 2.0) - Math.PI * 0.5);
+
         const altitude =
-            SkyMath.lerp(-0.25, 1.05, (alt + 1.0) * 0.5) * (Math.PI / 2.0) -
+            SkyMath.lerp(-0.25, 1.05, (altSin + 1.0) * 0.5) * (Math.PI / 2.0) -
             (Math.PI / 2.0) * 0.15;
 
         const azimuth = (phase * Math.PI * 2.0) + SkyMath.degToRad(this.azimuthDeg);
         const sunPosDir = SkyMath.dirFromAltAz(altitude, azimuth);
 
         const above = SkyMath.clamp((sunPosDir.y + 0.02) / 0.45, 0, 1);
-        const dayFactor = SkyMath.smoothstep(0.02, 0.25, above);
+
+        const ds0 = this.dayStart;
+        const ds1 = this.dayFull;
+        const dayFactor = SkyMath.smoothstep(Math.min(ds0, ds1), Math.max(ds0, ds1), above);
+
+        const tw0 = this.twilightStart;
+        const tw1 = this.twilightEnd;
+        const twilight = SkyMath.smoothstep(Math.min(tw0, tw1), Math.max(tw0, tw1), sunPosDir.y);
+
         const noonBoost = SkyMath.smoothstep(0.25, 1.0, above);
 
         const intensity =
@@ -69,6 +102,9 @@ class SunModel {
 
         return {
             dayFactor,
+            twilight,
+            above,
+            altitude,
             isDay: dayFactor > 0.08,
             sunPosDir,
             rayDir,

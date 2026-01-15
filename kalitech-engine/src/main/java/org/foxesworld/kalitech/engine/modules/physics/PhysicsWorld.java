@@ -40,11 +40,11 @@ final class PhysicsWorld {
         if (surfaceId <= 0) return;
         Integer id = S.bodyIdBySurface.get(surfaceId);
         if (id != null) {
-            // remove uses bodies service normally, но чтобы не делать цикл зависимостей —
-            // оставляем простой вызов через handle remove на уровне world:
+            // remove uses bodies service normally, but to avoid circular dependencies
+            // keep a direct minimal remove at world level.
             PhysicsBodyHandle h = S.byId.get(id);
             if (h != null) {
-                // прямой remove минимумом операций
+                // direct minimal removal
                 removeBodyDirect(id, h);
             }
         }
@@ -54,6 +54,7 @@ final class PhysicsWorld {
         S.pendingAdd.clear();
         S.pendingRemove.clear();
         S.shapeCache.clear();
+        S.bodyState.clear();
 
         // contacts live in PhysicsContacts (not in PhysicsState)
         //contacts.currContacts.clear();
@@ -97,6 +98,7 @@ final class PhysicsWorld {
         RigidBodyControl rb = h.__raw();
 
         S.byId.remove(id);
+        S.bodyState.remove(id);
         S.bodyIdBySurface.remove(surfaceId, id);
         S.idByControl.remove(rb, id);
         S.unindexCollisionObject(h);

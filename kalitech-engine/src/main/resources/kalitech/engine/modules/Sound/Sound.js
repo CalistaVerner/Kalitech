@@ -6,8 +6,20 @@
  * Sound builtin.
  * Contract:
  *   module.exports(engine, K) => api
- *   module.exports.META = { name, globalName, version, description, engineMin }
+ *   module.exports.META = { moduleId, globalName, version, description, engineMin }
  */
+
+function s(v) {
+    return String(v == null ? "" : v);
+}
+
+function safeCall(fn) {
+    try {
+        return fn();
+    } catch (_) {
+        return null;
+    }
+}
 
 class SoundInstance {
     constructor(engine, node, api) {
@@ -52,6 +64,7 @@ class SoundInstance {
 
     pos(x, y, z) {
         if (!this._api.setPosition) return this;
+
         let px, py, pz;
         if (Array.isArray(x)) {
             px = x[0];
@@ -66,6 +79,7 @@ class SoundInstance {
             py = y;
             pz = z;
         }
+
         this._api.setPosition(this._node, Number(px) || 0, Number(py) || 0, Number(pz) || 0);
         return this;
     }
@@ -107,6 +121,7 @@ class SoundInstance {
 
     direction(x, y, z) {
         if (!this._api.setDirection) return this;
+
         let dx, dy, dz;
         if (Array.isArray(x)) {
             dx = x[0];
@@ -121,12 +136,14 @@ class SoundInstance {
             dy = y;
             dz = z;
         }
+
         this._api.setDirection(this._node, Number(dx) || 0, Number(dy) || 0, Number(dz) || 0);
         return this;
     }
 
     velocity(x, y, z) {
         if (!this._api.setVelocity) return this;
+
         let vx, vy, vz;
         if (Array.isArray(x)) {
             vx = x[0];
@@ -141,6 +158,7 @@ class SoundInstance {
             vy = y;
             vz = z;
         }
+
         this._api.setVelocity(this._node, Number(vx) || 0, Number(vy) || 0, Number(vz) || 0);
         return this;
     }
@@ -155,6 +173,14 @@ class SoundRegistry {
     constructor(engine, K) {
         this.engine = engine;
         this.K = K || (globalThis.__kalitech || Object.create(null));
+
+        this._bankLoaded = false;
+        this._bankLoadAttempted = false;
+
+        this._bankKey = "sounds";
+        this._bankPath = "data/sounds.json";
+
+        this._tryAutoLoadBank();
     }
 
     api() {
@@ -165,7 +191,32 @@ class SoundRegistry {
         return soundApi;
     }
 
+    _tryAutoLoadBank() {
+        if (this._bankLoaded) return true;
+        if (this._bankLoadAttempted) return false;
+
+        this._bankLoadAttempted = true;
+
+        const soundApi = this.api();
+        if (typeof soundApi.loadBank !== "function") return false;
+
+        const txt = ENGINE.assets().readText(this._bankPath);
+        const obj = JSON.parse(txt);
+
+        soundApi.loadBank(obj);
+
+        this._bankLoaded = true;
+        return true;
+    }
+
+    _ensureBankLoaded() {
+        if (this._bankLoaded) return true;
+        this._tryAutoLoadBank();
+        return this._bankLoaded;
+    }
+
     create(cfg) {
+        this._ensureBankLoaded();
         const soundApi = this.api();
         const node = soundApi.create(cfg);
         return new SoundInstance(this.engine, node, soundApi);
@@ -176,6 +227,52 @@ class SoundRegistry {
         s.play();
         return s;
     }
+
+    loadBank(bankObj) {
+        const soundApi = this.api();
+        if (typeof soundApi.loadBank !== "function") {
+            throw new Error("[SND] engine.sound().loadBank(bankObj) is required for event sound bank");
+        }
+        soundApi.loadBank(bankObj);
+        this._bankLoaded = true;
+        this._bankLoadAttempted = true;
+        return this;
+    }
+
+    clearBank() {
+        const soundApi = this.api();
+        if (typeof soundApi.clearBank === "function") soundApi.clearBank();
+        this._bankLoaded = false;
+        this._bankLoadAttempted = false;
+        return this;
+    }
+
+    listEvents() {
+        this._ensureBankLoaded();
+        const soundApi = this.api();
+        if (typeof soundApi.listEvents !== "function") return [];
+        return soundApi.listEvents();
+    }
+
+    createEvent(eventKey, overrides) {
+        this._ensureBankLoaded();
+        const soundApi = this.api();
+        if (typeof soundApi.createEvent !== "function") {
+            throw new Error("[SND] engine.sound().createEvent(eventKey, overrides) is required");
+        }
+        const node = soundApi.createEvent(s(eventKey), overrides || null);
+        return new SoundInstance(this.engine, node, soundApi);
+    }
+
+    playEvent(eventKey, overrides) {
+        this._ensureBankLoaded();
+        const soundApi = this.api();
+        if (typeof soundApi.playEvent !== "function") {
+            throw new Error("[SND] engine.sound().playEvent(eventKey, overrides) is required");
+        }
+        const node = soundApi.playEvent(s(eventKey), overrides || null);
+        return new SoundInstance(this.engine, node, soundApi);
+    }
 }
 
 // factory(engine, K) => api
@@ -184,12 +281,11 @@ function create(engine, K) {
     return new SoundRegistry(engine, K);
 }
 
-// META (adult contract)
 create.META = {
     moduleId: "sound",
     globalName: "SND",
-    version: "1.0.0",
-    description: "Sound registry & instances wrapper (positional, reverb, direction, velocity)",
+    version: "1.1.0",
+    description: "Sound registry & instances wrapper + event sound bank autoload",
     engineMin: "0.1.0"
 };
 

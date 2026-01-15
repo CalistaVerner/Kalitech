@@ -32,7 +32,7 @@ public final class EngineApiImpl implements EngineApi {
 
     private final PerfProfiler perf;
 
-    private final SimpleApplication app;
+    private final KalitechApplication app;
     private final AssetManager assets;
 
     private final ScriptEventBus bus; // may be null
@@ -98,7 +98,7 @@ public final class EngineApiImpl implements EngineApi {
 
         this.perf = new PerfProfiler(LOG, pcfg);
 
-        this.app = runtimeAppState.getSa();
+        this.app = (KalitechApplication) runtimeAppState.getSa();
         this.assets = app.getAssetManager();
 
         this.bus = runtimeAppState.getBus();

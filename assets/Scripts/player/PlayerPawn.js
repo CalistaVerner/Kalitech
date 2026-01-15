@@ -148,7 +148,6 @@ class PlayerPawn {
                 ? probe.call(this.frame, core.bodyAccess, this.characterCfg, core.bodyId | 0)
                 : probe.call(this.frame, core.bodyAccess, this.characterCfg);
         });
-
         this.alive = true;
         return this;
     }

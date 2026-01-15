@@ -58,13 +58,17 @@ public final class SkyDomeRenderer {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        ensureExists();
-        if (enabled) {
-            if (skydome.getParent() == null) {
-                app.getRootNode().attachChild(skydome);
+
+        if (!enabled) {
+            if (skydome != null) {
+                skydome.removeFromParent();
             }
-        } else {
-            skydome.removeFromParent();
+            return;
+        }
+
+        ensureExists();
+        if (skydome.getParent() == null) {
+            app.getRootNode().attachChild(skydome);
         }
     }
 
@@ -148,10 +152,13 @@ public final class SkyDomeRenderer {
         }
         ensureExists();
 
-        String a = asset.trim();
-        Texture t = assets.loadTexture(a);
+        String raw = asset.trim();
+        String resolved = SkyTextureUtil.resolveSkyAsset(raw);
+
+        Texture t = assets.loadTexture(resolved);
         if (t == null) {
-            throw new IllegalStateException("[render] skyDomeTex" + slot.name() + ": loadTexture returned null: " + a);
+            throw new IllegalStateException("[render] skyDomeTex" + slot.name()
+                    + ": loadTexture returned null: raw='" + raw + "' resolved='" + resolved + "'");
         }
 
         boolean isCube = (t instanceof com.jme3.texture.TextureCubeMap);

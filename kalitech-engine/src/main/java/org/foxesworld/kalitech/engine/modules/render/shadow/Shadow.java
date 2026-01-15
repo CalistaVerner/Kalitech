@@ -43,6 +43,7 @@ public final class Shadow {
     private DirectionalLightShadowRenderer dlsr;
 
     // Pending application flags
+    private final ShadowPipelinePresetLibrary presets = new ShadowPipelinePresetLibrary();
     private final AtomicBoolean pendingRebuild = new AtomicBoolean(false);
     private final AtomicBoolean pendingFullReload = new AtomicBoolean(false);
     private final ShadowPipelineRegistry registry = new ShadowPipelineRegistry(presets);
@@ -70,7 +71,7 @@ public final class Shadow {
     private float splitHysteresis = 10.0f;
 
     // Pipeline system
-    private final ShadowPipelinePresetLibrary presets = new ShadowPipelinePresetLibrary();
+
     // GPU limits cache
     private int glMaxTexSize = 0;
 

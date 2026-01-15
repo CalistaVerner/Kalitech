@@ -147,41 +147,56 @@ class LightRig {
                     extentsPadding: 1.02,
 
                     pipeline: [
-                        {type: "hysteresis", hysteresis: 10.0, smoothing: 0.10},
-
+                        {type: "hysteresis", cfg: {hysteresis: 12, smoothing: 0.12}},
                         {type: "basis"},
                         {
-                            type: "tightFit",
-                            pad: 1.02,
-                            forceSquare: true,
-                            sizeQuantizeTexels: 1.0,
-                            minNear: 0.5,
-                            casterBackBase: 140,
-                            casterBackCascadeMul: 0.9,
-                            receiverFrontBase: 40,
-                            lockNearCascadeSize: true,
-                            nearTierTexels: 128,
-                            nearShrinkHysteresisTiers: 1.0
+                            type: "onlySplit", cfg: {
+                                split: 0,
+                                inner: {type: "stableFit", cfg: {xyPadding: 1.06, forceSquare: true}}
+                            }
                         },
+
                         {
-                            type: "temporalGate",
-                            minRotateDeg: 0.25,
-                            minMoveTexels: 1.25,
-                            teleportMoveTexels: 24.0,
-                            gatedFirstCascades: 1
+                            type: "onlySplit", cfg: {
+                                minSplit: 1,
+                                maxSplit: 7,
+                                inner: {
+                                    type: "tightFit", cfg: {
+                                        xyPadding: 1.02,
+                                        nearTierTexels: 512,
+                                        nearShrinkHysteresisTiers: 3.0,
+                                        nearGrowHysteresisTiers: 1.0,
+                                        maxNearGrowPerUpdate: 0.15
+                                    }
+                                }
+                            }
                         },
+
                         {
-                            type: "texelSnap",
-                            enabled: true,
-                            snapFirstCascades: 2
+                            type: "poissonPcf", cfg: {
+                                enabled: true,
+                                samples: 16,
+                                baseRadiusTexels: 1.35,
+                                split0: 0.95,
+                                split1: 1.10,
+                                split2: 1.35,
+                                split3: 1.65,
+                                rotateKernel: true,
+                                rotateEveryFrames: 12,
+                                rotateOnlyOnCameraEvent: true,
+                                camMoveEventThreshold: 0.03,
+                                camRotateEventThresholdDeg: 0.20
+                            }
                         },
+                        {type: "temporalGate", cfg: {minRotateDeg: 0.25, minMoveTexels: 1.25, teleportMoveTexels: 24}},
+                        {type: "texelSnap", cfg: {enabled: true, snapFirstCascades: 2}},
                         {
-                            type: "trace",
-                            enabled: true,
-                            everyFrames: 60,
-                            allSplits: false
-                        }
+                            type: "telemetry",
+                            cfg: {everyFrames: 60, allSplits: true, resizeRatio: 0.02, driftTexelsThreshold: 0.35}
+                        },
+                        {type: "trace", cfg: {everyFrames: 60}}
                     ]
+
                 }
             });
 

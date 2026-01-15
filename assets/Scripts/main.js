@@ -19,7 +19,4 @@ exports.start = function start(ctx) {
         systems: worldDesc.systems || [],
         entities: worldDesc.entities || []
     });
-
-    const bus = engine.bus && engine.bus();
-    if (bus && typeof bus.emit === "function") bus.emit("world:started", {name: worldDesc.name, mode: worldDesc.mode});
 };

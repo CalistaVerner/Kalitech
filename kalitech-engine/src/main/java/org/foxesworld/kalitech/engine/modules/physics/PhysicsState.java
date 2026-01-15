@@ -58,6 +58,9 @@ final class PhysicsState {
     // collisionObject identity -> bodyId (depends on jME/Bullet internals)
     final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>();
 
+    // bodyId -> last known body state (physics thread emits move/wake/sleep)
+    final ConcurrentHashMap<Integer, BodyState> bodyState = new ConcurrentHashMap<>(2048);
+
     // shape cache (mesh + dynamic flag)
     final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
 

@@ -47,6 +47,16 @@ final class PhysicsBodies {
         return "";
     }
 
+    private static PhysicsRayHit.Vec3 posOf(RigidBodyControl rb) {
+        try {
+            Vector3f p = (rb != null) ? rb.getPhysicsLocation() : null;
+            if (p != null) return new PhysicsRayHit.Vec3(p.x, p.y, p.z);
+        } catch (Throwable ignored) {
+        }
+        // Never return null: legacy JS expects pos.x/y/z.
+        return new PhysicsRayHit.Vec3(0f, 0f, 0f);
+    }
+
     PhysicsBodyHandle body(Object cfg, PhysicsContacts contacts) {
         PhysicsSpace sp = S.requireSpace();
         contacts.ensureBound(sp);
@@ -74,7 +84,7 @@ final class PhysicsBodies {
         if (colliderCfg == null) {
             shape = defaultShapeForSpatial(spatial, dynamic);
         } else {
-            // forbid collider.type=mesh for dynamic
+            // Forbid collider.type=mesh for dynamic bodies
             if (dynamic) {
                 String t = colliderType(colliderCfg);
                 if ("mesh".equalsIgnoreCase(t)) {
@@ -146,7 +156,6 @@ final class PhysicsBodies {
                 float f = (float) PhysicsValueParsers.asNum(gFactor, 1.0);
                 Vector3f worldG = new Vector3f();
                 try {
-                    // jME usually supports getGravity(Vector3f store)
                     sp.getGravity(worldG);
                 } catch (Throwable t) {
                     throw new IllegalStateException("physics.body: gravityFactor requires PhysicsSpace.getGravity(store)", t);
@@ -189,7 +198,10 @@ final class PhysicsBodies {
         S.idByControl.put(rb, id);
         S.indexCollisionObject(handle);
 
+        // BODY_CREATE must include pos:{x,y,z} for legacy scripts.
         S.bus().emit(PhysicsEvents.BODY_CREATE, PhysicsState.evt(
+                "body", PhysicsEventPayloads.bodySnapshot(S, handle),
+                "pos", posOf(rb),
                 "bodyId", id,
                 "surfaceId", surfaceId,
                 "mass", mass,
@@ -222,17 +234,20 @@ final class PhysicsBodies {
         PhysicsBodyHandle h = S.byId.remove(id);
         if (h == null) return;
 
+        Spatial spatial = S.surfaces.get(h.surfaceId);
+        RigidBodyControl rb = h.__raw();
+
         S.unindexCollisionObject(h);
 
+        // BODY_REMOVE must include pos:{x,y,z} for legacy scripts.
         S.bus().emit(PhysicsEvents.BODY_REMOVE, PhysicsState.evt(
+                "body", PhysicsEventPayloads.bodySnapshot(S, h),
+                "pos", posOf(rb),
                 "bodyId", id,
                 "surfaceId", h.surfaceId
         ));
 
         S.bodyIdBySurface.remove(h.surfaceId, id);
-
-        Spatial spatial = S.surfaces.get(h.surfaceId);
-        RigidBodyControl rb = h.__raw();
 
         S.idByControl.remove(rb);
         try {
@@ -455,7 +470,6 @@ final class PhysicsBodies {
                 return new SphereCollisionShape(sphere.getRadius());
             }
             if (mesh instanceof Cylinder cyl) {
-                // jme Cylinder: radius, height
                 float r = cyl.getRadius();
                 float h = cyl.getHeight();
                 return new CapsuleCollisionShape(r, Math.max(0f, h - (2f * r)));
@@ -477,7 +491,7 @@ final class PhysicsBodies {
             return CollisionShapeFactory.createMeshShape(spatial);
         }
 
-        // For dynamic non-geometry, try bounding box → box collider, else dynamic mesh
+        // For dynamic non-geometry, try bounding box -> box collider, else dynamic mesh
         BoundingVolume bv = spatial.getWorldBound();
         if (bv instanceof BoundingBox bb) {
             Vector3f he = new Vector3f(bb.getXExtent(), bb.getYExtent(), bb.getZExtent());

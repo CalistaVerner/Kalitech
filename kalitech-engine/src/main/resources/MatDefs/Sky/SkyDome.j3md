@@ -27,6 +27,19 @@ MaterialDef SkyDome {
         Float SunDisk
         Float MoonDisk
         Float Exposure
+
+        // ---- Clouds ----
+        Boolean CloudsEnabled
+        Float   Time
+        Float   CloudsScale
+        Vector2 CloudsSpeed
+        Float   CloudsCoverage
+        Float   CloudsSharpness
+        Float   CloudsOpacity
+        Float   CloudsHeightBlend
+        Color   CloudsColor
+        Float   CloudsLightPow
+        Float   CloudsAmbient
     }
 
     Technique {

@@ -17,6 +17,11 @@ public final class ShadowSplitContext {
 
     public final ShadowFrameContext frame;
 
+    /**
+     * Split-scoped view into the shared workspace.
+     */
+    public final ShadowWorkspace.SplitView ws;
+
     public final int splitIndex;
     public final float splitNear;
     public final float splitFar;
@@ -36,15 +41,10 @@ public final class ShadowSplitContext {
     public final Vector3f lightUp = new Vector3f();
 
     /**
-     * Shared workspace view for this split (split-scope data).
-     */
-    public final ShadowWorkspace.SplitView ws;
-
-    /**
      * If no filter handles camera update, orchestrator will call jME ShadowUtil.updateShadowCamera
      * with this stabilization size (0 disables).
      */
-    public int stabilizationTexelSize = 0;
+    public float stabilizationTexelSize = 0f;
 
     /**
      * True if the shadow camera was fully handled by filters.
@@ -80,6 +80,7 @@ public final class ShadowSplitContext {
                               GeometryList receivers,
                               GeometryList occluders) {
         this.frame = Objects.requireNonNull(frame, "frame");
+        this.ws = frame.ws.split(splitIndex);
         this.splitIndex = splitIndex;
         this.splitNear = splitNear;
         this.splitFar = splitFar;
@@ -90,6 +91,5 @@ public final class ShadowSplitContext {
         this.frustumPoints = Objects.requireNonNull(frustumPoints, "frustumPoints");
         this.receivers = Objects.requireNonNull(receivers, "receivers");
         this.occluders = Objects.requireNonNull(occluders, "occluders");
-        this.ws = frame.ws.split(splitIndex);
     }
 }

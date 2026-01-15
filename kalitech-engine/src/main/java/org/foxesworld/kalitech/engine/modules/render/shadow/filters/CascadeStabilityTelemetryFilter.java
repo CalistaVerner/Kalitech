@@ -17,36 +17,42 @@ import java.util.Locale;
 
 /**
  * AAA telemetry / diagnostics filter for cascaded shadow stability.
- * <p>
- * Logs a compact trace that explains "what changed" in the shadow camera:
- * ortho size, texel size, center drift, and whether snapping was applied.
- * <p>
- * Does not require any extra data in ShadowFrameContext: derives camera deltas from viewCam.
  */
 public final class CascadeStabilityTelemetryFilter implements ShadowFilter {
 
     private static final Logger LOG = LogManager.getLogger(CascadeStabilityTelemetryFilter.class);
+
     private final Vector3f lastCamPos = new Vector3f();
     private final Quaternion lastCamRot = new Quaternion();
+
     private final float[] lastOrtho = new float[8];
     private final float[] lastTexel = new float[8];
     private final Vector3f[] lastScPos = new Vector3f[8];
+
     @ShadowOption(doc = "Enable telemetry output.")
     public boolean enabled = true;
+
     @ShadowOption(doc = "Log every N frames (frameId based).", min = 1, max = 100000)
     public int everyFrames = 60;
+
     @ShadowOption(doc = "If true, logs all splits; otherwise only split0.")
     public boolean allSplits = false;
-    @ShadowOption(doc = "If true, use Logger DEBUG; otherwise System.out.")
+
+    @ShadowOption(doc = "If true, use Logger DEBUG; otherwise Logger INFO.")
     public boolean useLogger = true;
+
     @ShadowOption(doc = "Ortho change ratio considered a resize event.", min = 0.0, max = 1.0)
     public float resizeRatio = 0.02f;
+
     @ShadowOption(doc = "Position drift (in texels) considered a meaningful movement.", min = 0.0, max = 64.0)
     public float driftTexelsThreshold = 0.35f;
+
     @ShadowOption(doc = "Rotation threshold (degrees) for 'camRot' field.", min = 0.0, max = 45.0)
     public float camRotateDegThreshold = 0.05f;
+
     @ShadowOption(doc = "Move threshold (world units) for 'camMove' field.", min = 0.0, max = 10.0)
     public float camMoveWorldThreshold = 0.005f;
+
     private boolean camInitialized = false;
     private float camMoveWorld = 0f;
     private float camRotateDeg = 0f;
@@ -73,10 +79,6 @@ public final class CascadeStabilityTelemetryFilter implements ShadowFilter {
     private static float clamp(float v, float lo, float hi) {
         return v < lo ? lo : (v > hi ? hi : v);
     }
-
-    // ---------------------------------------------------------------------
-    // Internals
-    // ---------------------------------------------------------------------
 
     private static String fmt(float v) {
         if (!Float.isFinite(v)) return "nan";
@@ -114,8 +116,8 @@ public final class CascadeStabilityTelemetryFilter implements ShadowFilter {
         float texel = (sc.getWidth() > 0) ? (ortho / (float) sc.getWidth()) : -1f;
         Vector3f pos = sc.getLocation();
 
-        float prevOrtho = lastOrthoIdx(ctx.splitIndex);
-        float prevTexel = lastTexelIdx(ctx.splitIndex);
+        float prevOrtho = lastOrtho[clampSplit(ctx.splitIndex)];
+        float prevTexel = lastTexel[clampSplit(ctx.splitIndex)];
         Vector3f prevPos = lastScPos[clampSplit(ctx.splitIndex)];
 
         float orthoDelta = Float.isFinite(prevOrtho) ? (ortho - prevOrtho) : 0f;
@@ -211,24 +213,11 @@ public final class CascadeStabilityTelemetryFilter implements ShadowFilter {
 
     private void emit(String msg) {
         if (useLogger) {
-            if (LOG.isDebugEnabled()) LOG.debug(msg);
-            else System.out.println(msg);
-        } else {
-            System.out.println(msg);
+            LOG.debug(msg);
+            return;
         }
+        LOG.info(msg);
     }
-
-    private float lastOrthoIdx(int split) {
-        return lastOrtho[clampSplit(split)];
-    }
-
-    private float lastTexelIdx(int split) {
-        return lastTexel[clampSplit(split)];
-    }
-
-    // ---------------------------------------------------------------------
-    // Fluent setters for registry reflection (optional)
-    // ---------------------------------------------------------------------
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;

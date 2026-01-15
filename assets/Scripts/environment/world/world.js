@@ -47,6 +47,16 @@ class Index {
             // (опционально) если Java поддерживает:
             // autoCenter: true, // 0..1 -> -0.5..+0.5 автоматически
         });
+
+
+        print(JSON.stringify(ENGINE.sound.listEvents(), null, 2));
+        ENGINE.events.on("engine.physics.body.added", (i) => {
+            let x = i.pos.x;
+            let y = i.pos.y;
+            let z = i.pos.z;
+            ENGINE.log.debug("Spawned at (x=" + x + ",y=" + y + "z=" + z + ")");
+            ENGINE.sound.playEvent("player.action.throw");
+        });
     }
 
 

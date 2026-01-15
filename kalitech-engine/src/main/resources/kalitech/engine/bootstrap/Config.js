@@ -12,7 +12,8 @@ const DEFAULT_CONFIG = {
         materials: {path: "data/materials.json"},
         camera: {path: "data/camera/camera.config.json"},
         movement: {path: "data/player/movement.config.json"},
-        player: {path: "data/player.json"}
+        player: {path: "data/player.json"},
+        sounds: {path: "data/sounds.json"}
     },
 
     builtins: {

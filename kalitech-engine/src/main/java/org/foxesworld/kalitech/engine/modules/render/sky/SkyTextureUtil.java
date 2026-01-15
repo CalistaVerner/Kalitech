@@ -9,7 +9,54 @@ import com.jme3.texture.Texture;
  */
 public final class SkyTextureUtil {
 
+    private static final String SKY_ROOT = "Textures/Sky/";
+    private static final String SKY_CLOUDS_ROOT = "Textures/Sky/clouds/";
+
     private SkyTextureUtil() {
+    }
+
+    /**
+     * Resolves a sky texture asset path using the "clouds" directory convention.
+     * <p>
+     * Rules:
+     * <ul>
+     *   <li>If asset contains ':' (e.g. domain:...), it is returned as-is.</li>
+     *   <li>If asset starts with "Textures/" or "MatDefs/" or "Models/", it is returned as-is.</li>
+     *   <li>If asset has no slashes, it is resolved to {@code Textures/Sky/clouds/<asset>}.</li>
+     *   <li>If asset starts with "clouds/", it is resolved to {@code Textures/Sky/<asset>}.</li>
+     *   <li>Otherwise it is resolved to {@code Textures/Sky/<asset>}.</li>
+     * </ul>
+     *
+     * @param asset raw asset reference (can be short name, relative path, or fully qualified)
+     * @return resolved path to pass into AssetManager
+     */
+    public static String resolveSkyAsset(String asset) {
+        if (asset == null) return null;
+
+        String s = asset.trim();
+        if (s.isEmpty()) return s;
+
+        s = s.replace('\\', '/');
+
+        if (s.indexOf(':') >= 0) return s;
+
+        if (startsWithAny(s, "Textures/", "MatDefs/", "Models/")) return s;
+
+        boolean hasSlash = s.indexOf('/') >= 0;
+
+        if (!hasSlash) {
+            return SKY_CLOUDS_ROOT + s;
+        }
+
+        if (s.startsWith("clouds/")) {
+            return SKY_ROOT + s;
+        }
+
+        return SKY_ROOT + s;
+    }
+
+    private static boolean startsWithAny(String s, String a, String b, String c) {
+        return s.startsWith(a) || s.startsWith(b) || s.startsWith(c);
     }
 
     /**

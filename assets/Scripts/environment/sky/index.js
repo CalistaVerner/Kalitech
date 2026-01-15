@@ -1,3 +1,4 @@
+// FILE: index.js
 "use strict";
 
 const SkySystem = require("./SkySystem.js");

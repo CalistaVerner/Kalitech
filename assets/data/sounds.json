@@ -1,4 +1,68 @@
 {
-  "adventure": { "soundFile": "Sounds/adventure.ogg", "volume": 1.0, "pitch": 1.0, "looping": true },
-  "boom": { "soundFile": "Sounds/boom.ogg", "volume": 0.9, "pitch": 1.0, "looping": false }
+  "music": {
+    "adventure": [
+      {
+        "src": "Sounds/adventure.ogg",
+        "type": "stream",
+        "looping": true,
+        "volume": 0.8
+      }
+    ],
+    "ui": [
+      {
+        "src": "Sounds/UI_music.ogg",
+        "type": "stream",
+        "looping": true,
+        "volume": 0.6
+      }
+    ]
+  },
+  "player": {
+    "action": {
+      "throw": [
+        "Sounds/throw/throw1.ogg",
+        "Sounds/throw/throw2.ogg"
+      ]
+    }
+  },
+  "world": {
+    "combat": {
+      "hit": [
+        {
+          "src": "Sounds/hit.ogg",
+          "volume": [
+            0.9,
+            1.05
+          ],
+          "pitch": [
+            0.95,
+            1.05
+          ],
+          "is3D": false
+        },
+        {
+          "src": "Sounds/hit2.ogg",
+          "volume": [
+            0.9,
+            1.05
+          ],
+          "pitch": [
+            0.95,
+            1.05
+          ],
+          "is3D": false
+        }
+      ]
+    }
+  },
+  "ui": {
+    "notify": [
+      {
+        "src": "Sounds/notify.ogg",
+        "volume": 1.0,
+        "pitch": 1.0,
+        "is3D": false
+      }
+    ]
+  }
 }

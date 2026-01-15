@@ -1,10 +1,15 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import com.jme3.audio.AudioNode;
+import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 public interface SoundApi {
     AudioNode create(Value cfg);
+
+    @HostAccess.Export
+    AudioNode createAndPlay(Value cfg);
+
     void play(AudioNode audioNode);
     void stop(AudioNode audioNode);
     void setPosition(AudioNode audioNode, float x, float y, float z);

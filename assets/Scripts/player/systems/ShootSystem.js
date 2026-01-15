@@ -119,11 +119,22 @@ class ShootSystem {
         if (!bus) throw new Error("[shoot] bus missing");
 
         this._subCollision = (bus.on("engine.physics.collision.begin", (payload) => {
-            this._onCollisionBegin(payload);
+            //this._onCollisionBegin(payload);
+            //console.log(payload);
         }) | 0);
 
         if (!this._subCollision) throw new Error("[shoot] bus.on(...) returned 0");
     }
+
+
+    _onCollisionBegin(payload) {
+        ENGINE.sound.create({
+            src: "Sounds/hit.ogg",
+            volume: 0.8,
+            loop: false
+        }).play();
+    }
+
 
     _emit(topic, payload) {
         this._bus().emit(topic, payload);
@@ -279,47 +290,6 @@ class ShootSystem {
         if (c.debug && c.debug.logShots && ENGINE.log && ENGINE.log.info) {
             ENGINE.log.info("[shoot] " + name + " r=" + radius.toFixed(3) + " m=" + mass.toFixed(2) + " sid=" + meta.surfaceId + " bid=" + meta.bodyId);
         }
-    }
-
-
-    _onCollisionBegin(payload) {
-        const c = this.cfg;
-        if (!c.enabled) return;
-
-        if (!payload || !payload.a || !payload.b) throw new Error("[shoot] collision payload invalid");
-
-        const a = payload.a;
-        const b = payload.b;
-
-        const aSid = (a.surfaceId | 0) || 0;
-        const bSid = (b.surfaceId | 0) || 0;
-
-        let shotSid = 0;
-        let otherSid = 0;
-
-        if (aSid > 0 && this._shotsBySurface[aSid]) {
-            shotSid = aSid;
-            otherSid = bSid;
-        } else if (bSid > 0 && this._shotsBySurface[bSid]) {
-            shotSid = bSid;
-            otherSid = aSid;
-        } else return;
-
-        const shotMeta = this._shotsBySurface[shotSid];
-        if (!shotMeta) throw new Error("[shoot] shot meta missing for sid=" + shotSid);
-
-        this._emit(c.events.hit, {
-            shotIndex: shotMeta.shotIndex,
-            name: shotMeta.name,
-            shot: {surfaceId: shotSid, bodyId: shotMeta.bodyId | 0},
-            other: {surfaceId: otherSid | 0, bodyId: (shotSid === aSid ? (b.bodyId | 0) : (a.bodyId | 0))},
-            step: payload.step | 0,
-            dt: +payload.dt || 0,
-            contact: payload.contact || null
-        });
-
-        delete this._shotsBySurface[shotSid];
-        if (shotMeta.bodyId > 0) delete this._shotsByBody[shotMeta.bodyId];
     }
 
     update(frame, ownerBodyId) {

@@ -1,3 +1,4 @@
+// FILE: Scripts/systems/sky/SkyDome.js
 "use strict";
 
 const SkyMath = require("./SkyMath.js");
@@ -7,10 +8,25 @@ function req(v, msg) {
     return v;
 }
 
+function clamp01(x) {
+    return Math.max(0.0, Math.min(1.0, x));
+}
+
+function lerpColor(a, b, t) {
+    return {
+        r: SkyMath.lerp(a.r, b.r, t),
+        g: SkyMath.lerp(a.g, b.g, t),
+        b: SkyMath.lerp(a.b, b.b, t)
+    };
+}
+
 class SkyDome {
     constructor() {
-        this.zenith = {r: 0.08, g: 0.14, b: 0.30};
-        this.horizon = {r: 0.65, g: 0.72, b: 0.82};
+        this.zenithDay = {r: 0.08, g: 0.14, b: 0.30};
+        this.horizonDay = {r: 0.65, g: 0.72, b: 0.82};
+
+        this.zenithNight = {r: 0.01, g: 0.02, b: 0.06};
+        this.horizonNight = {r: 0.03, g: 0.04, b: 0.08};
 
         this.hazeDay = 0.60;
         this.hazeNight = 0.28;
@@ -21,24 +37,23 @@ class SkyDome {
         this.exposureDay = 1.10;
         this.exposureNight = 0.55;
 
-        // AAA: two textures always present (A=Day, B=Night) + SkyBlend 0..1
-        this.texA = null; // day
-        this.texB = null; // night
+        this.twilightWarmth = 0.22;
+        this.twilightHazeBoost = 0.10;
+        this.twilightExposureBoost = 0.10;
 
-        // keep procedural contribution (avoid flat look)
+        this.texA = null;
+        this.texB = null;
+
         this.texBlendDay = 0.55;
         this.texBlendNight = 0.35;
 
-        // HDR scale for bound sky textures
         this.texExposureDay = 1.80;
         this.texExposureNight = 0.65;
 
-        // optional artistic crossfade shaping (dayFactor -> dayBlend)
-        // dayBlend=0 => fully night, dayBlend=1 => fully day
         this.crossfade = {
             enabled: true,
-            start: 0.10, // below: fully night
-            end: 0.35    // above: fully day
+            start: 0.10,
+            end: 0.35
         };
 
         this._lastTexA = "";
@@ -49,7 +64,6 @@ class SkyDome {
     applyCfg(cfg) {
         if (!cfg) return;
 
-        // Accept either explicit A/B keys or day/night keys.
         if (cfg.skyDomeTexA != null) this.texA = String(cfg.skyDomeTexA);
         if (cfg.skyDomeTexB != null) this.texB = String(cfg.skyDomeTexB);
 
@@ -61,15 +75,40 @@ class SkyDome {
 
             if (d.zenithColor) {
                 const c = d.zenithColor;
-                if (c.r != null) this.zenith.r = +c.r;
-                if (c.g != null) this.zenith.g = +c.g;
-                if (c.b != null) this.zenith.b = +c.b;
+                if (c.r != null) this.zenithDay.r = +c.r;
+                if (c.g != null) this.zenithDay.g = +c.g;
+                if (c.b != null) this.zenithDay.b = +c.b;
             }
             if (d.horizonColor) {
                 const c = d.horizonColor;
-                if (c.r != null) this.horizon.r = +c.r;
-                if (c.g != null) this.horizon.g = +c.g;
-                if (c.b != null) this.horizon.b = +c.b;
+                if (c.r != null) this.horizonDay.r = +c.r;
+                if (c.g != null) this.horizonDay.g = +c.g;
+                if (c.b != null) this.horizonDay.b = +c.b;
+            }
+
+            if (d.zenithDay) {
+                const c = d.zenithDay;
+                if (c.r != null) this.zenithDay.r = +c.r;
+                if (c.g != null) this.zenithDay.g = +c.g;
+                if (c.b != null) this.zenithDay.b = +c.b;
+            }
+            if (d.horizonDay) {
+                const c = d.horizonDay;
+                if (c.r != null) this.horizonDay.r = +c.r;
+                if (c.g != null) this.horizonDay.g = +c.g;
+                if (c.b != null) this.horizonDay.b = +c.b;
+            }
+            if (d.zenithNight) {
+                const c = d.zenithNight;
+                if (c.r != null) this.zenithNight.r = +c.r;
+                if (c.g != null) this.zenithNight.g = +c.g;
+                if (c.b != null) this.zenithNight.b = +c.b;
+            }
+            if (d.horizonNight) {
+                const c = d.horizonNight;
+                if (c.r != null) this.horizonNight.r = +c.r;
+                if (c.g != null) this.horizonNight.g = +c.g;
+                if (c.b != null) this.horizonNight.b = +c.b;
             }
 
             if (d.hazeDay != null) this.hazeDay = +d.hazeDay;
@@ -80,6 +119,10 @@ class SkyDome {
 
             if (d.exposureDay != null) this.exposureDay = +d.exposureDay;
             if (d.exposureNight != null) this.exposureNight = +d.exposureNight;
+
+            if (d.twilightWarmth != null) this.twilightWarmth = +d.twilightWarmth;
+            if (d.twilightHazeBoost != null) this.twilightHazeBoost = +d.twilightHazeBoost;
+            if (d.twilightExposureBoost != null) this.twilightExposureBoost = +d.twilightExposureBoost;
 
             if (d.texBlendDay != null) this.texBlendDay = +d.texBlendDay;
             if (d.texBlendNight != null) this.texBlendNight = +d.texBlendNight;
@@ -100,13 +143,13 @@ class SkyDome {
         req(render, "[skydome] render is required");
 
         req(render.skyDomeCfg, "[skydome] render.skyDomeCfg(cfg) is required");
-
-        // AAA: no swapping, two samplers always present
         req(render.skyDomeTexA, "[skydome] render.skyDomeTexA(asset) is required");
         req(render.skyDomeTexB, "[skydome] render.skyDomeTexB(asset) is required");
 
         req(celEval && typeof celEval.dayFactor === "number", "[skydome] celEval.dayFactor is required");
-        const df = celEval.dayFactor;
+
+        const df = clamp01(celEval.dayFactor);
+        const twilight = clamp01(celEval.twilight != null ? celEval.twilight : 0.0);
 
         const s = req(celEval && celEval.sun, "[skydome] celEval.sun is required");
         const m = req(celEval && celEval.moon, "[skydome] celEval.moon is required");
@@ -123,15 +166,7 @@ class SkyDome {
             this._lastTexB = b;
         }
 
-        const haze = SkyMath.lerp(this.hazeNight, this.hazeDay, df);
-        const exposure = SkyMath.lerp(this.exposureNight, this.exposureDay, df);
-
-        // procedural vs texture mix
-        const texBlend = Math.max(0, Math.min(1, SkyMath.lerp(this.texBlendNight, this.texBlendDay, df)));
-        const texExposure = Math.max(0.001, SkyMath.lerp(this.texExposureNight, this.texExposureDay, df));
-
-        // dayBlend (0..1): night->day curve
-        let dayBlend = SkyMath.clamp(df, 0, 1);
+        let dayBlend = df;
         if (this.crossfade.enabled) {
             const s0 = Number(this.crossfade.start);
             const s1 = Number(this.crossfade.end);
@@ -140,12 +175,30 @@ class SkyDome {
             dayBlend = SkyMath.smoothstep(Math.min(e0, e1), Math.max(e0, e1), dayBlend);
         }
 
-        // Shader mixes A->B by SkyBlend, where A=day, B=night:
-        // SkyBlend=0 => day(A), SkyBlend=1 => night(B)
+        const hazeBase = SkyMath.lerp(this.hazeNight, this.hazeDay, dayBlend);
+        const exposureBase = SkyMath.lerp(this.exposureNight, this.exposureDay, dayBlend);
+
+        const haze = clamp01(hazeBase + twilight * this.twilightHazeBoost);
+        const exposure = Math.max(0.05, exposureBase + twilight * this.twilightExposureBoost);
+
+        const texBlend = clamp01(SkyMath.lerp(this.texBlendNight, this.texBlendDay, dayBlend));
+        const texExposure = Math.max(0.001, SkyMath.lerp(this.texExposureNight, this.texExposureDay, dayBlend));
+
         const skyBlend = 1.0 - dayBlend;
 
+        const zen = lerpColor(this.zenithNight, this.zenithDay, dayBlend);
+        const hor = lerpColor(this.horizonNight, this.horizonDay, dayBlend);
+
+        const warm = clamp01(twilight * this.twilightWarmth);
+        const horWarm = {
+            r: SkyMath.lerp(hor.r, 1.05, warm),
+            g: SkyMath.lerp(hor.g, 0.62, warm),
+            b: SkyMath.lerp(hor.b, 0.30, warm)
+        };
+
         const key =
-            df.toFixed(4) + "|" +
+            dayBlend.toFixed(4) + "|" +
+            twilight.toFixed(4) + "|" +
             haze.toFixed(4) + "|" +
             exposure.toFixed(4) + "|" +
             texBlend.toFixed(4) + "|" +
@@ -157,13 +210,14 @@ class SkyDome {
             m.rayDir.x.toFixed(4) + "|" + m.rayDir.y.toFixed(4) + "|" + m.rayDir.z.toFixed(4) + "|" +
             s.color.r.toFixed(4) + "|" + s.color.g.toFixed(4) + "|" + s.color.b.toFixed(4) + "|" + (+s.intensity).toFixed(4) + "|" +
             m.color.r.toFixed(4) + "|" + m.color.g.toFixed(4) + "|" + m.color.b.toFixed(4) + "|" + (+m.intensity).toFixed(4) + "|" +
-            this.zenith.r.toFixed(4) + "|" + this.zenith.g.toFixed(4) + "|" + this.zenith.b.toFixed(4) + "|" +
-            this.horizon.r.toFixed(4) + "|" + this.horizon.g.toFixed(4) + "|" + this.horizon.b.toFixed(4);
+            zen.r.toFixed(4) + "|" + zen.g.toFixed(4) + "|" + zen.b.toFixed(4) + "|" +
+            horWarm.r.toFixed(4) + "|" + horWarm.g.toFixed(4) + "|" + horWarm.b.toFixed(4);
 
         if (key === this._lastKey) return;
         this._lastKey = key;
 
         render.skyDomeCfg({
+
             sunDir: [s.rayDir.x, s.rayDir.y, s.rayDir.z],
             moonDir: [m.rayDir.x, m.rayDir.y, m.rayDir.z],
 
@@ -173,8 +227,8 @@ class SkyDome {
             moonColor: [m.color.r, m.color.g, m.color.b],
             moonIntensity: +m.intensity,
 
-            zenithColor: [this.zenith.r, this.zenith.g, this.zenith.b],
-            horizonColor: [this.horizon.r, this.horizon.g, this.horizon.b],
+            zenithColor: [zen.r, zen.g, zen.b],
+            horizonColor: [horWarm.r, horWarm.g, horWarm.b],
 
             haze,
             sunDisk: this.sunDisk,
@@ -184,7 +238,6 @@ class SkyDome {
             texBlend,
             texExposure,
 
-            // AAA crossfade A/B
             skyBlend
         });
     }

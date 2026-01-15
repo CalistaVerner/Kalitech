@@ -1,0 +1,51 @@
+MaterialDef SkyClouds {
+
+    MaterialParameters {
+        Boolean UseCube
+        Boolean HasCloudTex
+
+        Texture2D CloudTexA
+        Texture2D CloudTexB
+        TextureCubeMap CloudCubeA
+        TextureCubeMap CloudCubeB
+
+        Vector3 SunDir
+        Vector3 MoonDir
+        Vector3 SunColor
+        Vector3 MoonColor
+        Vector3 TintColor
+
+        Float SunIntensity
+        Float MoonIntensity
+
+        Float UvScale
+        Float SpeedU
+        Float SpeedV
+
+        Float Coverage
+        Float Density
+        Float Softness
+
+        Float Lighting
+        Float Alpha
+
+        Float TexBlend
+        Float TexExposure
+        Float TimeSec
+    }
+
+    Technique {
+        VertexShader   :   MatDefs/Sky/SkyClouds.vert
+        FragmentShader :   MatDefs/Sky/SkyClouds.frag
+        WorldParameters {
+            WorldViewProjectionMatrix
+            CameraPosition
+        }
+        RenderState {
+            FaceCull Off
+            DepthTest Off
+            DepthWrite Off
+            Blend Alpha
+        }
+    }
+}

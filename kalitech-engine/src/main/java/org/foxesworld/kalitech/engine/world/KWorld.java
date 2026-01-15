@@ -106,6 +106,7 @@ public final class KWorld {
                 ctx.log().error("[world:{}] worker update failed: {}", name, sys, t);
             }
         }
+        ctx.events().pump();
     }
 
     public void stop(SystemContext ctx) {
