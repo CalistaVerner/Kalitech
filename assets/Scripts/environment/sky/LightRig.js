@@ -138,17 +138,50 @@ class LightRig {
 
             render.sunShadowsCfg({
                 shadows: {
-                    enabled: s.enabled,
-                    mapSizeDay: 16384,        // можешь использовать в SkySystem и выбирать mapSize
-                    mapSizeNight: 8192,       // но в render.sunShadowsCfg всё равно передай mapSize итоговый
-                    mapSize: 16384,           // итоговое значение на кадр
-                    splits: s.splits,
-                    lambda: s.lambda,
-                    intensity: 0.65,
-                    zExtend: 6000,
-                    snap: false,
+                    mapSize: 16384,
+                    splits: 4,
+                    lambda: 0.72,
+                    intensity: 0.75,
+                    snap: true,
                     snapFirstCascades: 2,
-                    extentsPadding: 1.12
+                    extentsPadding: 1.02,
+
+                    pipeline: [
+                        {type: "hysteresis", hysteresis: 10.0, smoothing: 0.10},
+
+                        {type: "basis"},
+                        {
+                            type: "tightFit",
+                            pad: 1.02,
+                            forceSquare: true,
+                            sizeQuantizeTexels: 1.0,
+                            minNear: 0.5,
+                            casterBackBase: 140,
+                            casterBackCascadeMul: 0.9,
+                            receiverFrontBase: 40,
+                            lockNearCascadeSize: true,
+                            nearTierTexels: 128,
+                            nearShrinkHysteresisTiers: 1.0
+                        },
+                        {
+                            type: "temporalGate",
+                            minRotateDeg: 0.25,
+                            minMoveTexels: 1.25,
+                            teleportMoveTexels: 24.0,
+                            gatedFirstCascades: 1
+                        },
+                        {
+                            type: "texelSnap",
+                            enabled: true,
+                            snapFirstCascades: 2
+                        },
+                        {
+                            type: "trace",
+                            enabled: false,
+                            everyFrames: 60,
+                            allSplits: false
+                        }
+                    ]
                 }
             });
 

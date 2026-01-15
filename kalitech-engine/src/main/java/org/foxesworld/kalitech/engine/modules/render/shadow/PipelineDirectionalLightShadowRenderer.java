@@ -196,6 +196,8 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         pipeline.beginSplit(splitCtx);
 
         boolean handled = pipeline.updateShadowCam(splitCtx);
+        splitCtx.shadowCamHandled = handled;
+
         if (!handled) {
             ShadowUtil.updateShadowCamera(
                     frameCtx.viewPort,
@@ -206,6 +208,7 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
                     splitCtx.stabilizationTexelSize
             );
         }
+
 
         pipeline.afterShadowCam(splitCtx);
         pipeline.beforeGatherOccluders(splitCtx);

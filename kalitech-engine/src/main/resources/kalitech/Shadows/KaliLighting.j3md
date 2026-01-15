@@ -1,0 +1,42 @@
+MaterialDef KaliLighting : Common/MatDefs/Light/Lighting {
+
+    MaterialParameters {
+        Vector4 Diffuse
+        Vector4 Specular
+        Float  Shininess
+
+        Texture2D DiffuseMap
+
+        // ---- Kali Poisson parameters ----
+        Boolean UseKaliShadowPoisson
+        Vector2 KaliShadowTexelSize
+        Float   KaliPoissonRadiusTexels
+        Int     KaliPoissonTaps
+        Boolean KaliPoissonRotatePerPixel
+        Vector4Array KaliPoissonKernel
+    }
+
+    Technique {
+        Name: Default
+        VertexShader   : Common/MatDefs/Light/Lighting.vert
+        FragmentShader : kalitech/Shadows/KaliLighting.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldMatrix
+            ViewMatrix
+            NormalMatrix
+            ViewProjectionMatrix
+            CameraPosition
+            Time
+        }
+
+        Defines {
+            DIFFUSEMAP : DiffuseMap
+            USE_KALI_SHADOW_POISSON : UseKaliShadowPoisson
+
+            // Важно: чтобы frag знал количество каскадов
+            NUM_SHADOW_SPLITS : NumShadowSplits
+        }
+    }
+}

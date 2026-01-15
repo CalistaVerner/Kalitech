@@ -27,6 +27,8 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.Future;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+
 @Deprecated
 public final class EditorLinesApiImpl extends AbstractApiModule implements EditorLinesApi {
 
@@ -105,27 +107,6 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         return mesh;
     }
 
-    private static Value member(Value v, String k) {
-        return (v != null && v.hasMember(k)) ? v.getMember(k) : null;
-    }
-
-    private static boolean bool(Value v, String k, boolean def) {
-        try {
-            Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asBoolean();
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private static double num(Value v, String k, double def) {
-        try {
-            Value m = member(v, k);
-            return (m == null || m.isNull()) ? def : m.asDouble();
-        } catch (Exception e) {
-            return def;
-        }
-    }
 
     private static double numPath(Value v, String k1, String k2, double def) {
         try {

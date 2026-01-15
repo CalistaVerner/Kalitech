@@ -29,8 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
@@ -51,20 +50,6 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         super("mesh", "Mesh", "1.0.0");
     }
 
-    private static Value member(Value v, String k) {
-        return (v != null && !v.isNull() && v.hasMember(k)) ? v.getMember(k) : null;
-    }
-
-    private static String str(Value v, String k, String def) {
-        Value m = member(v, k);
-        if (m == null || m.isNull()) return def;
-        try {
-            String s = m.asString();
-            return (s == null || s.isBlank()) ? def : s;
-        } catch (Throwable ignored) {
-            return def;
-        }
-    }
 
     // ---------- small helpers ----------
 

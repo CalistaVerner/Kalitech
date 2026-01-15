@@ -8,7 +8,7 @@ import java.util.Objects;
  * High-level shadow renderer settings.
  * <p>
  * This is the centralized configuration bundle for shadow rendering. It separates
- * structural settings (shadow map size, number of cascades) from the pipeline
+ * "structural" settings (shadow map size, number of cascades) from the pipeline
  * behavior (stability, snapping, fitting, etc.).
  * <p>
  * Structural settings may require recreating the underlying renderer instance.
@@ -16,13 +16,10 @@ import java.util.Objects;
 public final class ShadowRendererSettings {
 
     private final ShadowRenderConfig pipeline = new ShadowRenderConfig();
-
     private int shadowMapSize = 2048;
     private int cascades = 4;
-
     private float lambda = 0.65f;
     private float intensity = 1.0f;
-
     /**
      * If non-zero, overrides the shadow view far plane used by jME.
      */
@@ -42,28 +39,6 @@ public final class ShadowRendererSettings {
         ShadowRenderConfig preset = ShadowRenderConfig.cdpr8192();
         copyInto(s.pipeline, preset);
         return s;
-    }
-
-    private static long mix(long h, int v) {
-        h ^= (v & 0xffffffffL);
-        h *= 1099511628211L;
-        return h;
-    }
-
-    /**
-     * Produces a deep copy of this settings object.
-     * <p>
-     * Use this to create an immutable snapshot for cross-thread handoff.
-     */
-    public ShadowRendererSettings copy() {
-        ShadowRendererSettings out = new ShadowRendererSettings();
-        out.shadowMapSize = this.shadowMapSize;
-        out.cascades = this.cascades;
-        out.lambda = this.lambda;
-        out.intensity = this.intensity;
-        out.zFarOverride = this.zFarOverride;
-        copyInto(out.pipeline, this.pipeline);
-        return out;
     }
 
     private static void copyInto(ShadowRenderConfig dst, ShadowRenderConfig src) {
@@ -104,11 +79,10 @@ public final class ShadowRendererSettings {
                 .setTraceEveryFrames(src.debug().getTraceEveryFrames());
     }
 
-    /**
-     * Alias for {@link #copy()} to emphasize safe handoff semantics.
-     */
-    public ShadowRendererSettings snapshot() {
-        return copy();
+    private static long mix(long h, int v) {
+        h ^= (v & 0xffffffffL);
+        h *= 1099511628211L;
+        return h;
     }
 
     public int getShadowMapSize() {
@@ -161,7 +135,7 @@ public final class ShadowRendererSettings {
     }
 
     /**
-     * Computes a deterministic signature of the whole settings bundle.
+     * Computes a deterministic signature for change detection.
      */
     public long signature() {
         long h = 1469598103934665603L;
@@ -170,8 +144,7 @@ public final class ShadowRendererSettings {
         h = mix(h, Float.floatToIntBits(lambda));
         h = mix(h, Float.floatToIntBits(intensity));
         h = mix(h, Float.floatToIntBits(zFarOverride));
-        long ps = pipeline.signature();
-        h = mix(h, (int) (ps ^ (ps >>> 32)));
+        h = mix(h, (int) (pipeline.signature() ^ (pipeline.signature() >>> 32)));
         return h;
     }
 
@@ -181,17 +154,16 @@ public final class ShadowRendererSettings {
      * This method clamps values into safe ranges and throws for invalid structural values.
      */
     public ShadowRendererSettings validate() {
-        if (shadowMapSize <= 0) throw new IllegalArgumentException("shadowMapSize must be > 0");
-        if (cascades <= 0) throw new IllegalArgumentException("cascades must be > 0");
-        if (cascades > 8) cascades = 8;
-
+        if (shadowMapSize <= 0) {
+            throw new IllegalArgumentException("shadowMapSize must be > 0");
+        }
+        if (cascades < 1 || cascades > 8) {
+            throw new IllegalArgumentException("cascades must be in [1..8]");
+        }
         if (lambda < 0.0f) lambda = 0.0f;
         if (lambda > 1.0f) lambda = 1.0f;
-
         if (intensity < 0.0f) intensity = 0.0f;
-
         if (zFarOverride < 0.0f) zFarOverride = 0.0f;
-
         return this;
     }
 }

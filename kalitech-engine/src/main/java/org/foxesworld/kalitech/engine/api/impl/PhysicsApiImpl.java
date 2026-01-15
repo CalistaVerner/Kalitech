@@ -4,7 +4,6 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingVolume;
 import com.jme3.bullet.BulletAppState;
-import com.jme3.bullet.NativePhysicsObject;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.PhysicsCollisionEvent;
 import com.jme3.bullet.collision.PhysicsCollisionListener;
@@ -42,7 +41,6 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -62,7 +60,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // Events: body lifecycle + deterministic "physics stepped"
     // ------------------------------------------------------------
     private final ConcurrentHashMap<RigidBodyControl, Integer> idByControl = new ConcurrentHashMap<>(1024);
-
     private final AtomicLong physicsStepCounter = new AtomicLong(0);
     // ------------------------------------------------------------
     // Collision pipeline (AAA contract): begin / stay / end + contact aggregation
@@ -77,7 +74,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
      * Therefore we index PhysicsRigidBody (preferred), fallback to RigidBodyControl.
      */
     private final ConcurrentHashMap<Object, Integer> bodyIdByCollisionObject = new ConcurrentHashMap<>(1024);
-
     /**
      * Contact aggregation for the current step.
      * Key = pairKey(minBodyId,maxBodyId)
@@ -143,10 +139,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         super.attach(new ApiContext(engine));
         this.app = engine.getApp();
         this.surfaces = surfaces;
-    }
-
-    public PhysicsApiImpl() {
-        super("physics", "Physics", "1.0.0");
     }
 
     private static long pairKey(int a, int b) {
@@ -230,34 +222,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return Float.isFinite(v);
     }
 
-    private static long collisionUidOf(Object obj) {
-        if (obj == null) return 0L;
-
-        // Fast path: most Bullet objects implement NativePhysicsObject
-        if (obj instanceof NativePhysicsObject npo) {
-            try {
-                long id = npo.nativeId();
-                return (id != 0L) ? id : 0L;
-            } catch (Throwable ignored) {
-            }
-        }
-
-        // Reflection fallback: some builds shade/relocate or return proxies
-        try {
-            Method m = obj.getClass().getMethod("nativeId");
-            Object r = m.invoke(obj);
-            if (r instanceof Number n) {
-                long id = n.longValue();
-                return (id != 0L) ? id : 0L;
-            }
-        } catch (Throwable ignored) {
-        }
-
-        // Last resort (not Bullet-stable, but better than nothing)
-        return ((long) System.identityHashCode(obj)) & 0xFFFFFFFFL;
-    }
-
-
     private static Map<String, Object> hitObj(
             boolean hit,
             int bodyId,
@@ -280,6 +244,10 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return m;
     }
 
+    public PhysicsApiImpl() {
+        super("physics", "Physics", "1.0.0");
+    }
+
     private static void buildPerpBasis(Vector3f dirN, Vector3f outU, Vector3f outV) {
         // Pick a stable reference axis, then build U,V basis perpendicular to dirN.
         Vector3f a = (Math.abs(dirN.y) < 0.9f) ? Vector3f.UNIT_Y : Vector3f.UNIT_X;
@@ -296,30 +264,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         }
         outU.normalizeLocal();
         outV.set(dirN).crossLocal(outU).normalizeLocal();
-    }
-
-    private void indexCollisionObject(PhysicsBodyHandle h) {
-        if (h == null) return;
-        Object raw = h.__raw(); // typically RigidBodyControl
-        if (raw instanceof RigidBodyControl rb) {
-            bodyIdByCollisionObject.put(rb, h.id);
-            PhysicsRigidBody prb = extractPhysicsRigidBody(rb);
-            if (prb != null) bodyIdByCollisionObject.put(prb, h.id);
-            return;
-        }
-        bodyIdByCollisionObject.put(raw, h.id);
-    }
-
-    private void unindexCollisionObject(PhysicsBodyHandle h) {
-        if (h == null) return;
-        Object raw = h.__raw();
-        if (raw instanceof RigidBodyControl rb) {
-            bodyIdByCollisionObject.remove(rb, h.id);
-            PhysicsRigidBody prb = extractPhysicsRigidBody(rb);
-            if (prb != null) bodyIdByCollisionObject.remove(prb, h.id);
-            return;
-        }
-        bodyIdByCollisionObject.remove(raw, h.id);
     }
 
     private int bodyIdFromCollisionObject(Object obj) {
@@ -476,6 +420,11 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return engine.getBus();
     }
 
+    private void indexCollisionObject(PhysicsBodyHandle h) {
+        Object key = collisionKeyFromHandle(h);
+        if (key != null) bodyIdByCollisionObject.put(key, h.id);
+    }
+
     private void ensureTickListenerBound(PhysicsSpace sp) {
         if (sp == null) return;
         if (!tickListenerBound.compareAndSet(false, true)) return;
@@ -537,10 +486,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return s;
     }
 
-    // ------------------------------------------------------------
-    // Batched add internals
-    // ------------------------------------------------------------
-
     private PhysicsBodyHandle requireHandle(Object handleOrId, String where) {
         int id = resolveBodyId(handleOrId);
         if (id <= 0) throw new IllegalArgumentException(where + ": body id/handle required");
@@ -548,6 +493,10 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         if (h == null) throw new IllegalArgumentException(where + ": unknown bodyId=" + id);
         return h;
     }
+
+    // ------------------------------------------------------------
+    // Batched add internals
+    // ------------------------------------------------------------
 
     private void enqueueAddToSpace(RigidBodyControl rb) {
         if (rb == null) return;
@@ -568,10 +517,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
             return null;
         });
     }
-
-    // ------------------------------------------------------------
-    // CollisionShape selection (fast path)
-    // ------------------------------------------------------------
 
     private void flushPendingAdd() {
         PhysicsSpace sp = engine.__getPhysicsSpaceOrNull();
@@ -602,6 +547,10 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
             n++;
         }
     }
+
+    // ------------------------------------------------------------
+    // CollisionShape selection (fast path)
+    // ------------------------------------------------------------
 
     private CollisionShape primitiveShapeFromGeometry(Geometry g) {
         Mesh mesh = g.getMesh();
@@ -686,10 +635,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
                 : CollisionShapeFactory.createMeshShape(spatial);
     }
 
-    // ------------------------------------------------------------
-    // Ray helpers
-    // ------------------------------------------------------------
-
     private PhysicsBodyHandle findHandleByCollisionObject(Object obj) {
         int id = bodyIdFromCollisionObject(obj);
         if (id > 0) return byId.get(id);
@@ -708,6 +653,10 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         }
         return null;
     }
+
+    // ------------------------------------------------------------
+    // Ray helpers
+    // ------------------------------------------------------------
 
     private boolean passesStaticDynamicFilter(RigidBodyControl rb, boolean staticOnly, boolean dynamicOnly) {
         if (rb == null) return false;
@@ -841,15 +790,15 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return (id == null) ? 0 : id;
     }
 
-    // ------------------------------------------------------------
-    // API
-    // ------------------------------------------------------------
-
     @HostAccess.Export
     public PhysicsBodyHandle handle(int bodyId) {
         if (bodyId <= 0) return null;
         return byId.get(bodyId);
     }
+
+    // ------------------------------------------------------------
+    // API
+    // ------------------------------------------------------------
 
     @HostAccess.Export
     public boolean exists(int bodyId) {
@@ -1095,16 +1044,16 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         rb.setAngularVelocity(Vector3f.ZERO);
     }
 
-    // ------------------------------------------------------------
-    // controller helpers
-    // ------------------------------------------------------------
-
     @HostAccess.Export
     public Object velocity(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity()");
         Vector3f v = h.__raw().getLinearVelocity();
         return new PhysicsRayHit.Vec3(v.x, v.y, v.z);
     }
+
+    // ------------------------------------------------------------
+    // controller helpers
+    // ------------------------------------------------------------
 
     @HostAccess.Export
     public void velocity(Object handleOrId, Object vec3) {
@@ -1170,16 +1119,16 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         h.__raw().applyCentralForce(f);
     }
 
-    // ------------------------------------------------------------
-    // extras
-    // ------------------------------------------------------------
-
     @HostAccess.Export
     public void applyTorque(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.applyTorque(torque)");
         Vector3f t = PhysicsValueParsers.vec3(vec3, 0, 0, 0);
         h.__raw().applyTorque(t);
     }
+
+    // ------------------------------------------------------------
+    // extras
+    // ------------------------------------------------------------
 
     @HostAccess.Export
     public Object angularVelocity(Object handleOrId) {
@@ -1223,14 +1172,19 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         space.setGravity(g);
     }
 
-    // ------------------------------------------------------------
-// Convex sweeps (sphere / capsule)
-// ------------------------------------------------------------
-
     public void __cleanupSurface(int surfaceId) {
         if (surfaceId <= 0) return;
         Integer id = bodyIdBySurface.get(surfaceId);
         if (id != null) remove(id);
+    }
+
+    // ------------------------------------------------------------
+// Convex sweeps (sphere / capsule)
+// ------------------------------------------------------------
+
+    private void unindexCollisionObject(PhysicsBodyHandle h) {
+        Object key = collisionKeyFromHandle(h);
+        if (key != null) bodyIdByCollisionObject.remove(key, h.id);
     }
 
     private Object sweepSphereInternal(Object cfg) {

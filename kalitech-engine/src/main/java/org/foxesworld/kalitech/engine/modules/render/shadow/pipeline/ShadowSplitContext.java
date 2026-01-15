@@ -1,4 +1,4 @@
-// FILE: org/foxesworld/kalitech/engine/modules/render/shadows/pipeline/ShadowSplitContext.java
+// FILE: org/foxesworld/kalitech/engine/modules/render/shadow/pipeline/ShadowSplitContext.java
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadow.pipeline;
 
@@ -26,33 +26,35 @@ public final class ShadowSplitContext {
     public final DirectionalLight light;
 
     public final Camera shadowCam;
-
-    /**
-     * Frustum slice corners (world space), length 8.
-     * Updated by orchestrator before filters run.
-     */
     public final Vector3f[] frustumPoints;
 
-    /**
-     * Receiver list used for fitting the shadow camera in default path.
-     */
     public final GeometryList receivers;
-
-    /**
-     * Output occluder list for this split.
-     */
     public final GeometryList occluders;
-    /**
-     * Optional basis data (filters may fill).
-     */
+
     public final Vector3f lightDir = new Vector3f();
     public final Vector3f lightLeft = new Vector3f();
     public final Vector3f lightUp = new Vector3f();
+
     /**
      * If no filter handles camera update, orchestrator will call jME ShadowUtil.updateShadowCamera
      * with this stabilization size (0 disables).
      */
     public int stabilizationTexelSize = 0;
+
+    /**
+     * True if the shadow camera was fully handled by filters.
+     */
+    public boolean shadowCamHandled = false;
+
+    /**
+     * World-space size of one texel for this split.
+     */
+    public float texelWorld = 0f;
+
+    /**
+     * True if texel snapping actually changed the shadow camera.
+     */
+    public boolean texelSnapped = false;
 
     public ShadowSplitContext(ShadowFrameContext frame,
                               int splitIndex,

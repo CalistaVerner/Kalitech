@@ -18,8 +18,7 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 public final class TerrainSplatApiImpl extends AbstractApiModule implements TerrainSplatApi {
 
@@ -45,9 +44,6 @@ public final class TerrainSplatApiImpl extends AbstractApiModule implements Terr
         return null;
     }
 
-    private static Value member(Value v, String k) {
-        return (v != null && !v.isNull() && v.hasMember(k)) ? v.getMember(k) : null;
-    }
 
     @Override
     public void attach(ApiContext ctx) {

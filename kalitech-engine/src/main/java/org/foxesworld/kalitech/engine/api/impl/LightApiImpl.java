@@ -19,8 +19,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
 /**
  * Light API.
@@ -426,7 +425,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             if (type == null || type.isBlank()) throw new IllegalArgumentException("light: type is required");
             String normType = normalizeType(type);
 
-            Boolean enabled = has(cfg, "enabled") ? boolObj(cfg, "enabled") : null;
+            Boolean enabled = has(cfg, "enabled") ? bool(cfg, "enabled", true) : null;
 
             boolean attach = bool(cfg, "attach", true);
             boolean detach = bool(cfg, "detach", false);
@@ -467,38 +466,9 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             }
         }
 
-        private static Value member(Value v, String key) {
-            try {
-                if (v == null || v.isNull() || !v.hasMember(key)) return null;
-                return v.getMember(key);
-            } catch (Throwable t) {
-                return null;
-            }
+
         }
 
-        private static String str(Value v, String key, String def) {
-            try {
-                if (v == null || v.isNull() || !v.hasMember(key)) return def;
-                Value m = v.getMember(key);
-                if (m == null || m.isNull()) return def;
-                String s = m.asString();
-                return (s == null) ? def : s;
-            } catch (Throwable t) {
-                return def;
-            }
-        }
-
-
-        private static Boolean boolObj(Value v, String key) {
-            try {
-                if (v == null || v.isNull() || !v.hasMember(key)) return null;
-                Value m = v.getMember(key);
-                if (m == null || m.isNull()) return null;
-                return m.asBoolean();
-            } catch (Throwable t) {
-                return null;
-            }
-        }
 
         private static ColorRGBA parseColor(Value v, float dr, float dg, float db, float da) {
             if (v == null || v.isNull()) return new ColorRGBA(dr, dg, db, da);
@@ -562,7 +532,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
             return null;
         }
-    }
+
 
     private static final class LightState {
         int id;

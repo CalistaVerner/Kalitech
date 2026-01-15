@@ -181,11 +181,33 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         float minYs = cy0 - halfH0;
         float maxYs = cy0 + halfH0;
 
-        // Snap bounds to texel grid (core shimmer fix)
+
         minXs = FastMath.floor(minXs / texel) * texel;
         minYs = FastMath.floor(minYs / texel) * texel;
-        maxXs = FastMath.floor(maxXs / texel) * texel;
-        maxYs = FastMath.floor(maxYs / texel) * texel;
+        maxXs = FastMath.ceil(maxXs / texel) * texel;
+        maxYs = FastMath.ceil(maxYs / texel) * texel;
+
+// If square is required, expand the smaller dimension in whole-texel steps.
+        if (forceSquare) {
+            float w = maxXs - minXs;
+            float h = maxYs - minYs;
+            float m = Math.max(w, h);
+
+            if (w < m) {
+                float d = m - w;
+                float half = (float) Math.ceil((d * 0.5f) / texel) * texel;
+                minXs -= half;
+                maxXs += half;
+            }
+            if (h < m) {
+                float d = m - h;
+                float half = (float) Math.ceil((d * 0.5f) / texel) * texel;
+                minYs -= half;
+                maxYs += half;
+            }
+        }
+
+
 
         float cx = (minXs + maxXs) * 0.5f;
         float cy = (minYs + maxYs) * 0.5f;

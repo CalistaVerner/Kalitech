@@ -423,7 +423,7 @@ public final class ShadowRenderConfig {
     }
 
     public static final class Debug {
-        private boolean traceEnabled = false;
+        private boolean traceEnabled = true;
         private int traceEveryFrames = 60;
 
         public boolean isTraceEnabled() {

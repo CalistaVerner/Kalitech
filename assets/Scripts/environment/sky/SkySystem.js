@@ -131,12 +131,15 @@ class SkySystem {
             const cel = this.celestial.evaluate(this.clock.time01);
             const log = ENGINE && ENGINE.log ? ENGINE.log : null;
             if (log && log.debug) {
+                /*
                 log.debug(
                     "[sky] tick time01=" + cel.time01.toFixed(4) +
                     " dayFactor=" + cel.dayFactor.toFixed(4) +
                     " primary=" + cel.primary +
                     " cfgPath=" + this._cfgPath
                 );
+
+                 */
             }
         }
     }

@@ -1,0 +1,61 @@
+// FILE: Shaders/Kalitech/Shadows/KaliPoissonPcf.glsllib
+
+#ifndef KALI_POISSON_PCF_GLSLLIB
+#define KALI_POISSON_PCF_GLSLLIB
+
+// Parameters published by PoissonKernelMaterialFilter:
+// bool   m_UseKaliShadowPoisson
+// vec2   m_KaliShadowTexelSize
+// float  m_KaliPoissonRadiusTexels
+// int    m_KaliPoissonTaps
+// bool   m_KaliPoissonRotatePerPixel
+// vec4   m_KaliPoissonKernel[16]
+
+float kali_hash12(vec2 p) {
+    // Deterministic hash (no textures)
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+mat2 kali_rot(float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return mat2(c, -s, s, c);
+}
+
+/**
+ * Poisson PCF sampling for sampler2DShadow.
+ * @param shadowTex sampler2DShadow
+ * @param projCoord shadow projection coords (xyz = uvz in light space, w ignored)
+ * @param screenUv stable per-pixel seed (use something like gl_FragCoord.xy or normalized)
+ */
+float kali_poisson_pcf(sampler2DShadow shadowTex, vec4 projCoord, vec2 screenUv) {
+
+    vec2 uv = projCoord.xy;
+    float z = projCoord.z;
+
+    float radius = m_KaliPoissonRadiusTexels;
+    vec2 texel = m_KaliShadowTexelSize;
+    vec2 scale = texel * radius;
+
+    mat2 R = mat2(1.0);
+    if (m_KaliPoissonRotatePerPixel) {
+        float h = kali_hash12(screenUv);
+        R = kali_rot(h * 6.28318530718);
+    }
+
+    int taps = m_KaliPoissonTaps;
+    taps = clamp(taps, 1, 16);
+
+    float sum = 0.0;
+    for (int i = 0; i < 16; i++) {
+        if (i >= taps) break;
+        vec2 o = (R * m_KaliPoissonKernel[i].xy) * scale;
+        // sampler2DShadow expects vec3(uv, z)
+        sum += texture(shadowTex, vec3(uv + o, z));
+    }
+    return sum / float(taps);
+}
+
+#endif

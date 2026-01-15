@@ -24,9 +24,10 @@ public final class Snapper {
         this.shadowMapSize = shadowMapSize;
     }
 
-    private static float snapDown(float v, float step) {
+    private static float snapNearest(float v, float step) {
         if (!(step > 0f)) return v;
-        return (float) Math.floor(v / step) * step;
+        // Nearest-grid snapping reduces systematic drift compared to floor snapping.
+        return (float) Math.floor((v / step) + 0.5f) * step;
     }
 
     /**
@@ -64,8 +65,8 @@ public final class Snapper {
         float x = tmpLoc.dot(tmpLeft);
         float y = tmpLoc.dot(tmpUp);
 
-        float sx = snapDown(x, texel);
-        float sy = snapDown(y, texel);
+        float sx = snapNearest(x, texel);
+        float sy = snapNearest(y, texel);
 
         float dx = sx - x;
         float dy = sy - y;
@@ -96,9 +97,9 @@ public final class Snapper {
 
     public static final class SnapDebug {
         public float texel;
-        public float x, y;     // projected coordinates before snap
-        public float sx, sy;   // snapped coordinates
-        public float dx, dy;   // delta in projected space
+        public float x, y;
+        public float sx, sy;
+        public float dx, dy;
         public float width, height;
     }
 }
