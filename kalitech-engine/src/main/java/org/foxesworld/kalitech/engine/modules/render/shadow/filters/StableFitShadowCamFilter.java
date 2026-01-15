@@ -6,32 +6,35 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
 
 /**
  * Stable tight cascade fitting in light space.
  * <p>
  * Uses light-space AABB of the 8 frustum slice points instead of a bounding sphere
- * to avoid oversized ortho extents (huge texels).
+ * to reduce oversized ortho extents (smaller texels, less shimmering).
+ * Publishes {@link ShadowKeys#TEXEL_WORLD} for downstream filters.
  */
 public final class StableFitShadowCamFilter implements ShadowFilter {
 
     private final Vector3f tmp = new Vector3f();
-    private final Vector3f tmp2 = new Vector3f();
     private final Vector3f camLoc = new Vector3f();
-    public float extentsPadding = 1.02f;
+    private final Vector3f tmp2 = new Vector3f();
+
     public float minNear = 0.5f;
-    public float casterBackBase = 140f;
-    public float casterBackCascadeMul = 0.9f;
-    public float receiverFrontBase = 40f;
-    /**
-     * Force square ortho extents (recommended for stable texel snapping).
-     */
+    public float receiverFrontBase = 0.5f;
+
     public boolean forceSquare = true;
-    /**
-     * Quantize ortho size in texel steps to stabilize texel world size (0 disables).
-     */
-    public float sizeQuantizeTexels = 1.0f;
+    public float casterBackBase = 0.5f;
+    public float casterBackCascadeMul = 0.35f;
+    public float extentsPadding = 0.0f;
+    public float sizeQuantizeTexels = 0.0f;
+
+    @Override
+    public int order() {
+        return -500;
+    }
 
     private static void normalizeSafe(Vector3f v) {
         float len2 = v.x * v.x + v.y * v.y + v.z * v.z;
@@ -43,15 +46,9 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
     }
 
     @Override
-    public int order() {
-        return -500;
-    }
-
-    @Override
     public boolean updateShadowCam(ShadowSplitContext ctx) {
         Camera sc = ctx.shadowCam;
 
-        // Requires basis to be computed before; fallback if not provided.
         if (ctx.lightDir.lengthSquared() == 0f) {
             ctx.lightDir.set(ctx.light.getDirection());
             normalizeSafe(ctx.lightDir);
@@ -66,13 +63,8 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
             normalizeSafe(ctx.lightUp);
         }
 
-        float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
-        float minZ = Float.POSITIVE_INFINITY;
-
-        float maxX = Float.NEGATIVE_INFINITY;
-        float maxY = Float.NEGATIVE_INFINITY;
-        float maxZ = Float.NEGATIVE_INFINITY;
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
 
         for (int i = 0; i < 8; i++) {
             Vector3f p = ctx.frustumPoints[i];
@@ -82,21 +74,26 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
             float z = p.dot(ctx.lightDir);
 
             if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (z < minZ) minZ = z;
-
             if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
             if (y > maxY) maxY = y;
+            if (z < minZ) minZ = z;
             if (z > maxZ) maxZ = z;
         }
 
-        float pad = Math.max(1.0f, extentsPadding);
+        if (extentsPadding > 0f) {
+            float p = extentsPadding;
+            minX -= p;
+            maxX += p;
+            minY -= p;
+            maxY += p;
+        }
 
         float cx = (minX + maxX) * 0.5f;
         float cy = (minY + maxY) * 0.5f;
 
-        float halfW = (maxX - minX) * 0.5f * pad;
-        float halfH = (maxY - minY) * 0.5f * pad;
+        float halfW = (maxX - minX) * 0.5f;
+        float halfH = (maxY - minY) * 0.5f;
 
         if (forceSquare) {
             float m = Math.max(halfW, halfH);
@@ -104,21 +101,15 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
             halfH = m;
         }
 
-        float casterBack = casterBackBase * (1.0f + (float) ctx.splitIndex * casterBackCascadeMul);
-        float receiverFront = receiverFrontBase;
+        float receiverFront = Math.max(0f, receiverFrontBase);
+        float casterBack = Math.max(0f, casterBackBase + casterBackCascadeMul * ctx.splitIndex);
 
-        minZ -= casterBack;
-        maxZ += receiverFront;
+        float nearVal = Math.max(minNear, minZ - casterBack);
+        float farVal = maxZ + receiverFront;
 
-        float nearVal = Math.max(0.001f, minNear);
-        float farVal = (maxZ - minZ) + nearVal;
-        if (farVal < nearVal + 1.0f) farVal = nearVal + 1.0f;
-
-        // Quantize size to stabilize texelWorld.
-        if (sizeQuantizeTexels > 0f && sc.getWidth() > 0) {
-            int map = sc.getWidth();
+        if (sizeQuantizeTexels > 0f && ctx.frame.shadowMapSize > 0) {
             float size = Math.max(halfW, halfH) * 2.0f;
-            float texel = size / (float) map;
+            float texel = size / (float) ctx.frame.shadowMapSize;
 
             float q = Math.max(1.0f, sizeQuantizeTexels);
             float step = texel * q;
@@ -131,7 +122,6 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
             }
         }
 
-        // Camera location in world: left*cx + up*cy + dir*(minZ - near)
         camLoc.set(ctx.lightLeft).multLocal(cx);
         tmp.set(ctx.lightUp).multLocal(cy);
         camLoc.addLocal(tmp);
@@ -143,6 +133,15 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
         sc.setAxes(ctx.lightLeft, ctx.lightUp, ctx.lightDir);
         sc.setFrustum(nearVal, farVal, -halfW, halfW, halfH, -halfH);
         sc.update();
+
+        if (ctx.frame.shadowMapSize > 0) {
+            float ortho = Math.max(halfW, halfH) * 2.0f;
+            if (ortho > 0f) {
+                float texelWorld = ortho / (float) ctx.frame.shadowMapSize;
+                ctx.texelWorld = texelWorld;
+                ctx.ws.put(ShadowKeys.TEXEL_WORLD, texelWorld);
+            }
+        }
 
         return true;
     }

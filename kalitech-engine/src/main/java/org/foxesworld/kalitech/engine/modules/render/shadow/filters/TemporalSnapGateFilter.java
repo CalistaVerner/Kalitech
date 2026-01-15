@@ -5,66 +5,54 @@ package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
+import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFrameContext;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
 
 /**
  * Temporal gate for texel snapping.
  * <p>
- * Goal: prevent "shadow slideshow" / micro-jitters by allowing re-snap only
- * when camera motion exceeds thresholds. When disallowed, TexelSnapFilter should
- * hold last snapped projection instead of letting sub-texel drift happen.
+ * Publishes camera motion deltas (frame-scope) and per-split resnap permission (split-scope)
+ * into the shared workspace.
  */
 public final class TemporalSnapGateFilter implements ShadowFilter {
 
-    private final Vector3f lastCamPos = new Vector3f(Float.NaN, Float.NaN, Float.NaN);
+    private final Vector3f lastCamPos = new Vector3f();
+    public boolean enabled = true;
+    public float minMoveTexels = 1.25f;
+    public float minRotateDeg = 0.25f;
+    public float teleportMoveTexels = 64.0f;
+    public int gatedFirstCascades = 2;
     private final Quaternion lastCamRot = new Quaternion();
     private final Quaternion invPrev = new Quaternion();
     private final Quaternion delta = new Quaternion();
-
-    /**
-     * Enable/disable gate logic.
-     */
-    public boolean enabled = true;
-
-    /**
-     * If camera moved less than this amount of shadow texels, do not allow re-snap.
-     */
-    public float minMoveTexels = 1.25f;
-
-    /**
-     * If camera rotated less than this angle (degrees), do not allow re-snap.
-     */
-    public float minRotateDeg = 0.25f;
-
-    /**
-     * If camera moved more than this amount of shadow texels, treat as teleport and force resnap.
-     */
-    public float teleportMoveTexels = 24.0f;
-
-    /**
-     * Apply gate only for first N cascades.
-     */
-    public int gatedFirstCascades = 1;
-
-    private boolean hasLast = false;
-
-    // Cached per-frame metrics (computed once on split 0)
-    private float lastMoveWorld = 0f;
-    private float lastAngleDeg = 0f;
+    private boolean hasLast;
     private long lastFrameId = -1L;
+
+    private float lastMoveWorld;
+    private float lastAngleDeg;
 
     @Override
     public int order() {
         return 900;
     }
 
-    @Override
-    public void beginSplit(ShadowSplitContext ctx) {
-        if (!enabled) return;
-        if (ctx.splitIndex != 0) return;
+    private static float computeTexelWorld(Camera sc, int mapSize) {
+        if (mapSize <= 0) return 0f;
+        float orthoW = sc.getFrustumRight() - sc.getFrustumLeft();
+        float orthoH = sc.getFrustumTop() - sc.getFrustumBottom();
+        float ortho = Math.max(orthoW, orthoH);
+        if (!(ortho > 0f)) return 0f;
+        return ortho / (float) mapSize;
+    }
 
-        long fid = ctx.frame.frameId;
+    @Override
+    public void beginFrame(ShadowFrameContext ctx) {
+        if (!enabled) return;
+
+        long fid = ctx.frameId;
         if (fid == lastFrameId) return;
         lastFrameId = fid;
 
@@ -77,21 +65,44 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
             lastMoveWorld = 0f;
             lastAngleDeg = 0f;
             hasLast = true;
+
+            ctx.ws.put(ShadowKeys.VIEW_CAM_MOVE_WORLD, 0f);
+            ctx.ws.put(ShadowKeys.VIEW_CAM_ROTATE_DEG, 0f);
             return;
         }
 
-        // Movement
         lastMoveWorld = lastCamPos.distance(p);
 
-        // Rotation
         invPrev.set(lastCamRot).inverseLocal();
         delta.set(invPrev).multLocal(r);
         float angleRad = 2.0f * FastMath.acos(FastMath.clamp(delta.getW(), -1f, 1f));
         lastAngleDeg = angleRad * FastMath.RAD_TO_DEG;
 
-        // Store current as "last" for next frame
         lastCamPos.set(p);
         lastCamRot.set(r);
+
+        ctx.ws.put(ShadowKeys.VIEW_CAM_MOVE_WORLD, lastMoveWorld);
+        ctx.ws.put(ShadowKeys.VIEW_CAM_ROTATE_DEG, lastAngleDeg);
+    }
+
+    @Override
+    public void afterShadowCam(ShadowSplitContext ctx) {
+        if (!enabled) return;
+
+        float texelWorld = ctx.texelWorld;
+        if (!(texelWorld > 0f)) {
+            texelWorld = computeTexelWorld(ctx.shadowCam, ctx.frame.shadowMapSize);
+            if (texelWorld > 0f) {
+                ctx.texelWorld = texelWorld;
+            }
+        }
+
+        if (texelWorld > 0f) {
+            ctx.ws.put(ShadowKeys.TEXEL_WORLD, texelWorld);
+        }
+
+        boolean allow = allowResnap(ctx, texelWorld);
+        ctx.ws.put(ShadowKeys.ALLOW_TEXEL_SNAP, allow);
     }
 
     /**
@@ -103,21 +114,19 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
         if (!hasLast) return true;
 
         if (!(texelWorld > 0f)) {
-            // If texelWorld is unknown, allow resnap (better than drift).
             return true;
         }
 
         float moveTexels = lastMoveWorld / texelWorld;
 
-        // Teleport => always resnap
         if (teleportMoveTexels > 0f && moveTexels >= teleportMoveTexels) {
             return true;
         }
 
-        // Normal thresholds
         if (minMoveTexels > 0f && moveTexels >= minMoveTexels) {
             return true;
         }
+
         if (minRotateDeg > 0f && lastAngleDeg >= minRotateDeg) {
             return true;
         }

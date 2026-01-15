@@ -2,34 +2,27 @@
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadow.config;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.Objects;
 
 /**
  * High-level shadow renderer settings.
  * <p>
- * This is the centralized configuration bundle for shadow rendering. It separates
- * "structural" settings (shadow map size, number of cascades) from the pipeline
- * behavior (stability, snapping, fitting, etc.).
- * <p>
  * Structural settings may require recreating the underlying renderer instance.
  */
 public final class ShadowRendererSettings {
+
+    private static final Logger log = LogManager.getLogger(ShadowRendererSettings.class);
 
     private final ShadowRenderConfig pipeline = new ShadowRenderConfig();
     private int shadowMapSize = 2048;
     private int cascades = 4;
     private float lambda = 0.65f;
     private float intensity = 1.0f;
-    /**
-     * If non-zero, overrides the shadow view far plane used by jME.
-     */
     private float zFarOverride = 0.0f;
 
-    /**
-     * Creates a CDPR-like preset focused on maximum stability.
-     * <p>
-     * This is a convenience factory; you may freely modify the returned object.
-     */
     public static ShadowRendererSettings cdpr8192() {
         ShadowRendererSettings s = new ShadowRendererSettings();
         s.shadowMapSize = 8192;
@@ -38,6 +31,7 @@ public final class ShadowRendererSettings {
         s.intensity = 1.0f;
         ShadowRenderConfig preset = ShadowRenderConfig.cdpr8192();
         copyInto(s.pipeline, preset);
+        log.debug("[shadow][cfg] preset=cdpr8192 map={} cascades={}", s.shadowMapSize, s.cascades);
         return s;
     }
 
@@ -134,25 +128,36 @@ public final class ShadowRendererSettings {
         return pipeline;
     }
 
-    /**
-     * Computes a deterministic signature for change detection.
-     */
     public long signature() {
         long h = 1469598103934665603L;
-        h = mix(h, shadowMapSize);
-        h = mix(h, cascades);
-        h = mix(h, Float.floatToIntBits(lambda));
-        h = mix(h, Float.floatToIntBits(intensity));
-        h = mix(h, Float.floatToIntBits(zFarOverride));
-        h = mix(h, (int) (pipeline.signature() ^ (pipeline.signature() >>> 32)));
+        long a = structuralSignature();
+        long b = dynamicSignature();
+        long c = pipelineSignature();
+        h = mix(h, Long.hashCode(a));
+        h = mix(h, Long.hashCode(b));
+        h = mix(h, Long.hashCode(c));
         return h;
     }
 
-    /**
-     * Validates and normalizes values.
-     * <p>
-     * This method clamps values into safe ranges and throws for invalid structural values.
-     */
+    public long structuralSignature() {
+        long h = 1469598103934665603L;
+        h = mix(h, shadowMapSize);
+        h = mix(h, cascades);
+        return h;
+    }
+
+    public long dynamicSignature() {
+        long h = 1469598103934665603L;
+        h = mix(h, Float.floatToIntBits(lambda));
+        h = mix(h, Float.floatToIntBits(intensity));
+        h = mix(h, Float.floatToIntBits(zFarOverride));
+        return h;
+    }
+
+    public long pipelineSignature() {
+        return pipeline.signature();
+    }
+
     public ShadowRendererSettings validate() {
         if (shadowMapSize <= 0) {
             throw new IllegalArgumentException("shadowMapSize must be > 0");
@@ -160,10 +165,21 @@ public final class ShadowRendererSettings {
         if (cascades < 1 || cascades > 8) {
             throw new IllegalArgumentException("cascades must be in [1..8]");
         }
+
+        float oldLambda = lambda;
+        float oldIntensity = intensity;
+        float oldZFar = zFarOverride;
+
         if (lambda < 0.0f) lambda = 0.0f;
         if (lambda > 1.0f) lambda = 1.0f;
         if (intensity < 0.0f) intensity = 0.0f;
         if (zFarOverride < 0.0f) zFarOverride = 0.0f;
+
+        if (oldLambda != lambda || oldIntensity != intensity || oldZFar != zFarOverride) {
+            log.debug("[shadow][cfg] normalize lambda:{}->{} intensity:{}->{} zFarOverride:{}->{}",
+                    oldLambda, lambda, oldIntensity, intensity, oldZFar, zFarOverride);
+        }
+
         return this;
     }
 }

@@ -1,4 +1,4 @@
-// FILE: org/foxesworld/kalitech/engine/modules/render/shadows/filters/CascadeHysteresisFilter.java
+// FILE: org/foxesworld/kalitech/engine/modules/render/shadow/filters/CascadeHysteresisFilter.java
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 
@@ -6,32 +6,25 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilte
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFrameContext;
 
 /**
- * Stabilizes split distances using hysteresis to prevent cascade popping.
+ * Stabilizes cascade split distances using hysteresis and optional smoothing to prevent popping.
  */
 public final class CascadeHysteresisFilter implements ShadowFilter {
 
     /**
-     * World/view space distance hysteresis. If delta is smaller than this value,
-     * keep previous split distance.
+     * World distance hysteresis. If delta is smaller than this value, keep previous split distance.
      */
-    public float hysteresis = 6.0f;
+    public float hysteresis = 0.15f;
 
     /**
-     * Optional smoothing (0..1). 0 means hard hysteresis only.
+     * Smoothing factor in [0..1]. 0 disables smoothing.
      */
-    public float smoothing = 0.15f;
+    public float smoothing = 0.0f;
 
     private float[] prev;
 
-    private static float clamp01(float v) {
-        if (v < 0f) return 0f;
-        if (v > 1f) return 1f;
-        return v;
-    }
-
     @Override
     public int order() {
-        return -2000;
+        return -900;
     }
 
     @Override
@@ -39,24 +32,19 @@ public final class CascadeHysteresisFilter implements ShadowFilter {
         float[] s = ctx.splits;
         if (s == null || s.length < 2) return;
 
-        if (prev == null || prev.length != s.length) {
-            prev = s.clone();
-            return;
-        }
+        ensurePrev(s.length);
 
-        // Keep split[0] (near) and split[last] (far) as provided.
         for (int i = 1; i < s.length - 1; i++) {
-            float target = s[i];
-            float old = prev[i];
+            float cur = s[i];
+            float last = prev[i];
 
-            float delta = target - old;
-            if (delta < 0f) delta = -delta;
-
-            if (delta < hysteresis) {
-                s[i] = old;
-            } else if (smoothing > 0f) {
-                float a = clamp01(smoothing);
-                s[i] = old + (target - old) * a;
+            if (last > 0f && hysteresis > 0f && Math.abs(cur - last) < hysteresis) {
+                s[i] = last;
+            } else if (last > 0f && smoothing > 0f) {
+                float k = smoothing;
+                if (k < 0f) k = 0f;
+                if (k > 1f) k = 1f;
+                s[i] = last + (cur - last) * k;
             }
 
             prev[i] = s[i];
@@ -66,12 +54,13 @@ public final class CascadeHysteresisFilter implements ShadowFilter {
         prev[s.length - 1] = s[s.length - 1];
     }
 
-    public void setHysteresis(float hysteresis) {
-        this.hysteresis = hysteresis;
+    private void ensurePrev(int n) {
+        if (prev != null && prev.length == n) return;
+        prev = new float[n];
     }
 
-    public void setPrev(float[] prev) {
-        this.prev = prev;
+    public void setHysteresis(float hysteresis) {
+        this.hysteresis = hysteresis;
     }
 
     public void setSmoothing(float smoothing) {

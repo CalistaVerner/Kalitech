@@ -28,14 +28,18 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
  *   <li>Apply configuration dynamically via reflection (fields + setters).</li>
  *   <li>Expose option schemas for each step for JS/UI tooling (introspection).</li>
  *   <li>Run post-link passes to wire step dependencies (e.g., gate -> snap) inside registry.</li>
+ *   <li>Support type aliases for backward compatibility and UX (e.g., "pcf" -> "poissonPcf").</li>
  * </ul>
  */
 public final class ShadowPipelineRegistry {
 
     private final Map<String, RegisteredStep> steps = new ConcurrentHashMap<>();
+    private final Map<String, String> aliases = new ConcurrentHashMap<>();
+
     private final Map<Class<?>, StepBinder> binderCache = new ConcurrentHashMap<>();
     private final Map<String, List<OptionSpec>> schemaCache = new ConcurrentHashMap<>();
     private final List<PostLinkPass> postLinks = Collections.synchronizedList(new ArrayList<>());
+
     private final ShadowPipelinePresetLibrary presets;
 
     public ShadowPipelineRegistry(ShadowPipelinePresetLibrary presets) {
@@ -155,8 +159,9 @@ public final class ShadowPipelineRegistry {
             c.setAccessible(true);
             return c.newInstance();
         } catch (Throwable t) {
-            if (log != null)
+            if (log != null) {
                 log.warn("[shadow] cannot instantiate step type='{}' class='{}': {}", type, clazz.getName(), t.toString());
+            }
             return null;
         }
     }
@@ -226,10 +231,6 @@ public final class ShadowPipelineRegistry {
         return out;
     }
 
-    // ---------------------------------------------------------------------
-    // Build / create
-    // ---------------------------------------------------------------------
-
     private static List<Method> allMethods(Class<?> c) {
         ArrayList<Method> out = new ArrayList<>();
         Class<?> cur = c;
@@ -254,52 +255,8 @@ public final class ShadowPipelineRegistry {
     }
 
     // ---------------------------------------------------------------------
-    // Generic reflection wiring helpers
+    // Aliases
     // ---------------------------------------------------------------------
-
-    private static String optionName(ShadowOption meta, String fallback) {
-        if (meta != null && meta.name() != null && !meta.name().isEmpty()) return meta.name();
-        return fallback;
-    }
-
-    private static List<String> optionKeys(ShadowOption meta, String primary) {
-        ArrayList<String> out = new ArrayList<>(4);
-        out.add(primary);
-        if (meta != null) {
-            for (String a : meta.aliases()) {
-                if (a != null && !a.isEmpty()) out.add(a);
-            }
-        }
-        return out;
-    }
-
-    private static String safeStr(Value v) {
-        try {
-            if (v == null || v.isNull()) return null;
-            return v.isString() ? v.asString() : String.valueOf(v);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static List<StepDef> parseStepsArray(Value arr) {
-        int n = (int) arr.getArraySize();
-        ArrayList<StepDef> out = new ArrayList<>(n);
-
-        for (int i = 0; i < n; i++) {
-            Value e = arr.getArrayElement(i);
-            if (e == null || e.isNull()) continue;
-
-            String type = null;
-            if (e.hasMember("type")) type = safeStr(e.getMember("type"));
-            if ((type == null || type.isEmpty()) && e.hasMember("id")) type = safeStr(e.getMember("id"));
-            if (type == null || type.isEmpty()) type = "noop";
-
-            Value cfg = e.hasMember("cfg") ? e.getMember("cfg") : e;
-            out.add(new StepDef(type, cfg));
-        }
-        return out;
-    }
 
     private static List<StepDef> mergeOverrides(Logger log, List<StepDef> base, Value overridesArr) {
         ArrayList<StepDef> out = new ArrayList<>(base);
@@ -330,9 +287,99 @@ public final class ShadowPipelineRegistry {
             else out.add(sd);
         }
 
-        if (log != null)
+        if (log != null) {
             log.debug("[shadow] pipeline overrides applied: base={} overrides={} => out={}", base.size(), n, out.size());
+        }
         return out;
+    }
+
+    private static String optionName(ShadowOption meta, String fallback) {
+        if (meta != null && meta.name() != null && !meta.name().isEmpty()) return meta.name();
+        return fallback;
+    }
+
+    private static List<String> optionKeys(ShadowOption meta, String primary) {
+        ArrayList<String> out = new ArrayList<>(4);
+        out.add(primary);
+        if (meta != null) {
+            for (String a : meta.aliases()) {
+                if (a != null && !a.isEmpty()) out.add(a);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Registers an alias for a step type.
+     * <p>
+     * Both alias and target are normalized (case-insensitive, '_' and '-' ignored).
+     * Alias is resolved at creation and schema lookup time.
+     */
+    public void alias(String alias, String targetType) {
+        Objects.requireNonNull(alias, "alias");
+        Objects.requireNonNull(targetType, "targetType");
+
+        String a = normalizeKey(alias);
+        String t = normalizeKey(targetType);
+
+        if (a.isEmpty() || t.isEmpty()) return;
+        if (a.equals(t)) return;
+
+        aliases.put(a, t);
+        schemaCache.remove(a);
+    }
+
+    // ---------------------------------------------------------------------
+    // Parsing helpers
+    // ---------------------------------------------------------------------
+
+    private static String safeStr(Value v) {
+        try {
+            if (v == null || v.isNull()) return null;
+            return v.isString() ? v.asString() : String.valueOf(v);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static List<StepDef> parseStepsArray(Value arr) {
+        int n = (int) arr.getArraySize();
+        ArrayList<StepDef> out = new ArrayList<>(n);
+
+        for (int i = 0; i < n; i++) {
+            Value e = arr.getArrayElement(i);
+            if (e == null || e.isNull()) continue;
+
+            String type = null;
+            if (e.hasMember("type")) type = safeStr(e.getMember("type"));
+            if ((type == null || type.isEmpty()) && e.hasMember("id")) type = safeStr(e.getMember("id"));
+            if (type == null || type.isEmpty()) type = "noop";
+
+            Value cfg = e.hasMember("cfg") ? e.getMember("cfg") : e;
+            out.add(new StepDef(type, cfg));
+        }
+        return out;
+    }
+
+    /**
+     * Returns canonical type for a given input type (resolving aliases).
+     * If the type is unknown, returns normalized input.
+     */
+    private String resolveType(Logger log, String type) {
+        String cur = normalizeKey(type);
+        if (cur.isEmpty()) return cur;
+
+        int guard = 0;
+        while (guard++ < 16) {
+            String next = aliases.get(cur);
+            if (next == null || next.isEmpty() || next.equals(cur)) break;
+            cur = next;
+        }
+
+        if (guard >= 16 && log != null) {
+            log.warn("[shadow] alias resolution exceeded guard for type='{}'", type);
+        }
+        return cur;
     }
 
     private static String buildStableKeyFromSteps(int splits, List<StepDef> steps) {
@@ -383,23 +430,19 @@ public final class ShadowPipelineRegistry {
     // ---------------------------------------------------------------------
 
     /**
-     * Registers a step by class. Instances are created via default constructor.
+     * Returns canonical registered types (excluding aliases).
      */
-    public void register(String type, Class<? extends ShadowFilter> clazz) {
-        Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(clazz, "clazz");
-        steps.put(type, new RegisteredStep(type, clazz, null));
-        invalidateCaches(clazz, type);
+    public Set<String> knownTypes() {
+        return new TreeSet<>(steps.keySet());
     }
 
     /**
-     * Registers a step by factory. Use when the step needs constructor args or shared instances.
+     * Returns known aliases (alias -> targetType).
      */
-    public void register(String type, StepFactory factory) {
-        Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(factory, "factory");
-        steps.put(type, new RegisteredStep(type, null, factory));
-        schemaCache.remove(type);
+    public Map<String, String> knownAliases() {
+        TreeMap<String, String> out = new TreeMap<>();
+        out.putAll(aliases);
+        return out;
     }
 
     /**
@@ -410,10 +453,6 @@ public final class ShadowPipelineRegistry {
         Objects.requireNonNull(pass, "pass");
         postLinks.add(pass);
     }
-
-    // ---------------------------------------------------------------------
-    // Reflection-based config binding
-    // ---------------------------------------------------------------------
 
     /**
      * Clears all post-link passes (useful for tests or reloads).
@@ -442,32 +481,16 @@ public final class ShadowPipelineRegistry {
     }
 
     /**
-     * Builds and configures a single step instance.
+     * Registers a step by class. Instances are created via default constructor.
      */
-    public ShadowFilter create(Logger log, Runtime rt, String type, Value cfg) {
-        RegisteredStep reg = steps.get(type);
-        if (reg == null) {
-            if (log != null) log.warn("[shadow] unknown pipeline step type='{}' => skipped", type);
-            return null;
-        }
+    public void register(String type, Class<? extends ShadowFilter> clazz) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(clazz, "clazz");
 
-        ShadowFilter inst = null;
-
-        if (reg.factory != null) {
-            try {
-                inst = reg.factory.create(rt, cfg);
-            } catch (Throwable t) {
-                if (log != null) log.warn("[shadow] step factory failed type='{}': {}", type, t.toString());
-                return null;
-            }
-        } else if (reg.clazz != null) {
-            inst = newInstance(log, type, reg.clazz);
-        }
-
-        if (inst == null) return null;
-
-        applyConfig(log, inst, cfg);
-        return inst;
+        String k = normalizeKey(type);
+        steps.put(k, new RegisteredStep(k, clazz, null));
+        invalidateCaches(clazz, k);
+        schemaCache.remove(k);
     }
 
     /**
@@ -533,27 +556,15 @@ public final class ShadowPipelineRegistry {
     }
 
     /**
-     * Returns dynamic option schema for a type, via reflection.
+     * Registers a step by factory. Use when the step needs constructor args or shared instances.
      */
-    public List<OptionSpec> schemaFor(String type) {
-        List<OptionSpec> cached = schemaCache.get(type);
-        if (cached != null) return cached;
+    public void register(String type, StepFactory factory) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(factory, "factory");
 
-        RegisteredStep reg = steps.get(type);
-        if (reg == null || reg.clazz == null) {
-            List<OptionSpec> empty = List.of();
-            schemaCache.put(type, empty);
-            return empty;
-        }
-
-        StepBinder binder = binderCache.computeIfAbsent(reg.clazz, StepBinder::build);
-        List<OptionSpec> schema = binder.schema;
-        schemaCache.put(type, schema);
-        return schema;
-    }
-
-    public Set<String> knownTypes() {
-        return new TreeSet<>(steps.keySet());
+        String k = normalizeKey(type);
+        steps.put(k, new RegisteredStep(k, null, factory));
+        schemaCache.remove(k);
     }
 
     public void applyConfig(Logger log, ShadowFilter step, Value cfg) {
@@ -651,10 +662,6 @@ public final class ShadowPipelineRegistry {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Value helpers
-    // ---------------------------------------------------------------------
-
     /**
      * Runtime info that can be used by factories.
      */
@@ -678,6 +685,60 @@ public final class ShadowPipelineRegistry {
             this.clazz = clazz;
             this.factory = factory;
         }
+    }
+
+    /**
+     * Builds and configures a single step instance.
+     */
+    public ShadowFilter create(Logger log, Runtime rt, String type, Value cfg) {
+        String resolved = resolveType(log, type);
+
+        RegisteredStep reg = steps.get(resolved);
+        if (reg == null) {
+            if (log != null) log.warn("[shadow] unknown pipeline step type='{}' => skipped", type);
+            return null;
+        }
+
+        ShadowFilter inst = null;
+
+        if (reg.factory != null) {
+            try {
+                inst = reg.factory.create(rt, cfg);
+            } catch (Throwable t) {
+                if (log != null) log.warn("[shadow] step factory failed type='{}': {}", type, t.toString());
+                return null;
+            }
+        } else if (reg.clazz != null) {
+            inst = newInstance(log, type, reg.clazz);
+        }
+
+        if (inst == null) return null;
+
+        applyConfig(log, inst, cfg);
+        return inst;
+    }
+
+    /**
+     * Returns dynamic option schema for a type, via reflection.
+     * Aliases are resolved before schema lookup.
+     */
+    public List<OptionSpec> schemaFor(String type) {
+        String resolved = resolveType(null, type);
+
+        List<OptionSpec> cached = schemaCache.get(resolved);
+        if (cached != null) return cached;
+
+        RegisteredStep reg = steps.get(resolved);
+        if (reg == null || reg.clazz == null) {
+            List<OptionSpec> empty = List.of();
+            schemaCache.put(resolved, empty);
+            return empty;
+        }
+
+        StepBinder binder = binderCache.computeIfAbsent(reg.clazz, StepBinder::build);
+        List<OptionSpec> schema = binder.schema;
+        schemaCache.put(resolved, schema);
+        return schema;
     }
 
     private static final class SetterBinding {
@@ -812,8 +873,9 @@ public final class ShadowPipelineRegistry {
                         try {
                             sb.invoke(target, parsed);
                         } catch (Throwable t) {
-                            if (log != null)
+                            if (log != null) {
                                 log.warn("[shadow] cfg set failed {}.{}: {}", target.getClass().getSimpleName(), rawKey, t.toString());
+                            }
                         }
                     }
                     continue;
@@ -826,8 +888,9 @@ public final class ShadowPipelineRegistry {
                         try {
                             fb.set(target, parsed);
                         } catch (Throwable t) {
-                            if (log != null)
+                            if (log != null) {
                                 log.warn("[shadow] cfg field set failed {}.{}: {}", target.getClass().getSimpleName(), rawKey, t.toString());
+                            }
                         }
                     }
                 }

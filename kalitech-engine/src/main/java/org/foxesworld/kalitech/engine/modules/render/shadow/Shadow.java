@@ -7,6 +7,7 @@ import com.jme3.asset.AssetManager;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.modules.render.RenderThread;
 import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule;
@@ -32,31 +33,31 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
  */
 public final class Shadow {
 
+    private static final Logger log = LogManager.getLogger(Shadow.class);
+
     private final RenderThread thread;
     private final SimpleApplication app;
     private final AssetManager assets;
-    private final Logger log;
     private final LightRigModule lights;
 
     private DirectionalLightShadowRenderer dlsr;
 
     // Pending application flags
     private final AtomicBoolean pendingRebuild = new AtomicBoolean(false);
+    private final AtomicBoolean pendingFullReload = new AtomicBoolean(false);
+    private final ShadowPipelineRegistry registry = new ShadowPipelineRegistry(presets);
+    private boolean enabled = true;
     private int splits = 4;
     private float lambda = 0.72f;
     private float intensity = 0.75f;
     private float shadowZExtend = 1000f;
     private float shadowZFadeLength = 0f;
-
-    private boolean enabled = true;
-    private final AtomicBoolean pendingFullReload = new AtomicBoolean(false);
-
     // Base values (defaults)
     private int mapSize = 8192;
-    private int snapFirstCascades = 2;
     private float extentsPadding = 1.02f;
-    private int glMaxTexSize = 0;
     private float splitSmoothing = 0.10f;
+    // Fit/anti-shimmer knobs
+    private int snapFirstCascades = 2;
 
     // Knobs
     private boolean snapEnabled = true;
@@ -64,55 +65,53 @@ public final class Shadow {
     // PCSS toggle (wired later via material/shader filter)
     private boolean usePcss = false;
 
-    // Anti-popping
-    private float splitHysteresis = 10.0f;
-
     // Optional fixed splits (null = disabled)
     private float[] fixedSplitDistances = null;
+    private float splitHysteresis = 10.0f;
 
     // Pipeline system
     private final ShadowPipelinePresetLibrary presets = new ShadowPipelinePresetLibrary();
+    // GPU limits cache
+    private int glMaxTexSize = 0;
+
     private String pipelineKey = "";
-    private final ShadowPipelineRegistry registry = new ShadowPipelineRegistry(presets);
-    // JS-defined pipeline via registry (null => use default hardcoded pipeline)
     private ShadowPipelineRegistry.PipelineDef pipelineDef = null;
 
-    public Shadow(RenderThread thread, SimpleApplication app, AssetManager assets, Logger log, LightRigModule lights) {
+    public Shadow(RenderThread thread, SimpleApplication app, AssetManager assets, Logger ignoredExternalLogger, LightRigModule lights) {
         this.thread = Objects.requireNonNull(thread, "thread");
         this.app = Objects.requireNonNull(app, "app");
         this.assets = Objects.requireNonNull(assets, "assets");
-        this.log = Objects.requireNonNull(log, "log");
         this.lights = Objects.requireNonNull(lights, "lights");
         registerDefaultPipelineSteps();
     }
 
     private void registerDefaultPipelineSteps() {
-        // Steps (registry owns cfg + wiring)
         registry.register("hysteresis", CascadeHysteresisFilter.class);
         registry.register("basis", StableLightBasisFilter.class);
+
+        registry.register("stableFit", StableFitShadowCamFilter.class);
         registry.register("tightFit", TightStableFitShadowCamFilter.class);
+
         registry.register("temporalGate", TemporalSnapGateFilter.class);
         registry.register("texelSnap", TexelSnapFilter.class);
+
         registry.register("trace", ShadowTraceFilter.class);
 
-        // Optional aliases
+        registry.register("onlySplit", OnlySplitFilter.class);
+
+        registry.register("poissonPcf", PoissonPcfFilter.class);
+        registry.alias("pcf", "poissonPcf");
+
+        registry.register("telemetry", CascadeStabilityTelemetryFilter.class);
+        registry.register("stabilityTelemetry", CascadeStabilityTelemetryFilter.class);
+
         registry.register("fit", TightStableFitShadowCamFilter.class);
         registry.register("snap", TexelSnapFilter.class);
-
-        // Post-link wiring (keeps Shadow thin)
-        registry.addPostLink(
-                ShadowPipelineRegistry.linkByMember(
-                        TexelSnapFilter.class,
-                        "gate",
-                        TemporalSnapGateFilter.class
-                )
-        );
     }
 
     // ---------------------------------------------------------------------
     // Engine API
     // ---------------------------------------------------------------------
-
 
     private static boolean hasAny(Value v, String a, String b) {
         return has(v, a) || has(v, b);
@@ -132,6 +131,7 @@ public final class Shadow {
     }
 
     public void setEnabled(boolean enabled) {
+        if (this.enabled == enabled) return;
         this.enabled = enabled;
         requestFullReload();
     }
@@ -155,7 +155,7 @@ public final class Shadow {
     }
 
     /**
-     * Requests a rebuild if config changed; may be coalesced.
+     * Requests a rebuild; may be coalesced.
      */
     private void requestRebuild() {
         pendingRebuild.set(true);
@@ -174,39 +174,47 @@ public final class Shadow {
      * This method is render-thread only.
      */
     public void flushPending() {
-        if (!pendingRebuild.getAndSet(false)) {
-            return;
-        }
+        if (!pendingRebuild.getAndSet(false)) return;
         boolean full = pendingFullReload.getAndSet(false);
         rebuildNow(full);
     }
 
     public void setSnapEnabled(boolean enabled) {
+        if (this.snapEnabled == enabled) return;
         this.snapEnabled = enabled;
         requestRebuild();
     }
 
     public void setSnapFirstCascades(int count) {
-        this.snapFirstCascades = clampInt(count, 0, 8, this.snapFirstCascades);
+        int v = clampInt(count, 0, 8, this.snapFirstCascades);
+        if (v == this.snapFirstCascades) return;
+        this.snapFirstCascades = v;
         requestRebuild();
     }
 
     public void setExtentsPadding(float padding) {
-        this.extentsPadding = Math.max(1.0f, padding);
+        float v = Math.max(1.0f, padding);
+        if (v == this.extentsPadding) return;
+        this.extentsPadding = v;
         requestRebuild();
     }
 
     public void setSplitHysteresis(float hysteresis) {
-        this.splitHysteresis = Math.max(0f, hysteresis);
+        float v = Math.max(0f, hysteresis);
+        if (v == this.splitHysteresis) return;
+        this.splitHysteresis = v;
         requestRebuild();
     }
 
     public void setSplitSmoothing(float smoothing) {
-        this.splitSmoothing = Math.max(0f, Math.min(1f, smoothing));
+        float v = Math.max(0f, Math.min(1f, smoothing));
+        if (v == this.splitSmoothing) return;
+        this.splitSmoothing = v;
         requestRebuild();
     }
 
     public void setUsePcss(boolean enabled) {
+        if (this.usePcss == enabled) return;
         this.usePcss = enabled;
         requestRebuild();
     }
@@ -224,30 +232,34 @@ public final class Shadow {
     }
 
     public void setShadowZExtend(float zExtend) {
-        this.shadowZExtend = Math.max(0f, zExtend);
+        float v = Math.max(0f, zExtend);
+        if (v == this.shadowZExtend) return;
+        this.shadowZExtend = v;
         thread.onJme(() -> {
             if (dlsr != null) dlsr.setShadowZExtend(this.shadowZExtend);
         });
-        log.info("[shadow] zExtend={}", this.shadowZExtend);
+        log.info("[shadow][cfg] zExtend={}", this.shadowZExtend);
     }
 
     public void setShadowZFadeLength(float zFadeLength) {
-        this.shadowZFadeLength = Math.max(0f, zFadeLength);
+        float v = Math.max(0f, zFadeLength);
+        if (v == this.shadowZFadeLength) return;
+        this.shadowZFadeLength = v;
         thread.onJme(() -> {
             if (dlsr != null) dlsr.setShadowZFadeLength(this.shadowZFadeLength);
         });
-        log.info("[shadow] zFadeLength={}", this.shadowZFadeLength);
+        log.info("[shadow][cfg] zFadeLength={}", this.shadowZFadeLength);
     }
 
     public void onPrimaryLightChanged() {
         thread.onJme(() -> {
             if (dlsr == null) return;
             if (lights.primaryLight() == null) {
-                log.warn("[shadow] primary light became null => shadows will stop");
+                log.warn("[shadow][cfg] primaryLight=null => disabledByLight");
                 return;
             }
             dlsr.setLight(lights.primaryLight());
-            log.info("[shadow] primary light updated => {}", lights.primaryDirectional());
+            log.info("[shadow][cfg] primaryLight=updated dir={}", lights.primaryDirectional());
         });
     }
 
@@ -269,7 +281,7 @@ public final class Shadow {
         try {
             vp.removeProcessor(old);
         } catch (Throwable t) {
-            log.warn("[shadow] removeProcessor failed: {}", t.toString());
+            log.warn("[shadow][cfg] removeProcessor failed: {}", t.toString());
         }
         return old;
     }
@@ -290,7 +302,7 @@ public final class Shadow {
                     old.cleanup();
                 }
             } catch (Throwable t) {
-                log.warn("[shadow] deferred cleanup failed: {}", t.toString());
+                log.warn("[shadow][cfg] deferredCleanup failed: {}", t.toString());
             }
             return null;
         });
@@ -326,7 +338,7 @@ public final class Shadow {
         int max = glMaxTexSize > 0 ? glMaxTexSize : 16384;
 
         if (max >= 16384 && requested >= 16384) {
-            return 8192;
+            return 12456;
         }
 
         return Math.min(requested, max);
@@ -345,9 +357,7 @@ public final class Shadow {
 
         Value src = cfg;
         Value nested = member(cfg, "shadows");
-        if (nested != null && !nested.isNull()) {
-            src = nested;
-        }
+        if (nested != null && !nested.isNull()) src = nested;
 
         boolean changed = false;
 
@@ -473,7 +483,6 @@ public final class Shadow {
             }
         }
 
-        // JS-defined pipeline via registry (supports array/preset/object)
         ShadowPipelineRegistry.PipelineDef newDef = registry.parsePipeline(log, src, this.splits);
         String newKey = (newDef == null) ? "" : newDef.key;
         if (!Objects.equals(newKey, this.pipelineKey)) {
@@ -482,9 +491,7 @@ public final class Shadow {
             changed = true;
         }
 
-        if (changed) {
-            requestRebuild();
-        }
+        if (changed) requestRebuild();
     }
 
     /**
@@ -499,22 +506,23 @@ public final class Shadow {
         if (!enabled) {
             DirectionalLightShadowRenderer old = detachOnly();
             deferCleanup(old);
-            log.info("[shadow] disabled");
+            log.info("[shadow][cfg] state=disabled");
             return;
         }
 
         if (lights.primaryLight() == null) {
             DirectionalLightShadowRenderer old = detachOnly();
             deferCleanup(old);
-            log.warn("[shadow] cannot enable: primary directional light is null");
+            log.warn("[shadow][cfg] state=blocked reason=primaryLightNull");
             return;
         }
 
         sanitize();
+
         int reqMap = mapSize;
         mapSize = clampShadowMapSizeToGpu(mapSize);
         if (mapSize != reqMap) {
-            log.warn("[shadow] mapSize clamped by GPU: requested={} -> {}", reqMap, mapSize);
+            log.warn("[shadow][cfg] mapSize clamped requested={} actual={}", reqMap, mapSize);
         }
 
         DirectionalLightShadowRenderer old = detachOnly();
@@ -530,28 +538,25 @@ public final class Shadow {
         if (pipelineDef != null) {
             buildPipelineFromRegistry(r, pipelineDef);
         } else {
-            // Backward compatible default pipeline (kept deterministic)
+            // Default deterministic pipeline (workspace-synchronized filters)
             CascadeHysteresisFilter hyst = new CascadeHysteresisFilter();
             hyst.hysteresis = (splitHysteresis <= 0f) ? 10.0f : splitHysteresis;
             hyst.smoothing = (splitSmoothing <= 0f) ? 0.10f : splitSmoothing;
 
             StableLightBasisFilter basis = new StableLightBasisFilter();
 
-            TightStableFitShadowCamFilter fit = new TightStableFitShadowCamFilter();
-            fit.xyPadding = extentsPadding;
+            // Fit publishes TEXEL_WORLD into workspace (critical for gate/snap/pcf)
+            StableFitShadowCamFilter fit = new StableFitShadowCamFilter();
+            fit.extentsPadding = Math.max(0f, extentsPadding - 1.0f);
             fit.forceSquare = true;
-
             fit.sizeQuantizeTexels = 1.0f;
             fit.minNear = 0.5f;
             fit.casterBackBase = 140f;
             fit.casterBackCascadeMul = 0.9f;
             fit.receiverFrontBase = 40f;
 
-            fit.lockNearCascadeSize = true;
-            fit.nearTierTexels = 128f;
-            fit.nearShrinkHysteresisTiers = 1.0f;
-
             TemporalSnapGateFilter gate = new TemporalSnapGateFilter();
+            gate.setEnabled(true);
             gate.setMinRotateDeg(0.25f);
             gate.setMinMoveTexels(1.25f);
             gate.setTeleportMoveTexels(24.0f);
@@ -560,14 +565,17 @@ public final class Shadow {
             TexelSnapFilter snap = new TexelSnapFilter();
             snap.enabled = snapEnabled;
             snap.snapFirstCascades = snapFirstCascades;
-            snap.gate = gate;
+
+            ShadowTraceFilter trace = new ShadowTraceFilter();
+            trace.setEveryFrames(60);
 
             r.pipeline()
                     .add(hyst)
                     .add(basis)
                     .add(fit)
                     .add(gate)
-                    .add(snap);
+                    .add(snap)
+                    .add(trace);
         }
 
         // ----- Apply dynamic params -----
@@ -585,7 +593,7 @@ public final class Shadow {
         deferCleanup(old);
 
         log.info(
-                "[shadow] reload={} type={} map={} splits={} lambda={} intensity={} snap={} snapCascades={} pad={} hyst={} smooth={} zExtend={} zFade={} fixedSplits={} pipeline={}",
+                "[shadow][cfg] reload={} type={} map={} splits={} lambda={} intensity={} snap={} snapCascades={} pad={} hyst={} smooth={} zExtend={} zFade={} fixedSplits={} pipeline={}",
                 fullReload,
                 dlsr.getClass().getSimpleName(),
                 mapSize, splits, lambda, intensity,

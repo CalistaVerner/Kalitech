@@ -7,31 +7,26 @@ import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.Snapper;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFrameContext;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
 
 /**
  * Texel snapping with "hold-last-snap" mode.
  * <p>
- * If temporal gate disallows re-snap, we still prevent sub-texel drift by
- * locking the projected (left/up) coordinates to the last snapped position.
+ * Uses shared workspace for gating and publishing results.
  */
 public final class TexelSnapFilter implements ShadowFilter {
 
     public boolean enabled = true;
-    public int snapFirstCascades = 1;
-
     private final Vector3f tmpLoc = new Vector3f();
 
     private Snapper snapper;
+    public int snapFirstCascades = 2;
     private final Vector3f tmpLeft = new Vector3f();
     private final Vector3f tmpUp = new Vector3f();
     private final Vector3f delta = new Vector3f();
     private final Vector3f tmp = new Vector3f();
-    /**
-     * Optional temporal gate (set by pipeline/registry).
-     */
-    public TemporalSnapGateFilter gate;
-    // Per-split locked snapped coordinates in projected light space
+
     private float[] lastX;
     private float[] lastY;
     private float[] lastTexel;
@@ -57,10 +52,12 @@ public final class TexelSnapFilter implements ShadowFilter {
 
     private void ensureArrays(int splits) {
         if (lastX != null && lastX.length == splits) return;
+
         lastX = new float[splits];
         lastY = new float[splits];
         lastTexel = new float[splits];
         hasLast = new boolean[splits];
+
         for (int i = 0; i < splits; i++) {
             hasLast[i] = false;
             lastTexel[i] = Float.NaN;
@@ -70,29 +67,31 @@ public final class TexelSnapFilter implements ShadowFilter {
     @Override
     public void afterShadowCam(ShadowSplitContext ctx) {
         ctx.snapped = false;
-        ctx.texelWorld = 0f;
+        ctx.texelSnapped = false;
 
         if (!enabled || snapper == null) return;
         if (ctx.splitIndex >= snapFirstCascades) return;
 
         Camera sc = ctx.shadowCam;
 
-        // Compute texel world size from current ortho size and actual shadow map size
-        float orthoW = sc.getFrustumRight() - sc.getFrustumLeft();
-        float orthoH = sc.getFrustumTop() - sc.getFrustumBottom();
-        float ortho = Math.max(orthoW, orthoH);
+        float texelWorld = ctx.ws.getOrDefault(ShadowKeys.TEXEL_WORLD, 0f);
+        if (!(texelWorld > 0f)) {
+            float orthoW = sc.getFrustumRight() - sc.getFrustumLeft();
+            float orthoH = sc.getFrustumTop() - sc.getFrustumBottom();
+            float ortho = Math.max(orthoW, orthoH);
+            texelWorld = (ctx.frame.shadowMapSize > 0 && ortho > 0f) ? (ortho / (float) ctx.frame.shadowMapSize) : 0f;
+            if (texelWorld > 0f) {
+                ctx.ws.put(ShadowKeys.TEXEL_WORLD, texelWorld);
+            }
+        }
 
-        float texelWorld = (ctx.frame.shadowMapSize > 0) ? (ortho / (float) ctx.frame.shadowMapSize) : 0f;
         ctx.texelWorld = texelWorld;
 
         int si = ctx.splitIndex;
 
-        boolean allowResnap = true;
-        if (gate != null) {
-            allowResnap = gate.allowResnap(ctx, texelWorld);
-        }
+        Boolean allowBoxed = ctx.ws.get(ShadowKeys.ALLOW_TEXEL_SNAP);
+        boolean allowResnap = (allowBoxed == null) || Boolean.TRUE.equals(allowBoxed);
 
-        // If texel grid changed noticeably, force re-snap once (prevents long "almost snapped" drift)
         if (!allowResnap && hasLast[si] && (texelWorld > 0f) && !Float.isNaN(lastTexel[si])) {
             float dt = Math.abs(texelWorld - lastTexel[si]);
             if (dt > texelWorld * 0.25f) {
@@ -100,17 +99,9 @@ public final class TexelSnapFilter implements ShadowFilter {
             }
         }
 
-        // Always ensure we have a baseline snap at least once
-        if (!hasLast[si]) {
-            allowResnap = true;
-        }
+        ctx.ws.put(ShadowKeys.SNAP_APPLIED, true);
 
         if (allowResnap) {
-            // Full snap (quantize to texel grid)
-            snapper.snap(sc);
-            sc.update();
-
-            // Record snapped projected coords for hold mode
             tmpLoc.set(sc.getLocation());
             tmpLeft.set(sc.getLeft());
             tmpUp.set(sc.getUp());
@@ -123,11 +114,25 @@ public final class TexelSnapFilter implements ShadowFilter {
             lastTexel[si] = texelWorld;
             hasLast[si] = true;
 
-            ctx.snapped = true;
+            float dx = lastX[si] - x;
+            float dy = lastY[si] - y;
+
+            if (dx != 0f || dy != 0f) {
+                delta.set(tmpLeft).multLocal(dx);
+                tmp.set(tmpUp).multLocal(dy);
+                delta.addLocal(tmp);
+                tmpLoc.addLocal(delta);
+                sc.setLocation(tmpLoc);
+                sc.update();
+
+                ctx.snapped = true;
+                ctx.texelSnapped = true;
+            }
+
+            ctx.ws.put(ShadowKeys.TEXEL_SNAPPED, ctx.texelSnapped);
             return;
         }
 
-        // Hold-last-snap mode: lock projected coords to last snapped (prevents sub-texel drift)
         if (hasLast[si] && (texelWorld > 0f)) {
             tmpLoc.set(sc.getLocation());
             tmpLeft.set(sc.getLeft());
@@ -149,6 +154,8 @@ public final class TexelSnapFilter implements ShadowFilter {
                 ctx.snapped = true;
             }
         }
+
+        ctx.ws.put(ShadowKeys.TEXEL_SNAPPED, false);
     }
 
     public void setEnabled(boolean enabled) {
@@ -159,17 +166,10 @@ public final class TexelSnapFilter implements ShadowFilter {
         this.snapFirstCascades = snapFirstCascades;
     }
 
-    public void setGate(TemporalSnapGateFilter gate) {
-        this.gate = gate;
-    }
-
     public void setSnapper(Snapper snapper) {
         this.snapper = snapper;
     }
 
-    /**
-     * Clears last snapped state (use on full reload if desired).
-     */
     public void reset() {
         if (hasLast == null) return;
         for (int i = 0; i < hasLast.length; i++) {

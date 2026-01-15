@@ -63,7 +63,7 @@ public final class ShadowRendererConfigurator {
                 f.setCasterBackBase(cfg.fitting().getCasterBackBase());
                 f.setCasterBackCascadeMul(cfg.fitting().getCasterBackCascadeMul());
                 f.setReceiverFrontBase(cfg.fitting().getReceiverFrontBase());
-                f.setXyPadding(cfg.fitting().getXyPadding());
+                //f.setXyPadding(cfg.fitting().getXyPadding());
                 f.setForceSquare(cfg.fitting().isForceSquare());
                 f.setSizeQuantizeTexels(cfg.fitting().getSizeQuantizeTexels());
                 f.setLockNearCascadeSize(cfg.fitting().isLockNearCascadeSize());
@@ -87,7 +87,7 @@ public final class ShadowRendererConfigurator {
         TexelSnapFilter snap = new TexelSnapFilter();
         snap.setEnabled(cfg.snapping().isEnabled());
         snap.setSnapFirstCascades(cfg.snapping().getSnapFirstCascades());
-        snap.setGate(gate);
+        //snap.setGate(gate);
         p.add(snap);
 
         // 5) Debug / tracing
