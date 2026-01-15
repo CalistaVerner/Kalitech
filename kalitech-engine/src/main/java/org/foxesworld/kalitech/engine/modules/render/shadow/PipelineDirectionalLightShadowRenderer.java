@@ -21,9 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Directional shadow renderer with fully externalized pipeline.
- * <p>
- * Hot-reload safe when lifecycle is handled by detach -> destroy -> new -> attach.
- * Includes a fail-safe to avoid crashing the whole engine on rare FBO invalidation.
  */
 public final class PipelineDirectionalLightShadowRenderer extends DirectionalLightShadowRenderer {
 
@@ -52,20 +49,6 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         return v;
     }
 
-    public boolean isDisposed() {
-        return disposed;
-    }
-
-    public boolean isBroken() {
-        return broken;
-    }
-
-    // ------------------------------------------------------------
-
-    /**
-     * Must be called ONLY after this processor was removed from ViewPort.
-     * Must be executed on render thread.
-     */
     public void destroy(RenderManager rm) {
         if (disposed) return;
         disposed = true;
@@ -78,10 +61,6 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
             cleanup();
         } catch (RuntimeException ignored) {
         }
-    }
-
-    public float getZFarOverride() {
-        return zFarOverride;
     }
 
     public void setFixedSplitDistances(float... distances) {
@@ -98,16 +77,10 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         fixedSplitDistances = null;
     }
 
-    public void setZFarOverride(float zFarOverride) {
-        this.zFarOverride = Math.max(0f, zFarOverride);
-    }
-
     private boolean hasFixedSplits() {
         return fixedSplitDistances != null
                 && fixedSplitDistances.length == (getNumShadowMaps() + 1);
     }
-
-    // ------------------------------------------------------------
 
     @Override
     protected void updateShadowCams(Camera viewCam) {
@@ -150,18 +123,12 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         }
         splitsArray[splitsArray.length - 1] = far;
 
-        updateSplitsColorFromArray();
-    }
-
-    private void updateSplitsColorFromArray() {
         ColorRGBA s = splits;
         if (splitsArray.length > 1) s.r = splitsArray[1];
         if (splitsArray.length > 2) s.g = splitsArray[2];
         if (splitsArray.length > 3) s.b = splitsArray[3];
         if (splitsArray.length > 4) s.a = splitsArray[4];
     }
-
-    // ------------------------------------------------------------
 
     @Override
     protected GeometryList getOccludersToRender(int index, GeometryList occluders) {
@@ -196,7 +163,7 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         pipeline.beginSplit(splitCtx);
 
         boolean handled = pipeline.updateShadowCam(splitCtx);
-        splitCtx.shadowCamHandled = handled;
+        splitCtx.handledCam = handled;
 
         if (!handled) {
             ShadowUtil.updateShadowCamera(
@@ -208,7 +175,6 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
                     splitCtx.stabilizationTexelSize
             );
         }
-
 
         pipeline.afterShadowCam(splitCtx);
         pipeline.beforeGatherOccluders(splitCtx);
@@ -230,6 +196,15 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         return occluders;
     }
 
+    public boolean isDisposed() {
+        return disposed;
+    }
+
+    public boolean isBroken() {
+        return broken;
+    }
+
+
     @Override
     public void postQueue(RenderQueue rq) {
         if (disposed || broken) {
@@ -240,7 +215,6 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
         try {
             super.postQueue(rq);
         } catch (IllegalStateException fbo) {
-            // Fail-safe: do not crash the engine during hot reload / transient GL state.
             broken = true;
             frameCtx = null;
 
@@ -260,16 +234,5 @@ public final class PipelineDirectionalLightShadowRenderer extends DirectionalLig
     protected void setMaterialParameters(Material material) {
         super.setMaterialParameters(material);
         if (frameCtx != null) pipeline.setMaterialParameters(frameCtx, material);
-    }
-
-    @Override
-    protected void clearMaterialParameters(Material material) {
-        if (frameCtx != null) pipeline.clearMaterialParameters(frameCtx, material);
-        super.clearMaterialParameters(material);
-    }
-
-    @Override
-    protected boolean checkCulling(Camera viewCam) {
-        return true;
     }
 }

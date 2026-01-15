@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/engine/modules/render/shadow/filters/TightStableFitShadowCamFilter.java
 // Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 
@@ -9,8 +10,8 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplit
 
 /**
  * Tight stable cascade fitting in light space with texel-snapped bounds.
- * Adds near-cascade size stabilization (tier quantization + grow-only hysteresis)
- * to further reduce residual shimmering.
+ * Adds near-cascade size stabilization (tier quantization + hysteresis) to reduce ortho breathing
+ * and residual shimmering.
  */
 public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
@@ -24,31 +25,43 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
     public boolean forceSquare = true;
 
-    private final Vector3f tmp = new Vector3f();
+    // ---------------- Quantization/stabilization ----------------
 
-    // ---------------- Near cascade stabilization ----------------
+    private final Vector3f tmp = new Vector3f();
     private final Vector3f tmp2 = new Vector3f();
     private final Vector3f camLoc = new Vector3f();
     /**
-     * Quantize ortho size by texel steps (1 = stable).
+     * Quantize ortho size by fixed "reference texel" steps.
+     * 1..4 is typical.
      */
     public float sizeQuantizeTexels = 1.0f;
     /**
-     * Stabilize split 0 ortho size by quantizing it into larger "tiers".
-     * This reduces ortho breathing and residual shimmer.
+     * Stabilize split 0 ortho size by quantizing it into larger tiers.
      */
     public boolean lockNearCascadeSize = true;
     /**
      * Tier size in texels for split 0. Recommended: 64..256 for 8192 maps.
-     * Larger value => more stable, but may waste some resolution occasionally.
      */
-    public float nearTierTexels = 128f;
-    /**
-     * Grow-only hysteresis for split 0 size (in tier units).
-     * Prevents shrinking unless the requested size is sufficiently smaller.
-     */
-    public float nearShrinkHysteresisTiers = 1.0f;
+    public float nearTierTexels = 512f;
+    public float maxNearShrinkPerUpdate = 0.10f; // -10% max per update
+
     private float lastNearSize = Float.NaN;
+    /**
+     * Shrink hysteresis for split 0 size (in tier units).
+     * Prevents shrinking unless requested size is sufficiently smaller.
+     */
+    public float nearShrinkHysteresisTiers = 2.0f;
+    /**
+     * Grow hysteresis for split 0 size (in tier units).
+     * Prevents growing unless requested size is sufficiently larger.
+     */
+    public float nearGrowHysteresisTiers = 0.75f;
+    /**
+     * Maximum allowed growth per update for split 0 (fraction of current size).
+     * Example: 0.20 means +20% max per update.
+     */
+    public float maxNearGrowPerUpdate = 0.20f;
+    private float lastNearTexelWorld = Float.NaN;
 
     @Override
     public int order() {
@@ -64,10 +77,16 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         v.z *= inv;
     }
 
+    private static float ceilToStep(float v, float step) {
+        if (!(step > 0f)) return v;
+        return (float) Math.ceil(v / step) * step;
+    }
+
     @Override
     public boolean updateShadowCam(ShadowSplitContext ctx) {
         Camera sc = ctx.shadowCam;
 
+        // Basis (deterministic if StableLightBasisFilter is in pipeline; otherwise fall back here)
         if (ctx.lightDir.lengthSquared() == 0f) {
             ctx.lightDir.set(ctx.light.getDirection());
             normalizeSafe(ctx.lightDir);
@@ -90,6 +109,7 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
 
+        // Frustum slice bounds in light space
         for (int i = 0; i < 8; i++) {
             Vector3f p = ctx.frustumPoints[i];
 
@@ -118,96 +138,83 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         float farVal = (maxZ - minZ) + nearVal;
         if (farVal < nearVal + 1.0f) farVal = nearVal + 1.0f;
 
-        int map = Math.max(1, sc.getWidth());
+        // Shadow map resolution
+        int map = Math.max(1, ctx.frame.shadowMapSize);
 
         float sizeX = (maxX - minX) * pad;
         float sizeY = (maxY - minY) * pad;
-        float baseSize = forceSquare ? Math.max(sizeX, sizeY) : sizeX;
 
+        float baseSize = forceSquare ? Math.max(sizeX, sizeY) : sizeX;
         if (!(baseSize > 0f)) baseSize = 1.0f;
 
-        // Base quantization to keep texelWorld stable
-        float texel = baseSize / (float) map;
+        // -----------------------------------------------------------------
+        // Key: quantize size using a stable reference texelWorld, not baseSize-derived texel.
+        // -----------------------------------------------------------------
+        float texelRef = (!Float.isNaN(lastNearTexelWorld) && lastNearTexelWorld > 0f)
+                ? lastNearTexelWorld
+                : (baseSize / (float) map);
+
+        // Base quantization (stabilizes scale)
         if (sizeQuantizeTexels > 0f) {
             float q = Math.max(1.0f, sizeQuantizeTexels);
-            float step = texel * q;
-            if (step > 0f) {
-                baseSize = (float) Math.ceil(baseSize / step) * step;
-                texel = baseSize / (float) map;
-            }
+            float stepWorld = texelRef * q;
+            baseSize = ceilToStep(baseSize, stepWorld);
         }
 
-        // Near cascade tier lock (split 0): reduce ortho breathing
+        // Split0 tier lock with bidirectional hysteresis + grow clamp
         if (lockNearCascadeSize && ctx.splitIndex == 0 && nearTierTexels > 0f) {
-            float tierStep = texel * Math.max(1.0f, nearTierTexels);
-            if (tierStep > 0f) {
-                float tiered = (float) Math.ceil(baseSize / tierStep) * tierStep;
+            float tierWorld = texelRef * Math.max(1.0f, nearTierTexels);
+            float tiered = ceilToStep(baseSize, tierWorld);
 
-                // Grow-only hysteresis: avoid frequent shrinking
-                if (!Float.isNaN(lastNearSize)) {
-                    float shrinkGate = lastNearSize - (tierStep * Math.max(0f, nearShrinkHysteresisTiers));
-                    if (tiered < shrinkGate) {
-                        // allow shrink only if significantly smaller
-                        lastNearSize = tiered;
-                    } else if (tiered < lastNearSize) {
-                        // keep old size
-                        tiered = lastNearSize;
-                    } else {
-                        lastNearSize = tiered;
-                    }
-                } else {
-                    lastNearSize = tiered;
+            if (Float.isNaN(lastNearSize)) {
+                lastNearSize = tiered;
+            } else {
+                // Grow hysteresis
+                float growGate = lastNearSize + tierWorld * Math.max(0f, nearGrowHysteresisTiers);
+                if (tiered > growGate) {
+                    float maxGrow = lastNearSize * (1.0f + Math.max(0f, maxNearGrowPerUpdate));
+                    lastNearSize = Math.min(tiered, maxGrow);
+                } else if (tiered > lastNearSize) {
+                    tiered = lastNearSize;
                 }
 
-                baseSize = tiered;
-                texel = baseSize / (float) map;
+                // Shrink hysteresis
+                float shrinkGate = lastNearSize - tierWorld * Math.max(0f, nearShrinkHysteresisTiers);
+                if (tiered < shrinkGate) {
+                    float minShrink = lastNearSize * (1.0f - Math.max(0f, maxNearShrinkPerUpdate));
+                    lastNearSize = Math.max(tiered, minShrink);
+                } else if (tiered < lastNearSize) {
+                    tiered = lastNearSize;
+                }
+
+            }
+
+            baseSize = lastNearSize;
+            lastNearTexelWorld = baseSize / (float) map;
+        } else {
+            // Do not let far cascades contaminate split0 reference
+            if (ctx.splitIndex == 0) {
+                lastNearTexelWorld = baseSize / (float) map;
             }
         }
 
+        // Center (still derived from actual min/max; size is stabilized)
         float cx0 = (minX + maxX) * 0.5f;
         float cy0 = (minY + maxY) * 0.5f;
 
-        float halfW0 = (maxX - minX) * 0.5f * pad;
-        float halfH0 = (maxY - minY) * 0.5f * pad;
+        float half = baseSize * 0.5f;
+        float minXs = cx0 - half;
+        float maxXs = cx0 + half;
+        float minYs = cy0 - half;
+        float maxYs = cy0 + half;
 
-        if (forceSquare) {
-            float m = Math.max(halfW0, halfH0);
-            halfW0 = m;
-            halfH0 = m;
-        }
+        // Snap bounds to texel grid using final texelWorld = baseSize/map
+        float texelWorld = baseSize / (float) map;
 
-        float minXs = cx0 - halfW0;
-        float maxXs = cx0 + halfW0;
-        float minYs = cy0 - halfH0;
-        float maxYs = cy0 + halfH0;
-
-
-        minXs = FastMath.floor(minXs / texel) * texel;
-        minYs = FastMath.floor(minYs / texel) * texel;
-        maxXs = FastMath.ceil(maxXs / texel) * texel;
-        maxYs = FastMath.ceil(maxYs / texel) * texel;
-
-// If square is required, expand the smaller dimension in whole-texel steps.
-        if (forceSquare) {
-            float w = maxXs - minXs;
-            float h = maxYs - minYs;
-            float m = Math.max(w, h);
-
-            if (w < m) {
-                float d = m - w;
-                float half = (float) Math.ceil((d * 0.5f) / texel) * texel;
-                minXs -= half;
-                maxXs += half;
-            }
-            if (h < m) {
-                float d = m - h;
-                float half = (float) Math.ceil((d * 0.5f) / texel) * texel;
-                minYs -= half;
-                maxYs += half;
-            }
-        }
-
-
+        minXs = FastMath.floor(minXs / texelWorld) * texelWorld;
+        minYs = FastMath.floor(minYs / texelWorld) * texelWorld;
+        maxXs = FastMath.floor(maxXs / texelWorld) * texelWorld;
+        maxYs = FastMath.floor(maxYs / texelWorld) * texelWorld;
 
         float cx = (minXs + maxXs) * 0.5f;
         float cy = (minYs + maxYs) * 0.5f;
@@ -235,6 +242,10 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
         return true;
     }
+
+    // ---------------------------------------------------------------------
+    // Setters (optional; JS config can set public fields directly)
+    // ---------------------------------------------------------------------
 
     public void setMinNear(float minNear) {
         this.minNear = minNear;
@@ -276,7 +287,19 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
         this.nearShrinkHysteresisTiers = nearShrinkHysteresisTiers;
     }
 
-    public void setLastNearSize(float lastNearSize) {
-        this.lastNearSize = lastNearSize;
+    public void setNearGrowHysteresisTiers(float nearGrowHysteresisTiers) {
+        this.nearGrowHysteresisTiers = nearGrowHysteresisTiers;
+    }
+
+    public void setMaxNearGrowPerUpdate(float maxNearGrowPerUpdate) {
+        this.maxNearGrowPerUpdate = maxNearGrowPerUpdate;
+    }
+
+    /**
+     * Resets the near-cascade lock state.
+     */
+    public void resetNearSizeLock() {
+        lastNearSize = Float.NaN;
+        lastNearTexelWorld = Float.NaN;
     }
 }

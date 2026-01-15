@@ -20,6 +20,7 @@ public final class ShadowFrameContext {
     public final int shadowMapSize;
     public final int numSplits;
 
+
     /**
      * Base renderer computed split distances (length = numSplits + 1).
      * Do not modify this array in filters unless you really know what you're doing.

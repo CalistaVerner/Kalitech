@@ -18,7 +18,7 @@ public final class ShadowConfigTask {
     private static void applyDynamic(PipelineDirectionalLightShadowRenderer r, ShadowRendererSettings s) {
         r.setLambda(s.getLambda());
         r.setShadowIntensity(s.getIntensity());
-        r.setZFarOverride(s.getZFarOverride());
+        //r.setZFarOverride(s.getZFarOverride());
     }
 
     /**

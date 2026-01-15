@@ -52,6 +52,17 @@ public final class ShadowSplitContext {
     public float texelWorld = 0f;
 
     /**
+     * True if pipeline.updateShadowCam(...) returned true for this split.
+     */
+    public boolean handledCam = false;
+
+    /**
+     * True if TexelSnapFilter applied snap or hold-last-snap correction.
+     */
+    public boolean snapped = false;
+
+
+    /**
      * True if texel snapping actually changed the shadow camera.
      */
     public boolean texelSnapped = false;
