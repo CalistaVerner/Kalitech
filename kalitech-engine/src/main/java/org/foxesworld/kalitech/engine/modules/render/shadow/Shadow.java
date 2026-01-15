@@ -12,9 +12,13 @@ import org.foxesworld.kalitech.engine.modules.render.RenderThread;
 import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule;
 import org.foxesworld.kalitech.engine.modules.render.shadow.filters.*;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowPipelinePresetLibrary;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowPipelineRegistry;
 import org.graalvm.polyglot.Value;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.jme3.renderer.Limits.TextureSize;
@@ -66,9 +70,12 @@ public final class Shadow {
     // Optional fixed splits (null = disabled)
     private float[] fixedSplitDistances = null;
 
-    // JS-defined pipeline (null => use default hardcoded pipeline)
-    private ShadowPipelineDef pipelineDef = null;
+    // Pipeline system
+    private final ShadowPipelinePresetLibrary presets = new ShadowPipelinePresetLibrary();
     private String pipelineKey = "";
+    private final ShadowPipelineRegistry registry = new ShadowPipelineRegistry(presets);
+    // JS-defined pipeline via registry (null => use default hardcoded pipeline)
+    private ShadowPipelineRegistry.PipelineDef pipelineDef = null;
 
     public Shadow(RenderThread thread, SimpleApplication app, AssetManager assets, Logger log, LightRigModule lights) {
         this.thread = Objects.requireNonNull(thread, "thread");
@@ -76,19 +83,36 @@ public final class Shadow {
         this.assets = Objects.requireNonNull(assets, "assets");
         this.log = Objects.requireNonNull(log, "log");
         this.lights = Objects.requireNonNull(lights, "lights");
+        registerDefaultPipelineSteps();
+    }
+
+    private void registerDefaultPipelineSteps() {
+        // Steps (registry owns cfg + wiring)
+        registry.register("hysteresis", CascadeHysteresisFilter.class);
+        registry.register("basis", StableLightBasisFilter.class);
+        registry.register("tightFit", TightStableFitShadowCamFilter.class);
+        registry.register("temporalGate", TemporalSnapGateFilter.class);
+        registry.register("texelSnap", TexelSnapFilter.class);
+        registry.register("trace", ShadowTraceFilter.class);
+
+        // Optional aliases
+        registry.register("fit", TightStableFitShadowCamFilter.class);
+        registry.register("snap", TexelSnapFilter.class);
+
+        // Post-link wiring (keeps Shadow thin)
+        registry.addPostLink(
+                ShadowPipelineRegistry.linkByMember(
+                        TexelSnapFilter.class,
+                        "gate",
+                        TemporalSnapGateFilter.class
+                )
+        );
     }
 
     // ---------------------------------------------------------------------
     // Engine API
     // ---------------------------------------------------------------------
 
-    private static boolean has(Value v, String name) {
-        try {
-            return v != null && v.hasMember(name);
-        } catch (Throwable t) {
-            return false;
-        }
-    }
 
     private static boolean hasAny(Value v, String a, String b) {
         return has(v, a) || has(v, b);
@@ -155,15 +179,6 @@ public final class Shadow {
         }
         boolean full = pendingFullReload.getAndSet(false);
         rebuildNow(full);
-    }
-
-    private static String safeStr(Value v) {
-        try {
-            if (v == null || v.isNull()) return null;
-            return v.isString() ? v.asString() : String.valueOf(v);
-        } catch (Throwable t) {
-            return null;
-        }
     }
 
     public void setSnapEnabled(boolean enabled) {
@@ -238,32 +253,6 @@ public final class Shadow {
 
     private RenderManager rm() {
         return app.getRenderManager();
-    }
-
-    private static String stablePrimitiveMembersKey(Value cfg) {
-        try {
-            if (cfg == null || cfg.isNull()) return "";
-            if (!cfg.hasMembers()) return "";
-
-            Set<String> keys = cfg.getMemberKeys();
-            if (keys == null || keys.isEmpty()) return "";
-
-            String[] kk = keys.toArray(new String[0]);
-            Arrays.sort(kk);
-
-            StringBuilder sb = new StringBuilder(64);
-            for (String k : kk) {
-                Value v = cfg.getMember(k);
-                if (v == null || v.isNull()) continue;
-                if (v.isNumber() || v.isBoolean() || v.isString()) {
-                    if (sb.length() > 0) sb.append(",");
-                    sb.append(k).append("=").append(v.toString());
-                }
-            }
-            return sb.toString();
-        } catch (Throwable t) {
-            return "";
-        }
     }
 
     /**
@@ -349,34 +338,6 @@ public final class Shadow {
      */
     public void fullReloadNow() {
         rebuildNow(true);
-    }
-
-    // ---------------------------------------------------------------------
-    // JS-defined pipeline types
-    // ---------------------------------------------------------------------
-
-    private static boolean vBool(Value cfg, String k, boolean def) {
-        try {
-            if (cfg != null && !cfg.isNull() && cfg.hasMember(k)) return cfg.getMember(k).asBoolean();
-        } catch (Throwable ignored) {
-        }
-        return def;
-    }
-
-    private static int vInt(Value cfg, String k, int def) {
-        try {
-            if (cfg != null && !cfg.isNull() && cfg.hasMember(k)) return cfg.getMember(k).asInt();
-        } catch (Throwable ignored) {
-        }
-        return def;
-    }
-
-    private static float vFloat(Value cfg, String k, float def) {
-        try {
-            if (cfg != null && !cfg.isNull() && cfg.hasMember(k)) return (float) cfg.getMember(k).asDouble();
-        } catch (Throwable ignored) {
-        }
-        return def;
     }
 
     public void applyCfg(Value cfg) {
@@ -512,8 +473,8 @@ public final class Shadow {
             }
         }
 
-        // JS-defined pipeline
-        ShadowPipelineDef newDef = parsePipeline(src, this.splits);
+        // JS-defined pipeline via registry (supports array/preset/object)
+        ShadowPipelineRegistry.PipelineDef newDef = registry.parsePipeline(log, src, this.splits);
         String newKey = (newDef == null) ? "" : newDef.key;
         if (!Objects.equals(newKey, this.pipelineKey)) {
             this.pipelineKey = newKey;
@@ -567,9 +528,9 @@ public final class Shadow {
 
         // ----- Build pipeline -----
         if (pipelineDef != null) {
-            buildPipelineFromDef(r, pipelineDef);
+            buildPipelineFromRegistry(r, pipelineDef);
         } else {
-            // Backward compatible default pipeline
+            // Backward compatible default pipeline (kept deterministic)
             CascadeHysteresisFilter hyst = new CascadeHysteresisFilter();
             hyst.hysteresis = (splitHysteresis <= 0f) ? 10.0f : splitHysteresis;
             hyst.smoothing = (splitSmoothing <= 0f) ? 0.10f : splitSmoothing;
@@ -637,196 +598,26 @@ public final class Shadow {
         );
     }
 
-    private ShadowPipelineDef parsePipeline(Value src, int splits) {
-        Value arr = member(src, "pipeline");
-        if (arr == null || arr.isNull() || !arr.hasArrayElements()) {
-            return null;
-        }
-
-        int n = (int) arr.getArraySize();
-        Step[] out = new Step[n];
-
-        StringBuilder key = new StringBuilder(128);
-        key.append("splits=").append(splits).append("|");
-
-        for (int i = 0; i < n; i++) {
-            Value e = arr.getArrayElement(i);
-            if (e == null || e.isNull()) {
-                out[i] = new Step("noop", null);
-                key.append("noop;");
-                continue;
-            }
-
-            String type = null;
-            if (e.hasMember("type")) type = safeStr(e.getMember("type"));
-            if ((type == null || type.isEmpty()) && e.hasMember("id")) type = safeStr(e.getMember("id"));
-            if (type == null || type.isEmpty()) type = "noop";
-
-            Value cfg = e.hasMember("cfg") ? e.getMember("cfg") : e;
-
-            out[i] = new Step(type, cfg);
-
-            key.append(type);
-            if (cfg != null && !cfg.isNull()) {
-                String mk = stablePrimitiveMembersKey(cfg);
-                if (!mk.isEmpty()) key.append("(").append(mk).append(")");
-            }
-            key.append(";");
-        }
-
-        return new ShadowPipelineDef(out, key.toString());
-    }
-
-    private Map<String, StepFactory> buildFactoryRegistry() {
-        HashMap<String, StepFactory> m = new HashMap<>();
-
-        m.put("noop", (rt, step) -> null);
-
-        m.put("hysteresis", (rt, step) -> {
-            CascadeHysteresisFilter f = new CascadeHysteresisFilter();
-            Value c = step.cfg;
-            f.hysteresis = vFloat(c, "hysteresis", rt.splitHysteresis <= 0f ? 10.0f : rt.splitHysteresis);
-            f.smoothing = vFloat(c, "smoothing", rt.splitSmoothing <= 0f ? 0.10f : rt.splitSmoothing);
-            return f;
-        });
-
-        m.put("basis", (rt, step) -> new StableLightBasisFilter());
-
-        m.put("tightFit", (rt, step) -> {
-            TightStableFitShadowCamFilter f = new TightStableFitShadowCamFilter();
-            Value c = step.cfg;
-
-            f.xyPadding = vFloat(c, "pad", vFloat(c, "extentsPadding", rt.extentsPadding));
-            f.forceSquare = vBool(c, "forceSquare", true);
-
-            f.sizeQuantizeTexels = vFloat(c, "sizeQuantizeTexels", 1.0f);
-            f.minNear = vFloat(c, "minNear", 0.5f);
-
-            f.casterBackBase = vFloat(c, "casterBackBase", 140f);
-            f.casterBackCascadeMul = vFloat(c, "casterBackCascadeMul", 0.9f);
-            f.receiverFrontBase = vFloat(c, "receiverFrontBase", 40f);
-
-            f.lockNearCascadeSize = vBool(c, "lockNearCascadeSize", true);
-            f.nearTierTexels = vFloat(c, "nearTierTexels", 128f);
-            f.nearShrinkHysteresisTiers = vFloat(c, "nearShrinkHysteresisTiers", 1.0f);
-
-            return f;
-        });
-
-        m.put("temporalGate", (rt, step) -> {
-            TemporalSnapGateFilter g = new TemporalSnapGateFilter();
-            Value c = step.cfg;
-
-            g.setEnabled(vBool(c, "enabled", true));
-            g.setMinRotateDeg(vFloat(c, "minRotateDeg", 0.25f));
-            g.setMinMoveTexels(vFloat(c, "minMoveTexels", 1.25f));
-            g.setTeleportMoveTexels(vFloat(c, "teleportMoveTexels", 24.0f));
-            g.setGatedFirstCascades(vInt(c, "gatedFirstCascades", Math.min(1, rt.splits)));
-
-            return g;
-        });
-
-        m.put("texelSnap", (rt, step) -> {
-            TexelSnapFilter s = new TexelSnapFilter();
-            Value c = step.cfg;
-
-            s.enabled = vBool(c, "enabled", rt.snapEnabled);
-            s.snapFirstCascades = vInt(c, "snapFirstCascades", rt.snapFirstCascades);
-
-            return s;
-        });
-
-        m.put("trace", (rt, step) -> {
-            ShadowTraceFilter t = new ShadowTraceFilter();
-            Value c = step.cfg;
-
-            t.setEnabled(vBool(c, "enabled", true));
-            t.setEveryFrames(vInt(c, "everyFrames", 60));
-            t.setAllSplits(vBool(c, "allSplits", false));
-            return t;
-        });
-
-        return m;
-    }
-
-    private void buildPipelineFromDef(PipelineDirectionalLightShadowRenderer r, ShadowPipelineDef def) {
-        ShadowPipelineRuntime rt = new ShadowPipelineRuntime(
-                mapSize, splits,
-                snapEnabled, snapFirstCascades,
-                extentsPadding,
-                splitHysteresis, splitSmoothing
-        );
-
-        Map<String, StepFactory> reg = buildFactoryRegistry();
-
-        TemporalSnapGateFilter gate = null;
-        TexelSnapFilter snap = null;
-
-        for (Step step : def.steps) {
-            StepFactory fac = reg.get(step.type);
-            if (fac == null) {
-                log.warn("[shadow] unknown pipeline step type='{}' => skipped", step.type);
-                continue;
-            }
-
-            ShadowFilter f = fac.create(rt, step);
-            if (f == null) continue;
-
+    private void buildPipelineFromRegistry(PipelineDirectionalLightShadowRenderer r, ShadowPipelineRegistry.PipelineDef def) {
+        ShadowPipelineRegistry.Runtime rt = new ShadowPipelineRegistry.Runtime(mapSize, splits);
+        for (ShadowFilter f : registry.build(log, rt, def)) {
             r.pipeline().add(f);
-
-            if (f instanceof TemporalSnapGateFilter g) gate = g;
-            if (f instanceof TexelSnapFilter s) snap = s;
-        }
-
-        if (snap != null) {
-            snap.gate = gate;
         }
     }
 
-    private interface StepFactory {
-        ShadowFilter create(ShadowPipelineRuntime rt, Step step);
+    // ---------------------------------------------------------------------
+    // Optional helpers for JS tooling (schema/introspection)
+    // ---------------------------------------------------------------------
+
+    public Set<String> pipelineKnownTypes() {
+        return registry.knownTypes();
     }
 
-    private static final class ShadowPipelineDef {
-        final Step[] steps;
-        final String key;
-
-        ShadowPipelineDef(Step[] steps, String key) {
-            this.steps = steps;
-            this.key = key;
-        }
+    public java.util.List<ShadowPipelineRegistry.OptionSpec> pipelineSchema(String type) {
+        return registry.schemaFor(type);
     }
 
-    private static final class Step {
-        final String type;
-        final Value cfg;
-
-        Step(String type, Value cfg) {
-            this.type = type;
-            this.cfg = cfg;
-        }
-    }
-
-    private static final class ShadowPipelineRuntime {
-        final int mapSize;
-        final int splits;
-        final boolean snapEnabled;
-        final int snapFirstCascades;
-        final float extentsPadding;
-        final float splitHysteresis;
-        final float splitSmoothing;
-
-        ShadowPipelineRuntime(int mapSize, int splits,
-                              boolean snapEnabled, int snapFirstCascades,
-                              float extentsPadding,
-                              float splitHysteresis, float splitSmoothing) {
-            this.mapSize = mapSize;
-            this.splits = splits;
-            this.snapEnabled = snapEnabled;
-            this.snapFirstCascades = snapFirstCascades;
-            this.extentsPadding = extentsPadding;
-            this.splitHysteresis = splitHysteresis;
-            this.splitSmoothing = splitSmoothing;
-        }
+    public Set<String> pipelinePresetNames() {
+        return presets.names();
     }
 }

@@ -177,7 +177,7 @@ class LightRig {
                         },
                         {
                             type: "trace",
-                            enabled: false,
+                            enabled: true,
                             everyFrames: 60,
                             allSplits: false
                         }

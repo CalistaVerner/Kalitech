@@ -1,6 +1,6 @@
+// FILE: MatDefs/Sky/SkyDome.j3md
 MaterialDef SkyDome {
     MaterialParameters {
-        // Textures (AAA crossfade: A/B + SkyBlend)
         Texture2D      SkyTexA
         Texture2D      SkyTexB
         TextureCubeMap SkyCubeA
@@ -30,8 +30,8 @@ MaterialDef SkyDome {
     }
 
     Technique {
-        VertexShader   GLSL150: MatDefs/Sky/SkyDome.vert
-        FragmentShader GLSL450: MatDefs/Sky/SkyDome.frag
+        VertexShader   GLSL330: MatDefs/Sky/SkyDome.vert
+        FragmentShader GLSL330: MatDefs/Sky/SkyDome.frag
 
         WorldParameters {
             WorldMatrix

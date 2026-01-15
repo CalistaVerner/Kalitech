@@ -9,6 +9,8 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Map;
 
+import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+
 /**
  * Collider factory for cfg.collider. PhysicsApiImpl controls defaults by mass.
  */
@@ -62,19 +64,5 @@ public final class PhysicsColliderFactory {
         }
 
         throw new IllegalArgumentException("Unsupported collider cfg: " + colliderCfg.getClass().getName());
-    }
-
-    private static Value member(Value v, String k) {
-        return (v != null && v.hasMember(k)) ? v.getMember(k) : null;
-    }
-
-    private static String str(Value v, String k, String def) {
-        Value m = member(v, k);
-        return (m != null && !m.isNull()) ? m.asString() : def;
-    }
-
-    private static double num(Value v, String k, double def) {
-        Value m = member(v, k);
-        return (m != null && !m.isNull() && m.isNumber()) ? m.asDouble() : def;
     }
 }

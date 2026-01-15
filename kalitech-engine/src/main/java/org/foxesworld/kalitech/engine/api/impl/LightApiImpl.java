@@ -458,15 +458,6 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             );
         }
 
-        private static boolean has(Value v, String key) {
-            try {
-                return v != null && !v.isNull() && v.hasMember(key) && !v.getMember(key).isNull();
-            } catch (Throwable t) {
-                return false;
-            }
-        }
-
-
         }
 
 

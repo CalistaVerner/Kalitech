@@ -1,3 +1,4 @@
+// FILE: MatDefs/Sky/SkyDome.vert
 in vec3 inPosition;
 in vec2 inTexCoord;
 
@@ -15,23 +16,22 @@ vec3 safeNormalize(vec3 v) {
 }
 
 void main() {
-    // Apply world scale/rotation (ignore translation here; we recenter manually)
-    vec3 worldFromMesh = (g_WorldMatrix * vec4(inPosition, 1.0)).xyz;
+    // Rotation+scale only (ignore translation) for stable direction vectors.
+    // Using mat3 also avoids translation affecting cubemap direction.
+    vec3 worldVec = mat3(g_WorldMatrix) * inPosition;
 
     // Direction for sky shading (procedural + cubemap sampling)
-    vDir = safeNormalize(worldFromMesh);
+    vDir = safeNormalize(worldVec);
 
-    // Mesh-authored UVs (seam-safe, padded) for 2D equirect textures.
-    // IMPORTANT: do NOT fract() here. Many sky domes intentionally pad U slightly
-    // outside [0..1] to smooth the seam with WrapMode.Repeat.
+    // Keep mesh-authored UVs (seam padding friendly)
     vUv = inTexCoord;
 
     // Center the dome on camera (no parallax)
-    vec3 worldPos = worldFromMesh + g_CameraPosition;
+    vec3 worldPos = worldVec + g_CameraPosition;
 
     // Project
     gl_Position = g_ViewProjectionMatrix * vec4(worldPos, 1.0);
 
-    // Force to far plane to kill any residual Z artifacts (even if depth test is on somewhere)
+    // Force to far plane to avoid any Z artifacts
     gl_Position.z = gl_Position.w;
 }

@@ -1,3 +1,4 @@
+// FILE: MatDefs/Sky/SkyDome.frag
 in vec3 vDir;
 in vec2 vUv;
 out vec4 fragColor;
@@ -38,6 +39,12 @@ uniform float m_Exposure;
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
+vec3 safeNormalize(vec3 v) {
+    float l2 = dot(v, v);
+    if (l2 < 1e-12) return vec3(0.0, 1.0, 0.0);
+    return v * inversesqrt(l2);
+}
+
 float disc(vec3 dirN, vec3 lightDirN, float size) {
     float d = max(0.0, dot(dirN, lightDirN));
     return pow(d, max(0.5, size));
@@ -48,14 +55,13 @@ vec3 tonemapReinhard(vec3 x) {
 }
 
 // UV mode for sampling 2D (equirectangular) sky textures:
-//  0: analytic (atan/asin)                 - perfect equirect mapping, but needs very careful mip handling
-//  1: mesh UVs (vUv)                       - seam-safe if the dome UVs are padded, can distort if UVs aren't true equirect
-//  2: hybrid (u = mesh U, v = analytic V)  - keeps seam padding from the mesh, while fixing vertical mapping for panoramas
+//  0: analytic (atan/asin)
+//  1: mesh UVs (vUv)
+//  2: hybrid (u = mesh U, v = analytic V)
 #ifndef SKY_UV_MODE
 #define SKY_UV_MODE 2
 #endif
 
-// If you see "sand" / sparkly noise, it usually means the sampler is choosing a bad mip level.
 // For sky panoramas, forcing LOD0 is a pragmatic fix.
 #ifndef SKY_FORCE_LOD0
 #define SKY_FORCE_LOD0 1
@@ -64,18 +70,27 @@ vec3 tonemapReinhard(vec3 x) {
 const float INV_PI     = 0.3183098861837907;// 1 / PI
 const float INV_TWO_PI = 0.15915494309189535;// 1 / (2*PI)
 
+float clamp01Safe(float x) {
+    // Avoid sampling exactly at 0/1 to reduce seam bleed in bilinear filtering
+    return clamp(x, 0.001, 0.999);
+}
+
 vec2 equirectUvAnalytic(vec3 dirN) {
     float u = atan(dirN.z, dirN.x) * INV_TWO_PI + 0.5;
     float v = asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5;
-    return vec2(fract(u), v);
+
+    // DO NOT use fract(u): it forces repetition and causes visible duplication.
+    return vec2(clamp01Safe(u), clamp01Safe(v));
 }
 
 vec2 skyUv2D(vec3 dirN) {
     #if SKY_UV_MODE == 1
-    return vUv;
+    // Mesh UVs can be outside [0..1] depending on exporter; clamp to prevent repeat.
+    return vec2(clamp01Safe(vUv.x), clamp01Safe(vUv.y));
     #elif SKY_UV_MODE == 2
-    // U from mesh (with seam padding), V from analytic equirect (better vertical mapping)
-    return vec2(vUv.x, asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5);
+    // U from mesh (seam padding friendly), V from analytic
+    float v = asin(clamp(dirN.y, -1.0, 1.0)) * INV_PI + 0.5;
+    return vec2(clamp01Safe(vUv.x), clamp01Safe(v));
     #else
     return equirectUvAnalytic(dirN);
     #endif
@@ -108,7 +123,7 @@ vec3 sampleSkyMixed(vec3 dirN) {
 }
 
 void main() {
-    vec3 dir = normalize(vDir);
+    vec3 dir = safeNormalize(vDir);
 
     // ----------------- procedural base -----------------
     float up   = saturate(dir.y * 0.5 + 0.5);
@@ -118,10 +133,10 @@ void main() {
     vec3 base = mix(m_ZenithColor.rgb, m_HorizonColor.rgb, h * haze);
 
     // ----------------- sun / moon discs -----------------
-    vec3 sunDir  = normalize(m_SunDir);
-    vec3 moonDir = normalize(m_MoonDir);
+    vec3 sunDir  = safeNormalize(m_SunDir);
+    vec3 moonDir = safeNormalize(m_MoonDir);
 
-    float sun  = disc(dir, sunDir, m_SunDisk)   * max(0.0, m_SunIntensity);
+    float sun  = disc(dir, sunDir, m_SunDisk)  * max(0.0, m_SunIntensity);
     float moon = disc(dir, moonDir, m_MoonDisk) * max(0.0, m_MoonIntensity);
 
     vec3 color = base;
