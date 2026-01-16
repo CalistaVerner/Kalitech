@@ -11,6 +11,16 @@ public interface SoundApi {
     AudioNode createAndPlay(Value cfg);
 
     void play(AudioNode audioNode);
+
+    @HostAccess.Export
+    long getSeed();
+
+    @HostAccess.Export
+    void setSeed(long seed);
+
+    @HostAccess.Export
+    void setDeterministic(boolean deterministic);
+
     void stop(AudioNode audioNode);
     void setPosition(AudioNode audioNode, float x, float y, float z);
     void setLooping(AudioNode audioNode, boolean loop);

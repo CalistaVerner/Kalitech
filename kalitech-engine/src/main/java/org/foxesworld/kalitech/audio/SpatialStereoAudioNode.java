@@ -1,3 +1,4 @@
+// FILE: org/foxesworld/kalitech/audio/SpatialStereoAudioNode.java
 package org.foxesworld.kalitech.audio;
 
 import com.jme3.asset.AssetManager;
@@ -11,32 +12,22 @@ import com.jme3.export.JmeImporter;
 import com.jme3.export.OutputCapsule;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- * Kalitech AAA spatial stereo source.
- * <p>
- * Design goals:
- * - Keep engine API stable: this class extends AudioNode.
- * - SOLID: placement math/strategy/config extracted into helper classes.
- * - Better stereo placement: channel offsets follow listener right-vector.
- * <p>
- * Usage:
- * - Provide two mono files (L/R) for true spatial stereo:
- * new SpatialStereoAudioNode(am, "Sounds/a_L.ogg", "Sounds/a_R.ogg", AudioData.DataType.Buffer)
- * - Or use mono-to-stereo (same mono for both) with setSeparation().
- */
 public final class SpatialStereoAudioNode extends AudioNode {
 
-    public static final int SAVABLE_VERSION = 2; // Kalitech custom
+    public static final int SAVABLE_VERSION = 2;
+    private static final Logger log = LogManager.getLogger(SpatialStereoAudioNode.class);
 
     private StereoConfig config = StereoConfig.defaults();
-    private transient StereoPair pair;                 // delegates actual playback
-    private transient StereoPlacementStrategy placer;  // placement policy
+    private transient StereoPair pair;
+    private transient StereoPlacementStrategy placer;
 
-    // ---------- ctors ----------
+    private transient boolean warnedNotReady;
 
     public SpatialStereoAudioNode() {
         super();
@@ -44,7 +35,7 @@ public final class SpatialStereoAudioNode extends AudioNode {
     }
 
     public SpatialStereoAudioNode(AssetManager am, String leftFile, String rightFile, AudioData.DataType type) {
-        super(); // base AudioNode not used for playback
+        super();
         Objects.requireNonNull(am, "assetManager");
         this.config = StereoConfig.defaults();
         initTransient();
@@ -58,19 +49,17 @@ public final class SpatialStereoAudioNode extends AudioNode {
     private void initTransient() {
         this.placer = new ListenerRightStereoPlacement();
         this.pair = new StereoPair(this, config);
+        this.warnedNotReady = false;
     }
 
-    /**
-     * Attach / reattach stereo channels. Each channel should be MONO for positional playback.
-     */
-    public void attachStereo(AssetManager am, String leftFile, String rightFile, AudioData.DataType type) {
+    public boolean attachStereo(AssetManager am, String leftFile, String rightFile, AudioData.DataType type) {
         if (pair == null) initTransient();
-        pair.attach(am, leftFile, rightFile, type);
+        boolean ok = pair.attach(am, leftFile, rightFile, type);
         applyConfigToChannels();
         updateChannelOffsets();
+        warnedNotReady = false;
+        return ok;
     }
-
-    // ---------- Kalitech config ----------
 
     public StereoConfig getConfig() {
         return config;
@@ -97,17 +86,15 @@ public final class SpatialStereoAudioNode extends AudioNode {
         updateChannelOffsets();
     }
 
-    // ---------- playback control (delegation) ----------
-
     @Override
     public void play() {
-        ensureReady();
+        if (!isReady()) return;
         pair.play(false);
     }
 
     @Override
     public void playInstance() {
-        ensureReady();
+        if (!isReady()) return;
         pair.play(true);
     }
 
@@ -120,8 +107,6 @@ public final class SpatialStereoAudioNode extends AudioNode {
     public void pause() {
         if (pair != null) pair.pause();
     }
-
-    // ---------- parameter overrides to keep stable API ----------
 
     @Override
     public void setLooping(boolean loop) {
@@ -189,8 +174,6 @@ public final class SpatialStereoAudioNode extends AudioNode {
         if (pair != null) pair.setDryFilter(dryFilter);
     }
 
-    // ---------- spatial updates ----------
-
     @Override
     public void updateGeometricState() {
         super.updateGeometricState();
@@ -201,15 +184,12 @@ public final class SpatialStereoAudioNode extends AudioNode {
     private void updateChannelOffsets() {
         if (pair == null || !pair.isAttached()) return;
 
-        // stereo axis in parent-local space:
-        // compute world axis by strategy -> convert to local axis using world rotation inverse
         ListenerSnapshot ls = ListenerSnapshot.tryRead();
         StereoPlacementStrategy.Result r = placer.compute(ls, getWorldTranslation(), config);
 
         Quaternion invWorldRot = getWorldRotation().inverse();
         Vector3f axisLocal = invWorldRot.mult(r.axisWorld());
 
-        // ensure stable
         if (!StereoMath.isFinite(axisLocal) || axisLocal.lengthSquared() < 1e-8f) {
             axisLocal = Vector3f.UNIT_X;
         } else {
@@ -217,10 +197,7 @@ public final class SpatialStereoAudioNode extends AudioNode {
         }
 
         float half = 0.5f * config.separationMeters();
-        Vector3f leftOff = axisLocal.mult(-half);
-        Vector3f rightOff = axisLocal.mult(+half);
-
-        pair.setLocalOffsets(leftOff, rightOff);
+        pair.setLocalOffsets(axisLocal.mult(-half), axisLocal.mult(+half));
     }
 
     private void applyConfigToChannels() {
@@ -238,13 +215,14 @@ public final class SpatialStereoAudioNode extends AudioNode {
         pair.setDryFilter(getDryFilter());
     }
 
-    private void ensureReady() {
-        if (pair == null || !pair.isAttached()) {
-            throw new IllegalStateException("SpatialStereoAudioNode: stereo channels not attached. Call attachStereo().");
+    private boolean isReady() {
+        boolean ok = pair != null && pair.isAttached();
+        if (!ok && !warnedNotReady) {
+            warnedNotReady = true;
+            log.warn("[sound] SpatialStereoAudioNode is not ready: stereo channels are not attached/valid.");
         }
+        return ok;
     }
-
-    // ---------- serialization ----------
 
     @Override
     public void write(JmeExporter ex) throws IOException {
@@ -253,7 +231,6 @@ public final class SpatialStereoAudioNode extends AudioNode {
 
         oc.write(config.separationMeters(), "kali_separation_m", StereoConfig.DEFAULT_SEPARATION_METERS);
 
-        // store keys for channels if present
         if (pair != null && pair.isAttached()) {
             oc.write(pair.getLeftKey(), "kali_left_key", null);
             oc.write(pair.getRightKey(), "kali_right_key", null);

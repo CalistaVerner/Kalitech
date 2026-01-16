@@ -93,24 +93,102 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     @Override
     public void play(AudioNode audioNode) {
         requireNode(audioNode, "play");
+
         try {
             audioNode.playInstance();
+            return;
         } catch (Throwable t) {
             long id = registry.getId(audioNode);
 
             if (audioNode.isPositional() && SoundErrors.isMonoOnlyPositionalError(t)) {
-                logError("[sound] play failed (positional stereo) id=" + id + " -> fallback to non-positional", t);
+                if (audioNode instanceof org.foxesworld.kalitech.audio.SpatialStereoAudioNode) {
+                    logError("[sound] play failed: SpatialStereoAudioNode triggered mono-only positional error (unexpected) id=" + id, t);
+                    return;
+                }
+
+                logError("[sound] play failed: positional stereo buffer is not supported (use stereo3D L/R mono). id=" + id, t);
+
+                boolean prev = audioNode.isPositional();
                 try {
                     audioNode.setPositional(false);
                     audioNode.playInstance();
-                    return;
                 } catch (Throwable t2) {
                     logError("[sound] play fallback failed id=" + id, t2);
-                    throw t2;
+                } finally {
+                    try {
+                        audioNode.setPositional(prev);
+                    } catch (Throwable t3) {
+                        logError("[sound] failed to restore positional flag id=" + id, t3);
+                    }
                 }
+                return;
             }
 
             logError("[sound] play failed id=" + id, t);
+        }
+    }
+
+    @HostAccess.Export
+    public AudioNode playEventCfg(Value cfg) {
+        if (cfg == null || cfg.isNull()) {
+            IllegalArgumentException e = new IllegalArgumentException("sound.playEventCfg(cfg): cfg is required");
+            logError("[sound] playEventCfg failed: cfg is null", e);
+            throw e;
+        }
+        try {
+            AudioNode n = createEventCfg(cfg);
+            play(n);
+            return n;
+        } catch (Throwable t) {
+            logError("[sound] playEventCfg failed", t);
+            throw t;
+        }
+    }
+
+    @HostAccess.Export
+    public AudioNode createEventCfg(Value cfg) {
+        if (cfg == null || cfg.isNull()) {
+            IllegalArgumentException e = new IllegalArgumentException("sound.createEventCfg(cfg): cfg is required");
+            logError("[sound] createEventCfg failed: cfg is null", e);
+            throw e;
+        }
+        try {
+            AudioNode node = service.createEventCfg(cfg);
+            registry.cache(node);
+            return node;
+        } catch (Throwable t) {
+            logError("[sound] createEventCfg failed", t);
+            throw t;
+        }
+    }
+
+    @HostAccess.Export
+    @Override
+    public long getSeed() {
+        return service.getSeed();
+    }
+
+    @HostAccess.Export
+    @Override
+    public void setSeed(long seed) {
+        try {
+            service.setSeed(seed);
+        } catch (Throwable t) {
+            logError("[sound] setSeed failed seed=" + seed, t);
+            throw t;
+        }
+    }
+
+    @HostAccess.Export
+    @Override
+    public void setDeterministic(boolean deterministic) {
+        try {
+            service.setDeterminismMode(
+                    deterministic ? org.foxesworld.kalitech.engine.modules.sound.SoundDeterminism.Mode.DETERMINISTIC
+                            : org.foxesworld.kalitech.engine.modules.sound.SoundDeterminism.Mode.NON_DETERMINISTIC
+            );
+        } catch (Throwable t) {
+            logError("[sound] setDeterministic failed", t);
             throw t;
         }
     }

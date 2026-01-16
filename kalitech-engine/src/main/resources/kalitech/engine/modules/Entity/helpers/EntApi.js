@@ -93,29 +93,6 @@ class EntApi {
 
         this._presets = Object.create(null);
 
-        this._presets.player = {
-            name: "player",
-            surface: {
-                type: "capsule",
-                name: "player.body",
-                radius: 0.35,
-                height: 1.8,
-                pos: [0, 3, 0],
-                attach: true,
-                physics: {mass: 80, lockRotation: true}
-            },
-            body: {
-                mass: 80,
-                friction: 0.9,
-                restitution: 0.0,
-                damping: {linear: 0.15, angular: 0.95},
-                lockRotation: true,
-                collider: {type: "capsule", radius: 0.35, height: 1.8}
-            },
-            attachSurface: true,
-            debug: true
-        };
-
         this._presets.capsule = {
             name: "entity",
             surface: {type: "capsule", name: "entity.capsule", radius: 0.35, height: 1.8, pos: [0, 3, 0], attach: true},

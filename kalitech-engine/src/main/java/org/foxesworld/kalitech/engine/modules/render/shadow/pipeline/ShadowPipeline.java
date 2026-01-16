@@ -35,55 +35,99 @@ public final class ShadowPipeline {
 
     public void beginFrame(ShadowFrameContext ctx) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.beginFrame(ctx);
+        for (ShadowFilter f : filters) {
+            ctx.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.beginFrame(ctx);
+        }
+        ctx.ws.clearCurrentWriter();
     }
 
     public void endFrame(ShadowFrameContext ctx) {
         sortIfNeeded();
-        for (int i = filters.size() - 1; i >= 0; i--) filters.get(i).endFrame(ctx);
+        for (int i = filters.size() - 1; i >= 0; i--) {
+            ShadowFilter f = filters.get(i);
+            ctx.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.endFrame(ctx);
+        }
+        ctx.ws.clearCurrentWriter();
     }
 
     public void beginSplit(ShadowSplitContext ctx) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.beginSplit(ctx);
+        for (ShadowFilter f : filters) {
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.beginSplit(ctx);
+        }
+        ctx.frame.ws.clearCurrentWriter();
     }
 
     public boolean updateShadowCam(ShadowSplitContext ctx) {
         sortIfNeeded();
         for (ShadowFilter f : filters) {
-            if (f.updateShadowCam(ctx)) return true;
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            if (f.updateShadowCam(ctx)) {
+                ctx.frame.ws.clearCurrentWriter();
+                return true;
+            }
         }
+        ctx.frame.ws.clearCurrentWriter();
         return false;
     }
 
     public void afterShadowCam(ShadowSplitContext ctx) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.afterShadowCam(ctx);
+        for (ShadowFilter f : filters) {
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.afterShadowCam(ctx);
+        }
+        ctx.frame.ws.clearCurrentWriter();
     }
 
     public void beforeGatherOccluders(ShadowSplitContext ctx) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.beforeGatherOccluders(ctx);
+        for (ShadowFilter f : filters) {
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.beforeGatherOccluders(ctx);
+        }
+        ctx.frame.ws.clearCurrentWriter();
     }
 
     public void afterGatherOccluders(ShadowSplitContext ctx) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.afterGatherOccluders(ctx);
+        for (ShadowFilter f : filters) {
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.afterGatherOccluders(ctx);
+        }
+        ctx.frame.ws.clearCurrentWriter();
     }
 
     public void endSplit(ShadowSplitContext ctx) {
         sortIfNeeded();
-        for (int i = filters.size() - 1; i >= 0; i--) filters.get(i).endSplit(ctx);
+        for (int i = filters.size() - 1; i >= 0; i--) {
+            ShadowFilter f = filters.get(i);
+            ctx.frame.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.endSplit(ctx);
+        }
+        ctx.frame.ws.clearCurrentWriter();
     }
 
     public void setMaterialParameters(ShadowFrameContext ctx, Material material) {
         sortIfNeeded();
-        for (ShadowFilter f : filters) f.setMaterialParameters(ctx, material);
+        for (ShadowFilter f : filters) {
+            ctx.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.setMaterialParameters(ctx, material);
+        }
+        ctx.ws.clearCurrentWriter();
     }
 
     public void clearMaterialParameters(ShadowFrameContext ctx, Material material) {
         sortIfNeeded();
-        for (int i = filters.size() - 1; i >= 0; i--) filters.get(i).clearMaterialParameters(ctx, material);
+        for (int i = filters.size() - 1; i >= 0; i--) {
+            ShadowFilter f = filters.get(i);
+            ctx.ws.setCurrentWriter(f.getClass().getName().hashCode());
+            f.clearMaterialParameters(ctx, material);
+        }
+        ctx.ws.clearCurrentWriter();
     }
 
     private void sortIfNeeded() {

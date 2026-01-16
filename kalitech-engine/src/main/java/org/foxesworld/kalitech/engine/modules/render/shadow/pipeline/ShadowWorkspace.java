@@ -23,11 +23,24 @@ public final class ShadowWorkspace {
 
     private Object[] frameValues;
     private long[] frameStamps;
+    private int[] frameWriters;
     private long frameEpoch;
 
     private Object[][] splitValues;
     private long[][] splitStamps;
+    private int[][] splitWriters;
     private long[] splitEpoch;
+
+    /**
+     * When enabled, each key may be written only once per epoch.
+     * Any second write (even with same value) is treated as a pipeline contract violation.
+     */
+    private boolean strictWrites = false;
+
+    /**
+     * Current writer identifier set by the orchestrator (typically the filter class).
+     */
+    private int currentWriter = 0;
 
     public ShadowWorkspace(int numSplits) {
         if (numSplits < 1) throw new IllegalArgumentException("numSplits must be >= 1");
@@ -35,12 +48,40 @@ public final class ShadowWorkspace {
 
         this.frameValues = new Object[DEFAULT_CAPACITY];
         this.frameStamps = new long[DEFAULT_CAPACITY];
+        this.frameWriters = new int[DEFAULT_CAPACITY];
         this.frameEpoch = 1L;
 
         this.splitValues = new Object[numSplits][DEFAULT_CAPACITY];
         this.splitStamps = new long[numSplits][DEFAULT_CAPACITY];
+        this.splitWriters = new int[numSplits][DEFAULT_CAPACITY];
         this.splitEpoch = new long[numSplits];
         for (int i = 0; i < numSplits; i++) splitEpoch[i] = 1L;
+    }
+
+    public boolean isStrictWrites() {
+        return strictWrites;
+    }
+
+    /**
+     * Enables strict single-writer policy.
+     * <p>
+     * When enabled, writing the same key more than once within the same epoch
+     * is treated as a pipeline contract violation and will throw.
+     */
+    public void setStrictWrites(boolean strictWrites) {
+        this.strictWrites = strictWrites;
+    }
+
+    /**
+     * Sets current writer identifier for diagnostics.
+     * Orchestrator must call this before invoking filter hooks.
+     */
+    public void setCurrentWriter(int writerId) {
+        this.currentWriter = writerId;
+    }
+
+    public void clearCurrentWriter() {
+        this.currentWriter = 0;
     }
 
     private static void requireScope(ShadowKey<?> key, ShadowKey.Scope scope) {
@@ -92,8 +133,20 @@ public final class ShadowWorkspace {
         int idx = key.index();
         ensureFrameCapacity(idx);
 
+        if (strictWrites && frameStamps[idx] == frameEpoch) {
+            int prevWriter = frameWriters[idx];
+            if (prevWriter != currentWriter) {
+                String msg = "ShadowWorkspace strict write violation (frame): key=" + key.name()
+                        + " idx=" + idx + " epoch=" + frameEpoch
+                        + " prevWriter=" + prevWriter + " writer=" + currentWriter;
+                log.error(msg);
+                throw new IllegalStateException(msg);
+            }
+        }
+
         frameValues[idx] = value;
         frameStamps[idx] = frameEpoch;
+        frameWriters[idx] = currentWriter;
     }
 
     public <T> T get(ShadowKey<T> key) {
@@ -152,12 +205,15 @@ public final class ShadowWorkspace {
         int newCap = grow(frameValues.length, idx + 1);
         Object[] nv = new Object[newCap];
         long[] ns = new long[newCap];
+        int[] nw = new int[newCap];
 
         System.arraycopy(frameValues, 0, nv, 0, frameValues.length);
         System.arraycopy(frameStamps, 0, ns, 0, frameStamps.length);
+        System.arraycopy(frameWriters, 0, nw, 0, frameWriters.length);
 
         frameValues = nv;
         frameStamps = ns;
+        frameWriters = nw;
 
         log.debug("[shadow][ws] grow frame cap={}", newCap);
     }
@@ -171,12 +227,15 @@ public final class ShadowWorkspace {
         for (int s = 0; s < numSplits; s++) {
             Object[] nv = new Object[newCap];
             long[] ns = new long[newCap];
+            int[] nw = new int[newCap];
 
             System.arraycopy(splitValues[s], 0, nv, 0, oldCap);
             System.arraycopy(splitStamps[s], 0, ns, 0, oldCap);
+            System.arraycopy(splitWriters[s], 0, nw, 0, oldCap);
 
             splitValues[s] = nv;
             splitStamps[s] = ns;
+            splitWriters[s] = nw;
         }
 
         log.debug("[shadow][ws] grow split cap={} splits={}", newCap, numSplits);
@@ -201,8 +260,21 @@ public final class ShadowWorkspace {
             int idx = key.index();
             ensureSplitCapacity(idx);
 
+            if (strictWrites && splitStamps[splitIndex][idx] == splitEpoch[splitIndex]) {
+                int prevWriter = splitWriters[splitIndex][idx];
+                if (prevWriter != currentWriter) {
+                    String msg = "ShadowWorkspace strict write violation (split): key=" + key.name()
+                            + " idx=" + idx + " split=" + splitIndex
+                            + " epoch=" + splitEpoch[splitIndex]
+                            + " prevWriter=" + prevWriter + " writer=" + currentWriter;
+                    log.error(msg);
+                    throw new IllegalStateException(msg);
+                }
+            }
+
             splitValues[splitIndex][idx] = value;
             splitStamps[splitIndex][idx] = splitEpoch[splitIndex];
+            splitWriters[splitIndex][idx] = currentWriter;
         }
 
         public <T> T get(ShadowKey<T> key) {

@@ -220,12 +220,17 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         m.put("surfaceId", surfaceId);
         m.put("fraction", fraction);
         m.put("distance", distance);
-        m.put("point", new PhysicsRayHit.Vec3(point.x, point.y, point.z));
-        m.put("normal", normal == null
-                ? new PhysicsRayHit.Vec3(0, 1, 0)
-                : new PhysicsRayHit.Vec3(normal.x, normal.y, normal.z));
+
+        Vector3f p = (point != null) ? point : new Vector3f(0, 0, 0);
+        Vector3f n = (normal != null) ? normal : new Vector3f(0, 1, 0);
+
+        // IMPORTANT: JS-friendly objects with stable keys
+        m.put("point", evtJs("x", p.x, "y", p.y, "z", p.z));
+        m.put("normal", evtJs("x", n.x, "y", n.y, "z", n.z));
+
         return m;
     }
+
 
     private static String entityOfSpatial(Spatial sp) {
         if (sp == null) return null;
@@ -762,13 +767,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return step;
     }
 
-    @HostAccess.Export
-    public Object position(Object handleOrId) {
-        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
-        Vector3f p = h.__raw().getPhysicsLocation();
-        return new PhysicsRayHit.Vec3(p.x, p.y, p.z);
-    }
-
     private ProxyObject contactPayload(ContactAgg agg) {
         if (agg == null || agg.points <= 0) {
             return evtJs(
@@ -810,11 +808,19 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    public Object position(Object handleOrId) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
+        Vector3f p = h.__raw().getPhysicsLocation();
+        return jsVec3(p);
+    }
+
+    @HostAccess.Export
     public Object velocity(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity()");
         Vector3f v = h.__raw().getLinearVelocity();
-        return new PhysicsRayHit.Vec3(v.x, v.y, v.z);
+        return jsVec3(v);
     }
+
 
     @HostAccess.Export
     public void velocity(Object handleOrId, Object vec3) {
@@ -1164,13 +1170,14 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
                     PhysicsBodyHandle h = byId.get(id);
                     if (h != null) {
                         Spatial entity = this.engine.getSurfaceRegistry().get(h.surfaceId);
-                        Vector3f p = (entity != null) ? entity.getWorldTranslation() : null;
+                        Vector3f p = entity.getWorldTranslation();
 
                         // JS VALUE payload (pos can be live if needed)
                         bus().emit("engine.physics.body.added", evtJs(
                                 "bodyId", h.id,
                                 "surfaceId", h.surfaceId,
                                 "entity", entityOfSurface(h.surfaceId),
+                                "scale", jsVec3Live(entity.getLocalScale()),
                                 "pos", (p == null ? null : jsVec3Live(p))
                         ));
                     }

@@ -26,10 +26,13 @@
     }
   },
   "world": {
+    "spawn": [
+      "Sounds/spawn/spawn.ogg"
+    ],
     "combat": {
       "hit": [
         {
-          "src": "Sounds/hit.ogg",
+          "src": "Sounds/hit/hit.ogg",
           "volume": [
             0.9,
             1.05
@@ -41,7 +44,7 @@
           "is3D": false
         },
         {
-          "src": "Sounds/hit2.ogg",
+          "src": "Sounds/hit/hit2.ogg",
           "volume": [
             0.9,
             1.05

@@ -74,7 +74,7 @@ public final class ShadowRendererConfigurator {
             }
         }
 
-        // 4) Texel snapping + temporal gating
+// 4) Texel snapping + temporal gating
         TemporalSnapGateFilter gate = null;
         if (cfg.snapping().temporalGate().isEnabled()) {
             gate = new TemporalSnapGateFilter();
@@ -84,11 +84,14 @@ public final class ShadowRendererConfigurator {
             p.add(gate);
         }
 
-        TexelSnapFilter snap = new TexelSnapFilter();
+        ShadowSnapperFilter snap = new ShadowSnapperFilter();
         snap.setEnabled(cfg.snapping().isEnabled());
         snap.setSnapFirstCascades(cfg.snapping().getSnapFirstCascades());
-        //snap.setGate(gate);
+// AAA: enable hold hysteresis by default for maximum stability.
+        snap.setHoldEnabled(true);
+        snap.setHoldThresholdTexels(Math.max(1.0f, cfg.snapping().temporalGate().getMinMoveTexels()));
         p.add(snap);
+
 
         // 5) Debug / tracing
         if (cfg.debug().isTraceEnabled()) {

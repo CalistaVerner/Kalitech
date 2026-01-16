@@ -7,10 +7,11 @@ import com.jme3.math.Vector3f;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * JS payload builders for GraalJS:
@@ -90,35 +91,59 @@ public final class PhysicsJs {
     /**
      * Live vec3 proxy: reads Vector3f components on every access.
      */
-    public static ProxyObject jsVec3Live(Vector3f ref) {
+    public static ProxyObject jsVec3Live(Object ref) {
         Objects.requireNonNull(ref, "ref");
+
+        final Map<String, Field> fields = new LinkedHashMap<>();
+
+        for (Field f : ref.getClass().getFields()) {
+            if (f.getType() == float.class || f.getType() == double.class) {
+                fields.put(f.getName(), f);
+            }
+        }
+
+        final String[] keys = fields.keySet().toArray(new String[0]);
+
         return new ProxyObject() {
-            private static final Set<String> KEYS = Set.of("x", "y", "z");
 
             @Override
             public Object getMember(String key) {
-                return switch (key) {
-                    case "x" -> ref.x;
-                    case "y" -> ref.y;
-                    case "z" -> ref.z;
-                    default -> null;
-                };
+                Field f = fields.get(key);
+                if (f == null) return null;
+                try {
+                    return f.getType() == float.class
+                            ? f.getFloat(ref)
+                            : f.getDouble(ref);
+                } catch (IllegalAccessException e) {
+                    return null;
+                }
             }
 
             @Override
             public Object getMemberKeys() {
-                return KEYS.toArray(new String[0]);
+                return keys;
             }
 
             @Override
             public boolean hasMember(String key) {
-                return KEYS.contains(key);
+                return fields.containsKey(key);
             }
 
             @Override
             public void putMember(String key, Value value) {
+                Field f = fields.get(key);
+                if (f == null || value == null) return;
 
+                try {
+                    if (f.getType() == float.class && value.fitsInFloat()) {
+                        f.setFloat(ref, value.asFloat());
+                    } else if (f.getType() == double.class && value.fitsInDouble()) {
+                        f.setDouble(ref, value.asDouble());
+                    }
+                } catch (IllegalAccessException ignored) {
+                }
             }
         };
     }
+
 }

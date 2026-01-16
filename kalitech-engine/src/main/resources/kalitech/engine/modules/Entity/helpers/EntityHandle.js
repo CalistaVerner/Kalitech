@@ -1,13 +1,13 @@
 // FILE: resources/kalitech/builtin/helpers/entity/EntityHandle.js
 "use strict";
 
-const {req, errCtx, subsystem} = require("./EntUtil.js");
+const {req, subsystem} = require("./EntUtil.js");
+const {resolveBodyAccess} = require("./BodyAccessResolver.js");
 
 class EntityHandle {
     constructor(engine, ctx) {
         this._engine = engine;
 
-        // UUID-only
         this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
 
         this.surface = ctx.surface || null;
@@ -17,8 +17,10 @@ class EntityHandle {
 
         this._destroyers = Array.isArray(ctx._destroyers) ? ctx._destroyers : [];
 
-        this._bodyRef = null;
-        this._refId = 0;
+        this._bodyAccess = null;
+        this._bodyAccessId = 0;
+
+        this.core = null;
 
         req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
         this._log = engine.log();
@@ -30,6 +32,7 @@ class EntityHandle {
     id() {
         throw new Error("[ENT] EntityHandle.id() removed (UUID-only)");
     }
+
     uuidString() {
         return this.uuid || "";
     }
@@ -54,7 +57,7 @@ class EntityHandle {
         return this.uuidString();
     }
 
-    [Symbol.toPrimitive](hint) {
+    [Symbol.toPrimitive](_hint) {
         return this.uuidString();
     }
 
@@ -96,39 +99,30 @@ class EntityHandle {
         return p;
     }
 
-    bodyRef() {
-        const id = this.requireBodyId("bodyRef()");
-        if (this._bodyRef && (this._refId | 0) === id) return this._bodyRef;
+    /**
+     * Canonical body access (unified; no duplicate wrappers).
+     */
+    bodyAccess() {
+        const core = this.core;
+        if (core && core.bodyAccess) return core.bodyAccess;
+
+        const id = this.requireBodyId("bodyAccess()");
+        if (this._bodyAccess && (this._bodyAccessId | 0) === id) return this._bodyAccess;
 
         const phys = this.physApi();
-        if (phys && typeof phys.ref === "function") {
-            this._bodyRef = phys.ref(id);
-            this._refId = id;
-            return this._bodyRef;
-        }
+        const ba = resolveBodyAccess(phys, this.body, id);
 
-        const teleport = (typeof phys.teleport === "function") ? phys.teleport.bind(phys) : phys.warp.bind(phys);
-
-        this._bodyRef = Object.freeze({
-            id: () => id,
-            position: (v) => (v === undefined ? phys.position(id) : teleport(id, v)),
-            teleport: (v) => teleport(id, v),
-            warp: (v) => teleport(id, v),
-            velocity: (v) => (v === undefined ? phys.velocity(id) : phys.velocity(id, v)),
-            yaw: (yawRad) => phys.yaw(id, +yawRad || 0),
-            applyImpulse: (imp) => phys.applyImpulse(id, imp),
-            applyCentralForce: (f) => phys.applyCentralForce(id, f),
-            lockRotation: (lock) => phys.lockRotation(id, !!lock),
-            remove: () => phys.remove(id)
-        });
-
-        this._refId = id;
-        return this._bodyRef;
+        this._bodyAccess = ba;
+        this._bodyAccessId = id;
+        return ba;
     }
 
-    // ---------------------
-    // Entity ops (UUID-only)
-    // ---------------------
+    /**
+     * Compatibility alias. Prefer bodyAccess().
+     */
+    bodyRef() {
+        return this.bodyAccess();
+    }
 
     destroy() {
         const engine = this._engine;
@@ -154,29 +148,32 @@ class EntityHandle {
 
         if (bid > 0) {
             try {
-                phys.remove(bid);
+                if (typeof phys.remove === "function") phys.remove(bid);
             } catch (_) {
             }
             this.bodyId = 0;
             this.body = null;
+            this._bodyAccess = null;
+            this._bodyAccessId = 0;
         }
 
         if (sid > 0) {
             try {
-                surf.drop(sid, true);
+                if (typeof surf.drop === "function") surf.drop(sid, true);
             } catch (_) {
             }
             this.surfaceId = 0;
             this.surface = null;
         }
 
-        // ✅ prefer destroy(uuid)
         if (uuid && typeof ent.destroy === "function") {
             try {
                 ent.destroy(uuid);
             } catch (_) {
             }
         }
+
+        this.core = null;
         this.uuid = "";
     }
 

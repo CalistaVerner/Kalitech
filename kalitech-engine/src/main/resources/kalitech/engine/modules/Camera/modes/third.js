@@ -25,46 +25,34 @@ class ThirdPersonCameraMode {
         this.id = "third";
         this.meta = {supportsZoom: true, hasCollision: true, numRays: 8, playerModelVisible: true};
 
-        // ============================================================
         // CP2077-style framing (over-the-shoulder with soft recenter)
-        // ============================================================
-
-        // base pivot relative to player body (world-up)
         this.pivotOffset = {x: 0.0, y: 1.46, z: 0.0};
 
-        // shoulder framing
-        this.shoulderX = 0.42;          // base shoulder
-        this.shoulderAimX = 0.26;       // tighter in aim (if ctx.aiming)
+        this.shoulderX = 0.42;
+        this.shoulderAimX = 0.26;
         this.verticalLift = 0.14;
 
-        // "look-ahead" framing while moving (push target slightly forward)
-        this.forwardLead = 0.28;        // meters at full speed
+        this.forwardLead = 0.28;
         this.forwardLeadAim = 0.08;
         this.leadSmooth = 12.0;
 
-        // pivot follow smoothing (CP2077-like "body lag" but stable)
         this.pivotSmoothPos = 22.0;
         this.pivotSmoothY = 26.0;
 
-        // camera position damping (additional smoothing after orbit)
         this.camSmoothPos = 18.0;
         this.camSmoothY = 20.0;
 
-        // soft recenter behind movement (when you run, camera recenters)
         this.recenterEnabled = true;
-        this.recenterRate = 2.2;        // how fast it pulls behind
-        this.recenterDeadZone = 0.38;   // radians: allow free look before recenter starts
-        this.recenterMax = 1.25;        // radians: clamp recenter influence
+        this.recenterRate = 2.2;
+        this.recenterDeadZone = 0.38;
+        this.recenterMax = 1.25;
 
-        // pitch shaping
         this.pitchOrbitScale = 1.0;
-        this.pitchMin = -1.15;          // ~ -66 deg
-        this.pitchMax = 0.90;          // ~  52 deg
-        this.pitchSoft = 0.18;          // soften at ends
+        this.pitchMin = -1.15;
+        this.pitchMax = 0.90;
+        this.pitchSoft = 0.18;
 
-        // ============================================================
-        // Collision overrides (pear corridor) - keep your existing AAA tuning
-        // ============================================================
+        // Collision tuning (pear corridor)
         this.collisionEnabled = true;
 
         this.camRadius = 0.28;
@@ -85,42 +73,45 @@ class ThirdPersonCameraMode {
         this.maxRayLenDown = 12.0;
         this.groundSnapPen = 0.60;
 
-        // dynamic scaling by zoom distance (AAA feel)
         this.zoomRadiusBoost = 0.10;
         this.zoomNearBoost = 0.06;
         this.zoomFloorBoost = 0.20;
         this.zoomBoostStart = 6.0;
         this.zoomBoostFull = 26.0;
 
-        // debug toggles (optional)
         this.debugCapsule = true;
         this.debugGroundCapsule = true;
 
-        // ============================================================
-        // State
-        // ============================================================
         this._init = false;
 
         this._pivot = {x: 0, y: 0, z: 0};
         this._cam = {x: 0, y: 0, z: 0};
         this._lead = {x: 0, y: 0, z: 0};
 
-        // shoulder side: +1 right shoulder, -1 left shoulder
         this._shoulderSide = +1;
     }
 
-    _applyCollisionOverrides(ctx, dist) {
-        let zo = ctx.zoneOverrides;
-        if (!zo) {
-            zo = {};
-            ctx.zoneOverrides = zo;
+    _ensureModeConfig(ctx) {
+        let mc = ctx.modeConfig;
+        if (!mc) {
+            mc = {};
+            ctx.modeConfig = mc;
         }
+        return mc;
+    }
 
-        if (zo.collisionEnabled === false) {
-            zo.collisionEnabled = false;
+    _applyCollisionOverrides(ctx, dist) {
+        // Publish collision tuning as modeConfig (baseline), zones will blend over it later.
+        const mc = this._ensureModeConfig(ctx);
+
+        // If a volume zone explicitly disables collision, respect it by not overriding.
+        const zoRaw = ctx.zoneOverridesRaw;
+        if (zoRaw && zoRaw.collisionEnabled === false) {
+            mc.collisionEnabled = false;
             return;
         }
-        zo.collisionEnabled = !!this.collisionEnabled;
+
+        mc.collisionEnabled = !!this.collisionEnabled;
 
         const z0 = this.zoomBoostStart;
         const z1 = Math.max(z0 + 0.001, this.zoomBoostFull);
@@ -130,31 +121,29 @@ class ThirdPersonCameraMode {
         const nearR = this.nearRadius * (1.0 + this.zoomNearBoost * k);
         const floorPad = this.floorPadding * (1.0 + this.zoomFloorBoost * k);
 
-        zo.camRadius = camR;
-        zo.nearRadius = nearR;
-        zo.pearK = this.pearK;
-        zo.pearSamples = this.pearSamples;
+        mc.camRadius = camR;
+        mc.nearRadius = nearR;
+        mc.pearK = this.pearK;
+        mc.pearSamples = this.pearSamples;
 
-        zo.surfacePadding = this.surfacePadding;
-        zo.obstaclePasses = this.obstaclePasses;
+        mc.surfacePadding = this.surfacePadding;
+        mc.obstaclePasses = this.obstaclePasses;
 
-        zo.useTerrainHeight = !!this.useTerrainHeight;
-        zo.terrainWorld = !!this.terrainWorld;
+        mc.useTerrainHeight = !!this.useTerrainHeight;
+        mc.terrainWorld = !!this.terrainWorld;
 
-        zo.floorPadding = floorPad;
-        zo.slopePadScale = this.slopePadScale;
+        mc.floorPadding = floorPad;
+        mc.slopePadScale = this.slopePadScale;
 
-        zo.groundRayLift = this.groundRayLift;
-        zo.maxRayLenDown = this.maxRayLenDown;
-        zo.groundSnapPen = this.groundSnapPen;
+        mc.groundRayLift = this.groundRayLift;
+        mc.maxRayLenDown = this.maxRayLenDown;
+        mc.groundSnapPen = this.groundSnapPen;
 
-        zo.debugCapsule = !!this.debugCapsule;
-        zo.debugGroundCapsule = !!this.debugGroundCapsule;
+        mc.debugCapsule = !!this.debugCapsule;
+        mc.debugGroundCapsule = !!this.debugGroundCapsule;
     }
 
     _readMove(ctx) {
-        // Try to infer movement direction/speed from common fields (safe fallbacks).
-        // If your runtime provides something else, just map it here.
         const mv = ctx.moveDir || ctx.move || ctx.motion || null;
         const vel = ctx.bodyVel || ctx.vel || null;
 
@@ -177,7 +166,6 @@ class ThirdPersonCameraMode {
                 dx = vx / len;
                 dz = vz / len;
             }
-            // speed normalization unknown -> clamp to [0..1] using a gentle scale
             sp = clamp(len / 6.0, 0, 1);
         }
 
@@ -185,7 +173,6 @@ class ThirdPersonCameraMode {
     }
 
     _softClampPitch(p) {
-        // soft clamp near ends (avoids harsh stops)
         const lo = this.pitchMin, hi = this.pitchMax;
         p = clamp(p, lo - 0.35, hi + 0.35);
 
@@ -200,7 +187,6 @@ class ThirdPersonCameraMode {
     }
 
     _updateShoulderSide(ctx) {
-        // Manual toggle support (safe): ctx.shoulderSwap true or ctx.input.shoulderSwap
         const inp = ctx.input || null;
         const swap = !!(ctx.shoulderSwap || (inp && inp.shoulderSwap));
         if (swap && !this._swapHeld) {
@@ -210,7 +196,6 @@ class ThirdPersonCameraMode {
             this._swapHeld = false;
         }
 
-        // Optional: force by zone override
         const zo = ctx.zoneOverrides;
         if (zo && (zo.shoulderSide === -1 || zo.shoulderSide === 1)) {
             this._shoulderSide = zo.shoulderSide;
@@ -221,11 +206,11 @@ class ThirdPersonCameraMode {
         const dt = Math.max(0, +ctx.dt || 0);
 
         const p = ctx.bodyPos;
+        // Pre-mode zone-only overrides are exposed as ctx.zoneOverrides.
         const zo = ctx.zoneOverrides;
 
         const isAiming = !!(ctx.aiming || (ctx.input && ctx.input.aiming));
 
-        // allow zone overrides for tuning
         const po = (zo && zo.pivotOffset) ? zo.pivotOffset : this.pivotOffset;
 
         const baseShoulder = (zo && zo.shoulderX != null) ? +zo.shoulderX : this.shoulderX;
@@ -234,18 +219,14 @@ class ThirdPersonCameraMode {
 
         this._updateShoulderSide(ctx);
 
-        // yaw/pitch from input (engine-provided)
         let yaw = +ctx.look.yaw || 0;
         let pitch = +ctx.look.pitch || 0;
 
-        // CP-like pitch limits
         pitch = this._softClampPitch(pitch);
 
-        // movement-aware recentering (soft pull camera behind run direction)
         if (this.recenterEnabled) {
             const mv = this._readMove(ctx);
             if (mv.sp > 0.08) {
-                // movement yaw: atan2(dx, dz) matches our yaw basis (sin/cos use)
                 const moveYaw = Math.atan2(mv.dx, mv.dz);
                 let dy = yaw - moveYaw;
                 while (dy > Math.PI) dy -= Math.PI * 2;
@@ -256,34 +237,25 @@ class ThirdPersonCameraMode {
                     const over = clamp(abs - this.recenterDeadZone, 0, this.recenterMax);
                     const pull = smoothstep(over / Math.max(1e-6, this.recenterMax));
                     const a = expAlpha(this.recenterRate * (0.35 + 0.65 * mv.sp), dt) * pull;
-
-                    // pull yaw toward moveYaw (not snapping)
                     yaw = lerp(yaw, moveYaw, a);
                 }
             }
         }
 
-        // camera basis from yaw (flat)
         const sinY = Math.sin(yaw);
         const cosY = Math.cos(yaw);
 
-        // right = (cosY, 0, -sinY)
         const rx = cosY, rz = -sinY;
-
-        // forward (flat) = (sinY, 0, cosY)
         const fx = sinY, fz = cosY;
 
-        // base pivot in world
         const basePx = U.vx(p, 0) + po.x;
         const basePy = U.vy(p, 0) + po.y;
         const basePz = U.vz(p, 0) + po.z;
 
-        // lead forward when moving (frame more space in front, CP-like)
         const mv = this._readMove(ctx);
         const leadMax = isAiming ? this.forwardLeadAim : this.forwardLead;
         const leadK = leadMax * mv.sp;
 
-        // Smooth lead direction (prevents jitter when velocity is noisy)
         const leadAx = expAlpha(this.leadSmooth, dt);
         const desiredLeadX = (mv.sp > 1e-4) ? mv.dx * leadK : fx * (leadK * 0.35);
         const desiredLeadZ = (mv.sp > 1e-4) ? mv.dz * leadK : fz * (leadK * 0.35);
@@ -296,16 +268,13 @@ class ThirdPersonCameraMode {
             this._lead.z = lerp(this._lead.z, desiredLeadZ, leadAx);
         }
 
-        // shoulder amount (blend in aim)
         const aimBlend = isAiming ? 1.0 : 0.0;
         const shoulder = lerp(baseShoulder, aimShoulder, aimBlend) * this._shoulderSide;
 
-        // raw pivot with shoulder + lead
         const rawPx = basePx + rx * shoulder + this._lead.x;
         const rawPy = basePy;
         const rawPz = basePz + rz * shoulder + this._lead.z;
 
-        // smooth pivot follow (separate Y for nicer body tracking)
         if (!this._init) {
             this._init = true;
             this._pivot.x = rawPx;
@@ -316,7 +285,6 @@ class ThirdPersonCameraMode {
             this._cam.y = rawPy + lift;
             this._cam.z = rawPz;
         } else {
-            // position smoothing
             const ax = expAlpha(this.pivotSmoothPos, dt);
             const ay = expAlpha(this.pivotSmoothY, dt);
 
@@ -325,28 +293,23 @@ class ThirdPersonCameraMode {
             this._pivot.z = lerp(this._pivot.z, rawPz, ax);
         }
 
-        // publish target (what camera looks at)
         ctx.target.x = this._pivot.x;
         ctx.target.y = this._pivot.y;
         ctx.target.z = this._pivot.z;
 
-        // orbit distance (zoom)
         const dist = Math.max(0.05, +ctx.zoom.value());
         this._applyCollisionOverrides(ctx, dist);
 
-        // orbit pitch (with optional scale)
         const p2 = pitch * this.pitchOrbitScale;
         const cp = Math.cos(p2);
         const sp = Math.sin(p2);
 
         const horiz = dist * cp;
 
-        // raw desired camera position (behind target)
         const outX = this._pivot.x - sinY * horiz;
         const outZ = this._pivot.z - cosY * horiz;
         const outY = this._pivot.y + lift + sp * dist;
 
-        // extra camera damping (CP-like weight)
         const cx = expAlpha(this.camSmoothPos, dt);
         const cy = expAlpha(this.camSmoothY, dt);
 
@@ -358,8 +321,6 @@ class ThirdPersonCameraMode {
         ctx.outPos.y = this._cam.y;
         ctx.outPos.z = this._cam.z;
 
-        // If your pipeline wants the (possibly recentered/clamped) yaw/pitch back:
-        // (safe: only if fields exist / are writable)
         if (ctx.outLook) {
             ctx.outLook.yaw = yaw;
             ctx.outLook.pitch = pitch;

@@ -85,6 +85,15 @@ class CameraOrchestrator {
             outPos: {x: 0, y: 0, z: 0},
 
             zoneState: null,
+            // Zone-only overrides (no modeConfig). Available BEFORE mode.update().
+            zoneOverridesRaw: null,
+
+            // Optional per-mode published config (first/third can set it).
+            // Will be cleared each frame.
+            modeConfig: null,
+
+            // Final effective overrides (modeConfig blended with current volume zone overrides).
+            // Available AFTER mode.update(). Used by collision and downstream consumers.
             zoneOverrides: null,
 
             _camMinY: -Infinity
@@ -109,7 +118,9 @@ class CameraOrchestrator {
         this._ctx.input = null;
         this._ctx.bodyPos = null;
         this._ctx.zoneState = null;
+        this._ctx.zoneOverridesRaw = null;
         this._ctx.zoneOverrides = null;
+        this._ctx.modeConfig = null;
         this._ctx.terrain = null;
 
         this._smInit = false;
@@ -309,8 +320,13 @@ class CameraOrchestrator {
     _handleModeSwitch(dt, snap) {
         this._switchCd = Math.max(0, this._switchCd - dt);
 
-        const kd = snap.keysDown;
-        if (!kd) throw new Error("[camera] snap.keysDown required");
+        // keysDown may be missing depending on input backend.
+        // Camera switching must be zero-crash; if missing -> no switch.
+        const kd = (snap && Array.isArray(snap.keysDown)) ? snap.keysDown : null;
+        if (!kd) {
+            this._vPrev = false;
+            return;
+        }
 
         const vDown = (this._keyV > 0) && arrHas(kd, this._keyV);
         const pressed = (this._switchCd === 0) && vDown && !this._vPrev;
@@ -337,9 +353,9 @@ class CameraOrchestrator {
 
         this._syncZonesIfNeeded();
         const zoneState = this.zones.update(bodyPos);
-        const zoneOverrides = this.zones.blendedOverrides(null);
+        const zoneOverridesRaw = this.zones.blendedOverrides(null);
 
-        this._applyPitchLimits(zoneOverrides);
+        this._applyPitchLimits(zoneOverridesRaw);
 
         const cam = this.d.camera;
         cam.setYawPitch(this.look.yaw, this.look.pitch);
@@ -358,12 +374,15 @@ class CameraOrchestrator {
         ctx.bodyPos = bodyPos;
 
         ctx.zoneState = zoneState;
-        ctx.zoneOverrides = zoneOverrides;
+        ctx.zoneOverridesRaw = zoneOverridesRaw;
+        ctx.modeConfig = null;
+        // pre-mode: expose zone-only
+        ctx.zoneOverrides = zoneOverridesRaw;
 
         ctx._camMinY = -Infinity;
 
         if (mode.meta.supportsZoom) {
-            this._applyZoomLimits(zoneOverrides);
+            this._applyZoomLimits(zoneOverridesRaw);
             this.zoom.update(dt, ctx);
         } else {
             // keep zoom stable even in non-zoom modes
@@ -371,6 +390,11 @@ class CameraOrchestrator {
         }
 
         mode.update(ctx);
+
+        // Post-mode: blend zone overrides with mode-published config.
+        // This keeps "mode feel" as baseline while zones gently override.
+        const effective = this.zones.blendedOverrides(ctx.modeConfig);
+        ctx.zoneOverrides = effective;
 
         if (mode.meta.hasCollision && this.collision.enabled) {
             this.collision.solve(ctx);

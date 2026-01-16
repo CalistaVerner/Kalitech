@@ -53,10 +53,12 @@ public final class Shadow {
     private float intensity = 0.75f;
     private float shadowZExtend = 1000f;
     private float shadowZFadeLength = 0f;
+
     // Base values (defaults)
     private int mapSize = 8192;
     private float extentsPadding = 1.02f;
     private float splitSmoothing = 0.10f;
+
     // Fit/anti-shimmer knobs
     private int snapFirstCascades = 2;
 
@@ -69,8 +71,6 @@ public final class Shadow {
     // Optional fixed splits (null = disabled)
     private float[] fixedSplitDistances = null;
     private float splitHysteresis = 10.0f;
-
-    // Pipeline system
 
     // GPU limits cache
     private int glMaxTexSize = 0;
@@ -87,27 +87,58 @@ public final class Shadow {
     }
 
     private void registerDefaultPipelineSteps() {
+        // Core stabilization (AAA baseline)
         registry.register("hysteresis", CascadeHysteresisFilter.class);
         registry.register("basis", StableLightBasisFilter.class);
 
+        // Camera fitting (CSM)
         registry.register("stableFit", StableFitShadowCamFilter.class);
         registry.register("tightFit", TightStableFitShadowCamFilter.class);
 
+        // Temporal gate (camera motion -> allow/deny snap)
         registry.register("temporalGate", TemporalSnapGateFilter.class);
-        registry.register("texelSnap", TexelSnapFilter.class);
 
+        // AAA snap finalizer (new canonical snap)
+        registry.register("shadowSnapper", ShadowSnapperFilter.class);
+
+        // Legacy snap (kept for compatibility)
+        registry.register("legacyTexelSnap", TexelSnapFilter.class);
+
+        // Debug/telemetry
         registry.register("trace", ShadowTraceFilter.class);
+        registry.register("telemetry", CascadeStabilityTelemetryFilter.class);
+        registry.alias("stabilityTelemetry", "telemetry");
 
+        // Utility
         registry.register("onlySplit", OnlySplitFilter.class);
 
+        // Filtering (PCF)
         registry.register("poissonPcf", PoissonPcfFilter.class);
         registry.alias("pcf", "poissonPcf");
 
-        registry.register("telemetry", CascadeStabilityTelemetryFilter.class);
-        registry.register("stabilityTelemetry", CascadeStabilityTelemetryFilter.class);
+        // ------------------------------------------------------------------
+        // AAA-friendly aliases (tooling layer)
+        // ------------------------------------------------------------------
 
-        registry.register("fit", TightStableFitShadowCamFilter.class);
-        registry.register("snap", TexelSnapFilter.class);
+        // CSM family naming
+        registry.alias("csm", "stableFit");
+        registry.alias("stableCSM", "stableFit");
+        registry.alias("tightCSM", "tightFit");
+
+        // Shadow temporal stabilization naming
+        // taa -> temporal gate (motion-based stability gating)
+        registry.alias("taa", "temporalGate");
+
+        // fxaa -> spatial-only stabilization (fast legacy snap)
+        registry.alias("fxaa", "legacyTexelSnap");
+
+        // tsaa -> temporal + spatial snap finalizer
+        registry.alias("tsaa", "shadowSnapper");
+
+        // Common shortcuts
+        registry.alias("fit", "tightFit");
+        registry.alias("snap", "shadowSnapper");
+        registry.alias("texelSnap", "shadowSnapper");
     }
 
     // ---------------------------------------------------------------------
@@ -563,9 +594,14 @@ public final class Shadow {
             gate.setTeleportMoveTexels(24.0f);
             gate.setGatedFirstCascades(Math.min(1, splits));
 
-            TexelSnapFilter snap = new TexelSnapFilter();
-            snap.enabled = snapEnabled;
-            snap.snapFirstCascades = snapFirstCascades;
+            // AAA snap finalizer (new)
+            ShadowSnapperFilter snap = new ShadowSnapperFilter();
+            snap.setEnabled(snapEnabled);
+            snap.setSnapFirstCascades(snapFirstCascades);
+
+            // Aggressive AAA stability: hold hysteresis on snapped grid
+            snap.setHoldEnabled(true);
+            snap.setHoldThresholdTexels(1.25f);
 
             ShadowTraceFilter trace = new ShadowTraceFilter();
             trace.setEveryFrames(60);

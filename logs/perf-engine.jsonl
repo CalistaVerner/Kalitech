@@ -1,6 +1,6 @@
 {
   "type": "meta",
-  "started": "2026-01-15T23:54:20.006513400Z",
+  "started": "2026-01-16T12:10:47.759659200Z",
   "windowFrames": 900,
   "summaryEveryFrames": 60,
   "spikeThresholdMs": 0,
@@ -9,8 +9,8 @@
 {
   "type": "frame",
   "frame": 60,
-  "dt_ms": 16,
-  681
+  "dt_ms": 14,
+  251
 }
 {
   "type": "block",
@@ -29,33 +29,33 @@
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  022,
+  021,
   "p50_ms": 0,
   019,
   "p95_ms": 0,
-  034,
+  030,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  023,
+  045,
   "p50_ms": 0,
-  009,
+  010,
   "p95_ms": 0,
-  017,
-  "max_ms": 0,
-  812,
+  013,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 120,
   "dt_ms": 16,
-  744
+  713
 }
 {
   "type": "block",
@@ -67,7 +67,52 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  011,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  018,
+  "p50_ms": 0,
+  017,
+  "p95_ms": 0,
+  030,
+  "max_ms": 0,
+  107,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  028,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  014,
+  "max_ms": 2,
+  135,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 180,
+  "dt_ms": 16,
+  962
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  002,
+  "p50_ms": 0,
+  002,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  011,
   "spikes": 0
 }
 {
@@ -76,31 +121,31 @@
   "avg_ms": 0,
   017,
   "p50_ms": 0,
-  016,
+  015,
   "p95_ms": 0,
-  030,
+  029,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  016,
+  022,
   "p50_ms": 0,
-  009,
+  010,
   "p95_ms": 0,
-  013,
-  "max_ms": 0,
-  812,
+  014,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
-  "frame": 180,
-  "dt_ms": 16,
-  588
+  "frame": 240,
+  "dt_ms": 17,
+  141
 }
 {
   "type": "block",
@@ -112,40 +157,40 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  011,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  015,
+  016,
   "p50_ms": 0,
   013,
   "p95_ms": 0,
-  026,
+  029,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  013,
+  019,
   "p50_ms": 0,
-  008,
+  009,
   "p95_ms": 0,
-  012,
-  "max_ms": 0,
-  812,
+  014,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
-  "frame": 240,
+  "frame": 300,
   "dt_ms": 16,
-  602
+  364
 }
 {
   "type": "block",
@@ -157,7 +202,7 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  011,
   "spikes": 0
 }
 {
@@ -166,76 +211,31 @@
   "avg_ms": 0,
   014,
   "p50_ms": 0,
-  012,
+  013,
   "p95_ms": 0,
   025,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  012,
+  016,
   "p50_ms": 0,
-  008,
+  009,
   "p95_ms": 0,
-  012,
-  "max_ms": 0,
-  812,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 300,
-  "dt_ms": 16,
-  549
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  001,
-  "p50_ms": 0,
-  001,
-  "p95_ms": 0,
-  002,
-  "max_ms": 0,
-  013,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  013,
-  "p50_ms": 0,
-  011,
-  "p95_ms": 0,
-  026,
-  "max_ms": 0,
-  086,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  011,
-  "p50_ms": 0,
-  007,
-  "p95_ms": 0,
-  012,
-  "max_ms": 0,
-  812,
+  014,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 360,
   "dt_ms": 16,
-  749
+  885
 }
 {
   "type": "block",
@@ -247,40 +247,40 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  011,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  012,
+  013,
   "p50_ms": 0,
-  010,
+  012,
   "p95_ms": 0,
-  025,
+  023,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  010,
+  015,
   "p50_ms": 0,
-  007,
+  009,
   "p95_ms": 0,
-  012,
-  "max_ms": 0,
-  812,
+  014,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 420,
   "dt_ms": 16,
-  702
+  433
 }
 {
   "type": "block",
@@ -292,40 +292,40 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  011,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  011,
+  013,
   "p50_ms": 0,
-  010,
+  011,
   "p95_ms": 0,
-  024,
+  023,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  010,
+  014,
   "p50_ms": 0,
-  007,
+  008,
   "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  014,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 480,
   "dt_ms": 16,
-  664
+  461
 }
 {
   "type": "block",
@@ -337,7 +337,97 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
+  011,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  023,
+  "max_ms": 0,
+  107,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  008,
+  "p95_ms": 0,
   013,
+  "max_ms": 2,
+  135,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 540,
+  "dt_ms": 16,
+  875
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  119,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  011,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  022,
+  "max_ms": 0,
+  107,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  008,
+  "p95_ms": 0,
+  013,
+  "max_ms": 2,
+  135,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 600,
+  "dt_ms": 17,
+  675
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  119,
   "spikes": 0
 }
 {
@@ -348,29 +438,29 @@
   "p50_ms": 0,
   009,
   "p95_ms": 0,
-  024,
+  022,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  009,
+  011,
   "p50_ms": 0,
   007,
   "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  013,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
-  "frame": 540,
+  "frame": 660,
   "dt_ms": 16,
-  361
+  588
 }
 {
   "type": "block",
@@ -382,7 +472,7 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  119,
   "spikes": 0
 }
 {
@@ -393,29 +483,29 @@
   "p50_ms": 0,
   008,
   "p95_ms": 0,
-  022,
+  021,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  009,
+  010,
   "p50_ms": 0,
   007,
   "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  013,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
-  "frame": 600,
-  "dt_ms": 16,
-  723
+  "frame": 720,
+  "dt_ms": 15,
+  557
 }
 {
   "type": "block",
@@ -427,7 +517,7 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  119,
   "spikes": 0
 }
 {
@@ -440,117 +530,27 @@
   "p95_ms": 0,
   021,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  008,
-  "p50_ms": 0,
-  006,
-  "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 660,
-  "dt_ms": 16,
-  543
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  001,
-  "p50_ms": 0,
-  001,
-  "p95_ms": 0,
-  002,
-  "max_ms": 0,
-  013,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  008,
+  010,
   "p50_ms": 0,
   007,
   "p95_ms": 0,
-  020,
-  "max_ms": 0,
-  086,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  008,
-  "p50_ms": 0,
-  006,
-  "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 720,
-  "dt_ms": 16,
-  567
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  001,
-  "p50_ms": 0,
-  001,
-  "p95_ms": 0,
-  002,
-  "max_ms": 0,
-  013,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  008,
-  "p50_ms": 0,
-  006,
-  "p95_ms": 0,
-  020,
-  "max_ms": 0,
-  086,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  007,
-  "p50_ms": 0,
-  006,
-  "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  012,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 780,
-  "dt_ms": 19,
-  495
+  "dt_ms": 17,
+  434
 }
 {
   "type": "block",
@@ -562,40 +562,40 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  119,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  008,
+  009,
   "p50_ms": 0,
-  006,
+  007,
   "p95_ms": 0,
   020,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  007,
+  009,
   "p50_ms": 0,
   006,
   "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  012,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 840,
   "dt_ms": 16,
-  565
+  671
 }
 {
   "type": "block",
@@ -607,40 +607,40 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  119,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  007,
+  008,
   "p50_ms": 0,
-  005,
+  006,
   "p95_ms": 0,
-  019,
+  020,
   "max_ms": 0,
-  086,
+  107,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
-  006,
+  009,
   "p50_ms": 0,
   005,
   "p95_ms": 0,
-  011,
-  "max_ms": 0,
-  812,
+  012,
+  "max_ms": 2,
+  135,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 900,
   "dt_ms": 16,
-  483
+  768
 }
 {
   "type": "block",
@@ -652,7 +652,52 @@
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  013,
+  119,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  008,
+  "p50_ms": 0,
+  006,
+  "p95_ms": 0,
+  020,
+  "max_ms": 0,
+  107,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  009,
+  "p50_ms": 0,
+  005,
+  "p95_ms": 0,
+  012,
+  "max_ms": 2,
+  135,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 960,
+  "dt_ms": 15,
+  365
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  119,
   "spikes": 0
 }
 {
@@ -661,11 +706,11 @@
   "avg_ms": 0,
   007,
   "p50_ms": 0,
-  004,
+  005,
   "p95_ms": 0,
-  019,
+  017,
   "max_ms": 0,
-  086,
+  089,
   "spikes": 0
 }
 {
@@ -674,63 +719,18 @@
   "avg_ms": 0,
   006,
   "p50_ms": 0,
-  005,
+  004,
   "p95_ms": 0,
   011,
   "max_ms": 0,
-  812,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 960,
-  "dt_ms": 16,
-  673
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  001,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  002,
-  "max_ms": 0,
-  013,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  006,
-  "p50_ms": 0,
-  004,
-  "p95_ms": 0,
-  013,
-  "max_ms": 0,
-  038,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  005,
-  "p50_ms": 0,
-  005,
-  "p95_ms": 0,
-  010,
-  "max_ms": 0,
-  038,
+  209,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 1020,
   "dt_ms": 16,
-  686
+  967
 }
 {
   "type": "block",
@@ -738,24 +738,24 @@
   "avg_ms": 0,
   001,
   "p50_ms": 0,
-  000,
-  "p95_ms": 0,
   001,
+  "p95_ms": 0,
+  002,
   "max_ms": 0,
-  007,
+  119,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  005,
+  006,
   "p50_ms": 0,
-  003,
+  004,
   "p95_ms": 0,
-  012,
+  015,
   "max_ms": 0,
-  038,
+  089,
   "spikes": 0
 }
 {
@@ -768,14 +768,14 @@
   "p95_ms": 0,
   010,
   "max_ms": 0,
-  038,
+  209,
   "spikes": 1
 }
 {
   "type": "frame",
   "frame": 1080,
   "dt_ms": 16,
-  681
+  690
 }
 {
   "type": "block",
@@ -783,11 +783,11 @@
   "avg_ms": 0,
   001,
   "p50_ms": 0,
-  000,
-  "p95_ms": 0,
   001,
+  "p95_ms": 0,
+  002,
   "max_ms": 0,
-  007,
+  119,
   "spikes": 0
 }
 {
@@ -796,2228 +796,23 @@
   "avg_ms": 0,
   005,
   "p50_ms": 0,
-  003,
+  004,
+  "p95_ms": 0,
+  013,
+  "max_ms": 0,
+  089,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  005,
+  "p50_ms": 0,
+  004,
   "p95_ms": 0,
   010,
   "max_ms": 0,
-  038,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  009,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1140,
-  "dt_ms": 16,
-  749
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  009,
-  "max_ms": 0,
-  038,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  009,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1200,
-  "dt_ms": 16,
-  715
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  030,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  008,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1260,
-  "dt_ms": 16,
-  503
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  030,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1320,
-  "dt_ms": 16,
-  627
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1380,
-  "dt_ms": 16,
-  633
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1440,
-  "dt_ms": 16,
-  870
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1500,
-  "dt_ms": 16,
-  847
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1560,
-  "dt_ms": 16,
-  761
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1620,
-  "dt_ms": 16,
-  599
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1680,
-  "dt_ms": 16,
-  636
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1740,
-  "dt_ms": 16,
-  634
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  007,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1800,
-  "dt_ms": 16,
-  784
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1860,
-  "dt_ms": 17,
-  023
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1920,
-  "dt_ms": 16,
-  643
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 1980,
-  "dt_ms": 16,
-  751
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2040,
-  "dt_ms": 16,
-  847
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2100,
-  "dt_ms": 16,
-  836
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  031,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2160,
-  "dt_ms": 16,
-  506
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  037,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2220,
-  "dt_ms": 16,
-  713
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2280,
-  "dt_ms": 16,
-  798
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2340,
-  "dt_ms": 16,
-  623
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2400,
-  "dt_ms": 16,
-  825
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2460,
-  "dt_ms": 16,
-  747
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2520,
-  "dt_ms": 16,
-  676
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  026,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2580,
-  "dt_ms": 18,
-  137
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2640,
-  "dt_ms": 16,
-  657
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  043,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2700,
-  "dt_ms": 16,
-  778
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2760,
-  "dt_ms": 16,
-  649
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2820,
-  "dt_ms": 16,
-  595
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2880,
-  "dt_ms": 16,
-  738
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 2940,
-  "dt_ms": 16,
-  603
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3000,
-  "dt_ms": 16,
-  602
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  038,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3060,
-  "dt_ms": 16,
-  419
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3120,
-  "dt_ms": 16,
-  857
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3180,
-  "dt_ms": 16,
-  712
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  022,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3240,
-  "dt_ms": 16,
-  524
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  007,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3300,
-  "dt_ms": 16,
-  646
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3360,
-  "dt_ms": 17,
-  001
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3420,
-  "dt_ms": 16,
-  661
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3480,
-  "dt_ms": 16,
-  468
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  005,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3540,
-  "dt_ms": 16,
-  678
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3600,
-  "dt_ms": 16,
-  602
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  000,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3660,
-  "dt_ms": 16,
-  462
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  000,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3720,
-  "dt_ms": 16,
-  853
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  000,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3780,
-  "dt_ms": 16,
-  746
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  000,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  020,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3840,
-  "dt_ms": 16,
-  640
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  019,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3900,
-  "dt_ms": 16,
-  796
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  025,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 3960,
-  "dt_ms": 16,
-  621
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  025,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
-  "spikes": 1
-}
-{
-  "type": "frame",
-  "frame": 4020,
-  "dt_ms": 16,
-  674
-}
-{
-  "type": "block",
-  "name": "time.update",
-  "avg_ms": 0,
-  000,
-  "p50_ms": 0,
-  000,
-  "p95_ms": 0,
-  001,
-  "max_ms": 0,
-  002,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "camera.flush",
-  "avg_ms": 0,
-  003,
-  "p50_ms": 0,
-  002,
-  "p95_ms": 0,
-  004,
-  "max_ms": 0,
-  025,
-  "spikes": 0
-}
-{
-  "type": "block",
-  "name": "debug.tick",
-  "avg_ms": 0,
-  004,
-  "p50_ms": 0,
-  003,
-  "p95_ms": 0,
-  006,
-  "max_ms": 0,
-  025,
+  209,
   "spikes": 1
 }

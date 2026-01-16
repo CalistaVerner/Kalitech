@@ -24,6 +24,13 @@ public final class Snapper {
         this.shadowMapSize = shadowMapSize;
     }
 
+    /**
+     * @return Shadow map resolution used for snapping.
+     */
+    public int shadowMapSize() {
+        return shadowMapSize;
+    }
+
     private static float snapNearest(float v, float step) {
         if (!(step > 0f)) return v;
         // Nearest-grid snapping reduces systematic drift compared to floor snapping.

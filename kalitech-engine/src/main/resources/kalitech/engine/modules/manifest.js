@@ -14,6 +14,7 @@ module.exports = {
         "@module/Hud/Hud",
         "@module/Controllers/Controllers",
         "@module/Debug/Debug",
-        "@module/Camera/Camera"
+        "@module/Camera/Camera",
+        "@module/Particles/Particles"
     ]
 };

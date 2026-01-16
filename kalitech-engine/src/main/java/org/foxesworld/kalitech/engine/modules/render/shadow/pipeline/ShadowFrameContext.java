@@ -60,6 +60,8 @@ public final class ShadowFrameContext {
         this.frameId = frameId;
 
         ShadowWorkspace w = workspace != null ? workspace : new ShadowWorkspace(numSplits);
+        // AAA contract: prevent accidental multi-writes and hidden ordering dependencies.
+        w.setStrictWrites(true);
         w.beginFrame(frameId);
         this.ws = w;
     }

@@ -6,6 +6,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFrameContext;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
 
@@ -15,12 +16,23 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplit
  * Uses light-space AABB of the 8 frustum slice points instead of a bounding sphere
  * to reduce oversized ortho extents (smaller texels, less shimmering).
  * Publishes {@link ShadowKeys#TEXEL_WORLD} for downstream filters.
+ * <p>
+ * Implementation notes (deterministic):
+ * <ul>
+ *   <li>Light basis is computed once per frame and cached via {@link ShadowKeys#LIGHT_DIR},
+ *   {@link ShadowKeys#LIGHT_LEFT}, {@link ShadowKeys#LIGHT_UP}.</li>
+ *   <li>Split fitting is deterministic given the same frustum points and cached basis.</li>
+ * </ul>
  */
 public final class StableFitShadowCamFilter implements ShadowFilter {
 
     private final Vector3f tmp = new Vector3f();
     private final Vector3f camLoc = new Vector3f();
     private final Vector3f tmp2 = new Vector3f();
+
+    private final Vector3f frameDir = new Vector3f();
+    private final Vector3f frameLeft = new Vector3f();
+    private final Vector3f frameUp = new Vector3f();
 
     public float minNear = 0.5f;
     public float receiverFrontBase = 0.5f;
@@ -46,22 +58,47 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
     }
 
     @Override
+    public void beginFrame(ShadowFrameContext ctx) {
+        frameDir.set(ctx.light.getDirection());
+        normalizeSafe(frameDir);
+
+        tmp.set(Vector3f.UNIT_Y);
+        if (FastMath.abs(frameDir.dot(tmp)) > 0.99f) tmp.set(Vector3f.UNIT_X);
+
+        frameLeft.set(tmp).crossLocal(frameDir);
+        normalizeSafe(frameLeft);
+
+        frameUp.set(frameDir).crossLocal(frameLeft);
+        normalizeSafe(frameUp);
+
+        ctx.ws.put(ShadowKeys.LIGHT_DIR, frameDir);
+        ctx.ws.put(ShadowKeys.LIGHT_LEFT, frameLeft);
+        ctx.ws.put(ShadowKeys.LIGHT_UP, frameUp);
+    }
+
+    private void fetchFrameBasis(ShadowSplitContext ctx) {
+        Vector3f dir = ctx.frame.ws.get(ShadowKeys.LIGHT_DIR);
+        Vector3f left = ctx.frame.ws.get(ShadowKeys.LIGHT_LEFT);
+        Vector3f up = ctx.frame.ws.get(ShadowKeys.LIGHT_UP);
+
+        if (dir == null || left == null || up == null) {
+            // Defensive fallback: should not happen if beginFrame ran.
+            beginFrame(ctx.frame);
+            dir = ctx.frame.ws.get(ShadowKeys.LIGHT_DIR);
+            left = ctx.frame.ws.get(ShadowKeys.LIGHT_LEFT);
+            up = ctx.frame.ws.get(ShadowKeys.LIGHT_UP);
+        }
+
+        ctx.lightDir.set(dir);
+        ctx.lightLeft.set(left);
+        ctx.lightUp.set(up);
+    }
+
+    @Override
     public boolean updateShadowCam(ShadowSplitContext ctx) {
         Camera sc = ctx.shadowCam;
 
-        if (ctx.lightDir.lengthSquared() == 0f) {
-            ctx.lightDir.set(ctx.light.getDirection());
-            normalizeSafe(ctx.lightDir);
-
-            tmp.set(Vector3f.UNIT_Y);
-            if (FastMath.abs(ctx.lightDir.dot(tmp)) > 0.99f) tmp.set(Vector3f.UNIT_X);
-
-            ctx.lightLeft.set(tmp).crossLocal(ctx.lightDir);
-            normalizeSafe(ctx.lightLeft);
-
-            ctx.lightUp.set(ctx.lightDir).crossLocal(ctx.lightLeft);
-            normalizeSafe(ctx.lightUp);
-        }
+        fetchFrameBasis(ctx);
 
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
