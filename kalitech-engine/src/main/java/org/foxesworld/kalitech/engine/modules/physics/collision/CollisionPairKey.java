@@ -1,6 +1,6 @@
 // FILE: org/foxesworld/kalitech/engine/modules/physics/CollisionPairKey.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics;
+package org.foxesworld.kalitech.engine.modules.physics.collision;
 
 /**
  * Compact collision pair key helpers.

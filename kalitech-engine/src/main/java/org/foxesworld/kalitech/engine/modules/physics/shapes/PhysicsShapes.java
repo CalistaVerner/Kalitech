@@ -1,6 +1,6 @@
-// FILE: org/foxesworld/kalitech/engine/modules/physics/collision/CollisionShapes.java
+// FILE: org/foxesworld/kalitech/engine/modules/physics/shapes/PhysicsShapes.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics.collision;
+package org.foxesworld.kalitech.engine.modules.physics.shapes;
 
 import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingVolume;
@@ -16,28 +16,18 @@ import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Cylinder;
 import com.jme3.scene.shape.Sphere;
-import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
-
-import static org.foxesworld.kalitech.engine.modules.physics.PhysicsMath.clampPositive;
+import static org.foxesworld.kalitech.engine.modules.physics.util.PhysicsMath.clampPositive;
 
 /**
- * Collision shape resolution and caching for physics bodies.
+ * Collision shape factory and cache.
  */
-public final class CollisionShapes {
+public final class PhysicsShapes {
 
-    private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache;
+    private final ShapeCache cache;
 
-    public CollisionShapes(ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache) {
-        this.shapeCache = shapeCache;
-    }
-
-    public CollisionShape resolve(Object colliderCfg, Spatial spatial, boolean dynamic) {
-        if (colliderCfg == null) {
-            return defaultShapeForSpatial(spatial, dynamic);
-        }
-        return PhysicsColliderFactory.create(colliderCfg, spatial);
+    public PhysicsShapes(ShapeCache cache) {
+        this.cache = cache;
     }
 
     public CollisionShape defaultShapeForSpatial(Spatial spatial, boolean dynamic) {
@@ -48,15 +38,9 @@ public final class CollisionShapes {
             Mesh mesh = g.getMesh();
             if (mesh != null) {
                 ShapeKey key = new ShapeKey(mesh, dynamic);
-                CollisionShape cached = shapeCache.get(key);
-                if (cached != null) return cached;
-
-                CollisionShape created = dynamic
+                return cache.getOrCompute(key, () -> dynamic
                         ? CollisionShapeFactory.createDynamicMeshShape(g)
-                        : CollisionShapeFactory.createMeshShape(g);
-
-                shapeCache.putIfAbsent(key, created);
-                return created;
+                        : CollisionShapeFactory.createMeshShape(g));
             }
         }
 
@@ -65,7 +49,7 @@ public final class CollisionShapes {
                 : CollisionShapeFactory.createMeshShape(spatial);
     }
 
-    public CollisionShape primitiveShapeFromGeometry(Geometry g) {
+    private CollisionShape primitiveShapeFromGeometry(Geometry g) {
         Mesh mesh = g.getMesh();
         if (mesh == null) return null;
 
@@ -121,8 +105,5 @@ public final class CollisionShapes {
         }
 
         return null;
-    }
-
-    public record ShapeKey(Mesh mesh, boolean dynamic) {
     }
 }

@@ -1,6 +1,6 @@
 // FILE: org/foxesworld/kalitech/engine/modules/physics/PhysicsMath.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics;
+package org.foxesworld.kalitech.engine.modules.physics.util;
 
 import com.jme3.math.Vector3f;
 

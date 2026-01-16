@@ -1,17 +1,20 @@
-// FILE: org/foxesworld/kalitech/engine/modules/physics/util/PhysicsHitFactory.java
+// FILE: org/foxesworld/kalitech/engine/modules/physics/query/RaycastPayloads.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics.util;
+package org.foxesworld.kalitech.engine.modules.physics.query;
 
 import com.jme3.math.Vector3f;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.foxesworld.kalitech.engine.modules.physics.PhysicsJs.evtJs;
+import static org.foxesworld.kalitech.engine.modules.physics.js.PhysicsJs.evtJs;
 
-public final class PhysicsHitFactory {
+/**
+ * Raycast result payload builder.
+ */
+public final class RaycastPayloads {
 
-    private PhysicsHitFactory() {
+    private RaycastPayloads() {
     }
 
     public static Map<String, Object> hitObj(

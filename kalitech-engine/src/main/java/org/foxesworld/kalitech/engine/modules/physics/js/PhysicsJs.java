@@ -1,6 +1,6 @@
 // FILE: org/foxesworld/kalitech/engine/modules/physics/PhysicsJs.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics;
+package org.foxesworld.kalitech.engine.modules.physics.js;
 
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;

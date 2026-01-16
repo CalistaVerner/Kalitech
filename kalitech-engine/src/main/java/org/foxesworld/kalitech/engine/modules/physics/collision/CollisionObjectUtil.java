@@ -1,6 +1,6 @@
 // FILE: org/foxesworld/kalitech/engine/modules/physics/CollisionObjectUtil.java
 // Author: Calista Verner
-package org.foxesworld.kalitech.engine.modules.physics;
+package org.foxesworld.kalitech.engine.modules.physics.collision;
 
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.objects.PhysicsRigidBody;

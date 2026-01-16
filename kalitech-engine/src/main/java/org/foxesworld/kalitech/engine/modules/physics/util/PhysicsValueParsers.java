@@ -1,4 +1,4 @@
-package org.foxesworld.kalitech.engine.modules.physics;
+package org.foxesworld.kalitech.engine.modules.physics.util;
 
 import com.jme3.math.Vector3f;
 import org.graalvm.polyglot.Value;
