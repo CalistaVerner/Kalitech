@@ -2,114 +2,249 @@
 // Author: Calista Verner
 package org.foxesworld.kalitech.engine.modules.physics.util;
 
-import com.jme3.math.Vector3f;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.engine.modules.physics.ContactAgg;
-
-import java.util.Arrays;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 
 /**
- * Open-addressing long -> {@link ContactAgg} map (no boxing).
- * Uses 0 as EMPTY sentinel in keys table.
+ * Open-addressing primitive long -> value map (no boxing).
  *
- * <p>Intended for per-tick accumulation. Call {@link #clear()} after consumption.</p>
+ * <p>Uses {@code 0L} as EMPTY sentinel and {@code Long.MIN_VALUE} as DELETED sentinel.
+ * Keys must never be {@code 0L} or {@code Long.MIN_VALUE}.</p>
+ *
+ * <p>Iteration is allocation-light: iterator reuses a single mutable {@link Entry} instance.</p>
  */
-public final class LongContactMap {
-
-    private static final Logger log = LogManager.getLogger(LongContactMap.class);
+public final class LongContactMap<T> {
 
     private static final long EMPTY = 0L;
+    private static final long DELETED = Long.MIN_VALUE;
+
+    private static final float LOAD_FACTOR = 0.65f;
+    private static final float TOMBSTONE_FACTOR = 0.20f;
 
     private long[] keys;
-    private ContactAgg[] values;
-    private int size;
+    private final EntriesIterable entriesIterable = new EntriesIterable();
+    private Object[] values;
+    private int size;       // live entries
     private int mask;
     private int resizeAt;
+    private int used;       // live + tombstones
 
-    // Debug / stats (cheap, optional)
-    private volatile boolean dbg;
-    private volatile int dbgEvery = 0; // 0 = off, otherwise log once per N puts/ops
+    public LongContactMap() {
+        this(256);
+    }
 
-    private long puts;
-    private long rehashes;
-    private long compactions;
-    private int maxProbe;
-    private long probeSum;
-    private long probeCount;
-
-    public LongContactMap(int initialCapacityPow2) {
-        int cap = 1;
-        while (cap < initialCapacityPow2) cap <<= 1;
-        if (cap < 16) cap = 16;
-
+    public LongContactMap(int initialCapacity) {
+        int cap = tableSizeFor(Math.max(16, initialCapacity));
         this.keys = new long[cap];
-        this.values = new ContactAgg[cap];
+        this.values = new Object[cap];
         this.mask = cap - 1;
-        this.resizeAt = (int) (cap * 0.65f);
-        this.size = 0;
-    }
-
-    /**
-     * Enables or disables debug logging. When enabled, logs are rate-limited by {@link #setDebug(boolean, int)}.
-     */
-    public void setDebug(boolean enabled) {
-        this.dbg = enabled;
-        this.dbgEvery = enabled ? 1024 : 0;
-    }
-
-    /**
-     * Enables or disables debug logging with custom rate limit.
-     *
-     * @param enabled  enable debug logging
-     * @param everyOps log once per N operations (put/getOrCreate/rehash/compact related paths)
-     */
-    public void setDebug(boolean enabled, int everyOps) {
-        this.dbg = enabled;
-        this.dbgEvery = enabled ? Math.max(1, everyOps) : 0;
+        this.resizeAt = (int) (cap * LOAD_FACTOR);
     }
 
     public int size() {
         return size;
     }
 
-    public boolean isEmpty() {
-        return size == 0;
+    private static int tableSizeFor(int cap) {
+        int n = cap - 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        return (n < 16) ? 16 : (n + 1);
     }
 
-    /**
-     * Returns current capacity (keys table length).
-     */
-    public int capacity() {
-        return keys.length;
+    public boolean contains(long key) {
+        return findIndex(key) >= 0;
     }
 
-    /**
-     * Returns load factor (size / capacity).
-     */
-    public float loadFactor() {
+    @SuppressWarnings("unchecked")
+    public T get(long key) {
+        int idx = findIndex(key);
+        return idx >= 0 ? (T) values[idx] : null;
+    }
+
+    public void put(long key, T value) {
+        requireValidKey(key);
+        if (value == null) throw new NullPointerException("value");
+
+        if (used >= resizeAt) {
+            rehash(keys.length << 1);
+        } else if (tombstonePressureHigh()) {
+            rehash(keys.length);
+        }
+
+        int idx = findSlotForInsert(key);
+        long k = keys[idx];
+
+        if (k == key) {
+            values[idx] = value;
+            return;
+        }
+
+        if (k == EMPTY) {
+            used++;
+        }
+
+        keys[idx] = key;
+        values[idx] = value;
+        size++;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T remove(long key) {
+        requireValidKey(key);
+        int idx = findIndex(key);
+        if (idx < 0) return null;
+
+        T old = (T) values[idx];
+        keys[idx] = DELETED;
+        values[idx] = null;
+
+        size--;
+
+        if (tombstonePressureHigh()) {
+            rehash(keys.length);
+        }
+
+        return old;
+    }
+
+    public void clear() {
         int cap = keys.length;
-        return cap == 0 ? 0f : (float) size / (float) cap;
+        for (int i = 0; i < cap; i++) {
+            keys[i] = EMPTY;
+            values[i] = null;
+        }
+        size = 0;
+        used = 0;
     }
 
-    public long puts() {
-        return puts;
+    /**
+     * Iterates over all live entries.
+     * Iterator reuses a single mutable {@link Entry} instance.
+     */
+    public Iterable<Entry<T>> entries() {
+        return entriesIterable;
     }
 
-    public long rehashes() {
-        return rehashes;
+    /**
+     * Removes entries for which {@code liveness.isAlive(value)} returns false.
+     */
+    public void sweep(ContactLiveness<T> liveness) {
+        Objects.requireNonNull(liveness, "liveness");
+
+        boolean removedAny = false;
+
+        for (int i = 0; i < keys.length; i++) {
+            long k = keys[i];
+            if (k == EMPTY || k == DELETED) continue;
+
+            @SuppressWarnings("unchecked")
+            T v = (T) values[i];
+
+            if (!liveness.isAlive(v)) {
+                keys[i] = DELETED;
+                values[i] = null;
+                size--;
+                removedAny = true;
+            }
+        }
+
+        if (removedAny && tombstonePressureHigh()) {
+            rehash(keys.length);
+        }
     }
 
-    public long compactions() {
-        return compactions;
+    private void requireValidKey(long key) {
+        if (key == EMPTY || key == DELETED) {
+            throw new IllegalArgumentException("Invalid key sentinel: " + key);
+        }
     }
 
-    public int maxProbe() {
-        return maxProbe;
+    // ----------------- internals -----------------
+
+    private boolean tombstonePressureHigh() {
+        int tomb = used - size;
+        return tomb > (int) (keys.length * TOMBSTONE_FACTOR);
     }
 
-    public float avgProbe() {
-        return probeCount == 0 ? 0f : (float) probeSum / (float) probeCount;
+    private int findIndex(long key) {
+        requireValidKey(key);
+
+        int idx = mix64to32(key) & mask;
+        while (true) {
+            long k = keys[idx];
+            if (k == EMPTY) return -1;
+            if (k == key) return idx;
+            idx = (idx + 1) & mask;
+        }
+    }
+
+    private int findSlotForInsert(long key) {
+        int idx = mix64to32(key) & mask;
+        int firstDeleted = -1;
+
+        while (true) {
+            long k = keys[idx];
+
+            if (k == EMPTY) {
+                return (firstDeleted >= 0) ? firstDeleted : idx;
+            }
+            if (k == key) {
+                return idx;
+            }
+            if (k == DELETED && firstDeleted < 0) {
+                firstDeleted = idx;
+            }
+
+            idx = (idx + 1) & mask;
+        }
+    }
+
+    private void rehash(int newCapacity) {
+        int cap = tableSizeFor(newCapacity);
+
+        long[] oldK = this.keys;
+        Object[] oldV = this.values;
+
+        this.keys = new long[cap];
+        this.values = new Object[cap];
+        this.mask = cap - 1;
+        this.resizeAt = (int) (cap * LOAD_FACTOR);
+
+        this.size = 0;
+        this.used = 0;
+
+        for (int i = 0; i < oldK.length; i++) {
+            long k = oldK[i];
+            if (k == EMPTY || k == DELETED) continue;
+
+            @SuppressWarnings("unchecked")
+            T v = (T) oldV[i];
+
+            int idx = findSlotForInsertRehash(k);
+            keys[idx] = k;
+            values[idx] = v;
+            size++;
+            used++;
+        }
+    }
+
+    private int findSlotForInsertRehash(long key) {
+        int idx = mix64to32(key) & mask;
+        while (true) {
+            long k = keys[idx];
+            if (k == EMPTY) return idx;
+            idx = (idx + 1) & mask;
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "LongContactMap[size=" + size + ", cap=" + keys.length + ", used=" + used + "]";
     }
 
     private static int mix64to32(long z) {
@@ -121,207 +256,77 @@ public final class LongContactMap {
         return (int) z;
     }
 
-    public void clear() {
-        if (size == 0) {
-            Arrays.fill(keys, EMPTY);
-            return;
+    public interface ContactLiveness<T> {
+        boolean isAlive(T contact);
+    }
+
+    /**
+     * Mutable entry view used by iterator.
+     */
+    public static final class Entry<T> {
+        private long key;
+        private T value;
+
+        public long key() {
+            return key;
         }
 
-        for (int i = 0; i < keys.length; i++) {
-            if (keys[i] != EMPTY) {
-                ContactAgg a = values[i];
-                if (a != null) a.clear();
-                values[i] = null;
-            }
+        public T value() {
+            return value;
         }
-        Arrays.fill(keys, EMPTY);
-        size = 0;
 
-        if (dbg && log.isDebugEnabled()) {
-            log.debug("[physics][contacts] clear cap={} lf={}", keys.length, loadFactor());
+        private void set(long key, T value) {
+            this.key = key;
+            this.value = value;
         }
     }
 
-    public ContactAgg getOrCreate(long k) {
-        if (k == EMPTY) {
-            if (dbg && log.isWarnEnabled()) log.warn("[physics][contacts] getOrCreate called with EMPTY key");
-            return null;
+    private final class EntriesIterable implements Iterable<Entry<T>> {
+        @Override
+        public Iterator<Entry<T>> iterator() {
+            return new EntryIterator();
+        }
+    }
+
+    private final class EntryIterator implements Iterator<Entry<T>> {
+        private final Entry<T> entry = new Entry<>();
+        private int idx = -1;
+        private int next = -1;
+
+        EntryIterator() {
+            advance();
         }
 
-        if (size >= resizeAt) rehash(keys.length << 1);
+        @Override
+        public boolean hasNext() {
+            return next >= 0;
+        }
 
-        int i = mix64to32(k) & mask;
-        int probe = 0;
+        @Override
+        public Entry<T> next() {
+            if (next < 0) throw new NoSuchElementException();
 
-        while (true) {
-            long kk = keys[i];
+            idx = next;
 
-            if (kk == EMPTY) {
-                keys[i] = k;
-                ContactAgg a = values[i];
-                if (a == null) values[i] = (a = new ContactAgg());
-                a.clear();
-                size++;
+            @SuppressWarnings("unchecked")
+            T v = (T) values[idx];
 
-                recordProbe(probe);
-                maybeLogOp("insert", k, probe);
+            entry.set(keys[idx], v);
+            advance();
+            return entry;
+        }
 
-                return a;
-            }
-
-            if (kk == k) {
-                ContactAgg a = values[i];
-                if (a == null) values[i] = (a = new ContactAgg());
-
-                recordProbe(probe);
-                maybeLogOp("hit", k, probe);
-
-                return a;
-            }
-
-            i = (i + 1) & mask;
-            probe++;
-
-            if (probe > 256) {
-                // This indicates heavy clustering; still works but should be investigated.
-                if (dbg && log.isWarnEnabled()) {
-                    log.warn("[physics][contacts] long probe chain probe={} cap={} size={} lf={}",
-                            probe, keys.length, size, loadFactor());
+        private void advance() {
+            int i = idx + 1;
+            while (i < keys.length) {
+                long k = keys[i];
+                if (k != EMPTY && k != DELETED) {
+                    next = i;
+                    return;
                 }
+                i++;
             }
+            next = -1;
         }
-    }
-
-    public ContactAgg get(long k) {
-        if (k == EMPTY) return null;
-
-        int i = mix64to32(k) & mask;
-        int probe = 0;
-
-        while (true) {
-            long kk = keys[i];
-            if (kk == EMPTY) {
-                recordProbe(probe);
-                return null;
-            }
-            if (kk == k) {
-                recordProbe(probe);
-                return values[i];
-            }
-            i = (i + 1) & mask;
-            probe++;
-            if (probe > 256) {
-                if (dbg && log.isWarnEnabled()) {
-                    log.warn("[physics][contacts] get long probe chain probe={} cap={} size={} lf={}",
-                            probe, keys.length, size, loadFactor());
-                }
-            }
-        }
-    }
-
-    public void put(long k, float impulse, Vector3f point) {
-        put(k, impulse, point, null);
-    }
-
-    public void put(long k, float impulse, Vector3f point, Vector3f normal) {
-        if (k == EMPTY) {
-            if (dbg && log.isWarnEnabled()) log.warn("[physics][contacts] put called with EMPTY key");
-            return;
-        }
-
-        puts++;
-
-        if (!Float.isFinite(impulse) && dbg && log.isWarnEnabled()) {
-            log.warn("[physics][contacts] non-finite impulse={} key={}", impulse, k);
-        }
-
-        ContactAgg a = getOrCreate(k);
-        if (a == null) return;
-        a.add(impulse, point, normal);
-
-        if (dbgEvery > 0 && dbg && log.isDebugEnabled() && (puts % dbgEvery) == 0) {
-            log.debug("[physics][contacts] put#{} cap={} size={} lf={} maxProbe={} avgProbe={}",
-                    puts, keys.length, size, loadFactor(), maxProbe, avgProbe());
-        }
-    }
-
-    public void compact() {
-        int cap = keys.length;
-        if (cap <= 16) return;
-
-        if (size <= (cap * 0.25f)) {
-            int newCap = cap;
-            while (newCap > 16 && size <= (newCap * 0.25f)) newCap >>= 1;
-
-            if (newCap < cap) {
-                if (dbg && log.isDebugEnabled()) {
-                    log.debug("[physics][contacts] compact cap={} -> {} size={} lf={}",
-                            cap, newCap, size, (cap == 0 ? 0f : (float) size / (float) cap));
-                }
-                compactions++;
-                rehash(newCap);
-            }
-        }
-    }
-
-    private void rehash(int newCap) {
-        int oldCap = keys.length;
-
-        if (newCap < 16) newCap = 16;
-        if ((newCap & (newCap - 1)) != 0) {
-            int p = 1;
-            while (p < newCap) p <<= 1;
-            newCap = p;
-        }
-
-        long[] ok = keys;
-        ContactAgg[] ov = values;
-
-        long[] nk = new long[newCap];
-        ContactAgg[] nv = new ContactAgg[newCap];
-        int nm = newCap - 1;
-
-        for (int i = 0; i < ok.length; i++) {
-            long k = ok[i];
-            if (k == EMPTY) continue;
-
-            int idx = mix64to32(k) & nm;
-            int probe = 0;
-            while (nk[idx] != EMPTY) {
-                idx = (idx + 1) & nm;
-                probe++;
-            }
-            nk[idx] = k;
-            nv[idx] = ov[i];
-            recordProbe(probe);
-        }
-
-        keys = nk;
-        values = nv;
-        mask = nm;
-        resizeAt = (int) (newCap * 0.65f);
-
-        rehashes++;
-
-        if (dbg && log.isDebugEnabled()) {
-            log.debug("[physics][contacts] rehash#{} cap={} -> {} size={} lf={} resizeAt={}",
-                    rehashes, oldCap, newCap, size, loadFactor(), resizeAt);
-        }
-    }
-
-    private void recordProbe(int probe) {
-        if (probe < 0) return;
-        if (probe > maxProbe) maxProbe = probe;
-        probeSum += probe;
-        probeCount++;
-    }
-
-    private void maybeLogOp(String kind, long key, int probe) {
-        if (!dbg || dbgEvery <= 0 || !log.isTraceEnabled()) return;
-        long n = puts == 0 ? probeCount : puts;
-        if (n % dbgEvery != 0) return;
-
-        log.trace("[physics][contacts] {} key={} probe={} cap={} size={} lf={}",
-                kind, key, probe, keys.length, size, loadFactor());
     }
 }
