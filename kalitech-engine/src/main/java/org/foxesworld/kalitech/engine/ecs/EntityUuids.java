@@ -74,8 +74,12 @@ public final class EntityUuids {
 
     public int entityIdOf(String uuid) {
         if (uuid == null || uuid.isBlank()) return EntityId.NULL;
-        UUID u = UUID.fromString(uuid.trim());
-        return index.get(u.getMostSignificantBits(), u.getLeastSignificantBits());
+        try {
+            UUID u = UUID.fromString(uuid.trim());
+            return index.get(u.getMostSignificantBits(), u.getLeastSignificantBits());
+        } catch (IllegalArgumentException ex) {
+            return EntityId.NULL;
+        }
     }
 
     public void reset() {

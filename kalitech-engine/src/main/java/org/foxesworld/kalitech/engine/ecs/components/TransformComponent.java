@@ -2,7 +2,7 @@ package org.foxesworld.kalitech.engine.ecs.components;
 
 public final class TransformComponent {
     public float x, y, z;
-    public float rotY; // для примера
+    public float rotY; // example
 
     public TransformComponent() {}
 

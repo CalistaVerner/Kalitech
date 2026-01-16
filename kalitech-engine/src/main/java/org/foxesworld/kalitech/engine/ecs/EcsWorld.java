@@ -92,6 +92,25 @@ public final class EcsWorld {
     }
 
     /**
+     * INTERNAL: resolve UUID to a packed handle (entityId+generation).
+     * Useful for long-lived references inside engine systems.
+     */
+    public long resolveEntityHandle(String uuid) {
+        int id = requireEntityId(uuid, "resolveEntityHandle");
+        int gen = entities.generationOf(id);
+        return EntityId.packHandle(id, gen);
+    }
+
+    /**
+     * INTERNAL: liveness check for packed handles.
+     */
+    public boolean isAliveHandle(long handle) {
+        int id = EntityId.unpackEntityId(handle);
+        int gen = EntityId.unpackGeneration(handle);
+        return entities.isAlive(id, gen);
+    }
+
+    /**
      * INTERNAL: resolve UUID to dense id or NULL. Not for scripts.
      */
     public int resolveEntityIdOrNull(String uuid) {
@@ -112,9 +131,10 @@ public final class EcsWorld {
     }
 
     private void destroyInternal(int id) {
+        // Ensure components are cleared even if some systems still reference the dense id.
+        components.removeAll(id);
         uuids.onDestroy(id);
         entities.destroy(id);
-        components.removeAll(id);
     }
 
     private int entityIdOrNull(String uuid) {
