@@ -6,6 +6,10 @@ function s(v) {
     return String(v == null ? "" : v);
 }
 
+function isObj(v) {
+    return v != null && typeof v === "object";
+}
+
 function getLog(engine) {
     try {
         if (engine && typeof engine.log === "function") {
@@ -28,10 +32,6 @@ function getLog(engine) {
         warn: (m, e) => (c.warn ? c.warn(m, e) : void 0),
         info: (m, e) => (c.info ? c.info(m, e) : void 0)
     };
-}
-
-function isObj(v) {
-    return v != null && typeof v === "object";
 }
 
 function v3(v, a, b) {
@@ -141,8 +141,8 @@ class SoundInstance {
 
     velocity(x, y, z) {
         if (!this._api.setVelocity) return this;
-        const v3v = v3(x, y, z);
-        safeExec(this._log, "velocity", () => this._api.setVelocity(this._node, v3v[0], v3v[1], v3v[2]));
+        const vv = v3(x, y, z);
+        safeExec(this._log, "velocity", () => this._api.setVelocity(this._node, vv[0], vv[1], vv[2]));
         return this;
     }
 
@@ -151,6 +151,152 @@ class SoundInstance {
             safeExec(this._log, "velocityFromTranslation", () => this._api.setVelocityFromTranslation(this._node, !!v));
         }
         return this;
+    }
+}
+
+class SoundObject {
+    constructor(registry, mode, base) {
+        this._r = registry;
+        this._mode = mode; // "event" | "file"
+        this._event = mode === "event" ? String(base || "") : null;
+        this._fileCfg = mode === "file" ? (base || {}) : null;
+
+        this._deterministic = null;
+        this._seed = null;
+        this._positional = null;
+
+        this._context = {entityId: 0, surfaceId: 0, seq: 0, tick: 0, slot: 0};
+        this._overrides = null;
+
+        this._autoSeq = 0;
+        this._autoSeqEnabled = true;
+        this._seqMode = "increment"; // "increment" | "keep"
+    }
+
+    setDeterministic(v = true) {
+        this._deterministic = !!v;
+        return this;
+    }
+
+    setSeed(seed) {
+        this._seed = Number(seed) || 0;
+        return this;
+    }
+
+    setPositional(v = true) {
+        this._positional = !!v;
+        return this;
+    }
+
+    setOverrides(overrides) {
+        this._overrides = overrides || null;
+        return this;
+    }
+
+    setContext(ctx) {
+        if (ctx && typeof ctx === "object") {
+            if (ctx.entityId != null) this._context.entityId = Number(ctx.entityId) || 0;
+            if (ctx.surfaceId != null) this._context.surfaceId = Number(ctx.surfaceId) || 0;
+            if (ctx.seq != null) this._context.seq = Number(ctx.seq) || 0;
+            if (ctx.tick != null) this._context.tick = Number(ctx.tick) || 0;
+            if (ctx.slot != null) this._context.slot = Number(ctx.slot) || 0;
+        }
+        return this;
+    }
+
+    setEntityId(id) {
+        this._context.entityId = Number(id) || 0;
+        return this;
+    }
+
+    setSurfaceId(id) {
+        this._context.surfaceId = Number(id) || 0;
+        return this;
+    }
+
+    setTick(tick) {
+        this._context.tick = Number(tick) || 0;
+        return this;
+    }
+
+    setSlot(slot) {
+        this._context.slot = Number(slot) || 0;
+        return this;
+    }
+
+    enableAutoSeq(v = true) {
+        this._autoSeqEnabled = !!v;
+        return this;
+    }
+
+    setSeqMode(mode) {
+        const m = String(mode || "");
+        this._seqMode = (m === "keep") ? "keep" : "increment";
+        return this;
+    }
+
+    setSeq(seq) {
+        this._context.seq = Number(seq) || 0;
+        return this;
+    }
+
+    nextSeq() {
+        this._autoSeq++;
+        this._context.seq = this._autoSeq;
+        return this._context.seq;
+    }
+
+    _buildCfgForPlay() {
+        if (this._mode === "event") {
+            const cfg = {event: this._event};
+
+            if (this._deterministic != null) cfg.deterministic = !!this._deterministic;
+            if (this._seed != null) cfg.seed = Number(this._seed) || 0;
+
+            cfg.context = {
+                entityId: this._context.entityId,
+                surfaceId: this._context.surfaceId,
+                seq: this._context.seq,
+                tick: this._context.tick,
+                slot: this._context.slot
+            };
+
+            let ov = null;
+
+            if (this._overrides && typeof this._overrides === "object") {
+                ov = Object.assign({}, this._overrides);
+            }
+
+            if (this._positional != null) {
+                ov = ov || {};
+                ov.is3D = !!this._positional;
+            }
+
+            if (ov) cfg.overrides = ov;
+            return cfg;
+        }
+
+        const cfg = Object.assign({}, this._fileCfg);
+        if (this._positional != null) cfg.is3D = !!this._positional;
+
+        if (this._overrides && typeof this._overrides === "object") {
+            Object.assign(cfg, this._overrides);
+        }
+
+        return cfg;
+    }
+
+    play() {
+        if (this._mode === "event") {
+            if (this._autoSeqEnabled) {
+                if (this._seqMode === "increment") {
+                    this.nextSeq();
+                } else if (!this._context.seq) {
+                    this.nextSeq();
+                }
+            }
+        }
+        return this._r.playSound(this._buildCfgForPlay());
     }
 }
 
@@ -164,9 +310,7 @@ class SoundRegistry {
         this._bankLoaded = false;
         this._bankLoadAttempted = false;
 
-        this._bankKey = "sounds";
         this._bankPath = "data/sounds.json";
-
         this._tryAutoLoadBank();
     }
 
@@ -206,33 +350,46 @@ class SoundRegistry {
         return this._bankLoaded;
     }
 
+    setSeed(seed) {
+        const api = this.api();
+        if (!api.setSeed) throw new Error("[SND] engine.sound().setSeed(seed) is required");
+        safeExec(this._log, "setSeed", () => api.setSeed(Number(seed) || 0));
+        return this;
+    }
+
+    setDeterministic(v = true) {
+        const api = this.api();
+        if (!api.setDeterministic) throw new Error("[SND] engine.sound().setDeterministic(bool) is required");
+        safeExec(this._log, "setDeterministic", () => api.setDeterministic(!!v));
+        return this;
+    }
+
     create(cfg) {
-        this._ensureBankLoaded();
-        const soundApi = this.api();
-        const node = safeExec(this._log, "create", () => soundApi.create(cfg));
-        return new SoundInstance(this.engine, node, soundApi, this._log);
+        const api = this.api();
+        const node = safeExec(this._log, "create", () => api.create(cfg));
+        return new SoundInstance(this.engine, node, api, this._log);
     }
 
     createAndPlay(cfg) {
-        const s = this.create(cfg);
-        s.play();
-        return s;
+        const s0 = this.create(cfg);
+        s0.play();
+        return s0;
     }
 
     loadBank(bankObj) {
-        const soundApi = this.api();
-        if (typeof soundApi.loadBank !== "function") {
+        const api = this.api();
+        if (typeof api.loadBank !== "function") {
             throw new Error("[SND] engine.sound().loadBank(bankObj) is required for event sound bank");
         }
-        safeExec(this._log, "loadBank", () => soundApi.loadBank(bankObj));
+        safeExec(this._log, "loadBank", () => api.loadBank(bankObj));
         this._bankLoaded = true;
         this._bankLoadAttempted = true;
         return this;
     }
 
     clearBank() {
-        const soundApi = this.api();
-        if (typeof soundApi.clearBank === "function") safeExec(this._log, "clearBank", () => soundApi.clearBank());
+        const api = this.api();
+        if (typeof api.clearBank === "function") safeExec(this._log, "clearBank", () => api.clearBank());
         this._bankLoaded = false;
         this._bankLoadAttempted = false;
         return this;
@@ -240,29 +397,129 @@ class SoundRegistry {
 
     listEvents() {
         this._ensureBankLoaded();
-        const soundApi = this.api();
-        if (typeof soundApi.listEvents !== "function") return [];
-        return safeExec(this._log, "listEvents", () => soundApi.listEvents());
+        const api = this.api();
+        if (typeof api.listEvents !== "function") return [];
+        return safeExec(this._log, "listEvents", () => api.listEvents());
     }
 
-    createEvent(eventKey, overrides) {
+    getSound(eventKey) {
         this._ensureBankLoaded();
-        const soundApi = this.api();
-        if (typeof soundApi.createEvent !== "function") {
-            throw new Error("[SND] engine.sound().createEvent(eventKey, overrides) is required");
-        }
-        const node = safeExec(this._log, "createEvent", () => soundApi.createEvent(s(eventKey), overrides || null));
-        return new SoundInstance(this.engine, node, soundApi, this._log);
+        return new SoundObject(this, "event", eventKey);
     }
 
-    playEvent(eventKey, overrides) {
-        this._ensureBankLoaded();
-        const soundApi = this.api();
-        if (typeof soundApi.playEvent !== "function") {
-            throw new Error("[SND] engine.sound().playEvent(eventKey, overrides) is required");
+    getSoundFile(srcOrCfg) {
+        const cfg = (typeof srcOrCfg === "string") ? {src: srcOrCfg} : (srcOrCfg || {});
+        return new SoundObject(this, "file", cfg);
+    }
+
+    playSound(cfg) {
+        const api = this.api();
+        if (!cfg || typeof cfg !== "object") {
+            throw new Error("[SND] playSound(cfg): cfg object is required");
         }
-        const node = safeExec(this._log, "playEvent", () => soundApi.playEvent(s(eventKey), overrides || null));
-        return new SoundInstance(this.engine, node, soundApi, this._log);
+
+        const hasEvent = typeof cfg.event === "string" && cfg.event.length > 0;
+        const hasSrc = typeof cfg.src === "string" && cfg.src.length > 0;
+
+        if (!hasEvent && !hasSrc) {
+            throw new Error("[SND] playSound(cfg): 'event' or 'src' is required");
+        }
+
+        if (hasEvent) {
+            this._ensureBankLoaded();
+            if (!api.playEventCfg) {
+                throw new Error("[SND] engine.sound().playEventCfg(cfg) is required for event sounds");
+            }
+            const ecfg = this._normalizeEventCfg(cfg);
+            const node = safeExec(this._log, "playEventCfg", () => api.playEventCfg(ecfg));
+            return new SoundInstance(this.engine, node, api, this._log);
+        }
+
+        const scfg = this._normalizeSrcCfg(cfg);
+        const node = safeExec(this._log, "create", () => api.create(scfg));
+        safeExec(this._log, "play", () => api.play(node));
+        return new SoundInstance(this.engine, node, api, this._log);
+    }
+
+    _normalizeEventCfg(cfg) {
+        const out = {event: s(cfg.event)};
+
+        if (cfg.deterministic != null) out.deterministic = !!cfg.deterministic;
+        if (cfg.seed != null) out.seed = Number(cfg.seed) || 0;
+
+        if (cfg.context && typeof cfg.context === "object") {
+            const c = cfg.context;
+            out.context = {
+                entityId: Number(c.entityId) || 0,
+                surfaceId: Number(c.surfaceId) || 0,
+                seq: Number(c.seq) || 0,
+                tick: Number(c.tick) || 0,
+                slot: Number(c.slot) || 0
+            };
+        }
+
+        let ov = null;
+
+        if (cfg.overrides && typeof cfg.overrides === "object") {
+            ov = Object.assign({}, cfg.overrides);
+        }
+
+        if (cfg.is3D != null) {
+            ov = ov || {};
+            ov.is3D = !!cfg.is3D;
+        }
+        if (cfg.volume != null) {
+            ov = ov || {};
+            ov.volume = cfg.volume;
+        }
+        if (cfg.pitch != null) {
+            ov = ov || {};
+            ov.pitch = cfg.pitch;
+        }
+        if (cfg.looping != null) {
+            ov = ov || {};
+            ov.looping = !!cfg.looping;
+        }
+
+        if (cfg.pos != null || cfg.position != null || cfg.x != null || cfg.y != null || cfg.z != null) {
+            const p = cfg.pos != null ? cfg.pos : (cfg.position != null ? cfg.position : {
+                x: cfg.x,
+                y: cfg.y,
+                z: cfg.z
+            });
+            const vv = v3(p, cfg.y, cfg.z);
+            ov = ov || {};
+            ov.x = vv[0];
+            ov.y = vv[1];
+            ov.z = vv[2];
+        }
+
+        if (ov) out.overrides = ov;
+        return out;
+    }
+
+    _normalizeSrcCfg(cfg) {
+        const out = {src: s(cfg.src)};
+
+        if (cfg.type != null) out.type = s(cfg.type);
+        if (cfg.is3D != null) out.is3D = !!cfg.is3D;
+        if (cfg.looping != null) out.looping = !!cfg.looping;
+        if (cfg.volume != null) out.volume = cfg.volume;
+        if (cfg.pitch != null) out.pitch = cfg.pitch;
+
+        if (cfg.pos != null || cfg.position != null || cfg.x != null || cfg.y != null || cfg.z != null) {
+            const p = cfg.pos != null ? cfg.pos : (cfg.position != null ? cfg.position : {
+                x: cfg.x,
+                y: cfg.y,
+                z: cfg.z
+            });
+            const vv = v3(p, cfg.y, cfg.z);
+            out.x = vv[0];
+            out.y = vv[1];
+            out.z = vv[2];
+        }
+
+        return out;
     }
 }
 
@@ -274,8 +531,8 @@ function create(engine, K) {
 create.META = {
     moduleId: "sound",
     globalName: "SND",
-    version: "1.2.0",
-    description: "Sound registry & instances wrapper + event sound bank autoload (hardened)",
+    version: "1.3.0",
+    description: "Universal sound facade: playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
     engineMin: "0.1.0"
 };
 
