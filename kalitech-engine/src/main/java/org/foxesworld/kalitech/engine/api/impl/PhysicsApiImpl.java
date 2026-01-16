@@ -80,6 +80,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     private final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
     private final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
     private final ConcurrentHashMap<Integer, BodyState> bodyState = new ConcurrentHashMap<>(2048);
+    private volatile float lastDt = 0f;
     // ------------------------------------------------------------
     // Collision object indexing (id mapping)
     // ------------------------------------------------------------
@@ -99,7 +100,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         if (k == 0L) return;
         emitCollision("engine.physics.collision.stay", physicsStepCounter.get() + 1, lastDt, k, currContacts.get(k));
     };
-    private volatile float lastDt = 0f;
+
     private final LongHashSet.LongConsumer emitEndConsumer = k -> {
         if (k == 0L) return;
         if (currPairs.contains(k)) return;

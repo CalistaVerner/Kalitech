@@ -22,8 +22,8 @@ import java.util.function.Supplier;
 
 /**
  * Runtime registry of surfaces.
- * <p>
- * A "surface" is a scene-graph spatial that may be associated with an entity.
+ *
+ * <p>A "surface" is a scene-graph spatial that may be associated with an entity.
  * The association is stored in ECS (component key "Surface") and exposed externally via entity UUID.
  */
 public final class SurfaceRegistry implements EngineService {
@@ -36,6 +36,16 @@ public final class SurfaceRegistry implements EngineService {
     private final AtomicInteger ids = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, Spatial> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, String> kindById = new ConcurrentHashMap<>();
+
+    /**
+     * Fast association indexes.
+     *
+     * <p>These are authoritative at runtime and avoid ECS scans for common queries.
+     * The ECS still stores the "Surface" component for persistence/inspection,
+     * but lookups must not iterate over all components.
+     */
+    private final ConcurrentHashMap<Integer, String> entityBySurfaceId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> surfaceIdByEntity = new ConcurrentHashMap<>();
 
     private EcsWorld ecs;
 
@@ -78,6 +88,8 @@ public final class SurfaceRegistry implements EngineService {
         pendingAttach.clear();
         byId.clear();
         kindById.clear();
+        entityBySurfaceId.clear();
+        surfaceIdByEntity.clear();
         attachFlushScheduled.set(false);
 
         ecs = null;
@@ -123,6 +135,18 @@ public final class SurfaceRegistry implements EngineService {
         if (!exists(surfaceId)) throw new IllegalStateException("attach: unknown surfaceId=" + surfaceId);
         String uuid = requireAliveUuid(entityUuid);
 
+        // Keep fast indexes in sync with ECS writes performed by SurfaceApiImpl.
+        // Enforce a 1:1 binding (surface <-> entity).
+        String prevUuid = entityBySurfaceId.put(surfaceId, uuid);
+        if (prevUuid != null && !prevUuid.equals(uuid)) {
+            surfaceIdByEntity.remove(prevUuid);
+        }
+
+        Integer prevSurface = surfaceIdByEntity.put(uuid, surfaceId);
+        if (prevSurface != null && prevSurface != surfaceId) {
+            entityBySurfaceId.remove(prevSurface);
+        }
+
         if (log.isDebugEnabled()) {
             log.debug("[surface] attached surfaceId={} entityUuid={}", surfaceId, uuid);
         }
@@ -131,7 +155,16 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     public String detachSurface(int surfaceId) {
-        String uuid = attachedEntityUuid(surfaceId);
+        String uuid = entityBySurfaceId.remove(surfaceId);
+
+        if (uuid == null || uuid.isBlank()) {
+            // Fallback for cases where the registry was recreated but ECS still has the component.
+            uuid = attachedEntityUuidFallback(surfaceId);
+        }
+
+        if (uuid != null && !uuid.isBlank()) {
+            surfaceIdByEntity.remove(uuid);
+        }
 
         if (uuid != null && !uuid.isBlank()) {
             if (log.isDebugEnabled()) {
@@ -167,15 +200,24 @@ public final class SurfaceRegistry implements EngineService {
     public Integer detachEntity(String entityUuid) {
         if (entityUuid == null || entityUuid.isBlank()) return null;
 
-        SurfaceApiImpl.SurfaceComponent sc = surfaceComponent(entityUuid);
-        Integer surf = (sc != null) ? sc.surfaceId : null;
+        final String uuid = entityUuid.trim();
+
+        Integer surf = surfaceIdByEntity.remove(uuid);
+        if (surf == null) {
+            // Fallback for cases where the mapping is not yet built.
+            SurfaceApiImpl.SurfaceComponent sc = surfaceComponent(uuid);
+            surf = (sc != null) ? sc.surfaceId : null;
+        }
 
         if (surf != null) {
+            entityBySurfaceId.remove(surf);
+
             if (log.isDebugEnabled()) {
-                log.debug("[surface] detached surfaceId={} entityUuid={}", surf, entityUuid);
+                log.debug("[surface] detached surfaceId={} entityUuid={}", surf, uuid);
             }
-            emit("engine.surface.detached", "surfaceId", surf, "entityUuid", entityUuid);
+            emit("engine.surface.detached", "surfaceId", surf, "entityUuid", uuid);
         }
+
         return surf;
     }
 
@@ -192,6 +234,7 @@ public final class SurfaceRegistry implements EngineService {
 
         byId.remove(id);
         kindById.remove(id);
+        entityBySurfaceId.remove(id);
 
         emit("engine.surface.destroyed", "surfaceId", id, "entityUuid", uuid);
 
@@ -201,6 +244,12 @@ public final class SurfaceRegistry implements EngineService {
     }
 
     public String attachedEntityUuid(int surfaceId) {
+        String uuid = entityBySurfaceId.get(surfaceId);
+        if (uuid != null && !uuid.isBlank()) return uuid;
+        return attachedEntityUuidFallback(surfaceId);
+    }
+
+    private String attachedEntityUuidFallback(int surfaceId) {
         EcsWorld e = ecs;
         if (e == null) return "";
 
@@ -214,7 +263,12 @@ public final class SurfaceRegistry implements EngineService {
             if (uuid != null && !uuid.isBlank()) found[0] = uuid;
         });
 
-        return (found[0] != null) ? found[0] : "";
+        String uuid = (found[0] != null) ? found[0] : "";
+        if (!uuid.isEmpty()) {
+            entityBySurfaceId.put(surfaceId, uuid);
+            surfaceIdByEntity.put(uuid, surfaceId);
+        }
+        return uuid;
     }
 
     private SurfaceApiImpl.SurfaceComponent surfaceComponent(String entityUuid) {
@@ -286,6 +340,8 @@ public final class SurfaceRegistry implements EngineService {
         pendingAttach.clear();
         byId.clear();
         kindById.clear();
+        entityBySurfaceId.clear();
+        surfaceIdByEntity.clear();
         attachFlushScheduled.set(false);
         ids.set(1);
 
