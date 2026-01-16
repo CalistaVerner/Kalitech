@@ -5,8 +5,6 @@ package org.foxesworld.kalitech.engine.modules.sound;
 import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
 import org.graalvm.polyglot.Value;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.has;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
@@ -48,9 +46,9 @@ public final class FloatRange {
         return RenderCfg.clamp(v, lo, hi);
     }
 
-    public float sample() {
+    public float sample(long seed, int salt) {
         if (min == max) return min;
-        float t = ThreadLocalRandom.current().nextFloat();
+        float t = SoundDeterminism.nextFloat01(seed, salt);
         return min + (max - min) * t;
     }
 }

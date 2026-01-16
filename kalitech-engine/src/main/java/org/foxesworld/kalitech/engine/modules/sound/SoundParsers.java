@@ -151,11 +151,19 @@ public final class SoundParsers {
         return SoundDef.mono(src, parseType(typeStr), is3D, looping, vol, pitch);
     }
 
-    public static void applyDef(AudioNode node, SoundDef def) {
+    public static void applyDef(AudioNode node, SoundDef def, long seed) {
         node.setLooping(def.looping);
         node.setPositional(def.is3D);
-        node.setVolume(def.volume.sample());
-        node.setPitch(def.pitch.sample());
+
+        float v = def.volume.sample(seed, 1);
+        float p = def.pitch.sample(seed, 2);
+
+        node.setVolume(v);
+        node.setPitch(p);
+    }
+
+    public static void applyDef(AudioNode node, SoundDef def) {
+        applyDef(node, def, 0L);
     }
 
     public static void applyOverrides(AudioNode node, Value cfg) {
