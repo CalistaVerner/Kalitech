@@ -26,7 +26,8 @@ public final class PhysicsJs {
      * Legacy Java payload (kept for internal uses).
      */
     public static Map<String, Object> evtMap(Object... kv) {
-        HashMap<String, Object> out = new HashMap<>();
+        final int cap = (kv == null) ? 16 : Math.max(16, (kv.length / 2) * 2);
+        HashMap<String, Object> out = new HashMap<>(cap);
         if (kv == null) return out;
         for (int i = 0; i + 1 < kv.length; i += 2) out.put(String.valueOf(kv[i]), kv[i + 1]);
         return out;
@@ -36,7 +37,8 @@ public final class PhysicsJs {
      * Real JS object payload.
      */
     public static ProxyObject evtJs(Object... kv) {
-        HashMap<String, Object> out = new HashMap<>();
+        final int cap = (kv == null) ? 16 : Math.max(16, (kv.length / 2) * 2);
+        HashMap<String, Object> out = new HashMap<>(cap);
         if (kv != null) {
             for (int i = 0; i + 1 < kv.length; i += 2) {
                 out.put(String.valueOf(kv[i]), js(kv[i + 1]));
@@ -47,6 +49,7 @@ public final class PhysicsJs {
 
     /**
      * Best-effort conversion into JS-friendly values.
+     * Avoids deep/recursive conversions except for Map (shallow).
      */
     public static Object js(Object v) {
         if (v == null) return null;
@@ -54,6 +57,17 @@ public final class PhysicsJs {
         if (v instanceof ProxyObject) return v;
         if (v instanceof Vector3f vec) return jsVec3(vec);
         if (v instanceof Quaternion q) return jsQuat(q);
+
+        if (v instanceof Value gv) {
+            if (gv.isHostObject()) return gv.asHostObject();
+            if (gv.isNull()) return null;
+            if (gv.isBoolean()) return gv.asBoolean();
+            if (gv.isNumber()) return gv.asDouble();
+            if (gv.isString()) return gv.asString();
+            // For unknown shapes: provide a dynamic live view.
+            if (gv.hasMembers()) return jsValueLive(gv);
+            return gv;
+        }
 
         if (v instanceof Map<?, ?> map) {
             HashMap<String, Object> m = new HashMap<>(Math.max(16, map.size() * 2));
@@ -64,7 +78,6 @@ public final class PhysicsJs {
             return ProxyObject.fromMap(m);
         }
 
-        // primitives are ok
         if (v instanceof Number || v instanceof String || v instanceof Boolean) return v;
 
         return v;
@@ -117,7 +130,51 @@ public final class PhysicsJs {
 
             @Override
             public void putMember(String key, Value value) {
+                // Immutable view on purpose.
+            }
+        };
+    }
 
+    /**
+     * Dynamic live view over a Graal {@link Value} object with unknown keys.
+     * Keys are snapshotted once to avoid per-access enumeration cost.
+     */
+    public static ProxyObject jsValueLive(Value v) {
+        Objects.requireNonNull(v, "v");
+        final String[] keys;
+        try {
+            keys = v.getMemberKeys().toArray(new String[0]);
+        } catch (Throwable ignored) {
+            return ProxyObject.fromMap(Map.of());
+        }
+        return new ProxyObject() {
+            @Override
+            public Object getMember(String key) {
+                try {
+                    if (!v.hasMember(key)) return null;
+                    return js(v.getMember(key));
+                } catch (Throwable ignored) {
+                    return null;
+                }
+            }
+
+            @Override
+            public Object getMemberKeys() {
+                return keys;
+            }
+
+            @Override
+            public boolean hasMember(String key) {
+                if (key == null) return false;
+                for (String k : keys) {
+                    if (key.equals(k)) return true;
+                }
+                return false;
+            }
+
+            @Override
+            public void putMember(String key, Value value) {
+                // Immutable view on purpose.
             }
         };
     }

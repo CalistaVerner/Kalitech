@@ -9,6 +9,7 @@ import java.util.Arrays;
  * Uses 0 as EMPTY sentinel in keys table.
  */
 public final class LongContactMap {
+
     private static final long EMPTY = 0L;
 
     private long[] keys;
@@ -17,9 +18,9 @@ public final class LongContactMap {
     private int mask;
     private int resizeAt;
 
-    public LongContactMap(int initialCapacityPow2) {
+    public LongContactMap(int initialCapacity) {
         int cap = 1;
-        while (cap < initialCapacityPow2) cap <<= 1;
+        while (cap < initialCapacity) cap <<= 1;
         if (cap < 16) cap = 16;
 
         keys = new long[cap];
@@ -42,12 +43,17 @@ public final class LongContactMap {
         return size;
     }
 
+    /**
+     * Clears keys but keeps values array to allow ContactAgg reuse.
+     */
     public void clear() {
         Arrays.fill(keys, EMPTY);
-        // keep values array to reuse ContactAgg instances
         size = 0;
     }
 
+    /**
+     * Returns existing ContactAgg or creates/reuses one for key.
+     */
     public ContactAgg getOrCreate(long k) {
         if (k == EMPTY) return null;
         if (size >= resizeAt) rehash(keys.length << 1);
@@ -114,6 +120,5 @@ public final class LongContactMap {
         values = nv;
         mask = nm;
         resizeAt = (int) (newCap * 0.65f);
-        // size unchanged
     }
 }

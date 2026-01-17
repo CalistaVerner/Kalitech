@@ -24,7 +24,7 @@ public final class PhysicsMath {
     }
 
     public static float clamp(float v, float min, float max) {
-        return v < min ? min : (v > max ? max : v);
+        return v < min ? min : (Math.min(v, max));
     }
 
     public static float safeInv(float v) {
@@ -32,14 +32,35 @@ public final class PhysicsMath {
     }
 
     public static float safeLength(Vector3f v) {
-        float len2 = v.lengthSquared();
+        final float len2 = v.lengthSquared();
         return len2 > EPS ? FastMath.sqrt(len2) : 0f;
     }
 
     public static Vector3f safeNormalize(Vector3f v, Vector3f store) {
-        float len2 = v.lengthSquared();
-        if (len2 < EPS) return store.set(Vector3f.ZERO);
+        final float len2 = v.lengthSquared();
+        if (len2 < EPS) return store.set(0f, 0f, 0f);
         return store.set(v).multLocal(FastMath.invSqrt(len2));
+    }
+
+    /**
+     * Relative speed along a contact normal: dot((vb - va), n).
+     * Designed for hot path: no temporary vectors.
+     */
+    public static float relativeSpeed(Vector3f va, Vector3f vb, Vector3f n) {
+        final float rvx = vb.x - va.x;
+        final float rvy = vb.y - va.y;
+        final float rvz = vb.z - va.z;
+        return rvx * n.x + rvy * n.y + rvz * n.z;
+    }
+
+    /**
+     * Reduced mass m = (ma*mb)/(ma+mb). Returns 0 if invalid.
+     */
+    public static float reducedMass(float ma, float mb) {
+        if (!(ma > 0f) || !(mb > 0f)) return 0f;
+        final float s = ma + mb;
+        if (!(s > EPS)) return 0f;
+        return (ma * mb) / s;
     }
 
     /**
@@ -56,7 +77,7 @@ public final class PhysicsMath {
             a = Vector3f.UNIT_Z;
             outU.set(dirN).crossLocal(a);
             ul2 = outU.lengthSquared();
-            if (!(ul2 > 1e-12f)) outU.set(1, 0, 0);
+            if (!(ul2 > 1e-12f)) outU.set(1f, 0f, 0f);
         }
 
         safeNormalize(outU, outU);

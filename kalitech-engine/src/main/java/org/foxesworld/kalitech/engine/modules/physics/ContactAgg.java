@@ -7,35 +7,23 @@ import com.jme3.math.Vector3f;
 /**
  * Allocation-light, frame-stable contact accumulator bound to a single collision pair.
  *
- * <p>Tracks max impulse and optionally keeps the point/normal associated with that max impulse.
- * Also accumulates average point/normal when provided.</p>
- *
- * <p>This object represents the full lifecycle of one unordered collision pair.</p>
+ * Tracks max impulse and keeps the point/normal associated with that max impulse.
+ * Also accumulates average point/normal when provided.
  */
 public final class ContactAgg {
 
     public final Vector3f maxPoint = new Vector3f();
-
-    public float maxImpulse;
     public final Vector3f maxNormal = new Vector3f();
+
     private final long pairKey;
-    /**
-     * Sum of impulses for the frame (useful for FX/audio).
-     */
     public float impulseSum;
-    /**
-     * Approximate kinetic energy at contact (J-like units), if provided by caller.
-     */
     public float energyApprox;
-    /**
-     * Max relative speed observed at contact, if provided by caller.
-     */
     public float maxRelSpeed;
 
     public float sumPx, sumPy, sumPz;
     public float sumNx, sumNy, sumNz;
-
     public int points;
+    public float maxImpulse;
     private boolean frameAlive;
 
     public ContactAgg(long pairKey) {
@@ -46,14 +34,13 @@ public final class ContactAgg {
         return pairKey;
     }
 
+    public boolean isFrameAlive() {
+        return frameAlive;
+    }
+
     public void onBegin() {
         clear();
         frameAlive = true;
-    }
-
-    public void onStay(ContactAgg updated) {
-        frameAlive = true;
-        mergeFrom(updated);
     }
 
     public void onEnd() {
@@ -66,14 +53,6 @@ public final class ContactAgg {
 
     public void clearFrameAlive() {
         frameAlive = false;
-    }
-
-    public boolean isFrameAlive() {
-        return frameAlive;
-    }
-
-    public boolean isAlive() {
-        return frameAlive;
     }
 
     public void clear() {
@@ -119,13 +98,11 @@ public final class ContactAgg {
             contributed = true;
         }
 
-        if (contributed) {
-            points++;
-        }
+        if (contributed) points++;
     }
 
     /**
-     * Optional extended accumulation (no breaking changes).
+     * Optional extended accumulation.
      */
     public void accumulateKinematics(float relSpeed, float reducedMass) {
         if (Float.isFinite(relSpeed) && relSpeed > maxRelSpeed) {
@@ -165,7 +142,7 @@ public final class ContactAgg {
     public Vector3f avgPoint(Vector3f out) {
         if (points <= 0) return null;
         if (out == null) out = new Vector3f();
-        float inv = 1f / (float) points;
+        final float inv = 1f / (float) points;
         out.set(sumPx * inv, sumPy * inv, sumPz * inv);
         return out;
     }
@@ -173,7 +150,7 @@ public final class ContactAgg {
     public Vector3f avgNormal(Vector3f out) {
         if (points <= 0) return null;
         if (out == null) out = new Vector3f();
-        float inv = 1f / (float) points;
+        final float inv = 1f / (float) points;
         out.set(sumNx * inv, sumNy * inv, sumNz * inv);
         return out;
     }

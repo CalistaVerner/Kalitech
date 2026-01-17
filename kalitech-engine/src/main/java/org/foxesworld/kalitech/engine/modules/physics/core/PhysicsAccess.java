@@ -1,3 +1,5 @@
+// FILE: org/foxesworld/kalitech/engine/modules/physics/core/PhysicsAccess.java
+// Author: Calista Verner
 package org.foxesworld.kalitech.engine.modules.physics.core;
 
 import com.jme3.bullet.collision.PhysicsCollisionObject;
@@ -23,12 +25,14 @@ public final class PhysicsAccess {
 
     public static Vector3f location(PhysicsCollisionObject obj, Vector3f store) {
         PhysicsRigidBody rb = body(obj);
-        return rb != null ? rb.getPhysicsLocation(store) : store.set(Vector3f.ZERO);
+        if (rb == null) return store.set(0f, 0f, 0f);
+        return rb.getPhysicsLocation(store);
     }
 
     public static Vector3f velocity(PhysicsCollisionObject obj, Vector3f store) {
         PhysicsRigidBody rb = body(obj);
-        return rb != null ? rb.getLinearVelocity(store) : store.set(Vector3f.ZERO);
+        if (rb == null) return store.set(0f, 0f, 0f);
+        return rb.getLinearVelocity(store);
     }
 
     public static boolean isDynamic(PhysicsCollisionObject obj) {

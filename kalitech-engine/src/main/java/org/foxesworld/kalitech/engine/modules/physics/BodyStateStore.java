@@ -3,6 +3,8 @@
 package org.foxesworld.kalitech.engine.modules.physics;
 
 import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector3f;
 import org.foxesworld.kalitech.engine.modules.physics.util.IntObjectMap;
 
 import java.util.Objects;
@@ -10,11 +12,17 @@ import java.util.Objects;
 /**
  * Stores and updates {@link BodyState} snapshots for change detection.
  *
- * <p>Optimized for physics tick thread: no boxing, no ConcurrentHashMap.</p>
+ * Optimized for physics tick thread:
+ * - no boxing
+ * - no ThreadLocal in hot path (shared scratch objects)
  */
 public final class BodyStateStore {
 
     private final IntObjectMap<BodyState> map;
+
+    // Hot-path scratch (physics tick thread only).
+    private final Vector3f tmpV = new Vector3f();
+    private final Quaternion tmpQ = new Quaternion();
 
     public BodyStateStore(int initialCapacity) {
         this.map = new IntObjectMap<>(Math.max(16, initialCapacity));
@@ -48,6 +56,6 @@ public final class BodyStateStore {
             map.put(bodyId, st);
             return true;
         }
-        return st.updateFromAndCheckChanged(rb, posEps, rotEps, velEps);
+        return st.updateFromAndCheckChanged(rb, posEps, rotEps, velEps, tmpV, tmpQ);
     }
 }
