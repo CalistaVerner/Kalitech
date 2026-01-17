@@ -11,22 +11,26 @@ import java.util.Arrays;
 public final class LongContactMap {
 
     private static final long EMPTY = 0L;
-
     private long[] keys;
     private ContactAgg[] values;
     private int size;
     private int mask;
     private int resizeAt;
-
-    public LongContactMap(int initialCapacity) {
+    public LongContactMap(int initialCapacityPow2) {
         int cap = 1;
-        while (cap < initialCapacity) cap <<= 1;
+        while (cap < initialCapacityPow2) cap <<= 1;
         if (cap < 16) cap = 16;
 
         keys = new long[cap];
         values = new ContactAgg[cap];
         mask = cap - 1;
         resizeAt = (int) (cap * 0.65f);
+        size = 0;
+    }
+
+    public void clear() {
+        Arrays.fill(keys, EMPTY);
+        // keep values array to reuse ContactAgg instances
         size = 0;
     }
 
@@ -44,16 +48,20 @@ public final class LongContactMap {
     }
 
     /**
-     * Clears keys but keeps values array to allow ContactAgg reuse.
+     * Iterates all occupied slots without allocations.
      */
-    public void clear() {
-        Arrays.fill(keys, EMPTY);
-        size = 0;
+    public void forEach(EntryConsumer c) {
+        if (c == null) return;
+        long[] ks = keys;
+        ContactAgg[] vs = values;
+        for (int i = 0; i < ks.length; i++) {
+            long k = ks[i];
+            if (k == EMPTY) continue;
+            ContactAgg v = vs[i];
+            if (v != null) c.accept(k, v);
+        }
     }
 
-    /**
-     * Returns existing ContactAgg or creates/reuses one for key.
-     */
     public ContactAgg getOrCreate(long k) {
         if (k == EMPTY) return null;
         if (size >= resizeAt) rehash(keys.length << 1);
@@ -120,5 +128,11 @@ public final class LongContactMap {
         values = nv;
         mask = nm;
         resizeAt = (int) (newCap * 0.65f);
+        // size unchanged
+    }
+
+    @FunctionalInterface
+    public interface EntryConsumer {
+        void accept(long key, ContactAgg value);
     }
 }

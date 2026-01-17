@@ -10,8 +10,16 @@ import java.util.Objects;
 
 /**
  * Snapshot of a rigid body state for change detection and event emission.
+ *
+ * <p>Designed for hot-path usage: no allocations in steady state.</p>
  */
 public final class BodyState {
+
+    public static final int DELTA_NONE = 0;
+    public static final int DELTA_INIT = 1 << 0;
+    public static final int DELTA_MOVE = 1 << 1;
+    public static final int DELTA_WAKE = 1 << 2;
+    public static final int DELTA_SLEEP = 1 << 3;
 
     public final Vector3f pos = new Vector3f();
     public final Quaternion rot = new Quaternion();
@@ -24,82 +32,14 @@ public final class BodyState {
     public BodyState() {
     }
 
+    /**
+     * Creates a new snapshot from rigid body.
+     */
     public static BodyState from(RigidBodyControl rb) {
         Objects.requireNonNull(rb, "rb");
         BodyState s = new BodyState();
         s.readFrom(rb);
         return s;
-    }
-
-    public void readFrom(RigidBodyControl rb) {
-        Objects.requireNonNull(rb, "rb");
-        readVec3(rb, ReadKind.POS, pos);
-        readQuat(rb, rot);
-        readVec3(rb, ReadKind.LIN_VEL, linVel);
-        readVec3(rb, ReadKind.ANG_VEL, angVel);
-        active = safeIsActive(rb);
-        init = true;
-    }
-
-    public void setFrom(BodyState other) {
-        Objects.requireNonNull(other, "other");
-        pos.set(other.pos);
-        rot.set(other.rot);
-        linVel.set(other.linVel);
-        angVel.set(other.angVel);
-        active = other.active;
-        init = other.init;
-    }
-
-    /**
-     * Updates snapshot from rigid body and returns true if anything changed beyond eps thresholds.
-     * Uses provided scratch objects to avoid ThreadLocal allocations.
-     */
-    public boolean updateFromAndCheckChanged(
-            RigidBodyControl rb,
-            float posEps,
-            float rotEps,
-            float velEps,
-            Vector3f tmpV,
-            Quaternion tmpQ
-    ) {
-        Objects.requireNonNull(rb, "rb");
-        Objects.requireNonNull(tmpV, "tmpV");
-        Objects.requireNonNull(tmpQ, "tmpQ");
-
-        final float posEps2 = posEps * posEps;
-        final float velEps2 = velEps * velEps;
-        final boolean a = safeIsActive(rb);
-
-        if (!init) {
-            readFrom(rb);
-            return true;
-        }
-
-        boolean changed = false;
-
-        if (readVec3(rb, ReadKind.POS, tmpV) && pos.distanceSquared(tmpV) > posEps2) changed = true;
-        if (readQuat(rb, tmpQ) && Math.abs(tmpQ.dot(rot)) < (1.0f - rotEps)) changed = true;
-        if (readVec3(rb, ReadKind.LIN_VEL, tmpV) && linVel.distanceSquared(tmpV) > velEps2) changed = true;
-        if (readVec3(rb, ReadKind.ANG_VEL, tmpV) && angVel.distanceSquared(tmpV) > velEps2) changed = true;
-        if (active != a) changed = true;
-
-        if (changed) {
-            readVec3(rb, ReadKind.POS, pos);
-            readQuat(rb, rot);
-            readVec3(rb, ReadKind.LIN_VEL, linVel);
-            readVec3(rb, ReadKind.ANG_VEL, angVel);
-            active = a;
-        }
-
-        return changed;
-    }
-
-    /**
-     * Backward-compatible overload (kept), uses ThreadLocal scratch.
-     */
-    public boolean updateFromAndCheckChanged(RigidBodyControl rb, float posEps, float rotEps, float velEps) {
-        return updateFromAndCheckChanged(rb, posEps, rotEps, velEps, TMP.V3.get(), TMP.Q.get());
     }
 
     private static boolean safeIsActive(RigidBodyControl rb) {
@@ -164,6 +104,76 @@ public final class BodyState {
 
         store.set(0f, 0f, 0f, 1f);
         return false;
+    }
+
+    /**
+     * Reads rigid body state into this snapshot.
+     */
+    public void readFrom(RigidBodyControl rb) {
+        Objects.requireNonNull(rb, "rb");
+
+        readVec3(rb, ReadKind.POS, pos);
+        readQuat(rb, rot);
+        readVec3(rb, ReadKind.LIN_VEL, linVel);
+        readVec3(rb, ReadKind.ANG_VEL, angVel);
+
+        active = safeIsActive(rb);
+        init = true;
+    }
+
+    /**
+     * Updates this snapshot from rigid body and returns delta flags.
+     *
+     * <p>Delta flags: INIT, MOVE, WAKE, SLEEP.</p>
+     */
+    public int updateFromAndGetDelta(RigidBodyControl rb, float posEps, float rotEps, float velEps) {
+        Objects.requireNonNull(rb, "rb");
+
+        final float posEps2 = posEps * posEps;
+        final float velEps2 = velEps * velEps;
+
+        final boolean activeNow = safeIsActive(rb);
+
+        if (!init) {
+            readFrom(rb);
+            int d = DELTA_INIT;
+            if (activeNow) d |= DELTA_WAKE;
+            return d;
+        }
+
+        int delta = DELTA_NONE;
+
+        Vector3f tmpV = TMP.V3.get();
+        Quaternion tmpQ = TMP.Q.get();
+
+        boolean moved = false;
+
+        if (readVec3(rb, ReadKind.POS, tmpV) && pos.distanceSquared(tmpV) > posEps2) moved = true;
+
+        if (!moved && readQuat(rb, tmpQ)) {
+            float dot = Math.abs(tmpQ.dot(rot));
+            if ((1.0f - dot) > rotEps) moved = true;
+        }
+
+        if (!moved && readVec3(rb, ReadKind.LIN_VEL, tmpV) && linVel.distanceSquared(tmpV) > velEps2) moved = true;
+
+        if (!moved && readVec3(rb, ReadKind.ANG_VEL, tmpV) && angVel.distanceSquared(tmpV) > velEps2) moved = true;
+
+        if (moved) delta |= DELTA_MOVE;
+
+        if (active != activeNow) {
+            delta |= activeNow ? DELTA_WAKE : DELTA_SLEEP;
+        }
+
+        if (delta != DELTA_NONE) {
+            readVec3(rb, ReadKind.POS, pos);
+            readQuat(rb, rot);
+            readVec3(rb, ReadKind.LIN_VEL, linVel);
+            readVec3(rb, ReadKind.ANG_VEL, angVel);
+            active = activeNow;
+        }
+
+        return delta;
     }
 
     private enum ReadKind {POS, LIN_VEL, ANG_VEL}

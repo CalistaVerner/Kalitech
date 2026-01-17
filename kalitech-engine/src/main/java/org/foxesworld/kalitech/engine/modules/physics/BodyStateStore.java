@@ -3,8 +3,6 @@
 package org.foxesworld.kalitech.engine.modules.physics;
 
 import com.jme3.bullet.control.RigidBodyControl;
-import com.jme3.math.Quaternion;
-import com.jme3.math.Vector3f;
 import org.foxesworld.kalitech.engine.modules.physics.util.IntObjectMap;
 
 import java.util.Objects;
@@ -12,17 +10,11 @@ import java.util.Objects;
 /**
  * Stores and updates {@link BodyState} snapshots for change detection.
  *
- * Optimized for physics tick thread:
- * - no boxing
- * - no ThreadLocal in hot path (shared scratch objects)
+ * <p>Optimized for physics tick thread: no boxing, no ConcurrentHashMap.</p>
  */
 public final class BodyStateStore {
 
     private final IntObjectMap<BodyState> map;
-
-    // Hot-path scratch (physics tick thread only).
-    private final Vector3f tmpV = new Vector3f();
-    private final Quaternion tmpQ = new Quaternion();
 
     public BodyStateStore(int initialCapacity) {
         this.map = new IntObjectMap<>(Math.max(16, initialCapacity));
@@ -43,19 +35,19 @@ public final class BodyStateStore {
     }
 
     /**
-     * Updates snapshot for the given body and returns true if state changed beyond eps thresholds.
-     * If snapshot does not exist, it is created and treated as changed.
+     * Updates snapshot for the given body and returns delta flags.
+     *
+     * @return delta flags from {@link BodyState} (INIT/MOVE/WAKE/SLEEP).
      */
-    public boolean updateAndCheckChanged(int bodyId, RigidBodyControl rb, float posEps, float rotEps, float velEps) {
+    public int updateAndGetDelta(int bodyId, RigidBodyControl rb, float posEps, float rotEps, float velEps) {
         Objects.requireNonNull(rb, "rb");
-        if (bodyId <= 0) return false;
+        if (bodyId <= 0) return BodyState.DELTA_NONE;
 
         BodyState st = map.get(bodyId);
         if (st == null) {
-            st = BodyState.from(rb);
+            st = new BodyState();
             map.put(bodyId, st);
-            return true;
         }
-        return st.updateFromAndCheckChanged(rb, posEps, rotEps, velEps, tmpV, tmpQ);
+        return st.updateFromAndGetDelta(rb, posEps, rotEps, velEps);
     }
 }
