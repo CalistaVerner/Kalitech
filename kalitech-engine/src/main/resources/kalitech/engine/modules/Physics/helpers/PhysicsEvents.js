@@ -37,7 +37,7 @@ function createPhysicsEvents(engine, physics) {
     if (!physics) throw new Error("[ENGINE.physics.events] physics is required");
     if (typeof physics.on !== "function") throw new Error("[ENGINE.physics.events] ENGINE.physics.on(topic,fn) missing");
 
-    function onCollision(topic, filter, fn) {
+    function onTopic(topic, filter, fn) {
         if (typeof filter === "function") {
             fn = filter;
             filter = null;
@@ -51,9 +51,13 @@ function createPhysicsEvents(engine, physics) {
     }
 
     return Object.freeze({
-        onCollisionBegin: (f, fn) => onCollision("engine.physics.collision.begin", f, fn),
-        onCollisionStay: (f, fn) => onCollision("engine.physics.collision.stay", f, fn),
-        onCollisionEnd: (f, fn) => onCollision("engine.physics.collision.end", f, fn),
+        onCollisionBegin: (f, fn) => onTopic("engine.physics.collision.begin", f, fn),
+        onCollisionStay: (f, fn) => onTopic("engine.physics.collision.stay", f, fn),
+        onCollisionEnd: (f, fn) => onTopic("engine.physics.collision.end", f, fn),
+
+        // emitted by collision pipeline (PhysicsCollisionPipeline)
+        onImpact: (f, fn) => onTopic("engine.physics.impact", f, fn),
+
         onPostStep(fn) {
             if (typeof fn !== "function") throw new Error("[ENGINE.physics.events] handler must be a function");
             return physics.on("engine.physics.postStep", fn);

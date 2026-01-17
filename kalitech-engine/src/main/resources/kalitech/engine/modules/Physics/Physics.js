@@ -18,10 +18,8 @@ class EnginePhysics {
     constructor(ENGINE) {
         if (!ENGINE) throw new Error("[ENGINE.physics] ENGINE is required");
 
-        // Orchestrator resolves raw physics API from ENGINE (host/proxy safe)
         this._orch = new PhysicsOrchestrator(ENGINE);
 
-        // Events use ENGINE.physics.on(...) passthrough (or raw backend on)
         this.events = createPhysicsEvents(ENGINE, this);
         Object.freeze(this.events);
 
@@ -32,6 +30,7 @@ class EnginePhysics {
         return this._orch.raw();
     }
 
+    // lifecycle / handles
     body(cfg) {
         return this._orch.body(cfg);
     }
@@ -40,12 +39,29 @@ class EnginePhysics {
         return this._orch.remove(h);
     }
 
-    position(h, v) {
-        return this._orch.position(h, v);
+    removeById(id) {
+        return this._orch.removeById(id);
     }
 
-    velocity(h, v) {
-        return this._orch.velocity(h, v);
+    bodyOfSurface(surface) {
+        return this._orch.bodyOfSurface(surface);
+    }
+
+    handle(h) {
+        return this._orch.handle(h);
+    }
+
+    exists(h) {
+        return this._orch.exists(h);
+    }
+
+    ensureBodyForSurface(surface, cfg) {
+        return this._orch.ensureBodyForSurface(surface, cfg);
+    }
+
+    // transforms
+    position(h) {
+        return this._orch.position(h);
     }
 
     teleport(h, v) {
@@ -56,16 +72,33 @@ class EnginePhysics {
         return this._orch.warp(h, v);
     }
 
+    velocity(h, v) {
+        return this._orch.velocity(h, v);
+    }
+
+    angularVelocity(h, v) {
+        return this._orch.angularVelocity(h, v);
+    }
+
     yaw(h, y) {
         return this._orch.yaw(h, y);
     }
 
+    // forces / flags
     applyImpulse(h, i) {
         return this._orch.applyImpulse(h, i);
     }
 
     applyCentralForce(h, f) {
         return this._orch.applyCentralForce(h, f);
+    }
+
+    applyTorque(h, t) {
+        return this._orch.applyTorque(h, t);
+    }
+
+    clearForces(h) {
+        return this._orch.clearForces(h);
     }
 
     lockRotation(h, l) {
@@ -76,6 +109,11 @@ class EnginePhysics {
         return this._orch.setKinematic(h, k);
     }
 
+    collisionGroups(h, group, mask) {
+        return this._orch.collisionGroups(h, group, mask);
+    }
+
+    // queries
     raycast(cfg) {
         return this._orch.raycast(cfg);
     }
@@ -96,6 +134,7 @@ class EnginePhysics {
         return this._orch.sweepCapsule(cfg);
     }
 
+    // engine knobs
     debug(e) {
         return this._orch.debug(e);
     }
@@ -104,8 +143,18 @@ class EnginePhysics {
         return this._orch.gravity(g);
     }
 
+    // events passthrough
     on(topic, fn) {
         return this._orch.on(topic, fn);
+    }
+
+    // ergonomic
+    idOf(h) {
+        return this._orch.idOf(h);
+    }
+
+    surfaceIdOf(h) {
+        return this._orch.surfaceIdOf(h);
     }
 
     ref(h) {
@@ -122,7 +171,7 @@ module.exports = create;
 module.exports.EnginePhysics = EnginePhysics;
 module.exports.META = Object.freeze({
     moduleId: "physics",
-    version: "2.0.6",
-    description: "ENGINE-only physics module (bootstrap-owned registration)",
+    version: "2.0.7",
+    description: "ENGINE-only physics module (PhysicsApiImpl-aligned)",
     engineMin: "0.2.0"
 });
