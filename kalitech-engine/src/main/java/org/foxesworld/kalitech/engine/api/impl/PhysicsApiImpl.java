@@ -52,8 +52,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.foxesworld.kalitech.engine.modules.physics.CollisionPairKey.*;
 import static org.foxesworld.kalitech.engine.modules.physics.PhysicsJs.*;
-import static org.foxesworld.kalitech.engine.modules.physics.PhysicsMath.clampPositive;
-import static org.foxesworld.kalitech.engine.modules.physics.PhysicsMath.isFinite;
+import static org.foxesworld.kalitech.engine.modules.physics.util.PhysicsMath.clampPositive;
+import static org.foxesworld.kalitech.engine.modules.physics.util.PhysicsMath.isFinite;
 
 public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi {
 

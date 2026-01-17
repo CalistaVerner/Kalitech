@@ -38,8 +38,13 @@ public final class LongContactMap {
         return (int) z;
     }
 
+    public int size() {
+        return size;
+    }
+
     public void clear() {
         Arrays.fill(keys, EMPTY);
+        // keep values array to reuse ContactAgg instances
         size = 0;
     }
 
@@ -52,15 +57,24 @@ public final class LongContactMap {
             long kk = keys[i];
             if (kk == EMPTY) {
                 keys[i] = k;
+
                 ContactAgg a = values[i];
-                if (a == null) values[i] = (a = new ContactAgg());
-                a.clear();
+                if (a == null || a.getPairKey() != k) {
+                    a = new ContactAgg(k);
+                    values[i] = a;
+                } else {
+                    a.clear();
+                }
+
                 size++;
                 return a;
             }
             if (kk == k) {
                 ContactAgg a = values[i];
-                if (a == null) values[i] = (a = new ContactAgg());
+                if (a == null || a.getPairKey() != k) {
+                    a = new ContactAgg(k);
+                    values[i] = a;
+                }
                 return a;
             }
             i = (i + 1) & mask;
