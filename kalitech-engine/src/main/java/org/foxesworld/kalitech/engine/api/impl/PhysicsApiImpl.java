@@ -33,7 +33,12 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
-import org.foxesworld.kalitech.engine.modules.physics.*;
+import org.foxesworld.kalitech.engine.modules.physics.BodyState;
+import org.foxesworld.kalitech.engine.modules.physics.ContactAgg;
+import org.foxesworld.kalitech.engine.modules.physics.LongContactMap;
+import org.foxesworld.kalitech.engine.modules.physics.PhysicsColliderFactory;
+import org.foxesworld.kalitech.engine.modules.physics.collision.CollisionObjectUtil;
+import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.util.LongHashSet;
 import org.graalvm.polyglot.HostAccess;
@@ -50,8 +55,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.foxesworld.kalitech.engine.modules.physics.CollisionPairKey.*;
 import static org.foxesworld.kalitech.engine.modules.physics.PhysicsJs.*;
+import static org.foxesworld.kalitech.engine.modules.physics.collision.CollisionObjectUtil.collisionKeyFromHandle;
+import static org.foxesworld.kalitech.engine.modules.physics.collision.CollisionObjectUtil.extractPhysicsRigidBody;
+import static org.foxesworld.kalitech.engine.modules.physics.collision.CollisionPairKey.*;
 import static org.foxesworld.kalitech.engine.modules.physics.util.PhysicsMath.clampPositive;
 import static org.foxesworld.kalitech.engine.modules.physics.util.PhysicsMath.isFinite;
 
@@ -520,7 +527,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         if (id != null) return id;
 
         if (obj instanceof RigidBodyControl rb) {
-            PhysicsRigidBody prb = CollisionObjectUtil.extractPhysicsRigidBody(rb);
+            PhysicsRigidBody prb = extractPhysicsRigidBody(rb);
             if (prb != null) {
                 Integer id2 = bodyIdByCollisionObject.get(prb);
                 if (id2 != null) return id2;
@@ -535,7 +542,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ------------------------------------------------------------
 
     private void indexCollisionObject(PhysicsBodyHandle h) {
-        Object key = CollisionObjectUtil.collisionKeyFromHandle(h);
+        Object key = collisionKeyFromHandle(h);
         if (key != null) bodyIdByCollisionObject.put(key, h.id);
     }
 
@@ -558,7 +565,7 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     private void unindexCollisionObject(PhysicsBodyHandle h) {
-        Object key = CollisionObjectUtil.collisionKeyFromHandle(h);
+        Object key = collisionKeyFromHandle(h);
         if (key != null) bodyIdByCollisionObject.remove(key, h.id);
     }
 

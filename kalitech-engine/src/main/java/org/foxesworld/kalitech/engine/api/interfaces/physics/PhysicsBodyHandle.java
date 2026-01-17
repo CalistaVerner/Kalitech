@@ -3,7 +3,7 @@ package org.foxesworld.kalitech.engine.api.interfaces.physics;
 
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.math.Vector3f;
-import org.foxesworld.kalitech.engine.modules.physics.PhysicsValueParsers;
+import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 import org.graalvm.polyglot.HostAccess;
 
 @SuppressWarnings("unused")

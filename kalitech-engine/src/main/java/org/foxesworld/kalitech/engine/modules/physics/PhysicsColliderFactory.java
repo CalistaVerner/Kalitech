@@ -5,6 +5,7 @@ import com.jme3.bullet.collision.shapes.*;
 import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
+import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 import org.graalvm.polyglot.Value;
 
 import java.util.Map;
