@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.modules.physics.BodyState;
 import org.foxesworld.kalitech.engine.modules.physics.BodyStateStore;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsService;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
 import static org.foxesworld.kalitech.engine.modules.physics.PhysicsJs.*;

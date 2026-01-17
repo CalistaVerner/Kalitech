@@ -8,6 +8,7 @@ import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.math.Vector3f;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsService;
 import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 
 import java.util.ArrayList;

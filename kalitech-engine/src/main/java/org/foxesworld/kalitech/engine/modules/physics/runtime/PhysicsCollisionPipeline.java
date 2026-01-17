@@ -16,6 +16,7 @@ import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.ContactAgg;
 import org.foxesworld.kalitech.engine.modules.physics.LongContactMap;
 import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsRegistry;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsService;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.util.LongHashSet;
 import org.graalvm.polyglot.proxy.ProxyObject;

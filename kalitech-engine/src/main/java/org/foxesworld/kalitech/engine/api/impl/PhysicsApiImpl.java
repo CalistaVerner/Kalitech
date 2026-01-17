@@ -17,6 +17,7 @@ import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsBodyOps;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.*;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsService;
 import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 import org.graalvm.polyglot.HostAccess;
 
