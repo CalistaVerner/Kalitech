@@ -1,0 +1,35 @@
+// FILE: assets/MatDefs/Kalitech/KT_BasicShadow.j3md
+MaterialDef KT_BasicShadow {
+
+    MaterialParameters {
+        Vector4 Color
+        Texture2D ColorMap
+        Boolean UseColorMap
+        Float ShadowDarkening
+        Float ShadowBias
+
+        Texture2D ShadowMap0
+        Texture2D ShadowMap1
+        Texture2D ShadowMap2
+        Texture2D ShadowMap3
+        Texture2D ShadowMap4
+        Texture2D ShadowMap5
+        Texture2D ShadowMap6
+        Texture2D ShadowMap7
+    }
+
+    Technique {
+        VertexShader   GLSL150: Shaders/Kalitech/Shadow/KT_BasicShadow.vert
+        FragmentShader GLSL150: Shaders/Kalitech/Shadow/KT_BasicShadow.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+            WorldMatrix
+        }
+
+        RenderState {
+            FaceCull Back
+        }
+    }
+}

@@ -20,18 +20,13 @@ public final class ShadowRendererConfigurator {
         Objects.requireNonNull(r, "renderer");
         Objects.requireNonNull(cfg, "cfg");
 
-        // Cascades: fixed splits are applied at renderer-level (before pipeline).
         float[] fixed = ShadowRenderConfig.sortedCloneOrNull(cfg.cascades().getFixedSplits());
-        if (fixed != null) {
-            r.setFixedSplitDistances(fixed);
-        } else {
-            r.clearFixedSplitDistances();
-        }
+        if (fixed != null) r.setFixedSplitDistances(fixed);
+        else r.clearFixedSplitDistances();
 
         ShadowPipeline p = r.pipeline();
         p.clear();
 
-        // 1) Cascade split stabilization (popping guard)
         if (cfg.cascades().isHysteresisEnabled()) {
             CascadeHysteresisFilter h = new CascadeHysteresisFilter();
             h.setHysteresis(cfg.cascades().getSplitHysteresis());
@@ -39,10 +34,23 @@ public final class ShadowRendererConfigurator {
             p.add(h);
         }
 
-        // 2) Stable deterministic light basis (anti-flip)
         p.add(new StableLightBasisFilter());
 
-        // 3) Shadow camera fitting policy
+        ShadowTemporalStabilityPolicyFilter policy = new ShadowTemporalStabilityPolicyFilter();
+        policy.setEnabled(true);
+
+        ShadowRenderConfig.TemporalGate tg = cfg.snapping().temporalGate();
+        if (cfg.snapping().isEnabled() && tg.isEnabled()) {
+            policy.setMinMoveTexelsForSnap(tg.getMinMoveTexels());
+            policy.setMinRotateDegForSnap(tg.getMinRotateDeg());
+            policy.setGateSnapFirstCascades(tg.getGatedFirstCascades());
+
+            policy.setMinMoveTexelsForRefit(Math.max(0.25f, tg.getMinMoveTexels() * 0.75f));
+            policy.setMinRotateDegForRefit(Math.max(0.10f, tg.getMinRotateDeg() * 0.75f));
+            policy.setGateRefitFirstCascades(Math.max(0, tg.getGatedFirstCascades()));
+        }
+        p.add(policy);
+
         switch (cfg.fitting().getMode()) {
             case STABLE_AABB: {
                 StableFitShadowCamFilter f = new StableFitShadowCamFilter();
@@ -73,34 +81,19 @@ public final class ShadowRendererConfigurator {
             }
         }
 
-        // 4) Texel snapping + temporal gating
-        boolean snappingEnabled = cfg.snapping().isEnabled();
-        ShadowRenderConfig.TemporalGate tg = cfg.snapping().temporalGate();
-
-        if (snappingEnabled && tg.isEnabled()) {
-            TemporalSnapGateFilter gate = new TemporalSnapGateFilter();
-            gate.setEnabled(true);
-            gate.setMinMoveTexels(Math.max(0.0f, tg.getMinMoveTexels()));
-            gate.setMinRotateDeg(Math.max(0.0f, tg.getMinRotateDeg()));
-            gate.setGatedFirstCascades(Math.max(0, tg.getGatedFirstCascades()));
-            p.add(gate);
-        }
-
         ShadowSnapperFilter snap = new ShadowSnapperFilter();
-        snap.setEnabled(snappingEnabled);
-        snap.setSnapFirstCascades(Math.max(0, cfg.snapping().getSnapFirstCascades()));
-
-        // AAA: enable hold hysteresis by default for maximum stability.
-        // Use temporal gate threshold only when the gate is enabled; otherwise prefer a stable default.
+        snap.setEnabled(cfg.snapping().isEnabled());
+        snap.setSnapFirstCascades(cfg.snapping().getSnapFirstCascades());
         snap.setHoldEnabled(true);
-        float holdTexels = (snappingEnabled && tg.isEnabled())
+        float holdTexels = (cfg.snapping().isEnabled() && tg.isEnabled())
                 ? Math.max(1.0f, tg.getMinMoveTexels())
                 : 1.25f;
         snap.setHoldThresholdTexels(holdTexels);
-
         p.add(snap);
 
-        // 5) Debug / tracing
+        // Mandatory GPU packet build stage (CPU-side).
+        p.add(new ShadowGpuParamsPackFilter());
+
         if (cfg.debug().isTraceEnabled()) {
             ShadowTraceFilter t = new ShadowTraceFilter();
             t.setEveryFrames(Math.max(1, cfg.debug().getTraceEveryFrames()));

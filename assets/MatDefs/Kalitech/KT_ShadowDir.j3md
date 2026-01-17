@@ -1,0 +1,32 @@
+// FILE: assets/Shaders/Kalitech/Shadow/KT_ShadowDir.j3md
+MaterialDef KT_ShadowDir {
+
+    MaterialParameters {
+        Vector4 LightColor
+        Vector3 LightDir
+
+        Texture2DShadow ShadowMap0
+        Texture2DShadow ShadowMap1
+        Texture2DShadow ShadowMap2
+        Texture2DShadow ShadowMap3
+        Texture2DShadow ShadowMap4
+        Texture2DShadow ShadowMap5
+        Texture2DShadow ShadowMap6
+        Texture2DShadow ShadowMap7
+    }
+
+    Technique {
+        VertexShader   GLSL150:   Shaders/Kalitech/Shadow/KT_ShadowDir.vert
+        FragmentShader GLSL150:   Shaders/Kalitech/Shadow/KT_ShadowDir.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+            WorldMatrix
+        }
+
+        RenderState {
+            FaceCull Back
+        }
+    }
+}

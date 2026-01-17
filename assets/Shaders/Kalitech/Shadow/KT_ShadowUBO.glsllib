@@ -1,0 +1,14 @@
+// FILE: assets/Shaders/Kalitech/Shadow/KT_ShadowUBO.glsllib
+
+#define KT_SHADOW_MAX_SPLITS 8
+
+layout(std140, binding = 3) uniform KT_ShadowUBO
+{
+    // x=numSplits, y=shadowMapSize, z=frameIdLo, w=frameIdHi
+    uvec4 kt_shadowHeader;
+
+    mat4  kt_shadowViewProj[KT_SHADOW_MAX_SPLITS];
+    vec4  kt_shadowNearFar[KT_SHADOW_MAX_SPLITS];
+    vec4  kt_shadowTexel[KT_SHADOW_MAX_SPLITS];
+    uvec4 kt_shadowFlags[KT_SHADOW_MAX_SPLITS];
+};

@@ -64,6 +64,9 @@ class CameraOrchestrator {
         this._sm = {x: 0, y: 0, z: 0};
         this._smInit = false;
 
+        this._lastBodyPos = {x: 0, y: 0, z: 0};
+        this._hasBodyPos = false;
+
         this._ctx = {
             orchestrator: this,
             mode: null,
@@ -85,15 +88,8 @@ class CameraOrchestrator {
             outPos: {x: 0, y: 0, z: 0},
 
             zoneState: null,
-            // Zone-only overrides (no modeConfig). Available BEFORE mode.update().
             zoneOverridesRaw: null,
-
-            // Optional per-mode published config (first/third can set it).
-            // Will be cleared each frame.
             modeConfig: null,
-
-            // Final effective overrides (modeConfig blended with current volume zone overrides).
-            // Available AFTER mode.update(). Used by collision and downstream consumers.
             zoneOverrides: null,
 
             _camMinY: -Infinity
@@ -219,9 +215,9 @@ class CameraOrchestrator {
         const useWorld = (world !== false);
 
         this._ctx.terrain = Object.freeze({
-            heightAt: (x, z) => terrainApi.heightAt(terrainHandle, x, z, useWorld),
-            normalAt: (x, z) => {
-                const m = terrainApi.normalAt(terrainHandle, x, z, useWorld);
+            heightAt: (x, z, w) => terrainApi.heightAt(terrainHandle, x, z, (w != null) ? !!w : useWorld),
+            normalAt: (x, z, w) => {
+                const m = terrainApi.normalAt(terrainHandle, x, z, (w != null) ? !!w : useWorld);
                 return {x: +m.x, y: +m.y, z: +m.z};
             }
         });
@@ -300,7 +296,6 @@ class CameraOrchestrator {
     }
 
     _applyZoomLimits(zoneOverrides) {
-        // restore baseline every frame (so zones can't "stick")
         this.zoom.min = this._zoomBaseMin;
         this.zoom.max = this._zoomBaseMax;
 
@@ -320,8 +315,6 @@ class CameraOrchestrator {
     _handleModeSwitch(dt, snap) {
         this._switchCd = Math.max(0, this._switchCd - dt);
 
-        // keysDown may be missing depending on input backend.
-        // Camera switching must be zero-crash; if missing -> no switch.
         const kd = (snap && Array.isArray(snap.keysDown)) ? snap.keysDown : null;
         if (!kd) {
             this._vPrev = false;
@@ -338,6 +331,33 @@ class CameraOrchestrator {
         }
     }
 
+    _readBodyPosSafe(phys, bodyId) {
+        let p = null;
+        try {
+            p = phys.position(bodyId);
+        } catch (e) {
+            p = null;
+        }
+
+        if (p) {
+            this._lastBodyPos.x = U.vx(p, this._lastBodyPos.x);
+            this._lastBodyPos.y = U.vy(p, this._lastBodyPos.y);
+            this._lastBodyPos.z = U.vz(p, this._lastBodyPos.z);
+            this._hasBodyPos = true;
+            return p;
+        }
+
+        if (this._hasBodyPos) {
+            return this._lastBodyPos;
+        }
+
+        this._lastBodyPos.x = 0;
+        this._lastBodyPos.y = 0;
+        this._lastBodyPos.z = 0;
+        this._hasBodyPos = true;
+        return this._lastBodyPos;
+    }
+
     update(dt, frame) {
         if (!frame || !frame.snap) return;
 
@@ -348,8 +368,8 @@ class CameraOrchestrator {
 
         const phys = this.d.physics;
         const bodyId = this.player.getBodyId() | 0;
-        const bodyPos = phys.position(bodyId);
-        if (!bodyPos) throw new Error("[camera] physics.position(bodyId) returned null bodyId=" + bodyId);
+
+        const bodyPos = this._readBodyPosSafe(phys, bodyId);
 
         this._syncZonesIfNeeded();
         const zoneState = this.zones.update(bodyPos);
@@ -376,23 +396,19 @@ class CameraOrchestrator {
         ctx.zoneState = zoneState;
         ctx.zoneOverridesRaw = zoneOverridesRaw;
         ctx.modeConfig = null;
-        // pre-mode: expose zone-only
-        ctx.zoneOverrides = zoneOverridesRaw;
 
+        ctx.zoneOverrides = zoneOverridesRaw;
         ctx._camMinY = -Infinity;
 
         if (mode.meta.supportsZoom) {
             this._applyZoomLimits(zoneOverridesRaw);
             this.zoom.update(dt, ctx);
         } else {
-            // keep zoom stable even in non-zoom modes
             this._applyZoomLimits(null);
         }
 
         mode.update(ctx);
 
-        // Post-mode: blend zone overrides with mode-published config.
-        // This keeps "mode feel" as baseline while zones gently override.
         const effective = this.zones.blendedOverrides(ctx.modeConfig);
         ctx.zoneOverrides = effective;
 

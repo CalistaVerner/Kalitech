@@ -7,8 +7,12 @@ import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFrameContext;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKey;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowOrders;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
+
+import java.util.Set;
 
 /**
  * Stable tight cascade fitting in light space.
@@ -45,7 +49,22 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
 
     @Override
     public int order() {
-        return -500;
+        return ShadowOrders.SHADOW_CAM_FIT;
+    }
+
+    @Override
+    public Set<ShadowKey<?>> requires() {
+        return Set.of(
+                ShadowKeys.LIGHT_DIR,
+                ShadowKeys.LIGHT_LEFT,
+                ShadowKeys.LIGHT_UP,
+                ShadowKeys.ALLOW_SHADOW_CAM_REFIT
+        );
+    }
+
+    @Override
+    public Set<ShadowKey<?>> provides() {
+        return Set.of(ShadowKeys.TEXEL_WORLD);
     }
 
     private static void normalizeSafe(Vector3f v) {
@@ -96,6 +115,12 @@ public final class StableFitShadowCamFilter implements ShadowFilter {
 
     @Override
     public boolean updateShadowCam(ShadowSplitContext ctx) {
+        Boolean allowRefit = ctx.ws.get(ShadowKeys.ALLOW_SHADOW_CAM_REFIT);
+        if (allowRefit != null && !allowRefit) {
+            // Temporal stability policy requested to reuse previous shadow camera.
+            return true;
+        }
+
         Camera sc = ctx.shadowCam;
 
         fetchFrameBasis(ctx);

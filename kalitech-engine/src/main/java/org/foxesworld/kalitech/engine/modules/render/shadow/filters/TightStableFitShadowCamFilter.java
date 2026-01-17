@@ -6,8 +6,12 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKey;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowOrders;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
+
+import java.util.Set;
 
 /**
  * Tight stable cascade fitting in light space with quantized extents.
@@ -53,7 +57,33 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
     @Override
     public int order() {
-        return -500;
+        return ShadowOrders.SHADOW_CAM_FIT;
+    }
+
+    @Override
+    public Set<ShadowKey<?>> requires() {
+        return Set.of(
+                ShadowKeys.ALLOW_SHADOW_CAM_REFIT,
+                ShadowKeys.SPLIT_TELEPORT,
+                ShadowKeys.LIGHT_DIR,
+                ShadowKeys.LIGHT_LEFT,
+                ShadowKeys.LIGHT_UP
+        );
+    }
+
+    @Override
+    public Set<ShadowKey<?>> provides() {
+        return Set.of(ShadowKeys.TEXEL_WORLD);
+    }
+
+    @Override
+    public void beginSplit(ShadowSplitContext ctx) {
+        Boolean tele = ctx.ws.get(ShadowKeys.SPLIT_TELEPORT);
+        if (tele != null && tele) {
+            // Teleport: reset near-cascade locking to avoid getting stuck with old tier size.
+            lockedOrthoSize = -1f;
+            lockedTier = -1;
+        }
     }
 
     private static void normalizeSafe(Vector3f v) {
@@ -72,6 +102,12 @@ public final class TightStableFitShadowCamFilter implements ShadowFilter {
 
     @Override
     public boolean updateShadowCam(ShadowSplitContext ctx) {
+        Boolean allowRefit = ctx.ws.get(ShadowKeys.ALLOW_SHADOW_CAM_REFIT);
+        if (allowRefit != null && !allowRefit) {
+            // Temporal stability policy requested to reuse previous shadow camera.
+            return true;
+        }
+
         Camera sc = ctx.shadowCam;
 
         if (ctx.lightDir.lengthSquared() == 0f) {

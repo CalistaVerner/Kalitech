@@ -15,10 +15,9 @@ import java.util.Set;
 public interface ShadowFilter {
 
     /**
-     * Declares keys required by this filter to operate correctly.
+     * Declares keys required by this filter.
      * <p>
-     * This is a pipeline contract used for validation and debugging.
-     * Filters should include both frame-scope and split-scope keys.
+     * Used for pipeline validation / debugging. Default is empty for backward compatibility.
      */
     default Set<ShadowKey<?>> requires() {
         return Set.of();
@@ -27,8 +26,7 @@ public interface ShadowFilter {
     /**
      * Declares keys produced by this filter.
      * <p>
-     * This is a pipeline contract used for validation and debugging.
-     * Filters should include both frame-scope and split-scope keys.
+     * Used for pipeline validation / debugging. Default is empty for backward compatibility.
      */
     default Set<ShadowKey<?>> provides() {
         return Set.of();

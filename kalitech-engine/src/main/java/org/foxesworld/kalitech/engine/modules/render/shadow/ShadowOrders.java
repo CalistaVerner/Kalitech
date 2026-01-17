@@ -17,6 +17,15 @@ public final class ShadowOrders {
      * Early stage: deterministic light basis / anti-flip.
      */
     public static final int LIGHT_BASIS = -900;
+
+    /**
+     * Temporal stability policy stage.
+     * <p>
+     * Computes camera motion metrics and writes per-split decisions (refit/snap) into the workspace.
+     * Must run before fitting and snapping.
+     */
+    public static final int TEMPORAL_POLICY = -700;
+
     /**
      * Camera fitting stage: computes shadow camera frustum/position.
      */
@@ -33,6 +42,13 @@ public final class ShadowOrders {
      * Late stage: debug/telemetry/trace.
      */
     public static final int DEBUG = 2000;
+
+    /**
+     * Mandatory stage: pack final per-split data for GPU consumption.
+     * Must run after fitting and snapping.
+     */
+    public static final int GPU_PACK = 1200;
+
 
     private ShadowOrders() {
     }
