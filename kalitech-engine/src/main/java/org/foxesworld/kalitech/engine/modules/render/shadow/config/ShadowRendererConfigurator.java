@@ -63,7 +63,6 @@ public final class ShadowRendererConfigurator {
                 f.setCasterBackBase(cfg.fitting().getCasterBackBase());
                 f.setCasterBackCascadeMul(cfg.fitting().getCasterBackCascadeMul());
                 f.setReceiverFrontBase(cfg.fitting().getReceiverFrontBase());
-                //f.setXyPadding(cfg.fitting().getXyPadding());
                 f.setForceSquare(cfg.fitting().isForceSquare());
                 f.setSizeQuantizeTexels(cfg.fitting().getSizeQuantizeTexels());
                 f.setLockNearCascadeSize(cfg.fitting().isLockNearCascadeSize());
@@ -74,29 +73,37 @@ public final class ShadowRendererConfigurator {
             }
         }
 
-// 4) Texel snapping + temporal gating
-        TemporalSnapGateFilter gate = null;
-        if (cfg.snapping().temporalGate().isEnabled()) {
-            gate = new TemporalSnapGateFilter();
-            gate.setMinMoveTexels(cfg.snapping().temporalGate().getMinMoveTexels());
-            gate.setMinRotateDeg(cfg.snapping().temporalGate().getMinRotateDeg());
-            gate.setGatedFirstCascades(cfg.snapping().temporalGate().getGatedFirstCascades());
+        // 4) Texel snapping + temporal gating
+        boolean snappingEnabled = cfg.snapping().isEnabled();
+        ShadowRenderConfig.TemporalGate tg = cfg.snapping().temporalGate();
+
+        if (snappingEnabled && tg.isEnabled()) {
+            TemporalSnapGateFilter gate = new TemporalSnapGateFilter();
+            gate.setEnabled(true);
+            gate.setMinMoveTexels(Math.max(0.0f, tg.getMinMoveTexels()));
+            gate.setMinRotateDeg(Math.max(0.0f, tg.getMinRotateDeg()));
+            gate.setGatedFirstCascades(Math.max(0, tg.getGatedFirstCascades()));
             p.add(gate);
         }
 
         ShadowSnapperFilter snap = new ShadowSnapperFilter();
-        snap.setEnabled(cfg.snapping().isEnabled());
-        snap.setSnapFirstCascades(cfg.snapping().getSnapFirstCascades());
-// AAA: enable hold hysteresis by default for maximum stability.
-        snap.setHoldEnabled(true);
-        snap.setHoldThresholdTexels(Math.max(1.0f, cfg.snapping().temporalGate().getMinMoveTexels()));
-        p.add(snap);
+        snap.setEnabled(snappingEnabled);
+        snap.setSnapFirstCascades(Math.max(0, cfg.snapping().getSnapFirstCascades()));
 
+        // AAA: enable hold hysteresis by default for maximum stability.
+        // Use temporal gate threshold only when the gate is enabled; otherwise prefer a stable default.
+        snap.setHoldEnabled(true);
+        float holdTexels = (snappingEnabled && tg.isEnabled())
+                ? Math.max(1.0f, tg.getMinMoveTexels())
+                : 1.25f;
+        snap.setHoldThresholdTexels(holdTexels);
+
+        p.add(snap);
 
         // 5) Debug / tracing
         if (cfg.debug().isTraceEnabled()) {
             ShadowTraceFilter t = new ShadowTraceFilter();
-            t.setEveryFrames(cfg.debug().getTraceEveryFrames());
+            t.setEveryFrames(Math.max(1, cfg.debug().getTraceEveryFrames()));
             p.add(t);
         }
     }

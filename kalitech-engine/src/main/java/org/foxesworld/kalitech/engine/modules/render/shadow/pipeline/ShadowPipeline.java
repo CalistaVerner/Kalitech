@@ -3,19 +3,53 @@
 package org.foxesworld.kalitech.engine.modules.render.shadow.pipeline;
 
 import com.jme3.material.Material;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Ordered filter pipeline.
  */
 public final class ShadowPipeline {
 
+    private static final Logger log = LogManager.getLogger(ShadowPipeline.class);
+
     private final ArrayList<ShadowFilter> filters = new ArrayList<>();
     private boolean sorted = true;
+
+    /**
+     * Validates filter key contracts in the current order.
+     * <p>
+     * The pipeline is allowed to depend on keys provided externally by the orchestrator.
+     * Pass those keys via {@code externallyProvided}.
+     */
+    public void validate(ValidationMode mode, Set<ShadowKey<?>> externallyProvided) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(externallyProvided, "externallyProvided");
+        if (mode == ValidationMode.NONE) return;
+
+        sortIfNeeded();
+
+        Set<ShadowKey<?>> provided = new HashSet<>(externallyProvided);
+        for (ShadowFilter f : filters) {
+            for (ShadowKey<?> req : f.requires()) {
+                if (req == null) continue;
+                if (!provided.contains(req)) {
+                    String msg = "ShadowPipeline contract violation: missing required key=" + req
+                            + " requiredBy=" + f.getClass().getName();
+                    if (mode == ValidationMode.STRICT) {
+                        throw new IllegalStateException(msg);
+                    }
+                    log.warn("[shadow][pipe] {}", msg);
+                }
+            }
+
+            for (ShadowKey<?> prov : f.provides()) {
+                if (prov != null) provided.add(prov);
+            }
+        }
+    }
 
     public ShadowPipeline add(ShadowFilter f) {
         filters.add(Objects.requireNonNull(f, "filter"));
@@ -31,6 +65,19 @@ public final class ShadowPipeline {
     public List<ShadowFilter> snapshot() {
         sortIfNeeded();
         return List.copyOf(filters);
+    }
+
+    /**
+     * Validates filter key contracts assuming no externally provided keys.
+     */
+    public void validate(ValidationMode mode) {
+        validate(mode, Set.of());
+    }
+
+    public enum ValidationMode {
+        NONE,
+        WARN,
+        STRICT
     }
 
     public void beginFrame(ShadowFrameContext ctx) {

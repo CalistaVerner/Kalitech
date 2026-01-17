@@ -110,7 +110,7 @@ public final class EngineApiImpl implements EngineApi {
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
-        // ✅ NO legacy ctor
+        // NO legacy ctor
         this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
 
         this.logApi = apiRegistry.register(new LogApiImpl());
@@ -123,7 +123,6 @@ public final class EngineApiImpl implements EngineApi {
         this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
         this.cameraApi = apiRegistry.register(new CameraApiImpl());
-
 
 
         this.physicsApi = apiRegistry.register(new PhysicsApiImpl());

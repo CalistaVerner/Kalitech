@@ -7,6 +7,8 @@ import com.jme3.renderer.Camera;
 import org.foxesworld.kalitech.engine.modules.render.shadow.Snapper;
 import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.*;
 
+import java.util.Set;
+
 /**
  * Texel snapping for cascaded shadow cameras.
  * <p>
@@ -45,6 +47,19 @@ public final class ShadowSnapperFilter implements ShadowFilter {
     @Override
     public int order() {
         return ShadowOrders.TEXEL_SNAP_FINAL;
+    }
+
+    @Override
+    public Set<ShadowKey<?>> requires() {
+        return Set.of(ShadowKeys.ALLOW_TEXEL_SNAP);
+    }
+
+    @Override
+    public Set<ShadowKey<?>> provides() {
+        return Set.of(
+                ShadowKeys.SNAP_APPLIED,
+                ShadowKeys.TEXEL_SNAPPED
+        );
     }
 
     @Override

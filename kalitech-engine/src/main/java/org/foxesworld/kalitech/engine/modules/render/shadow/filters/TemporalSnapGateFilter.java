@@ -5,9 +5,9 @@ package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
-import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
-import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
-import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.*;
+
+import java.util.Set;
 
 /**
  * Temporal gate to reduce shimmer: only allow texel snap when camera moved/rotated enough.
@@ -45,9 +45,22 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
     private float lastAngleDeg = 0f;
     private long lastFrameId = -1L;
 
+    private static float estimateTexelWorld(ShadowSplitContext ctx) {
+        if (ctx == null || ctx.shadowCam == null) return 0f;
+        if (!ctx.shadowCam.isParallelProjection()) return 0f;
+
+        float w = ctx.shadowCam.getFrustumRight() - ctx.shadowCam.getFrustumLeft();
+        float h = ctx.shadowCam.getFrustumTop() - ctx.shadowCam.getFrustumBottom();
+        float ortho = Math.max(w, h);
+        if (!(ortho > 0f)) return 0f;
+        int map = ctx.frame.shadowMapSize;
+        if (map <= 0) return 0f;
+        return ortho / (float) map;
+    }
+
     @Override
     public int order() {
-        return 900;
+        return ShadowOrders.TEMPORAL_GATE;
     }
 
     @Override
@@ -71,21 +84,28 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
             return;
         }
 
-        // Movement
         lastMoveWorld = lastCamPos.distance(p);
 
-        // Rotation
         invPrev.set(lastCamRot).inverseLocal();
         delta.set(invPrev).multLocal(r);
         float angleRad = 2.0f * FastMath.acos(FastMath.clamp(delta.getW(), -1f, 1f));
         lastAngleDeg = angleRad * FastMath.RAD_TO_DEG;
 
-        // Store current as "last" for next frame
         lastCamPos.set(p);
         lastCamRot.set(r);
 
         ctx.frame.ws.put(ShadowKeys.VIEW_CAM_MOVE_WORLD, lastMoveWorld);
         ctx.frame.ws.put(ShadowKeys.VIEW_CAM_ROTATE_DEG, lastAngleDeg);
+    }
+
+    @Override
+    public Set<ShadowKey<?>> provides() {
+        return Set.of(
+                ShadowKeys.VIEW_CAM_MOVE_WORLD,
+                ShadowKeys.VIEW_CAM_ROTATE_DEG,
+                ShadowKeys.ALLOW_TEXEL_SNAP,
+                ShadowKeys.TEXEL_WORLD
+        );
     }
 
     @Override
@@ -96,6 +116,13 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
         }
 
         float texelWorld = ctx.ws.getOrDefault(ShadowKeys.TEXEL_WORLD, 0f);
+        if (!(texelWorld > 0f)) {
+            texelWorld = estimateTexelWorld(ctx);
+            if (texelWorld > 0f) {
+                ctx.ws.put(ShadowKeys.TEXEL_WORLD, texelWorld);
+            }
+        }
+
         boolean allow = allowResnap(ctx, texelWorld);
         ctx.ws.put(ShadowKeys.ALLOW_TEXEL_SNAP, allow);
     }
@@ -109,7 +136,6 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
         if (!hasLast) return true;
 
         if (!(texelWorld > 0f)) {
-            // If texelWorld is unknown, allow resnap (better than drift).
             return true;
         }
 

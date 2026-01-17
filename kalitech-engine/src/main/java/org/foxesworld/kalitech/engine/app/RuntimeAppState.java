@@ -103,6 +103,8 @@ public final class RuntimeAppState extends BaseAppState {
         bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("physicsDebug", "false").toLowerCase()));
         app.getStateManager().attach(bullet);
         physicsSpace = bullet.getPhysicsSpace();
+        physicsSpace.setMaxSubSteps(8);
+        physicsSpace.setAccuracy(1f / 60f);
         if (physicsSpace != null) {
             physicsSpace.setGravity(new Vector3f(0f, -9.81f, 0f));
         }

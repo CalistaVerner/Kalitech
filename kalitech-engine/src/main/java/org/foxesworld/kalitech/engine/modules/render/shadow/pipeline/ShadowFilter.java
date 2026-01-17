@@ -4,6 +4,8 @@ package org.foxesworld.kalitech.engine.modules.render.shadow.pipeline;
 
 import com.jme3.material.Material;
 
+import java.util.Set;
+
 /**
  * Shadow pipeline filter hook.
  * <p>
@@ -11,6 +13,26 @@ import com.jme3.material.Material;
  * changes must be implemented via filters.
  */
 public interface ShadowFilter {
+
+    /**
+     * Declares keys required by this filter to operate correctly.
+     * <p>
+     * This is a pipeline contract used for validation and debugging.
+     * Filters should include both frame-scope and split-scope keys.
+     */
+    default Set<ShadowKey<?>> requires() {
+        return Set.of();
+    }
+
+    /**
+     * Declares keys produced by this filter.
+     * <p>
+     * This is a pipeline contract used for validation and debugging.
+     * Filters should include both frame-scope and split-scope keys.
+     */
+    default Set<ShadowKey<?>> provides() {
+        return Set.of();
+    }
 
     /**
      * Lower runs earlier.
