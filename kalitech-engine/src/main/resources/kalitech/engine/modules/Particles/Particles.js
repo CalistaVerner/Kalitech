@@ -89,6 +89,38 @@ function stripMax(cfg) {
     return out;
 }
 
+function isPlainObject(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function isSpawnOptsLike(v) {
+    if (!isPlainObject(v)) return false;
+    return (
+        hasOwn(v, "pos") || hasOwn(v, "rot") || hasOwn(v, "scale") ||
+        hasOwn(v, "dir") || hasOwn(v, "velocity") ||
+        hasOwn(v, "burst") || hasOwn(v, "ttlMs") || hasOwn(v, "seed") ||
+        hasOwn(v, "override") || hasOwn(v, "deepOverride")
+    );
+}
+
+function normalizeSpawnArgs(overCfg, opts) {
+    // Backward compatible:
+    // 1) spawn(name, overCfg, opts)
+    // 2) spawn(name, optsBag) where optsBag may include {override|deepOverride}
+    // 3) spawn(name, overCfg) (no opts)
+    let over = overCfg;
+    let o = opts;
+
+    if (opts === undefined && isSpawnOptsLike(overCfg)) {
+        o = overCfg;
+        over = (isPlainObject(o.override) ? o.override : (isPlainObject(o.deepOverride) ? o.deepOverride : null));
+    }
+
+    if (!isPlainObject(over)) over = null;
+    if (!isPlainObject(o)) o = null;
+    return {over, opts: o};
+}
+
 function create(engine, K) {
     req(engine, "[PARTICLES] engine is required");
     req(typeof engine.particles === "function", "[PARTICLES] engine.particles() is required");
@@ -313,29 +345,33 @@ function create(engine, K) {
     function spawn(name, overCfg, opts) {
         const baseCfg = getTemplate(name);
 
-        const hasOver = isObj(overCfg) && Object.keys(overCfg).length > 0;
-        const hasOpts = isObj(opts);
+        const n = normalizeSpawnArgs(overCfg, opts);
+        const over = n.over;
+        const o = n.opts;
+
+        const hasOver = isObj(over) && Object.keys(over).length > 0;
+        const hasOpts = isObj(o);
 
         let cfg = baseCfg;
-        if (hasOver) cfg = deepMerge(baseCfg, overCfg);
+        if (hasOver) cfg = deepMerge(baseCfg, over);
 
         if (hasOpts) {
-            if (opts.pos != null) {
+            if (o.pos != null) {
                 if (cfg === baseCfg) cfg = Object.assign({}, cfg);
-                cfg.pos = opts.pos;
+                cfg.pos = o.pos;
             }
-            if (opts.rot != null) {
+            if (o.rot != null) {
                 if (cfg === baseCfg) cfg = Object.assign({}, cfg);
-                cfg.rot = opts.rot;
+                cfg.rot = o.rot;
             }
-            if (opts.scale != null) {
+            if (o.scale != null) {
                 if (cfg === baseCfg) cfg = Object.assign({}, cfg);
-                cfg.scale = +opts.scale;
+                cfg.scale = +o.scale;
             }
 
-            if (opts.dir != null || opts.velocity != null) {
-                const vOver = isObj(opts.velocity) ? opts.velocity : null;
-                const vDir = isObj(opts.dir) ? {dir: opts.dir} : null;
+            if (o.dir != null || o.velocity != null) {
+                const vOver = isObj(o.velocity) ? o.velocity : null;
+                const vDir = isObj(o.dir) ? {dir: o.dir} : null;
 
                 const baseV = isObj(cfg.velocity) ? cfg.velocity : null;
                 const mergedV = deepMerge(baseV || Object.create(null), vOver || Object.create(null));
@@ -343,6 +379,11 @@ function create(engine, K) {
 
                 if (cfg === baseCfg) cfg = Object.assign({}, cfg);
                 cfg.velocity = mergedV;
+            }
+
+            if (o.seed != null) {
+                if (cfg === baseCfg) cfg = Object.assign({}, cfg);
+                cfg.seed = o.seed | 0;
             }
         }
 
@@ -356,28 +397,31 @@ function create(engine, K) {
             if (cfg.pos && typeof api.setPosition === "function") api.setPosition(h, cfg.pos);
             if (cfg.rot && typeof api.setRotation === "function") api.setRotation(h, cfg.rot);
             if (cfg.scale != null && typeof api.setScale === "function") api.setScale(h, cfg.scale);
-        } catch (_) {
+        } catch (e) {
+            log.error("[PARTICLES] spawn: set transform failed", e);
         }
 
         try {
             if (typeof api.configure === "function") api.configure(h, cfg);
-        } catch (_) {
+        } catch (e) {
+            log.error("[PARTICLES] spawn: configure failed", e);
         }
 
         try {
             if (typeof api.clear === "function") api.clear(h);
 
-            const burst = hasOpts ? (opts.burst | 0) : 0;
+            const burst = hasOpts ? (o.burst | 0) : 0;
             if (burst > 0) {
                 if (typeof api.emit === "function") api.emit(h, burst);
                 else if (typeof api.emitAll === "function") api.emitAll(h);
             } else {
                 if (typeof api.emitAll === "function") api.emitAll(h);
             }
-        } catch (_) {
+        } catch (e) {
+            log.error("[PARTICLES] spawn: emit failed", e);
         }
 
-        const ttlMs = hasOpts ? (opts.ttlMs | 0) : 0;
+        const ttlMs = hasOpts ? (o.ttlMs | 0) : 0;
         const t0 = (ttlMs > 0) ? ttlMs : ((cfg.ttlMs | 0) || 900);
         ttlRelease(h, t0, acq.gen);
 

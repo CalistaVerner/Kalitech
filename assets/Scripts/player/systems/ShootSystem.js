@@ -366,34 +366,17 @@ class ShootSystem {
 
         ENGINE.sound.playSound({event: impCfg.soundEvent, is3D: true, x: pos.x, y: pos.y, z: pos.z});
 
-        const P = this._P;
-        const pCfg = impCfg.particles;
-        if (P && pCfg && pCfg.enabled !== false && typeof P.spawn === "function") {
-            const name = pCfg.template || "impact";
-            const over = pCfg.override || null;
-            const burst = (pCfg.burst | 0) || 0;
-            const ttlMs = (pCfg.ttlMs | 0) || 0;
-
-            // Deterministic linkage (optional):
-            // Provide seed to the FX system if it supports it.
-            let seed = 0;
-            if (c.deterministic && c.deterministic.enabled) {
-                // Derive from system RNG state + surfaceId to make impact FX stable.
-                seed = mixU32(this._rngSeedU32 >>> 0, (shotSurfaceId >>> 0)) | 0;
+        PARTICLES.spawn("impact", {
+            pos: {x: pos.x, y: pos.y, z: pos.z},
+            burst: 320,
+            ttlMs: 650,
+            seed: 12345,
+            override: {
+                velocity: {min: 4.0, max: 9.0, coneDeg: 20.0},
+                color: {start: {r: 0.6, g: 0.9, b: 1.0, a: 1.0}}
             }
+        });
 
-            const payloadFx = {
-                pos: {x: pos.x, y: pos.y, z: pos.z},
-                burst,
-                ttlMs
-            };
-            if (seed) payloadFx.seed = seed;
-
-            try {
-                P.spawn(name, over, payloadFx);
-            } catch (_) {
-            }
-        }
 
         this._emit(c.events.hit, {
             surfaceId: shotSurfaceId | 0,
