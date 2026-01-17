@@ -1,0 +1,58 @@
+{
+  "templates": {
+    "impact": {
+      "name": "impact",
+      "type": "triangle",
+      "max": 96,
+      "texture": "Textures/Particles/spark.png",
+      "spriteRows": 1,
+      "spriteCols": 1,
+      "rate": 0,
+      "local": false,
+      "ttlMs": 1200,
+      "gravity": {
+        "x": 0,
+        "y": -6.0,
+        "z": 0
+      },
+      "size": {
+        "start": 0.20,
+        "end": 0.05
+      },
+      "life": {
+        "min": 0.12,
+        "max": 0.35
+      },
+      "velocity": {
+        "min": 2.0,
+        "max": 7.0,
+        "coneDeg": 35.0,
+        "variation": 0.35
+      },
+      "shape": {
+        "type": "sphere",
+        "radius": 0.04
+      },
+      "render": {
+        "additive": true,
+        "depthWrite": false,
+        "depthTest": true,
+        "noCulling": true
+      },
+      "color": {
+        "start": {
+          "r": 1.0,
+          "g": 0.9,
+          "b": 0.7,
+          "a": 1.0
+        },
+        "end": {
+          "r": 1.0,
+          "g": 0.35,
+          "b": 0.05,
+          "a": 0.0
+        }
+      }
+    }
+  }
+}

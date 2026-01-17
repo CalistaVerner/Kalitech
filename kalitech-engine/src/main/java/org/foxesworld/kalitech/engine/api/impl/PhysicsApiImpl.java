@@ -7,8 +7,6 @@ import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingVolume;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
-import com.jme3.bullet.collision.PhysicsCollisionEvent;
-import com.jme3.bullet.collision.PhysicsCollisionListener;
 import com.jme3.bullet.collision.PhysicsRayTestResult;
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
@@ -220,17 +218,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         m.put("surfaceId", surfaceId);
         m.put("fraction", fraction);
         m.put("distance", distance);
-
-        Vector3f p = (point != null) ? point : new Vector3f(0, 0, 0);
-        Vector3f n = (normal != null) ? normal : new Vector3f(0, 1, 0);
-
-        // IMPORTANT: JS-friendly objects with stable keys
-        m.put("point", evtJs("x", p.x, "y", p.y, "z", p.z));
-        m.put("normal", evtJs("x", n.x, "y", n.y, "z", n.z));
-
+        m.put("point", new PhysicsRayHit.Vec3(point.x, point.y, point.z));
+        m.put("normal", normal == null
+                ? new PhysicsRayHit.Vec3(0, 1, 0)
+                : new PhysicsRayHit.Vec3(normal.x, normal.y, normal.z));
         return m;
     }
-
 
     private static String entityOfSpatial(Spatial sp) {
         if (sp == null) return null;
@@ -597,45 +590,42 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         if (sp == null) return;
         if (!collisionListenerBound.compareAndSet(false, true)) return;
 
-        sp.addCollisionListener(new PhysicsCollisionListener() {
-            @Override
-            public void collision(PhysicsCollisionEvent e) {
-                if (e == null) return;
+        sp.addCollisionListener(e -> {
+            if (e == null) return;
 
-                int a = bodyIdFromCollisionObject(e.getObjectA());
-                int b = bodyIdFromCollisionObject(e.getObjectB());
-                long key = pairKey(a, b);
-                if (key == 0L) return;
+            int a = bodyIdFromCollisionObject(e.getObjectA());
+            int b = bodyIdFromCollisionObject(e.getObjectB());
+            long key = pairKey(a, b);
+            if (key == 0L) return;
 
-                currPairs.add(key);
+            currPairs.add(key);
 
-                ContactAgg agg = currContacts.getOrCreate(key);
-                if (agg == null) return;
+            ContactAgg agg = currContacts.getOrCreate(key);
+            if (agg == null) return;
 
-                float impulse = 0f;
-                Vector3f point = null;
-                Vector3f normal = null;
+            float impulse = 0f;
+            Vector3f point = null;
+            Vector3f normal = null;
 
-                try {
-                    impulse = e.getAppliedImpulse();
-                } catch (Throwable ignored) {
-                }
-
-                try {
-                    Vector3f pa = e.getPositionWorldOnA();
-                    Vector3f pb = e.getPositionWorldOnB();
-                    if (pa != null && pb != null) point = pa.add(pb).multLocal(0.5f);
-                    else point = (pa != null) ? pa : pb;
-                } catch (Throwable ignored) {
-                }
-
-                try {
-                    normal = e.getNormalWorldOnB();
-                } catch (Throwable ignored) {
-                }
-
-                agg.add(impulse, point, normal);
+            try {
+                impulse = e.getAppliedImpulse();
+            } catch (Throwable ignored) {
             }
+
+            try {
+                Vector3f pa = e.getPositionWorldOnA();
+                Vector3f pb = e.getPositionWorldOnB();
+                if (pa != null && pb != null) point = pa.add(pb).multLocal(0.5f);
+                else point = (pa != null) ? pa : pb;
+            } catch (Throwable ignored) {
+            }
+
+            try {
+                normal = e.getNormalWorldOnB();
+            } catch (Throwable ignored) {
+            }
+
+            agg.add(impulse, point, normal);
         });
     }
 
@@ -767,6 +757,13 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return step;
     }
 
+    @HostAccess.Export
+    public Object position(Object handleOrId) {
+        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
+        Vector3f p = h.__raw().getPhysicsLocation();
+        return new PhysicsRayHit.Vec3(p.x, p.y, p.z);
+    }
+
     private ProxyObject contactPayload(ContactAgg agg) {
         if (agg == null || agg.points <= 0) {
             return evtJs(
@@ -808,19 +805,11 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
-    public Object position(Object handleOrId) {
-        PhysicsBodyHandle h = requireHandle(handleOrId, "physics.position()");
-        Vector3f p = h.__raw().getPhysicsLocation();
-        return jsVec3(p);
-    }
-
-    @HostAccess.Export
     public Object velocity(Object handleOrId) {
         PhysicsBodyHandle h = requireHandle(handleOrId, "physics.velocity()");
         Vector3f v = h.__raw().getLinearVelocity();
-        return jsVec3(v);
+        return new PhysicsRayHit.Vec3(v.x, v.y, v.z);
     }
-
 
     @HostAccess.Export
     public void velocity(Object handleOrId, Object vec3) {
@@ -1170,14 +1159,13 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
                     PhysicsBodyHandle h = byId.get(id);
                     if (h != null) {
                         Spatial entity = this.engine.getSurfaceRegistry().get(h.surfaceId);
-                        Vector3f p = entity.getWorldTranslation();
+                        Vector3f p = (entity != null) ? entity.getWorldTranslation() : null;
 
                         // JS VALUE payload (pos can be live if needed)
                         bus().emit("engine.physics.body.added", evtJs(
                                 "bodyId", h.id,
                                 "surfaceId", h.surfaceId,
                                 "entity", entityOfSurface(h.surfaceId),
-                                "scale", jsVec3Live(entity.getLocalScale()),
                                 "pos", (p == null ? null : jsVec3Live(p))
                         ));
                     }

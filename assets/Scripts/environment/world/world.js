@@ -53,7 +53,7 @@ class Index {
             let y = i.pos.y;
             let z = i.pos.z;
             ENGINE.log.debug("Spawned at (x=" + x + ",y=" + y + "z=" + z + ")");
-            ENGINE.sound.playSound({event: "world.spawn"});
+            //ENGINE.sound.playSound({event: "world.combat.hit"});
         });
     }
 

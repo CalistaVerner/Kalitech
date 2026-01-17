@@ -9,7 +9,13 @@ import org.graalvm.polyglot.Value;
 
 /**
  * HostAccess helpers for deterministic reading of JS Values.
- * Focus: NaN/Infinity safety + hot-path no-allocation parsing.
+ * <p>
+ * AAA goals:
+ * <ul>
+ *   <li>NaN/Infinity-safe parsing</li>
+ *   <li>Fast-path parsers without heap allocations for hot setters</li>
+ *   <li>Backward-compatible API (old helpers preserved)</li>
+ * </ul>
  */
 public final class ParticlesHostAccess {
 
@@ -19,6 +25,10 @@ public final class ParticlesHostAccess {
     public static Value m(Value v, String key) {
         if (v == null || v.isNull() || !v.hasMember(key)) return null;
         return v.getMember(key);
+    }
+
+    public static boolean has(Value v, String key) {
+        return v != null && !v.isNull() && v.hasMember(key);
     }
 
     public static String str(Value v, String key, String def) {
@@ -48,17 +58,42 @@ public final class ParticlesHostAccess {
         return x.asBoolean();
     }
 
-    public static float scale(double s) {
-        float fs = (float) s;
-        return (Float.isFinite(fs) && fs > 0f) ? fs : 1f;
+    // ---------------------------------------------------------------------
+    // Fast parsing (no allocations)
+    // ---------------------------------------------------------------------
+
+    public static float readFloat(Value v, String key, float def) {
+        if (v == null || v.isNull() || !v.hasMember(key)) return def;
+        float n = (float) v.getMember(key).asDouble();
+        return Float.isFinite(n) ? n : def;
     }
 
-    public static void applyEnabledIfPresent(com.jme3.effect.ParticleEmitter em, Value cfg) {
-        if (cfg != null && !cfg.isNull() && cfg.hasMember("enabled")) {
-            em.setEnabled(cfg.getMember("enabled").asBoolean());
-        }
+    public static boolean readBool(Value v, String key, boolean def) {
+        if (v == null || v.isNull() || !v.hasMember(key)) return def;
+        return v.getMember(key).asBoolean();
     }
 
+    public static int readIntClamped(Value v, String key, int def, int min, int max) {
+        if (v == null || v.isNull() || !v.hasMember(key)) return def;
+        int n = (int) v.getMember(key).asDouble();
+        if (n < min) return min;
+        if (n > max) return max;
+        return n;
+    }
+
+    public static float readFloatClamped(Value v, String key, float def, float min, float max) {
+        if (v == null || v.isNull() || !v.hasMember(key)) return def;
+        float n = (float) v.getMember(key).asDouble();
+        if (!Float.isFinite(n)) return def;
+        if (n < min) return min;
+        if (n > max) return max;
+        return n;
+    }
+
+    /**
+     * Reads vec3 from object {x,y,z} or array [x,y,z] into provided output.
+     * Does not allocate.
+     */
     public static void readVec3Into(Value v, Vector3f out, Vector3f def) {
         if (out == null) throw new IllegalArgumentException("out is required");
         if (def == null) def = Vector3f.ZERO;
@@ -82,11 +117,19 @@ public final class ParticlesHostAccess {
         out.set(x, y, z);
     }
 
+    /**
+     * Reads quaternion {x,y,z,w} into provided output.
+     * Does not allocate.
+     */
     public static void readQuatInto(Value v, Quaternion out, Quaternion def) {
         if (out == null) throw new IllegalArgumentException("out is required");
         if (def == null) def = Quaternion.IDENTITY;
 
-        float x = def.getX(), y = def.getY(), z = def.getZ(), w = def.getW();
+        float x = def.getX();
+        float y = def.getY();
+        float z = def.getZ();
+        float w = def.getW();
+
         if (v != null && !v.isNull()) {
             if (v.hasMember("x")) x = (float) v.getMember("x").asDouble();
             if (v.hasMember("y")) y = (float) v.getMember("y").asDouble();
@@ -107,11 +150,12 @@ public final class ParticlesHostAccess {
         if (def == null) def = ColorRGBA.White;
 
         float r = def.r, g = def.g, b = def.b, a = def.a;
+
         if (v != null && !v.isNull()) {
-            if (v.hasMember("r")) r = (float) v.getMember("r").asDouble();
-            if (v.hasMember("g")) g = (float) v.getMember("g").asDouble();
-            if (v.hasMember("b")) b = (float) v.getMember("b").asDouble();
-            if (v.hasMember("a")) a = (float) v.getMember("a").asDouble();
+            r = readFloat(v, "r", r);
+            g = readFloat(v, "g", g);
+            b = readFloat(v, "b", b);
+            a = readFloat(v, "a", a);
         }
 
         if (!Float.isFinite(r)) r = def.r;
@@ -120,5 +164,41 @@ public final class ParticlesHostAccess {
         if (!Float.isFinite(a)) a = def.a;
 
         out.set(r, g, b, a);
+    }
+
+    public static float scale(double s) {
+        float fs = (float) s;
+        return (Float.isFinite(fs) && fs > 0f) ? fs : 1f;
+    }
+
+    public static void applyEnabledIfPresent(com.jme3.effect.ParticleEmitter em, Value cfg) {
+        if (cfg != null && !cfg.isNull() && cfg.hasMember("enabled")) {
+            em.setEnabled(cfg.getMember("enabled").asBoolean());
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Backward-compatible alloc helpers (kept)
+    // ---------------------------------------------------------------------
+
+    public static Vector3f vec3(Value v, Vector3f def) {
+        if (def == null) def = Vector3f.ZERO;
+        Vector3f out = new Vector3f(def);
+        readVec3Into(v, out, def);
+        return out;
+    }
+
+    public static Quaternion quat(Value v, Quaternion def) {
+        if (def == null) def = Quaternion.IDENTITY;
+        Quaternion out = new Quaternion(def);
+        readQuatInto(v, out, def);
+        return out;
+    }
+
+    public static ColorRGBA color(Value v, ColorRGBA def) {
+        if (def == null) def = ColorRGBA.White;
+        ColorRGBA out = new ColorRGBA(def);
+        readColorInto(v, out, def);
+        return out;
     }
 }

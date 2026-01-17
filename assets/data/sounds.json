@@ -29,32 +29,31 @@
     "spawn": [
       "Sounds/spawn/spawn.ogg"
     ],
+    "debris": [
+      "Sounds/DEBRIS/DEBRIS_1.ogg",
+      "Sounds/DEBRIS/DEBRIS_2.ogg",
+      "Sounds/DEBRIS/DEBRIS_3.ogg",
+      "Sounds/DEBRIS/DEBRIS_4.ogg",
+      "Sounds/DEBRIS/DEBRIS_5.ogg",
+      "Sounds/DEBRIS/DEBRIS_6.ogg",
+      "Sounds/DEBRIS/DEBRIS_7.ogg",
+      "Sounds/DEBRIS/DEBRIS_8.ogg",
+      "Sounds/DEBRIS/DEBRIS_9.ogg",
+      "Sounds/DEBRIS/DEBRIS_10ogg",
+      "Sounds/DEBRIS/DEBRIS_11.ogg",
+      "Sounds/DEBRIS/DEBRIS_12.ogg",
+      "Sounds/DEBRIS/DEBRIS_13.ogg",
+      "Sounds/DEBRIS/DEBRIS_14.ogg",
+      "Sounds/DEBRIS/DEBRIS_15.ogg",
+      "Sounds/DEBRIS/DEBRIS_16.ogg"
+    ],
+    "impact": [
+      "Sounds/impact.ogg"
+    ],
     "combat": {
       "hit": [
-        {
-          "src": "Sounds/hit/hit.ogg",
-          "volume": [
-            0.9,
-            1.05
-          ],
-          "pitch": [
-            0.95,
-            1.05
-          ],
-          "is3D": false
-        },
-        {
-          "src": "Sounds/hit/hit2.ogg",
-          "volume": [
-            0.9,
-            1.05
-          ],
-          "pitch": [
-            0.95,
-            1.05
-          ],
-          "is3D": false
-        }
+        "Sounds/hit/hit.ogg",
+        "Sounds/hit/hit2.ogg"
       ]
     }
   },

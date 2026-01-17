@@ -21,7 +21,13 @@ import static org.foxesworld.kalitech.engine.modules.particles.ParticlesHostAcce
 
 /**
  * Deterministic creation/configuration of ParticleEmitter from JS config.
- * Adds optional AAA keys without breaking old configs.
+ * <p>
+ * AAA goals:
+ * <ul>
+ *   <li>Clamp and sanitize all numeric inputs</li>
+ *   <li>Optional advanced keys without breaking existing configs</li>
+ *   <li>Minimize allocations in hot paths</li>
+ * </ul>
  */
 public final class ParticleEmitterOps {
 
@@ -65,6 +71,7 @@ public final class ParticleEmitterOps {
         final float rate = clampFiniteNonNeg(f(cfg, "rate", 32f), 0f, RATE_MAX);
         em.setParticlesPerSec(rate);
 
+        // gravity (no allocation)
         readVec3Into(m(cfg, "gravity"), TMP_VEC3, new Vector3f(0, -3f, 0));
         em.setGravity(TMP_VEC3.clone());
 
@@ -103,27 +110,35 @@ public final class ParticleEmitterOps {
         if (cfg.hasMember("spriteCols")) em.setImagesX(Math.max(1, (int) cfg.getMember("spriteCols").asDouble()));
 
         if (cfg.hasMember("local")) {
-            boolean l = cfg.getMember("local").asBoolean();
-            em.setInWorldSpace(!l);
+            boolean local = cfg.getMember("local").asBoolean();
+            em.setInWorldSpace(!local);
         }
 
         if (cfg.hasMember("size")) {
             Value size = cfg.getMember("size");
             if (size != null && !size.isNull()) {
-                if (size.hasMember("start"))
-                    em.setStartSize(clampPosFinite((float) size.getMember("start").asDouble(), SIZE_MIN, 1e6f));
-                if (size.hasMember("end"))
-                    em.setEndSize(clampPosFinite((float) size.getMember("end").asDouble(), SIZE_MIN, 1e6f));
+                if (size.hasMember("start")) {
+                    float s = (float) size.getMember("start").asDouble();
+                    em.setStartSize(clampPosFinite(s, SIZE_MIN, 1e6f));
+                }
+                if (size.hasMember("end")) {
+                    float s = (float) size.getMember("end").asDouble();
+                    em.setEndSize(clampPosFinite(s, SIZE_MIN, 1e6f));
+                }
             }
         }
 
         if (cfg.hasMember("life")) {
             Value life = cfg.getMember("life");
             if (life != null && !life.isNull()) {
-                if (life.hasMember("min"))
-                    em.setLowLife(clampPosFinite((float) life.getMember("min").asDouble(), LIFE_MIN, 1e6f));
-                if (life.hasMember("max"))
-                    em.setHighLife(clampPosFinite((float) life.getMember("max").asDouble(), LIFE_MIN, 1e6f));
+                if (life.hasMember("min")) {
+                    float v = (float) life.getMember("min").asDouble();
+                    em.setLowLife(clampPosFinite(v, LIFE_MIN, 1e6f));
+                }
+                if (life.hasMember("max")) {
+                    float v = (float) life.getMember("max").asDouble();
+                    em.setHighLife(clampPosFinite(v, LIFE_MIN, 1e6f));
+                }
             }
         }
 
@@ -165,6 +180,8 @@ public final class ParticleEmitterOps {
         applyAdvancedFlags(em, cfg);
         applyTransform(em, cfg);
     }
+
+    // ------------------------ apply-* ------------------------
 
     private static void applyRenderFlags(ParticleEmitter em, Value cfg) {
         Value r = m(cfg, "render");
@@ -232,7 +249,7 @@ public final class ParticleEmitterOps {
         float base = Math.max(0.0f, (vMin + vMax) * 0.5f);
 
         readVec3Into(m(vel, "dir"), TMP_VEC3, Vector3f.UNIT_Y);
-        safeDirLocal(TMP_VEC3);
+        Vector3f dir = safeDirLocal(TMP_VEC3);
 
         float coneDeg = clampFiniteNonNeg(f(vel, "coneDeg", 0.0f), 0f, 180f);
         float variation = f(vel, "variation", -1.0f);
@@ -240,7 +257,7 @@ public final class ParticleEmitterOps {
         float cone01 = FastMath.clamp(coneDeg / 180.0f, 0f, 1f);
         float useVar = variation >= 0.0f ? FastMath.clamp(variation, 0f, 1f) : cone01;
 
-        em.getParticleInfluencer().setInitialVelocity(TMP_VEC3.mult(base));
+        em.getParticleInfluencer().setInitialVelocity(dir.mult(base));
         em.getParticleInfluencer().setVelocityVariation(useVar);
     }
 
@@ -286,6 +303,8 @@ public final class ParticleEmitterOps {
         if (cfg.hasMember("scale")) em.setLocalScale(scale(cfg.getMember("scale").asDouble()));
     }
 
+    // ------------------------ utils ------------------------
+
     private static ParticleMesh.Type parseMeshType(String s) {
         String t = (s == null ? "" : s.trim().toLowerCase());
         return "point".equals(t) ? ParticleMesh.Type.Point : ParticleMesh.Type.Triangle;
@@ -318,13 +337,14 @@ public final class ParticleEmitterOps {
         return v;
     }
 
-    private static void safeDirLocal(Vector3f d) {
+    private static Vector3f safeDirLocal(Vector3f d) {
         float l2 = d.x * d.x + d.y * d.y + d.z * d.z;
         if (!(l2 > 1e-10f) || !Float.isFinite(l2)) {
             d.set(0f, 1f, 0f);
-            return;
+            return d;
         }
         float inv = 1.0f / FastMath.sqrt(l2);
         d.multLocal(inv);
+        return d;
     }
 }
