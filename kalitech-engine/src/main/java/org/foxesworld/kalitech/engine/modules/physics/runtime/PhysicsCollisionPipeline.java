@@ -68,30 +68,6 @@ public final class PhysicsCollisionPipeline {
         this.log = Objects.requireNonNull(log, "log");
     }
 
-    private static String entityOfSpatial(Spatial sp) {
-        if (sp == null) return null;
-
-        try {
-            Object v = sp.getUserData("entityUuid");
-            if (v != null) return String.valueOf(v);
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            Object v = sp.getUserData("entityId");
-            if (v != null) return String.valueOf(v);
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            Object v = sp.getUserData("uuid");
-            if (v != null) return String.valueOf(v);
-        } catch (Throwable ignored) {
-        }
-
-        return null;
-    }
-
     private static ProxyObject jsVec3SafePos(RigidBodyControl rb) {
         if (rb == null) return null;
         try {
@@ -441,7 +417,7 @@ public final class PhysicsCollisionPipeline {
         ProxyObject aObj = evtJs(
                 "bodyId", a.id,
                 "surfaceId", a.surfaceId,
-                "entity", entityOfSpatial(sa),
+                "entity", PhysicsEntityResolver.entityOfSpatial(sa),
                 "name", (sa != null ? sa.getName() : null),
                 "pos", jsVec3SafePos(ra),
                 "rot", jsQuatSafe(ra),
@@ -456,7 +432,7 @@ public final class PhysicsCollisionPipeline {
         ProxyObject bObj = evtJs(
                 "bodyId", b.id,
                 "surfaceId", b.surfaceId,
-                "entity", entityOfSpatial(sb),
+                "entity", PhysicsEntityResolver.entityOfSpatial(sb),
                 "name", (sb != null ? sb.getName() : null),
                 "pos", jsVec3SafePos(rb),
                 "rot", jsQuatSafe(rb),

@@ -10,5 +10,15 @@ import org.foxesworld.kalitech.engine.modules.physics.runtime.service.body.Physi
  * Strategy for resolving collision shapes for bodies.
  */
 public interface CollisionShapeProvider {
+
     CollisionShape resolveShape(PhysicsBodyConfig cfg, Spatial spatial);
+
+    /**
+     * Clears any internal caches.
+     *
+     * <p>Default implementation is a no-op for non-caching providers.</p>
+     */
+    default void clear() {
+        // no-op
+    }
 }

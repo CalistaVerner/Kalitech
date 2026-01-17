@@ -106,7 +106,22 @@ public final class PhysicsService {
 
     public void enqueueAddToSpace(RigidBodyControl rb) {
         if (rb == null) return;
-        addQueue.enqueue(rb);
+        // Unknown bodyId: only safe for internal testing. Prefer enqueueAddToSpace(PhysicsBodyHandle).
+        addQueue.enqueue(0, rb);
+        scheduleAddFlush();
+    }
+
+    public void enqueueAddToSpace(PhysicsBodyHandle h) {
+        if (h == null) return;
+        RigidBodyControl rb;
+        try {
+            rb = h.__raw();
+        } catch (Throwable t) {
+            log.debug("[physics] enqueueAddToSpace failed to access raw control bodyId={}", h.id, t);
+            return;
+        }
+        if (rb == null) return;
+        addQueue.enqueue(h.id, rb);
         scheduleAddFlush();
     }
 
@@ -117,6 +132,7 @@ public final class PhysicsService {
         SurfaceRegistry sr = this.surfaces;
 
         addQueue.flushTo(sp, bodyId -> {
+            if (bodyId <= 0) return;
             PhysicsBodyHandle h = registry.get(bodyId);
             if (h == null) return;
 
@@ -142,7 +158,7 @@ public final class PhysicsService {
 
     public PhysicsBodyHandle createBody(Object cfg) {
         PhysicsBodyHandle h = bodyManager.createBody(cfg);
-        if (h != null) enqueueAddToSpace(h.__raw());
+        if (h != null) enqueueAddToSpace(h);
         return h;
     }
 
@@ -153,6 +169,7 @@ public final class PhysicsService {
     }
 
     public void removeBodyById(int id) {
+        addQueue.removeByBodyId(id);
         PhysicsBodyHandle removed = bodyManager.removeBodyById(id);
         if (removed == null) return;
 

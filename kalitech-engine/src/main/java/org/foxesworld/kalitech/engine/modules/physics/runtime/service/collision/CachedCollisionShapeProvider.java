@@ -29,11 +29,10 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
 
     private static final float MIN_EXTENT = 0.001f;
 
-    private final Logger log;
     private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
 
-    public CachedCollisionShapeProvider(Logger log) {
-        this.log = Objects.requireNonNull(log, "log");
+    public CachedCollisionShapeProvider(@SuppressWarnings("unused") Logger log) {
+        Objects.requireNonNull(log, "log");
     }
 
     private static CollisionShape tryPrimitive(Geometry g) {
@@ -129,7 +128,8 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
         return PhysicsColliderFactory.create(colliderCfg, spatial);
     }
 
-    public void clearCache() {
+    @Override
+    public void clear() {
         shapeCache.clear();
     }
 

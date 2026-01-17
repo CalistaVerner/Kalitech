@@ -13,7 +13,6 @@ import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.AddToSpaceQueue;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsEventSink;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsSpaceProvider;
-import org.foxesworld.kalitech.engine.modules.physics.runtime.service.collision.CachedCollisionShapeProvider;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.collision.CollisionShapeProvider;
 
 import java.util.Objects;
@@ -144,9 +143,7 @@ public final class PhysicsBodyManager {
     public void clearAll(AddToSpaceQueue addQueue) {
         if (addQueue != null) addQueue.clear();
 
-        if (shapeProvider instanceof CachedCollisionShapeProvider cached) {
-            cached.clearCache();
-        }
+        shapeProvider.clear();
 
         PhysicsSpace sp = spaceProvider.getSpaceOrNull();
         SurfaceRegistry sr = this.surfaces;

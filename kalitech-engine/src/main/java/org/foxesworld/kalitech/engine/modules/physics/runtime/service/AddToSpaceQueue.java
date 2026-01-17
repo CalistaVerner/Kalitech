@@ -18,18 +18,25 @@ public final class AddToSpaceQueue {
     private static final int ADD_FLUSH_MAX_PER_TICK = 128;
 
     private final Logger log;
-    private final ConcurrentLinkedQueue<RigidBodyControl> pendingAdd = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PendingAdd> pendingAdd = new ConcurrentLinkedQueue<>();
 
     AddToSpaceQueue(Logger log) {
         this.log = Objects.requireNonNull(log, "log");
     }
 
-    void enqueue(RigidBodyControl rb) {
-        if (rb != null) pendingAdd.add(rb);
+    void enqueue(int bodyId, RigidBodyControl rb) {
+        if (rb == null) return;
+        pendingAdd.add(new PendingAdd(bodyId, rb));
     }
 
     public void remove(RigidBodyControl rb) {
-        if (rb != null) pendingAdd.remove(rb);
+        if (rb == null) return;
+        pendingAdd.removeIf(p -> p.rb == rb);
+    }
+
+    public void removeByBodyId(int bodyId) {
+        if (bodyId <= 0) return;
+        pendingAdd.removeIf(p -> p.bodyId == bodyId);
     }
 
     boolean isEmpty() {
@@ -40,29 +47,36 @@ public final class AddToSpaceQueue {
         pendingAdd.clear();
     }
 
-    void flushTo(PhysicsSpace space, IntConsumer bodyIdResolver) {
+    void flushTo(PhysicsSpace space, IntConsumer onAddedBodyId) {
         if (space == null) return;
 
         int n = 0;
-        RigidBodyControl rb;
-        while (n < ADD_FLUSH_MAX_PER_TICK && (rb = pendingAdd.poll()) != null) {
+        PendingAdd p;
+        while (n < ADD_FLUSH_MAX_PER_TICK && (p = pendingAdd.poll()) != null) {
             try {
-                space.add(rb);
+                space.add(p.rb);
             } catch (Throwable t) {
                 log.error("[physics] addToSpace failed", t);
             }
 
-            // NOTE: bodyIdResolver is expected to be cheap; if unknown -> no-op.
-            if (bodyIdResolver != null) {
+            if (onAddedBodyId != null) {
                 try {
-                    // Resolver consumes bodyId (caller decides how to map rb->id).
-                    // Here we cannot map directly, so caller should bind using registry.idOfControl(rb).
-                    // We use a sentinel approach: caller passes a closure bound to current rb.
-                } catch (Throwable ignored) {
-                    // no-op
+                    onAddedBodyId.accept(p.bodyId);
+                } catch (Throwable t) {
+                    log.debug("[physics] addToSpace callback failed bodyId={}", p.bodyId, t);
                 }
             }
             n++;
+        }
+    }
+
+    private static final class PendingAdd {
+        private final int bodyId;
+        private final RigidBodyControl rb;
+
+        private PendingAdd(int bodyId, RigidBodyControl rb) {
+            this.bodyId = bodyId;
+            this.rb = rb;
         }
     }
 }
