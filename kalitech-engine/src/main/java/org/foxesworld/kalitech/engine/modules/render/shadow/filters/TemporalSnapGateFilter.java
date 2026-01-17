@@ -5,9 +5,14 @@ package org.foxesworld.kalitech.engine.modules.render.shadow.filters;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
-import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.*;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowFilter;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKey;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowKeys;
+import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplitContext;
 
 import java.util.Set;
+
+import static org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowOrders.TEMPORAL_GATE;
 
 /**
  * Temporal gate to reduce shimmer: only allow texel snap when camera moved/rotated enough.
@@ -60,7 +65,7 @@ public final class TemporalSnapGateFilter implements ShadowFilter {
 
     @Override
     public int order() {
-        return ShadowOrders.TEMPORAL_GATE;
+        return TEMPORAL_GATE;
     }
 
     @Override
