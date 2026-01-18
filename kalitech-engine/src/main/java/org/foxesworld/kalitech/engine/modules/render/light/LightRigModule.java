@@ -143,177 +143,68 @@ public final class LightRigModule {
         timeOfDay = (timeOfDay + deltaHours) % 24.0f;
         if (timeOfDay < 0f) timeOfDay += 24.0f;
 
-        LightingSnapshot snapshot = LightingSnapshot.fromHours(timeOfDay);
-        applyLighting(snapshot);
-    }
+        // compute fractional day [0..1)
+        float t = timeOfDay / 24.0f;
 
-    public LightingSnapshot updateDayNightFromTime(double timeOfDaySec, double daySeconds) {
-        if (!Double.isFinite(timeOfDaySec) || !Double.isFinite(daySeconds) || daySeconds <= 0.0) return null;
-        double normalized = timeOfDaySec % daySeconds;
-        if (normalized < 0.0) normalized += daySeconds;
-        float hours = (float) ((normalized / daySeconds) * 24.0);
-        hours = hours % 24.0f;
-        if (hours < 0f) hours += 24.0f;
-        this.timeOfDay = hours;
+        // compute solar elevation angle: 0 at midnight, 0.5 at midday
+        // shift so that 0.25 (6h) is sunrise, 0.75 (18h) is sunset
+        float phase = (t - 0.25f) * (float) (2.0 * Math.PI);
 
-        LightingSnapshot snapshot = LightingSnapshot.fromHours(hours);
-        applyLighting(snapshot);
-        return snapshot;
-    }
+        // sun elevation (Y component) is sine of phase; clamp below horizon
+        float sunY = (float) Math.sin(phase);
+        float sunIntensity = Math.max(0f, sunY);
 
-    private void applyLighting(LightingSnapshot snapshot) {
-        if (snapshot == null) return;
+        // compute horizontal XZ direction. The sun travels around the scene in the XZ plane.
+        float sunX = (float) Math.cos(phase);
+        float sunZ = (float) Math.sin(phase + (float) Math.PI / 2.0);
+
+        // normalise and invert direction: light points opposite to direction of sun position
+        Vector3f sunDir = new Vector3f(sunX, -sunY, sunZ);
+        if (sunDir.lengthSquared() < 1e-6f) sunDir.set(0f, -1f, 0f);
+        sunDir.normalizeLocal();
+
+        // compute sun colour: interpolate between warm sunset and cool midday
+        ColorRGBA dayColour = new ColorRGBA(1f, 0.98f, 0.90f, 1f);
+        ColorRGBA sunsetColour = new ColorRGBA(1f, 0.63f, 0.39f, 1f);
+        float sunsetWeight = 1f - Math.min(1f, Math.abs(sunY));
+        float sr = dayColour.r * (1f - sunsetWeight) + sunsetColour.r * sunsetWeight;
+        float sg = dayColour.g * (1f - sunsetWeight) + sunsetColour.g * sunsetWeight;
+        float sb = dayColour.b * (1f - sunsetWeight) + sunsetColour.b * sunsetWeight;
+
+        final float finalSunIntensity = sunIntensity * 1.2f; // scale intensity to match defaults
+        final float finalSunR = sr;
+        final float finalSunG = sg;
+        final float finalSunB = sb;
+
+        // compute moon direction and intensity (opposite the sun)
+        Vector3f moonDir = new Vector3f(-sunDir.x, -sunDir.y, -sunDir.z);
+        float moonIntensity = Math.max(0f, 1f - sunIntensity);
+
+        // moon colour fixed to a cool blue tone
+        float mr = 0.45f;
+        float mg = 0.55f;
+        float mb = 0.85f;
+
+        // ambient colour: dim blue at night, neutral grey at midday
+        ColorRGBA ambientNight = new ColorRGBA(0.08f, 0.10f, 0.14f, 1f);
+        ColorRGBA ambientDay = new ColorRGBA(0.25f, 0.28f, 0.35f, 1f);
+        float ambientWeight = sunIntensity;
+        float ambR = ambientDay.r * ambientWeight + ambientNight.r * (1f - ambientWeight);
+        float ambG = ambientDay.g * ambientWeight + ambientNight.g * (1f - ambientWeight);
+        float ambB = ambientDay.b * ambientWeight + ambientNight.b * (1f - ambientWeight);
+
+        // apply changes on the JME thread
         thread.onJme(() -> {
             ensure();
             // update sun
-            sun.setDirection(snapshot.sunDir);
-            sun.setColor(new ColorRGBA(snapshot.sunR, snapshot.sunG, snapshot.sunB, 1f).mult(snapshot.sunIntensity));
+            sun.setDirection(sunDir);
+            sun.setColor(new ColorRGBA(finalSunR, finalSunG, finalSunB, 1f).mult(finalSunIntensity));
             // update moon
-            moon.setDirection(snapshot.moonDir);
-            moon.setColor(new ColorRGBA(snapshot.moonR, snapshot.moonG, snapshot.moonB, 1f).mult(snapshot.moonIntensity));
+            moon.setDirection(moonDir);
+            moon.setColor(new ColorRGBA(mr, mg, mb, 1f).mult(moonIntensity));
             // update ambient
-            ambient.setColor(new ColorRGBA(snapshot.ambR, snapshot.ambG, snapshot.ambB, 1f).mult(snapshot.ambIntensity));
-
-            _sunDx = snapshot.sunDir.x;
-            _sunDy = snapshot.sunDir.y;
-            _sunDz = snapshot.sunDir.z;
-            _sunR = snapshot.sunR;
-            _sunG = snapshot.sunG;
-            _sunB = snapshot.sunB;
-            _sunI = snapshot.sunIntensity;
-
-            _moonDx = snapshot.moonDir.x;
-            _moonDy = snapshot.moonDir.y;
-            _moonDz = snapshot.moonDir.z;
-            _moonR = snapshot.moonR;
-            _moonG = snapshot.moonG;
-            _moonB = snapshot.moonB;
-            _moonI = snapshot.moonIntensity;
-
-            _ambR = snapshot.ambR;
-            _ambG = snapshot.ambG;
-            _ambB = snapshot.ambB;
-            _ambI = snapshot.ambIntensity;
+            ambient.setColor(new ColorRGBA(ambR, ambG, ambB, 1f));
         });
-    }
-
-    public static final class LightingSnapshot {
-        public final Vector3f sunDir;
-        public final float sunR;
-        public final float sunG;
-        public final float sunB;
-        public final float sunIntensity;
-
-        public final Vector3f moonDir;
-        public final float moonR;
-        public final float moonG;
-        public final float moonB;
-        public final float moonIntensity;
-
-        public final float ambR;
-        public final float ambG;
-        public final float ambB;
-        public final float ambIntensity;
-
-        private LightingSnapshot(
-                Vector3f sunDir,
-                float sunR,
-                float sunG,
-                float sunB,
-                float sunIntensity,
-                Vector3f moonDir,
-                float moonR,
-                float moonG,
-                float moonB,
-                float moonIntensity,
-                float ambR,
-                float ambG,
-                float ambB,
-                float ambIntensity
-        ) {
-            this.sunDir = sunDir;
-            this.sunR = sunR;
-            this.sunG = sunG;
-            this.sunB = sunB;
-            this.sunIntensity = sunIntensity;
-            this.moonDir = moonDir;
-            this.moonR = moonR;
-            this.moonG = moonG;
-            this.moonB = moonB;
-            this.moonIntensity = moonIntensity;
-            this.ambR = ambR;
-            this.ambG = ambG;
-            this.ambB = ambB;
-            this.ambIntensity = ambIntensity;
-        }
-
-        private static LightingSnapshot fromHours(float timeOfDayHours) {
-            float t = timeOfDayHours / 24.0f;
-
-            // compute solar elevation angle: 0 at midnight, 0.5 at midday
-            // shift so that 0.25 (6h) is sunrise, 0.75 (18h) is sunset
-            float phase = (t - 0.25f) * (float) (2.0 * Math.PI);
-
-            // sun elevation (Y component) is sine of phase; clamp below horizon
-            float sunY = (float) Math.sin(phase);
-            float sunIntensity = Math.max(0f, sunY);
-
-            // compute horizontal XZ direction. The sun travels around the scene in the XZ plane.
-            float sunX = (float) Math.cos(phase);
-            float sunZ = (float) Math.sin(phase + (float) Math.PI / 2.0);
-
-            // normalise and invert direction: light points opposite to direction of sun position
-            Vector3f sunDir = new Vector3f(sunX, -sunY, sunZ);
-            if (sunDir.lengthSquared() < 1e-6f) sunDir.set(0f, -1f, 0f);
-            sunDir.normalizeLocal();
-
-            // compute sun colour: interpolate between warm sunset and cool midday
-            ColorRGBA dayColour = new ColorRGBA(1f, 0.98f, 0.90f, 1f);
-            ColorRGBA sunsetColour = new ColorRGBA(1f, 0.63f, 0.39f, 1f);
-            float sunsetWeight = 1f - Math.min(1f, Math.abs(sunY));
-            float sr = dayColour.r * (1f - sunsetWeight) + sunsetColour.r * sunsetWeight;
-            float sg = dayColour.g * (1f - sunsetWeight) + sunsetColour.g * sunsetWeight;
-            float sb = dayColour.b * (1f - sunsetWeight) + sunsetColour.b * sunsetWeight;
-
-            final float finalSunIntensity = sunIntensity * 1.2f; // scale intensity to match defaults
-            final float finalSunR = sr;
-            final float finalSunG = sg;
-            final float finalSunB = sb;
-
-            // compute moon direction and intensity (opposite the sun)
-            Vector3f moonDir = new Vector3f(-sunDir.x, -sunDir.y, -sunDir.z);
-            float moonIntensity = Math.max(0f, 1f - sunIntensity);
-
-            // moon colour fixed to a cool blue tone
-            float mr = 0.45f;
-            float mg = 0.55f;
-            float mb = 0.85f;
-
-            // ambient colour: dim blue at night, neutral grey at midday
-            ColorRGBA ambientNight = new ColorRGBA(0.08f, 0.10f, 0.14f, 1f);
-            ColorRGBA ambientDay = new ColorRGBA(0.25f, 0.28f, 0.35f, 1f);
-            float ambientWeight = sunIntensity;
-            float ambR = ambientDay.r * ambientWeight + ambientNight.r * (1f - ambientWeight);
-            float ambG = ambientDay.g * ambientWeight + ambientNight.g * (1f - ambientWeight);
-            float ambB = ambientDay.b * ambientWeight + ambientNight.b * (1f - ambientWeight);
-
-            return new LightingSnapshot(
-                    sunDir,
-                    finalSunR,
-                    finalSunG,
-                    finalSunB,
-                    finalSunIntensity,
-                    moonDir,
-                    mr,
-                    mg,
-                    mb,
-                    moonIntensity,
-                    ambR,
-                    ambG,
-                    ambB,
-                    1.0f
-            );
-        }
     }
 
     public void ambientCfg(Value cfg) {
