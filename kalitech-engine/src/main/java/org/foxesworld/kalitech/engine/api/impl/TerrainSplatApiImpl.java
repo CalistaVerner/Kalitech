@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import com.jme3.scene.Spatial;
@@ -8,6 +9,10 @@ import com.jme3.texture.Texture;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainSplatApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
@@ -67,6 +72,12 @@ public final class TerrainSplatApiImpl extends AbstractApiModule implements Terr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void apply(SurfaceApi.SurfaceHandle terrainHandle, Value cfg) {
         if (terrainHandle == null) throw new IllegalArgumentException("terrainSplat.apply: handle is null");
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("terrainSplat.apply: cfg is null");
@@ -89,6 +100,12 @@ public final class TerrainSplatApiImpl extends AbstractApiModule implements Terr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object createMaterial(Value cfg) {
         Material mat = new Material(assets, "Common/MatDefs/Terrain/TerrainLighting.j3md");
 

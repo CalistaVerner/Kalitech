@@ -1,9 +1,14 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.state.AppStateManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.WorldApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -129,6 +134,12 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void create(Value desc) {
         if (desc == null || desc.isNull() || !desc.hasMembers()) {
             throw new IllegalArgumentException("world.create(desc): desc object is required");
@@ -197,6 +208,12 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public String spawn(Value args) {
         if (args == null || args.isNull() || !args.hasMembers()) {
             throw new IllegalArgumentException("world.spawn(args): args object is required");

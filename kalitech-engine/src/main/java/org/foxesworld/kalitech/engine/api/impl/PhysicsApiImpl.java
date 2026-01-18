@@ -2,6 +2,7 @@
 // Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.SimpleApplication;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
@@ -9,6 +10,10 @@ import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
@@ -16,7 +21,10 @@ import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsBodyOps;
-import org.foxesworld.kalitech.engine.modules.physics.runtime.*;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsBodyStateTracker;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsCollisionPipeline;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsEntityResolver;
+import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsRaycaster;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.PhysicsService;
 import org.foxesworld.kalitech.engine.modules.physics.util.PhysicsValueParsers;
 import org.graalvm.polyglot.HostAccess;
@@ -189,6 +197,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void debug(boolean enabled) {
         BulletAppState b = app != null ? app.getStateManager().getState(BulletAppState.class) : null;
         if (b == null) {
@@ -204,6 +218,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void gravity(Object vec3) {
         PhysicsSpace sp = space();
         Vector3f g = PhysicsValueParsers.vec3(vec3, 0, -9.81f, 0);
@@ -211,18 +231,36 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public int bodyOfSurface(int surfaceId) {
         ensureModulesBound();
         return svc.registry().bodyOfSurface(surfaceId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public PhysicsBodyHandle handle(int bodyId) {
         ensureModulesBound();
         return svc.registry().get(bodyId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean exists(int bodyId) {
         ensureModulesBound();
         return svc.registry().exists(bodyId);
@@ -230,6 +268,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public PhysicsBodyHandle body(Object cfg) {
         space();
         return svc.createBody(cfg);
@@ -237,6 +281,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void remove(Object handleOrId) {
         ensureModulesBound();
         svc.removeBody(handleOrId);
@@ -247,78 +297,156 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ----------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void remove(int id) {
         ensureModulesBound();
         svc.removeBodyById(id);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object position(Object handleOrId) {
         ensureModulesBound();
         return bodyOps.position(handleOrId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object velocity(Object handleOrId) {
         ensureModulesBound();
         return bodyOps.velocity(handleOrId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void velocity(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.velocity(handleOrId, vec3);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void yaw(Object handleOrId, double yaw) {
         ensureModulesBound();
         bodyOps.yaw(handleOrId, yaw);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void applyImpulse(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.applyImpulse(handleOrId, vec3);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void lockRotation(Object handleOrId, boolean lock) {
         ensureModulesBound();
         bodyOps.lockRotation(handleOrId, lock);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setKinematic(Object handleOrId, boolean kinematic) {
         ensureModulesBound();
         bodyOps.setKinematic(handleOrId, kinematic);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void collisionGroups(Object handleOrId, int group, int mask) {
         ensureModulesBound();
         bodyOps.collisionGroups(handleOrId, group, mask);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void applyCentralForce(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.applyCentralForce(handleOrId, vec3);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void applyTorque(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.applyTorque(handleOrId, vec3);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object angularVelocity(Object handleOrId) {
         ensureModulesBound();
         return bodyOps.angularVelocity(handleOrId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void angularVelocity(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.angularVelocity(handleOrId, vec3);
@@ -329,12 +457,24 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ----------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void clearForces(Object handleOrId) {
         ensureModulesBound();
         bodyOps.clearForces(handleOrId);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void warp(Object handleOrId, Object vec3) {
         ensureModulesBound();
         bodyOps.warp(handleOrId, vec3);
@@ -342,12 +482,24 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public PhysicsRayHit raycast(Object cfg) {
         space();
         return raycaster.raycast(cfg);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object raycastEx(Object cfg) {
         space();
         return raycaster.raycastEx(cfg);
@@ -358,6 +510,12 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ----------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object raycastAll(Object cfg) {
         space();
         return raycaster.raycastAll(cfg);

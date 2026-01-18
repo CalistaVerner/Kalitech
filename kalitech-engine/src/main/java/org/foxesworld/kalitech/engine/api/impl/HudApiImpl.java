@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.Application;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
@@ -12,6 +13,10 @@ import com.simsilica.lemur.Panel;
 import com.simsilica.lemur.component.QuadBackgroundComponent;
 import com.simsilica.lemur.style.BaseStyles;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.HudApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -171,6 +176,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudLayerHandle createLayer(String name) {
         final int id = IDS.incrementAndGet();
         final String nm = (name == null || name.isBlank()) ? ("layer-" + id) : name;
@@ -186,6 +197,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void destroyLayer(HudLayerHandle layer) {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return;
@@ -213,6 +230,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void clearLayer(HudLayerHandle layer) {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return;
@@ -236,6 +259,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addContainer(HudLayerHandle layer, float x, float y) {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return new HudElementHandle(0);
@@ -258,6 +287,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addPanel(HudLayerHandle layer, float x, float y, float w, float h) {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return new HudElementHandle(0);
@@ -290,6 +325,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addLabel(HudLayerHandle layer, String text, float x, float y) {
         final int lid = (layer == null) ? 0 : layer.id;
         if (lid <= 0) return new HudElementHandle(0);
@@ -311,6 +352,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addContainer(HudLayerHandle layer, HudElementHandle parent, float x, float y) {
         final int lid = (layer == null) ? 0 : layer.id;
         final int pid = (parent == null) ? 0 : parent.id;
@@ -339,6 +386,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addPanel(HudLayerHandle layer, HudElementHandle parent, float x, float y, float w, float h) {
         final int lid = (layer == null) ? 0 : layer.id;
         final int pid = (parent == null) ? 0 : parent.id;
@@ -376,6 +429,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudElementHandle addLabel(HudLayerHandle layer, HudElementHandle parent, String text, float x, float y) {
         final int lid = (layer == null) ? 0 : layer.id;
         final int pid = (parent == null) ? 0 : parent.id;
@@ -402,12 +461,24 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setCursorEnabled(boolean enabled) {
         setCursorEnabled(enabled, false);
     }
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setCursorEnabled(boolean enabled, boolean force) {
         rt(() -> {
             try {
@@ -425,6 +496,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setText(HudElementHandle element, String text) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -440,6 +517,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setVisible(HudElementHandle element, boolean visible) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -457,6 +540,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPosition(HudElementHandle element, float x, float y) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -496,6 +585,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setSize(HudElementHandle element, float w, float h) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -538,6 +633,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setFontSize(HudElementHandle element, float px) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -564,6 +665,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
      */
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setBgColor(HudElementHandle element, double r, double g, double b, double a) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -590,6 +697,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setTextColor(HudElementHandle element, double r, double g, double b, double a) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -614,6 +727,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void remove(HudElementHandle element) {
         final int id = (element == null) ? 0 : element.id;
         if (id <= 0) return;
@@ -627,6 +746,12 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     @Override
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public HudViewport viewport() {
         return new HudViewport(vpW(), vpH());
     }

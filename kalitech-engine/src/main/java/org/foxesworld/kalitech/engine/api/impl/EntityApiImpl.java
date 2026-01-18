@@ -101,10 +101,16 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     public void destroy(@NotNull String uuid) {
         profiledVoid(() ->
                 apiVoid(M_DESTROY, new Object[]{uuid}, () -> {
+                    // Cleanup must never prevent actual entity destruction.
                     EngineApiImpl e = this.engine;
                     if (e != null) {
-                        e.__surfaceCleanupOnEntityDestroy(uuid);
+                        try {
+                            e.__surfaceCleanupOnEntityDestroy(uuid);
+                        } catch (RuntimeException ex) {
+                            log.warn("[entity] surface cleanup failed for uuid={} (continuing destroy)", uuid, ex);
+                        }
                     }
+
                     ecs.destroyEntity(uuid);
                     if (log.isDebugEnabled()) log.debug("[entity] destroyed uuid={}", uuid);
                 })

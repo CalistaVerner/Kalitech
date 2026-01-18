@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.asset.AssetManager;
 import com.jme3.bounding.BoundingBox;
 import com.jme3.bounding.BoundingSphere;
@@ -15,6 +16,10 @@ import com.jme3.renderer.Camera;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
 import com.jme3.terrain.geomipmap.TerrainQuad;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
@@ -432,12 +437,24 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public String attachedEntityUuid(SurfaceHandle target) {
         requireHandle(target);
         return registry.attachedEntityUuid(target.id());
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void attachEntity(SurfaceHandle target, Object entityUuid) {
         requireHandle(target);
         final String uuid = requireUuid(entityUuid);
@@ -452,6 +469,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void detachFromEntity(SurfaceHandle target) {
         requireHandle(target);
         onJmeSyncVoid("surface.detachFromEntity", () -> {
@@ -465,6 +488,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void attachToRoot(SurfaceHandle target) {
         requireHandle(target);
         onJmeSyncVoid("surface.attachToRoot", () -> registry.attachToRoot(target.id()));
@@ -472,6 +501,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void detach(SurfaceHandle target) {
         requireHandle(target);
         onJmeSyncVoid("surface.detach", () -> registry.detachFromParent(target.id()));
@@ -479,11 +514,23 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean exists(SurfaceHandle target) {
         return target != null && registry.exists(target.id());
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setName(SurfaceHandle target, String name) {
         Objects.requireNonNull(target, "target");
         final String n = name;
@@ -494,6 +541,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPos(SurfaceHandle target, Object pos) {
         Objects.requireNonNull(target, "target");
         final Vector3f p = vec3Any(pos, 0f, 0f, 0f);
@@ -501,6 +554,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setRot(SurfaceHandle target, Object rotDeg) {
         Objects.requireNonNull(target, "target");
         final Vector3f deg = vec3Any(rotDeg, 0f, 0f, 0f);
@@ -515,6 +574,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setScale(SurfaceHandle target, Object scale) {
         Objects.requireNonNull(target, "target");
 
@@ -537,6 +602,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setCull(SurfaceHandle target, String hint) {
         Objects.requireNonNull(target, "target");
         final Spatial.CullHint ch = parseCullHint(hint);
@@ -545,6 +616,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setVisible(SurfaceHandle target, boolean visible) {
         Objects.requireNonNull(target, "target");
         final Spatial.CullHint ch = visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always;
@@ -553,6 +630,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setShadowMode(SurfaceHandle target, String mode) {
         Objects.requireNonNull(target, "target");
         final RenderQueue.ShadowMode sm = parseShadowMode(mode);
@@ -561,6 +644,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setTransform(SurfaceHandle target, Value cfg) {
         Objects.requireNonNull(target, "target");
 
@@ -574,6 +663,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void applyMaterialToChildren(SurfaceHandle target, Object materialHandle) {
         Objects.requireNonNull(target, "target");
 
@@ -586,6 +681,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setMaterial(SurfaceHandle target, Object materialHandleOrCfg) {
         Objects.requireNonNull(target, "target");
 
@@ -638,6 +739,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public WorldBounds getWorldBounds(SurfaceHandle target) {
         Objects.requireNonNull(target, "target");
         return onJmeSync("surface.getWorldBounds", () -> {
@@ -662,6 +769,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Hit[] raycast(SurfaceHandle target, Value cfg) {
         Objects.requireNonNull(target, "target");
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("surface.raycast: cfg is null");
@@ -678,6 +791,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg) {
         Objects.requireNonNull(target, "target");
 
@@ -709,18 +828,36 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Hit[] pickUnderCursor() {
         return pickUnderCursorCfg((Value) null);
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Hit[] pickUnderCursor(SurfaceHandle target) {
         return pickUnderCursorCfg(target, null);
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Hit[] pickUnderCursorCfg(Value cfg) {
         final double cx = (cfg != null && !cfg.isNull()) ? num(cfg, "x", Double.NaN) : Double.NaN;
         final double cy = (cfg != null && !cfg.isNull()) ? num(cfg, "y", Double.NaN) : Double.NaN;
@@ -756,6 +893,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public int attachedBody(int surfaceId) {
         if (surfaceId <= 0) return 0;
         if (!registry.exists(surfaceId)) return 0;
@@ -776,6 +919,12 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void destroy(SurfaceHandle target) {
         requireHandle(target);
 

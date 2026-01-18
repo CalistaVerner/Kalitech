@@ -1,7 +1,12 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.input.InputManager;
 import com.jme3.math.Vector2f;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.InputApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -79,6 +84,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
      */
     @HostAccess.Export
     @Deprecated
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object consumeSnapshot() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -106,6 +117,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean keyDown(String key) {
         return profiled(() -> {
             int code = keyboard.keyCode(key);
@@ -117,6 +134,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean keyDown(int keyCode) {
         return profiled(() -> {
             if (keyCode < 0) return false;
@@ -128,6 +151,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public int keyCode(String name) {
         return profiled(() -> {
             int code = keyboard.keyCode(name);
@@ -139,18 +168,36 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseX() {
         return mouse.mouseX();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseY() {
         return mouse.mouseY();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object cursorPosition() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -160,18 +207,36 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseDX() {
         return mouseDx();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseDY() {
         return mouseDy();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseDx() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -182,6 +247,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double mouseDy() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -192,6 +263,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object mouseDelta() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -202,6 +279,12 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object consumeMouseDelta() {
         return profiled(() -> {
             refreshAbsoluteCursorBestEffort();
@@ -213,24 +296,48 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double wheelDelta() {
         return mouse.peekWheel();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double consumeWheelDelta() {
         return profiled(mouse::consumeWheelOnly);
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean mouseDown(int button) {
         return profiled(() -> mouse.mouseDown(button));
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void cursorVisible(boolean visible) {
         profiledVoid(() -> {
             CursorGrabController c = cursor;
@@ -240,12 +347,24 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean cursorVisible() {
         return profiled(() -> cursor != null && cursor.isCursorVisible());
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void grabMouse(boolean grab) {
         profiledVoid(() -> {
             CursorGrabController c = cursor;
@@ -259,12 +378,24 @@ public final class InputApiImpl extends AbstractApiModule implements InputApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean grabbed() {
         return profiled(() -> cursor != null && cursor.isGrabbed());
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void endFrame() {
         profiledVoid(() -> {
             refreshAbsoluteCursorBestEffort();

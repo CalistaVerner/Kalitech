@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
 import com.jme3.math.ColorRGBA;
@@ -15,6 +16,10 @@ import com.jme3.scene.control.AbstractControl;
 import com.jme3.util.BufferUtils;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.EditorLinesApi;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
@@ -141,6 +146,12 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public SurfaceApi.SurfaceHandle createGridPlane(Value cfg) {
         final double halfExtentD = num(cfg, "halfExtent", num(cfg, "size", 600.0));
         final double stepD = num(cfg, "step", 1.0);
@@ -275,6 +286,12 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void destroy(Object handle) {
         if (handle == null) return;
 

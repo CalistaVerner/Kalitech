@@ -1,11 +1,16 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 import com.jme3.terrain.geomipmap.TerrainQuad;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.TerrainApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
@@ -145,6 +150,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public SurfaceApi.SurfaceHandle terrain(Value cfg) {
         requireCfg(cfg, "terrain.terrain(cfg)");
 
@@ -154,6 +165,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public SurfaceApi.SurfaceHandle terrainHeights(Value cfg) {
         requireCfg(cfg, "terrain.terrainHeights(cfg)");
 
@@ -163,6 +180,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public SurfaceApi.SurfaceHandle quad(Value cfg) {
         requireCfg(cfg, "terrain.quad(cfg)");
 
@@ -172,6 +195,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public SurfaceApi.SurfaceHandle plane(Value cfg) {
         requireCfg(cfg, "terrain.plane(cfg)");
 
@@ -223,6 +252,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void lod(SurfaceApi.SurfaceHandle handle, Value cfg) {
         requireHandle(handle, "terrain.lod");
         requireCfg(cfg, "terrain.lod(cfg)");
@@ -231,6 +266,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void scale(SurfaceApi.SurfaceHandle handle, double xzScale, Value cfg) {
         requireHandle(handle, "terrain.scale");
         onJmeSyncVoid("terrain.scale", () -> ops.scale(requireTerrain(handle), xzScale, cfg));
@@ -241,40 +282,82 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public float[] heightmap(SurfaceApi.SurfaceHandle handle) {
         requireHandle(handle, "terrain.heightmap");
         return onJmeSync("terrain.heightmap", () -> editOps.heightmapCopy(requireTerrain(handle)), new float[0]);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height, boolean world) {
         requireHandle(handle, "terrain.setHeight");
         onJmeSyncVoid("terrain.setHeight", () -> editOps.setHeight(requireTerrain(handle), x, z, height, world));
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta, boolean world) {
         requireHandle(handle, "terrain.adjustHeight");
         onJmeSyncVoid("terrain.adjustHeight", () -> editOps.adjustHeight(requireTerrain(handle), x, z, delta, world));
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double height) {
         setHeight(handle, x, z, height, true);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void adjustHeight(SurfaceApi.SurfaceHandle handle, double x, double z, double delta) {
         adjustHeight(handle, x, z, delta, true);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void rebuild(SurfaceApi.SurfaceHandle handle) {
         requireHandle(handle, "terrain.rebuild");
         onJmeSyncVoid("terrain.rebuild", () -> editOps.rebuild(requireTerrain(handle)));
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setHeightmap(SurfaceApi.SurfaceHandle handle, Value cfg) {
         requireHandle(handle, "terrain.setHeightmap");
         requireCfg(cfg, "terrain.setHeightmap(handle,cfg)");
@@ -300,22 +383,46 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
         return heightAt(handle, x, z, true);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public double heightAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
         requireHandle(handle, "terrain.heightAt");
         return onJmeSync("terrain.heightAt", () -> heightAtSafe(requireTerrain(handle), x, z, world), Double.NaN);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z) {
         return normalAt(handle, x, z, true);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public ProxyObject normalAt(SurfaceApi.SurfaceHandle handle, double x, double z, boolean world) {
         requireHandle(handle, "terrain.normalAt");
         Vector3f n = onJmeSync("terrain.normalAt", () -> normalAtSafe(requireTerrain(handle), x, z, world), new Vector3f(0f, 1f, 0f));
@@ -331,12 +438,24 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public float[] perlinHeights(Value cfg) {
         requireCfg(cfg, "terrain.perlinHeights(cfg)");
         return noise.perlinHeights(cfg);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public float[] ridgedHeights(Value cfg) {
         requireCfg(cfg, "terrain.ridgedHeights(cfg)");
         return noise.ridgedHeights(cfg);
@@ -347,12 +466,24 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void material(SurfaceApi.SurfaceHandle handle, Object materialHandleOrCfg) {
         requireHandle(handle, "terrain.material");
         engine.surface().setMaterial(handle, materialHandleOrCfg);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void uv(SurfaceApi.SurfaceHandle handle, Value cfgOrUv) {
         requireHandle(handle, "terrain.uv");
         requireCfg(cfgOrUv, "terrain.uv(cfg)");
@@ -365,6 +496,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Object physics(SurfaceApi.SurfaceHandle surface, Value cfg) {
         requireHandle(surface, "terrain.physics");
         requireCfg(cfg, "terrain.physics(cfg)");
@@ -377,6 +514,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void attachEntity(SurfaceApi.SurfaceHandle handle, Object entityUuid) {
         requireHandle(handle, "terrain.attachEntity");
         engine.surface().attachEntity(handle, entityUuid);
@@ -385,6 +528,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void detachEntity(SurfaceApi.SurfaceHandle handle) {
         requireHandle(handle, "terrain.detachEntity");
         engine.surface().detachFromEntity(handle);
@@ -393,6 +542,12 @@ public final class TerrainApiImpl extends AbstractApiModule implements TerrainAp
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void detach(SurfaceApi.SurfaceHandle handle) {
         requireHandle(handle, "terrain.detach");
         engine.surface().detachFromEntity(handle);

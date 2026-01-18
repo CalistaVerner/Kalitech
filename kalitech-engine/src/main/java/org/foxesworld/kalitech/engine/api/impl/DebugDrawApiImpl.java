@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.SimpleApplication;
 import com.jme3.material.Material;
 import com.jme3.material.RenderState;
@@ -13,6 +14,10 @@ import com.jme3.scene.Mesh;
 import com.jme3.scene.Node;
 import com.jme3.scene.VertexBuffer;
 import com.jme3.util.BufferUtils;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.DebugDrawApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -164,6 +169,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean enabled() {
         return enabled;
     }
@@ -192,6 +203,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void enabled(boolean v) {
         this.enabled = v;
         if (!v) clear();
@@ -204,6 +221,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void clear() {
         pending.clear();
         onJmeVoid("debug.clear", () -> {
@@ -215,6 +238,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void tick(double tpf) {
         if (!enabled) return;
 
@@ -240,6 +269,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void line(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -267,6 +302,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void ray(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -306,6 +347,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void axes(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -336,6 +383,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void box(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -398,6 +451,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void sphere(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -420,6 +479,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // ---------------------------------------------------------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void circle(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -440,6 +505,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void polyline(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
@@ -468,6 +539,12 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void grid(Value cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;

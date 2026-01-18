@@ -1,6 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/impl/RenderApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import com.jme3.light.AmbientLight;
@@ -10,6 +11,10 @@ import com.jme3.math.Vector3f;
 import com.jme3.shadow.DirectionalLightShadowRenderer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -79,6 +84,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void ensureScene() {
         profiledVoid(() -> {
             if (sceneReady) return;
@@ -96,6 +107,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     // --------------------- sky dome ---------------------
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void skyDomeClear() {
         profiledVoid(() -> {
             ensureScene();
@@ -107,6 +124,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void skyDomeCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -118,6 +141,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void skyDomeTexA(String asset) {
         profiledVoid(() -> {
             ensureScene();
@@ -129,6 +158,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void skyDomeTexB(String asset) {
         profiledVoid(() -> {
             ensureScene();
@@ -140,6 +175,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void skyDomeTexClear() {
         profiledVoid(() -> {
             ensureScene();
@@ -171,6 +212,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void ambientCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -204,6 +251,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void sunCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -249,6 +302,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void moonCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -294,6 +353,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPrimaryDirectional(String which) {
         final String w = (which == null ? "" : which.trim().toLowerCase());
         if (!w.equals("sun") && !w.equals("moon")) {
@@ -324,6 +389,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void sunShadowsCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -345,6 +416,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void fogCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();
@@ -359,6 +436,12 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void postCfg(Value cfg) {
         profiledVoid(() -> {
             ensureScene();

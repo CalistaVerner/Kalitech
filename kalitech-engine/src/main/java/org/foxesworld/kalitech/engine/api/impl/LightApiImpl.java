@@ -1,9 +1,14 @@
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.SimpleApplication;
 import com.jme3.light.*;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.LightApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -197,6 +202,12 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public LightHandle create(Value cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("light.create(cfg): cfg is null");
 
@@ -224,12 +235,24 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public boolean exists(LightHandle handle) {
         return handle != null && lights.containsKey(handle.id());
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void set(LightHandle handle, Value cfg) {
         if (handle == null) throw new IllegalArgumentException("light.set(handle,cfg): handle is null");
         if (cfg == null || cfg.isNull()) return;
@@ -255,6 +278,12 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void enable(LightHandle handle, boolean enabled) {
         if (handle == null) return;
 
@@ -270,6 +299,12 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void destroy(LightHandle handle) {
         if (handle == null) return;
 
@@ -282,6 +317,12 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Value get(LightHandle handle) {
         if (handle == null) return null;
 
@@ -312,6 +353,12 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public Value list() {
         Context ctx = (engine == null || engine.getRuntime() == null) ? null : engine.getRuntime().getCtx();
         if (ctx == null) return null;
@@ -354,11 +401,23 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }
 
         @HostAccess.Export
+        @ApiMethod(
+                thread = ApiThreadRule.ANY,
+                sync = false,
+                flags = {ApiFlag.SANDBOX_ALLOWED},
+                cost = ApiCostHint.NORMAL
+        )
         public int id() {
             return id;
         }
 
         @HostAccess.Export
+        @ApiMethod(
+                thread = ApiThreadRule.ANY,
+                sync = false,
+                flags = {ApiFlag.SANDBOX_ALLOWED},
+                cost = ApiCostHint.NORMAL
+        )
         public String type() {
             return type;
         }

@@ -2,9 +2,14 @@
 // Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.asset.AssetManager;
 import com.jme3.audio.AudioNode;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.SoundApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -57,6 +62,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode create(Value cfg) {
         if (cfg == null || cfg.isNull()) {
             IllegalArgumentException e = new IllegalArgumentException("sound.create(cfg): cfg is required");
@@ -74,23 +85,47 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public long createId(Value cfg) {
         AudioNode n = create(cfg);
         return registry.getId(n);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public long getId(AudioNode node) {
         return registry.getId(node);
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode getById(long id) {
         return registry.getById(id);
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void play(AudioNode audioNode) {
         requireNode(audioNode, "play");
 
@@ -129,6 +164,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode playEventCfg(Value cfg) {
         if (cfg == null || cfg.isNull()) {
             IllegalArgumentException e = new IllegalArgumentException("sound.playEventCfg(cfg): cfg is required");
@@ -146,6 +187,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode createEventCfg(Value cfg) {
         if (cfg == null || cfg.isNull()) {
             IllegalArgumentException e = new IllegalArgumentException("sound.createEventCfg(cfg): cfg is required");
@@ -164,12 +211,24 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public long getSeed() {
         return service.getSeed();
     }
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setSeed(long seed) {
         try {
             service.setSeed(seed);
@@ -181,6 +240,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setDeterministic(boolean deterministic) {
         try {
             service.setDeterminismMode(
@@ -195,6 +260,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void stop(AudioNode audioNode) {
         requireNode(audioNode, "stop");
         try {
@@ -207,6 +278,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPosition(AudioNode audioNode, float x, float y, float z) {
         requireNode(audioNode, "setPosition");
         try {
@@ -219,6 +296,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPositional(AudioNode audioNode, boolean positional) {
         requireNode(audioNode, "setPositional");
         try {
@@ -231,6 +314,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setLooping(AudioNode audioNode, boolean loop) {
         requireNode(audioNode, "setLooping");
         try {
@@ -243,6 +332,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setVolume(AudioNode audioNode, float volume) {
         requireNode(audioNode, "setVolume");
         try {
@@ -255,6 +350,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPitch(AudioNode audioNode, float pitch) {
         requireNode(audioNode, "setPitch");
         try {
@@ -267,6 +368,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setDirectional(AudioNode audioNode, boolean directional) {
         requireNode(audioNode, "setDirectional");
         try {
@@ -279,6 +386,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setMaxDistance(AudioNode audioNode, float maxDistance) {
         requireNode(audioNode, "setMaxDistance");
         try {
@@ -291,6 +404,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setReverbEnabled(AudioNode audioNode, boolean reverbEnabled) {
         requireNode(audioNode, "setReverbEnabled");
         try {
@@ -303,6 +422,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setDryFilter(AudioNode audioNode, Object filter) {
         requireNode(audioNode, "setDryFilter");
         try {
@@ -314,6 +439,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void playId(long id) {
         AudioNode n = registry.getById(id);
         if (n == null) {
@@ -325,6 +456,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void stopId(long id) {
         AudioNode n = registry.getById(id);
         if (n == null) {
@@ -336,6 +473,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void releaseId(long id) {
         try {
             AudioNode n = registry.remove(id);
@@ -348,6 +491,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode createAndPlay(Value cfg) {
         AudioNode n = create(cfg);
         play(n);
@@ -355,6 +504,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void loadBank(Value bankObj) {
         if (bankObj == null || bankObj.isNull()) {
             IllegalArgumentException e = new IllegalArgumentException("sound.loadBank(bankObj): bankObj is required");
@@ -370,6 +525,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void clearBank() {
         try {
             service.clearBank();
@@ -380,6 +541,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public String[] listEvents() {
         try {
             return service.listEvents();
@@ -390,6 +557,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode createEvent(String eventKey, Value overrides) {
         try {
             AudioNode node = service.createEvent(eventKey, overrides);
@@ -402,6 +575,12 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public AudioNode playEvent(String eventKey, Value overrides) {
         try {
             AudioNode n = createEvent(eventKey, overrides);

@@ -2,6 +2,7 @@
 // Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import com.jme3.effect.ParticleEmitter;
@@ -10,6 +11,10 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.ParticlesApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
@@ -77,6 +82,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public ParticleHandle create(Value cfg) {
         return profiled(() -> onJmeSync("particles.create", () -> {
             requireAttached();
@@ -99,6 +110,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void destroy(ParticleHandle h) {
         profiledVoid(() -> onJmeSyncVoid("particles.destroy", () -> {
             final ParticleEmitter em = get(h);
@@ -115,6 +132,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setEnabled(ParticleHandle h, boolean enabled) {
         profiledVoid(() -> onJmeSyncVoid("particles.setEnabled", () -> {
             final ParticleEmitter em = get(h);
@@ -124,6 +147,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void play(ParticleHandle h) {
         profiledVoid(() -> onJmeSyncVoid("particles.play", () -> {
             final ParticleEmitter em = get(h);
@@ -135,6 +164,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void stop(ParticleHandle h) {
         profiledVoid(() -> onJmeSyncVoid("particles.stop", () -> {
             final ParticleEmitter em = get(h);
@@ -144,6 +179,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void configure(ParticleHandle h, Value cfg) {
         profiledVoid(() -> onJmeSyncVoid("particles.configure", () -> {
             final ParticleEmitter em = get(h);
@@ -154,6 +195,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setPosition(ParticleHandle h, Value v3) {
         profiledVoid(() -> onJmeSyncVoid("particles.setPosition", () -> {
             final ParticleEmitter em = get(h);
@@ -165,6 +212,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setRotation(ParticleHandle h, Value q) {
         profiledVoid(() -> onJmeSyncVoid("particles.setRotation", () -> {
             final ParticleEmitter em = get(h);
@@ -176,6 +229,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void setScale(ParticleHandle h, double s) {
         profiledVoid(() -> onJmeSyncVoid("particles.setScale", () -> {
             final ParticleEmitter em = get(h);
@@ -185,6 +244,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void emitAll(ParticleHandle h) {
         profiledVoid(() -> onJmeSyncVoid("particles.emitAll", () -> {
             final ParticleEmitter em = get(h);
@@ -197,6 +262,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
      * Useful for pooling to avoid "ghost" particles between reuses.
      */
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void clear(ParticleHandle h) {
         profiledVoid(() -> onJmeSyncVoid("particles.clear", () -> {
             final ParticleEmitter em = get(h);
@@ -205,6 +276,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
     }
 
     @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void emit(ParticleHandle h, int count) {
         profiledVoid(() -> onJmeSyncVoid("particles.emit", () -> {
             final ParticleEmitter em = get(h);
@@ -216,6 +293,12 @@ public final class ParticlesApiImpl extends AbstractApiModule implements Particl
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public int alive() {
         return profiled(byId::size);
     }

@@ -1,12 +1,17 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.api.impl;
 
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.MaterialApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
@@ -122,6 +127,12 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public MaterialHandle create(Value cfg) {
         return profiled(() -> {
             if (cfg == null || cfg.isNull()) {
@@ -184,6 +195,12 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
 
     @HostAccess.Export
     @Override
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
     public void set(MaterialHandle handle, Value params) {
         profiledVoid(() -> {
             if (handle == null || handle.__material() == null) {
@@ -218,6 +235,12 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
         }
 
         @HostAccess.Export
+        @ApiMethod(
+                thread = ApiThreadRule.ANY,
+                sync = false,
+                flags = {ApiFlag.SANDBOX_ALLOWED},
+                cost = ApiCostHint.NORMAL
+        )
         public int id() {
             return id;
         }
