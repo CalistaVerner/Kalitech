@@ -62,7 +62,48 @@ public final class WorldBuilder {
             if (Double.isFinite(v) && v > 0.0) maxDelta = v;
         }
 
-        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
+        Double dayLength = null;
+        Value dayLen = member(t, "dayLengthSec");
+        if (dayLen != null && !dayLen.isNull()) {
+            double v = dayLen.fitsInDouble() ? dayLen.asDouble() : num(t, "dayLengthSec", 0.0);
+            if (Double.isFinite(v) && v > 0.0) dayLength = v;
+        } else {
+            Value dayLenShort = member(t, "dayLength");
+            if (dayLenShort != null && !dayLenShort.isNull()) {
+                double v = dayLenShort.fitsInDouble() ? dayLenShort.asDouble() : num(t, "dayLength", 0.0);
+                if (Double.isFinite(v) && v > 0.0) dayLength = v;
+            }
+        }
+
+        Double dayOffset = null;
+        Value dayOff = member(t, "dayOffsetSec");
+        if (dayOff != null && !dayOff.isNull()) {
+            double v = dayOff.fitsInDouble() ? dayOff.asDouble() : num(t, "dayOffsetSec", 0.0);
+            if (Double.isFinite(v)) dayOffset = v;
+        } else {
+            Value dayOffShort = member(t, "dayOffset");
+            if (dayOffShort != null && !dayOffShort.isNull()) {
+                double v = dayOffShort.fitsInDouble() ? dayOffShort.asDouble() : num(t, "dayOffset", 0.0);
+                if (Double.isFinite(v)) dayOffset = v;
+            }
+        }
+
+        Double timeOfDay = null;
+        Value tod = member(t, "timeOfDay");
+        if (tod != null && !tod.isNull()) {
+            double v = tod.fitsInDouble() ? tod.asDouble() : num(t, "timeOfDay", 0.0);
+            if (Double.isFinite(v)) timeOfDay = v;
+        } else {
+            Value todAlt = member(t, "timeOfDayHours");
+            if (todAlt != null && !todAlt.isNull()) {
+                double v = todAlt.fitsInDouble() ? todAlt.asDouble() : num(t, "timeOfDayHours", 0.0);
+                if (Double.isFinite(v)) timeOfDay = v;
+            }
+        }
+
+        double dayOffsetResolved = WorldTimeParams.resolveDayOffsetSec(worldTime, dayLength, dayOffset, timeOfDay);
+
+        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta, dayLength, dayOffsetResolved);
     }
 
     public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {
