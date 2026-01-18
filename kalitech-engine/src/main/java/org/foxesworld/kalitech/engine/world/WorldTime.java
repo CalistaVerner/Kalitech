@@ -1,18 +1,22 @@
 // FILE: org/foxesworld/kalitech/engine/world/WorldTime.java
-// Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world;
 
 /**
- * Mutable world time state.
- * Owned by the world and exposed to scripts through {@code SystemContext.time}.
+ * Mutable world time state in game seconds.
+ * Supports calendar view (24h day) and simulation telemetry.
  */
 public final class WorldTime {
 
-    private final Double fixedStepSec;
-    private final Double maxDeltaSec;
     private double worldTimeSec;
     private double timeRate;
     private boolean paused;
+
+    private final Double fixedStepSec;
+    private final Double maxDeltaSec;
+
+    private final double daySeconds;
+    private final Double dayLengthSec;
+
     private double accumulatorSec;
 
     private long frameIndex;
@@ -22,16 +26,19 @@ public final class WorldTime {
     private double lastSimDtSec;
     private double lastStepDtSec;
 
-    private double lastWorldTimeBefore;
-    private double lastWorldTimeAfter;
-
     public WorldTime(WorldTimeParams params) {
         WorldTimeParams p = (params != null) ? params : WorldTimeParams.defaults();
-        this.worldTimeSec = p.worldTime;
+
+        this.worldTimeSec = p.worldTimeSec;
         this.timeRate = p.timeRate;
         this.paused = p.paused;
-        this.fixedStepSec = p.fixedStep;
-        this.maxDeltaSec = p.maxDelta;
+
+        this.fixedStepSec = p.fixedStepSec;
+        this.maxDeltaSec = p.maxDeltaSec;
+
+        this.daySeconds = p.daySeconds;
+        this.dayLengthSec = p.dayLengthSec;
+
         this.accumulatorSec = 0.0;
 
         this.frameIndex = 0L;
@@ -40,39 +47,44 @@ public final class WorldTime {
         this.lastRealDtSec = 0.0;
         this.lastSimDtSec = 0.0;
         this.lastStepDtSec = 0.0;
-
-        this.lastWorldTimeBefore = this.worldTimeSec;
-        this.lastWorldTimeAfter = this.worldTimeSec;
     }
 
-    private static double sanitizeNonNegativeFinite(double v) {
-        if (!Double.isFinite(v) || v < 0.0) return 0.0;
-        return v;
+    // ---------------------------------------------------------------------
+    // Base getters
+    // ---------------------------------------------------------------------
+
+    private static double sanitizeNonNegFinite(double v) {
+        if (!Double.isFinite(v)) return 0.0;
+        return Math.max(v, 0.0);
     }
 
-    public double worldTimeSec() {
+    public double getWorldTimeSec() {
         return worldTimeSec;
     }
 
-    public double timeRate() {
-        return timeRate;
-    }
-
-    public boolean paused() {
-        return paused;
+    public void setWorldTimeSec(double worldTimeSec) {
+        this.worldTimeSec = worldTimeSec;
     }
 
     public Double fixedStepSec() {
         return fixedStepSec;
     }
 
-    public Double maxDeltaSec() {
-        return maxDeltaSec;
+    public double getTimeRate() {
+        return timeRate;
     }
 
-    public double accumulatorSec() {
-        return accumulatorSec;
+    public void setTimeRate(double timeRate) {
+        this.timeRate = timeRate;
     }
+
+    public boolean isPaused() {
+        return paused;
+    }
+
+    // ---------------------------------------------------------------------
+    // Telemetry (required by your exported accessors)
+    // ---------------------------------------------------------------------
 
     public long frameIndex() {
         return frameIndex;
@@ -94,130 +106,161 @@ public final class WorldTime {
         return lastStepDtSec;
     }
 
-    public double lastWorldTimeBefore() {
-        return lastWorldTimeBefore;
-    }
-
-    public double lastWorldTimeAfter() {
-        return lastWorldTimeAfter;
-    }
-
-    public void seek(double newWorldTimeSec) {
-        if (!Double.isFinite(newWorldTimeSec)) return;
-        this.worldTimeSec = newWorldTimeSec;
-        this.accumulatorSec = 0.0;
-        this.lastWorldTimeBefore = newWorldTimeSec;
-        this.lastWorldTimeAfter = newWorldTimeSec;
-    }
-
-    public void advanceWorldTime(double dtSec) {
-        if (dtSec <= 0.0 || !Double.isFinite(dtSec)) return;
-        this.worldTimeSec += dtSec;
-    }
-
-    public void addAccumulator(double dtSec) {
-        if (dtSec <= 0.0 || !Double.isFinite(dtSec)) return;
-        this.accumulatorSec += dtSec;
-        if (this.accumulatorSec < 0.0) this.accumulatorSec = 0.0;
-    }
-
-    public void consumeAccumulator(double dtSec) {
-        if (dtSec <= 0.0 || !Double.isFinite(dtSec)) return;
-        this.accumulatorSec -= dtSec;
-        if (this.accumulatorSec < 0.0) this.accumulatorSec = 0.0;
-    }
-
-    /**
-     * Called by the world exactly once per rendered frame.
-     */
-    void beginFrame(double realDtSec, double simDtSec) {
-        frameIndex++;
-
-        this.lastRealDtSec = sanitizeNonNegativeFinite(realDtSec);
-        this.lastSimDtSec = sanitizeNonNegativeFinite(simDtSec);
-        this.lastStepDtSec = 0.0;
-
-        this.lastWorldTimeBefore = this.worldTimeSec;
-        this.lastWorldTimeAfter = this.worldTimeSec;
-    }
-
-    /**
-     * Called by the world for each simulation step (variable or fixed).
-     */
-    void beginStep(double stepDtSec) {
-        tickIndex++;
-        this.lastStepDtSec = sanitizeNonNegativeFinite(stepDtSec);
-        this.lastWorldTimeBefore = this.worldTimeSec;
-        this.lastWorldTimeAfter = this.worldTimeSec;
-    }
-
-    /**
-     * Called by the world after step completion.
-     */
-    void endStep() {
-        this.lastWorldTimeAfter = this.worldTimeSec;
-    }
-
-    public double getWorldTimeSec() {
-        return worldTimeSec;
-    }
-
-    public double getTimeRate() {
-        return timeRate;
-    }
-
-    public void setTimeRate(double rate) {
-        if (!Double.isFinite(rate)) return;
-        if (rate < 0.0) rate = 0.0;
-        if (rate > 1_000.0) rate = 1_000.0;
-        this.timeRate = rate;
-    }
-
-    public boolean isPaused() {
-        return paused;
-    }
-
     public void setPaused(boolean paused) {
         this.paused = paused;
-    }
-
-    public Double getFixedStepSec() {
-        return fixedStepSec;
     }
 
     public Double getMaxDeltaSec() {
         return maxDeltaSec;
     }
 
-    public double getAccumulatorSec() {
+    public double daySeconds() {
+        return daySeconds;
+    }
+
+    // ---------------------------------------------------------------------
+    // Calendar view (24h day)
+    // ---------------------------------------------------------------------
+
+    public Double dayLengthSec() {
+        return dayLengthSec;
+    }
+
+    /**
+     * Call once per rendered frame.
+     */
+    public void markFrame(double realDtSec, double simDtSec, double stepDtSec) {
+        this.frameIndex++;
+        this.lastRealDtSec = sanitizeNonNegFinite(realDtSec);
+        this.lastSimDtSec = sanitizeNonNegFinite(simDtSec);
+        this.lastStepDtSec = sanitizeNonNegFinite(stepDtSec);
+    }
+
+    public void seek(double newWorldTimeSec) {
+        if (!Double.isFinite(newWorldTimeSec)) return;
+        this.worldTimeSec = newWorldTimeSec;
+        this.accumulatorSec = 0.0;
+        //this.lastWorldTimeBefore = newWorldTimeSec;
+        //this.lastWorldTimeAfter = newWorldTimeSec;
+    }
+
+    /**
+     * Call once per simulation tick (especially when fixedStep is used).
+     */
+    public void markTick() {
+        this.tickIndex++;
+    }
+
+    public int dayIndex() {
+        if (daySeconds <= 0.0) return 0;
+        double d = Math.floor(worldTimeSec / daySeconds);
+        if (!Double.isFinite(d)) return 0;
+        if (d > (double) Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        if (d < (double) Integer.MIN_VALUE) return Integer.MIN_VALUE;
+        return (int) d;
+    }
+
+    public double timeOfDaySec() {
+        if (daySeconds <= 0.0) return 0.0;
+        double r = worldTimeSec % daySeconds;
+        if (r < 0.0) r += daySeconds;
+        return Double.isFinite(r) ? r : 0.0;
+    }
+
+    // ---------------------------------------------------------------------
+    // Simulation helpers
+    // ---------------------------------------------------------------------
+
+    public double timeOfDay01() {
+        if (daySeconds <= 0.0) return 0.0;
+        return timeOfDaySec() / daySeconds;
+    }
+
+    public int hour() {
+        double t = timeOfDaySec();
+        int h = (int) Math.floor(t / 3600.0);
+        if (h < 0) return 0;
+        if (h > 23) return 23;
+        return h;
+    }
+
+    public int minute() {
+        double t = timeOfDaySec();
+        int m = (int) Math.floor((t % 3600.0) / 60.0);
+        if (m < 0) return 0;
+        if (m > 59) return 59;
+        return m;
+    }
+
+    public int second() {
+        double t = timeOfDaySec();
+        int s = (int) Math.floor(t % 60.0);
+        if (s < 0) return 0;
+        if (s > 59) return 59;
+        return s;
+    }
+
+    public double accumulatorSec() {
         return accumulatorSec;
     }
 
-    public long getFrameIndex() {
-        return frameIndex;
+    public void addAccumulator(double dtSec) {
+        if (dtSec <= 0.0 || !Double.isFinite(dtSec)) return;
+        accumulatorSec += dtSec;
+        if (accumulatorSec < 0.0) accumulatorSec = 0.0;
     }
 
-    public long getTickIndex() {
-        return tickIndex;
+    public void consumeAccumulator(double dtSec) {
+        if (dtSec <= 0.0 || !Double.isFinite(dtSec)) return;
+        accumulatorSec -= dtSec;
+        if (accumulatorSec < 0.0) accumulatorSec = 0.0;
     }
 
-    public double getLastRealDtSec() {
-        return lastRealDtSec;
+    public void advanceWorldTime(double dtGameSec) {
+        if (dtGameSec <= 0.0 || !Double.isFinite(dtGameSec)) return;
+        worldTimeSec += dtGameSec;
     }
 
-    public double getLastSimDtSec() {
-        return lastSimDtSec;
+    public double clampRealDt(double realDtSec) {
+        double dt = sanitizeNonNegFinite(realDtSec);
+        if (dt <= 0.0) return 0.0;
+
+        if (maxDeltaSec != null) {
+            double md = maxDeltaSec;
+            if (Double.isFinite(md) && md > 0.0 && dt > md) dt = md;
+        }
+        return dt;
     }
 
-    public double getLastStepDtSec() {
-        return lastStepDtSec;
+    public double computeSimDt(double realDtSec) {
+        double dt = sanitizeNonNegFinite(realDtSec);
+        if (dt <= 0.0) return 0.0;
+        if (paused) return 0.0;
+        double s = dt * timeRate;
+        return Double.isFinite(s) ? s : 0.0;
     }
 
-    public double getLastWorldTimeBefore() {
-        return lastWorldTimeBefore;
+    public void setAccumulatorSec(double accumulatorSec) {
+        this.accumulatorSec = accumulatorSec;
     }
 
-    public double getLastWorldTimeAfter() {
-        return lastWorldTimeAfter;
+    public void setFrameIndex(long frameIndex) {
+        this.frameIndex = frameIndex;
+    }
+
+    public void setTickIndex(long tickIndex) {
+        this.tickIndex = tickIndex;
+    }
+
+    public void setLastRealDtSec(double lastRealDtSec) {
+        this.lastRealDtSec = lastRealDtSec;
+    }
+
+    public void setLastSimDtSec(double lastSimDtSec) {
+        this.lastSimDtSec = lastSimDtSec;
+    }
+
+    public void setLastStepDtSec(double lastStepDtSec) {
+        this.lastStepDtSec = lastStepDtSec;
     }
 }

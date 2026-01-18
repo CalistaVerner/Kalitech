@@ -303,17 +303,17 @@ public final class SystemContext {
 
         @HostAccess.Export
         public double now() {
-            return (time != null) ? time.worldTimeSec() : 0.0;
+            return (time != null) ? time.getWorldTimeSec() : 0.0;
         }
 
         @HostAccess.Export
         public double rate() {
-            return (time != null) ? time.timeRate() : 1.0;
+            return (time != null) ? time.getTimeRate() : 1.0;
         }
 
         @HostAccess.Export
         public boolean paused() {
-            return time != null && time.paused();
+            return time != null && time.isPaused();
         }
 
         @HostAccess.Export
@@ -323,7 +323,7 @@ public final class SystemContext {
 
         @HostAccess.Export
         public Double maxDeltaSec() {
-            return (time != null) ? time.maxDeltaSec() : null;
+            return (time != null) ? time.getMaxDeltaSec() : null;
         }
 
         @HostAccess.Export
@@ -331,10 +331,12 @@ public final class SystemContext {
             return (time != null) ? time.accumulatorSec() : 0.0;
         }
 
+
         @HostAccess.Export
         public long frameIndex() {
             return (time != null) ? time.frameIndex() : 0L;
         }
+
 
         @HostAccess.Export
         public long tickIndex() {

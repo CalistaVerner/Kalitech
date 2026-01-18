@@ -62,7 +62,17 @@ public final class WorldBuilder {
             if (Double.isFinite(v) && v > 0.0) maxDelta = v;
         }
 
-        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
+        return new WorldTimeParams(
+                worldTime,
+                timeRate,
+                paused,
+                fixedStep,
+                maxDelta,
+                member(t, "daySEconds").asDouble(),
+                member(t, "dayLength").asDouble(),
+                member(t, "dayIndex").asInt(),
+                member(t, "timeOfDaySec").asDouble()
+        );
     }
 
     public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {

@@ -63,6 +63,7 @@ class PlayerUI {
         this.panel.stack("debug.camYaw", "CAM(yaw): --", {fontSize: this.fontLine, color: "#FFFFFF"});
         this.panel.stack("debug.camPitch", "CAM(pitch): --", {fontSize: this.fontLine, color: "#FFFFFF"});
         this.panel.stack("debug.worldTime", "WorldTime: --", {fontSize: this.fontLine, color: "#FFFFFF"});
+        this.panel.stack("debug.timeRate", "timeRate: --", {fontSize: this.fontLine, color: "#FFFFFF"});
 
         if (typeof layer.relayout === "function") layer.relayout();
         this.refresh();
@@ -81,7 +82,7 @@ class PlayerUI {
         const camPitch = f.view.pitch;
         const worldTime = WORLD.getWorldTime();
 
-
+        console.log(JSON.stringify(worldTime))
         const eng = this.player.d.engine;
         const fps = (eng && typeof eng.fps === "function") ? (+eng.fps() || 0) : 0;
 
@@ -91,6 +92,7 @@ class PlayerUI {
         layer.setText("debug.camYaw", "CAM(yaw): " + camYaw);
         layer.setText("debug.camPitch", "CAM(pitch): " + camPitch);
         layer.setText("debug.worldTime", "WorldTime: " + worldTime.worldTime);
+        layer.setText("debug.timeRate", "WorldTime: " + worldTime.timeRate);
     }
 
     destroy() {

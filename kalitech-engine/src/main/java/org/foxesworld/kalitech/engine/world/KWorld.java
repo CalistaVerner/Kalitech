@@ -105,36 +105,36 @@ public final class KWorld {
 
         final double realDt = (double) realTpf;
         if (!Double.isFinite(realDt) || realDt <= 0.0) {
-            time.beginFrame(0.0, 0.0);
+            //time.beginFrame(0.0, 0.0);
             awaitWorkers(ctx, 0L);
             pumpEvents(ctx);
             return;
         }
 
-        if (time.paused()) {
-            time.beginFrame(realDt, 0.0);
+        if (time.isPaused()) {
+            //time.beginFrame(realDt, 0.0);
             awaitWorkers(ctx, 0L);
             pumpEvents(ctx);
             return;
         }
 
-        double dt = realDt * time.timeRate();
+        double dt = realDt * time.getTimeRate();
 
-        Double maxDelta = time.maxDeltaSec();
+        Double maxDelta = time.getMaxDeltaSec();
         if (maxDelta != null && maxDelta.doubleValue() > 0.0) {
             dt = Math.min(dt, maxDelta.doubleValue());
         }
 
         Double fixedStep = time.fixedStepSec();
         if (fixedStep != null && fixedStep.doubleValue() > 0.0) {
-            time.beginFrame(realDt, dt);
+            //time.beginFrame(realDt, dt);
             runFixedStep(ctx, dt, fixedStep.doubleValue());
         } else {
-            time.beginFrame(realDt, dt);
-            time.beginStep(dt);
+            //time.beginFrame(realDt, dt);
+            //time.beginStep(dt);
             time.advanceWorldTime(dt);
             updateSystems(ctx, (float) dt);
-            time.endStep();
+            //time.endStep();
         }
 
         awaitWorkers(ctx, 0L);
@@ -145,7 +145,7 @@ public final class KWorld {
         time.addAccumulator(dt);
 
         int maxSteps = 8;
-        Double maxDelta = time.maxDeltaSec();
+        Double maxDelta = time.getMaxDeltaSec();
         if (maxDelta != null && maxDelta.doubleValue() > 0.0 && step > 0.0) {
             maxSteps = Math.max(1, (int) Math.ceil(maxDelta.doubleValue() / step));
             maxSteps = Math.min(maxSteps, 64);
@@ -154,10 +154,10 @@ public final class KWorld {
         int steps = 0;
         while (time.accumulatorSec() >= step && steps < maxSteps) {
             time.consumeAccumulator(step);
-            time.beginStep(step);
+            //time.beginStep(step);
             time.advanceWorldTime(step);
             updateSystems(ctx, (float) step);
-            time.endStep();
+            //time.endStep();
             steps++;
         }
     }

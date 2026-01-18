@@ -155,20 +155,70 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (t == null || t.isNull()) return WorldTimeParams.defaults();
         if (!t.hasMembers()) throw new IllegalArgumentException("world.create: desc.time must be an object");
 
+        // Base (legacy-compatible)
         final double worldTime = readDouble(t, "worldTime", 0.0, "world time.");
         final double timeRate = readDouble(t, "timeRate", 1.0, "world time.");
         final boolean paused = readBool(t, "paused", false, "world time.");
 
-        final Double fixedStep = t.hasMember("fixedStep") && !t.getMember("fixedStep").isNull()
+        final Double fixedStep = (t.hasMember("fixedStep") && !t.getMember("fixedStep").isNull())
                 ? readOptionalPositiveDouble(t, "fixedStep", "world time.")
                 : null;
 
-        final Double maxDelta = t.hasMember("maxDelta") && !t.getMember("maxDelta").isNull()
+        final Double maxDelta = (t.hasMember("maxDelta") && !t.getMember("maxDelta").isNull())
                 ? readOptionalPositiveDouble(t, "maxDelta", "world time.")
                 : null;
 
-        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
+        // Calendar model (Variant A defaults)
+        final double daySeconds = readDouble(t, "daySeconds", 86400.0, "world time.");
+        final Double dayLength = (t.hasMember("dayLength") && !t.getMember("dayLength").isNull())
+                ? readOptionalPositiveDouble(t, "dayLength", "world time.")
+                : null;
+
+        // Optional start (day + timeOfDay)
+        final Integer day = (t.hasMember("day") && !t.getMember("day").isNull())
+                ? readOptionalNonNegativeInt(t, "day", "world time.")
+                : null;
+
+        final Double timeOfDay = (t.hasMember("timeOfDay") && !t.getMember("timeOfDay").isNull())
+                ? readOptionalFiniteDouble(t, "timeOfDay", "world time.")
+                : null;
+
+        return new WorldTimeParams(
+                worldTime,
+                timeRate,
+                paused,
+                fixedStep,
+                maxDelta,
+                daySeconds,
+                dayLength,
+                day,
+                timeOfDay
+        );
     }
+
+    private static Integer readOptionalNonNegativeInt(Value obj, String key, String errPrefix) {
+        final Value v = obj.getMember(key);
+        if (v == null || v.isNull()) return null;
+        if (!v.isNumber() || !v.fitsInInt()) {
+            throw new IllegalArgumentException(errPrefix + key + " must be an int");
+        }
+        final int x = v.asInt();
+        return (x < 0) ? null : x;
+    }
+
+    private static Double readOptionalFiniteDouble(Value obj, String key, String errPrefix) {
+        final Value v = obj.getMember(key);
+        if (v == null || v.isNull()) return null;
+        if (!v.isNumber()) {
+            throw new IllegalArgumentException(errPrefix + key + " must be a number");
+        }
+        final double x = v.asDouble();
+        if (!Double.isFinite(x)) {
+            throw new IllegalArgumentException(errPrefix + key + " must be finite");
+        }
+        return x;
+    }
+
 
     private static Double readOptionalPositiveDouble(Value obj, String key, String errPrefix) {
         final double v = readDouble(obj, key, 0.0, errPrefix);
@@ -196,7 +246,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Object getWorldTime() {
+    public Map<String, Object> getWorldTime() {
         final WorldAppState wa = getWorldAppStateOrNull();
         if (wa == null) return null;
 
@@ -207,18 +257,52 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (t == null) return null;
 
         final Map<String, Object> out = new LinkedHashMap<>();
-        out.put("worldTime", t.getWorldTimeSec());
-        out.put("timeRate", t.getTimeRate());
-        out.put("paused", t.isPaused());
 
-        if (t.fixedStepSec() != null) {
-            out.put("fixedStep", t.fixedStepSec());
-        }
-        if (t.getMaxDeltaSec() != null) {
-            out.put("maxDelta", t.getMaxDeltaSec());
+        // Base
+        final double worldTimeSec = t.getWorldTimeSec();
+        final double timeRate = t.getTimeRate();
+        final boolean paused = t.isPaused();
+
+        out.put("worldTime", worldTimeSec);
+        out.put("timeRate", timeRate);
+        out.put("paused", paused);
+
+        // Controls (optional)
+        final Double fixedStep = t.fixedStepSec();
+        if (fixedStep != null && Double.isFinite(fixedStep) && fixedStep > 0.0) {
+            out.put("fixedStep", fixedStep);
         }
 
-        return ProxyObject.fromMap(out);
+        final Double maxDelta = t.getMaxDeltaSec();
+        if (maxDelta != null && Double.isFinite(maxDelta) && maxDelta > 0.0) {
+            out.put("maxDelta", maxDelta);
+        }
+
+        // Calendar model (Variant A): 24h days, dayLength controls speed
+        final double daySeconds = t.daySeconds();
+        out.put("daySeconds", daySeconds);
+
+        // If your WorldTime stores dayLength - expose it; otherwise omit.
+        // (Assumes you added dayLength to WorldTime; if not available, remove this block.)
+        final double dayLength = t.daySeconds();
+        if (Double.isFinite(dayLength) && dayLength > 0.0) {
+            out.put("dayLength", dayLength);
+        }
+
+        // Derived calendar view
+        final int day = t.dayIndex();
+        final double timeOfDay = t.timeOfDaySec();
+        final double tod01 = (daySeconds > 0.0) ? (timeOfDay / daySeconds) : 0.0;
+
+        out.put("day", day);
+        out.put("timeOfDay", timeOfDay);
+        out.put("tod01", tod01);
+
+        out.put("hour", t.hour());
+        out.put("minute", t.minute());
+        out.put("second", t.second());
+
+        return out;
     }
 
     @HostAccess.Export

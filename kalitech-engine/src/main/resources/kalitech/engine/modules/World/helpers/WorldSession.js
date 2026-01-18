@@ -10,6 +10,12 @@ function normalizeTimeDesc(time) {
 
     if (time.worldTime != null) out.worldTime = +time.worldTime;
     if (time.timeRate != null) out.timeRate = +time.timeRate;
+
+    if (time.daySeconds != null) out.daySeconds = +time.daySeconds;
+    if (time.dayLength != null) out.dayLength = +time.dayLength;
+    if (time.day != null) out.day = (time.day | 0);
+    if (time.timeOfDay != null) out.timeOfDay = +time.timeOfDay;
+
     if (time.paused != null) out.paused = !!time.paused;
     if (time.fixedStep != null) out.fixedStep = +time.fixedStep;
     if (time.maxDelta != null) out.maxDelta = +time.maxDelta;
