@@ -375,6 +375,16 @@ public final class EngineApiImpl implements EngineApi {
         }
     }
 
+    public void __syncWorldTime(org.foxesworld.kalitech.engine.world.WorldTime worldTime) {
+        if (renderApi instanceof RenderApiImpl impl) {
+            try {
+                impl.__syncWorldTime(worldTime);
+            } catch (Throwable t) {
+                LOG.warn("__syncWorldTime: render sync failed", t);
+            }
+        }
+    }
+
     /**
      * UUID-only surface cleanup hook.
      * Call this from ECS when an entity is destroyed.

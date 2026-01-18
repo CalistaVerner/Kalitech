@@ -282,10 +282,8 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         final double daySeconds = t.daySeconds();
         out.put("daySeconds", daySeconds);
 
-        // If your WorldTime stores dayLength - expose it; otherwise omit.
-        // (Assumes you added dayLength to WorldTime; if not available, remove this block.)
-        final double dayLength = t.daySeconds();
-        if (Double.isFinite(dayLength) && dayLength > 0.0) {
+        final Double dayLength = t.effectiveDayLengthSec();
+        if (dayLength != null && Double.isFinite(dayLength) && dayLength > 0.0) {
             out.put("dayLength", dayLength);
         }
 

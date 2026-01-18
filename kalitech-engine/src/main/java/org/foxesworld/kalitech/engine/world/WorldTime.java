@@ -58,11 +58,19 @@ public final class WorldTime {
         return Math.max(v, 0.0);
     }
 
+    private static double sanitizeRate(double v) {
+        if (!Double.isFinite(v)) return 1.0;
+        if (v < 0.0) return 0.0;
+        if (v > 1_000.0) return 1_000.0;
+        return v;
+    }
+
     public double getWorldTimeSec() {
         return worldTimeSec;
     }
 
     public void setWorldTimeSec(double worldTimeSec) {
+        if (!Double.isFinite(worldTimeSec)) return;
         this.worldTimeSec = worldTimeSec;
     }
 
@@ -75,7 +83,7 @@ public final class WorldTime {
     }
 
     public void setTimeRate(double timeRate) {
-        this.timeRate = timeRate;
+        this.timeRate = sanitizeRate(timeRate);
     }
 
     public boolean isPaused() {
@@ -124,6 +132,18 @@ public final class WorldTime {
 
     public Double dayLengthSec() {
         return dayLengthSec;
+    }
+
+    public Double effectiveDayLengthSec() {
+        if (daySeconds <= 0.0) return null;
+        if (Double.isFinite(timeRate) && timeRate > 0.0) {
+            double length = daySeconds / timeRate;
+            if (Double.isFinite(length) && length > 0.0) return length;
+        }
+        if (dayLengthSec != null && Double.isFinite(dayLengthSec) && dayLengthSec > 0.0) {
+            return dayLengthSec;
+        }
+        return null;
     }
 
     /**

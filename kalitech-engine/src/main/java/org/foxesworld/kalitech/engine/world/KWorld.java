@@ -103,46 +103,30 @@ public final class KWorld {
         if (!started) return;
         Objects.requireNonNull(ctx, "ctx");
 
-        final double realDt = (double) realTpf;
-        if (!Double.isFinite(realDt) || realDt <= 0.0) {
-            //time.beginFrame(0.0, 0.0);
-            awaitWorkers(ctx, 0L);
-            pumpEvents(ctx);
-            return;
-        }
-
-        if (time.isPaused()) {
-            //time.beginFrame(realDt, 0.0);
-            awaitWorkers(ctx, 0L);
-            pumpEvents(ctx);
-            return;
-        }
-
-        double dt = realDt * time.getTimeRate();
-
-        Double maxDelta = time.getMaxDeltaSec();
-        if (maxDelta != null && maxDelta.doubleValue() > 0.0) {
-            dt = Math.min(dt, maxDelta.doubleValue());
-        }
+        final double realDtRaw = (double) realTpf;
+        final double realDt = time.clampRealDt(realDtRaw);
+        final double simDt = time.computeSimDt(realDt);
 
         Double fixedStep = time.fixedStepSec();
         if (fixedStep != null && fixedStep.doubleValue() > 0.0) {
-            //time.beginFrame(realDt, dt);
-            runFixedStep(ctx, dt, fixedStep.doubleValue());
+            runFixedStep(ctx, simDt, fixedStep.doubleValue(), realDt);
         } else {
-            //time.beginFrame(realDt, dt);
-            //time.beginStep(dt);
-            time.advanceWorldTime(dt);
-            updateSystems(ctx, (float) dt);
-            //time.endStep();
+            if (simDt > 0.0) {
+                time.advanceWorldTime(simDt);
+                updateSystems(ctx, (float) simDt);
+                time.markTick();
+            }
+            time.markFrame(realDt, simDt, simDt);
         }
 
         awaitWorkers(ctx, 0L);
         pumpEvents(ctx);
     }
 
-    private void runFixedStep(SystemContext ctx, double dt, double step) {
-        time.addAccumulator(dt);
+    private void runFixedStep(SystemContext ctx, double simDt, double step, double realDt) {
+        if (simDt > 0.0) {
+            time.addAccumulator(simDt);
+        }
 
         int maxSteps = 8;
         Double maxDelta = time.getMaxDeltaSec();
@@ -152,14 +136,17 @@ public final class KWorld {
         }
 
         int steps = 0;
+        double stepUsed = 0.0;
         while (time.accumulatorSec() >= step && steps < maxSteps) {
             time.consumeAccumulator(step);
-            //time.beginStep(step);
             time.advanceWorldTime(step);
             updateSystems(ctx, (float) step);
-            //time.endStep();
+            time.markTick();
+            stepUsed = step;
             steps++;
         }
+
+        time.markFrame(realDt, simDt, stepUsed);
     }
 
     private void awaitWorkers(SystemContext ctx, long budgetNanos) {

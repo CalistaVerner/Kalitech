@@ -22,9 +22,11 @@ import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
 import org.foxesworld.kalitech.engine.modules.render.RenderThread;
 import org.foxesworld.kalitech.engine.modules.render.ViewportContract;
 import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule;
+import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule.LightingSnapshot;
 import org.foxesworld.kalitech.engine.modules.render.post.PostModule;
 import org.foxesworld.kalitech.engine.modules.render.shadow.Shadow;
 import org.foxesworld.kalitech.engine.modules.render.sky.SkyModule;
+import org.foxesworld.kalitech.engine.world.WorldTime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -206,6 +208,39 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             Shadow s = shadows;
             s.fullReloadNow();
         });
+    }
+
+    public void __syncWorldTime(WorldTime worldTime) {
+        if (!sceneReady) return;
+        if (worldTime == null) return;
+
+        final double daySeconds = worldTime.daySeconds();
+        if (!Double.isFinite(daySeconds) || daySeconds <= 0.0) return;
+
+        final double timeOfDaySec = worldTime.timeOfDaySec();
+        LightingSnapshot snapshot = lights.updateDayNightFromTime(timeOfDaySec, daySeconds);
+        if (snapshot == null) return;
+
+        ambR = snapshot.ambR;
+        ambG = snapshot.ambG;
+        ambB = snapshot.ambB;
+        ambI = snapshot.ambIntensity;
+
+        sunDx = snapshot.sunDir.x;
+        sunDy = snapshot.sunDir.y;
+        sunDz = snapshot.sunDir.z;
+        sunR = snapshot.sunR;
+        sunG = snapshot.sunG;
+        sunB = snapshot.sunB;
+        sunI = snapshot.sunIntensity;
+
+        moonDx = snapshot.moonDir.x;
+        moonDy = snapshot.moonDir.y;
+        moonDz = snapshot.moonDir.z;
+        moonR = snapshot.moonR;
+        moonG = snapshot.moonG;
+        moonB = snapshot.moonB;
+        moonI = snapshot.moonIntensity;
     }
 
     // --------------------- ambient ---------------------
