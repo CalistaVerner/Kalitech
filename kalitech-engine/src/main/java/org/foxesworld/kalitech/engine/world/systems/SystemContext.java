@@ -303,17 +303,17 @@ public final class SystemContext {
 
         @HostAccess.Export
         public double now() {
-            return (time != null) ? time.getWorldTimeSec() : 0.0;
+            return (time != null) ? time.worldTimeSec() : 0.0;
         }
 
         @HostAccess.Export
         public double rate() {
-            return (time != null) ? time.getTimeRate() : 1.0;
+            return (time != null) ? time.timeRate() : 1.0;
         }
 
         @HostAccess.Export
         public boolean paused() {
-            return time != null && time.isPaused();
+            return time != null && time.paused();
         }
 
         @HostAccess.Export
@@ -323,7 +323,7 @@ public final class SystemContext {
 
         @HostAccess.Export
         public Double maxDeltaSec() {
-            return (time != null) ? time.getMaxDeltaSec() : null;
+            return (time != null) ? time.maxDeltaSec() : null;
         }
 
         @HostAccess.Export
@@ -332,51 +332,9 @@ public final class SystemContext {
         }
 
         @HostAccess.Export
-        public double daySeconds() {
-            return (time != null) ? time.daySeconds() : 0.0;
-        }
-
-        @HostAccess.Export
-        public Double dayLengthSec() {
-            return (time != null) ? time.effectiveDayLengthSec() : null;
-        }
-
-        @HostAccess.Export
-        public int dayIndex() {
-            return (time != null) ? time.dayIndex() : 0;
-        }
-
-        @HostAccess.Export
-        public double timeOfDaySec() {
-            return (time != null) ? time.timeOfDaySec() : 0.0;
-        }
-
-        @HostAccess.Export
-        public double timeOfDay01() {
-            return (time != null) ? time.timeOfDay01() : 0.0;
-        }
-
-        @HostAccess.Export
-        public int hour() {
-            return (time != null) ? time.hour() : 0;
-        }
-
-        @HostAccess.Export
-        public int minute() {
-            return (time != null) ? time.minute() : 0;
-        }
-
-        @HostAccess.Export
-        public int second() {
-            return (time != null) ? time.second() : 0;
-        }
-
-
-        @HostAccess.Export
         public long frameIndex() {
             return (time != null) ? time.frameIndex() : 0L;
         }
-
 
         @HostAccess.Export
         public long tickIndex() {

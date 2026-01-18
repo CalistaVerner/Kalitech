@@ -7,9 +7,6 @@ const {WorldSession} = require("./WorldSession.js");
 
 const WORLD_SCHEMA_VERSION = 1;
 
-const DEFAULT_DAY_SECONDS = 86400;
-const DEFAULT_DAY_LENGTH = 1800; // Variant A: 1 game day per 30 real minutes
-
 function stableIdFromModule(modulePath) {
     const m = String(modulePath || "").trim();
     if (!m) return null;
@@ -41,19 +38,8 @@ function normalizeTimeDesc(time) {
 
     const out = {};
 
-    // Absolute time (game seconds)
     if (time.worldTime != null) out.worldTime = +time.worldTime;
-
-    // Legacy multiplier (still supported)
     if (time.timeRate != null) out.timeRate = +time.timeRate;
-
-    // Calendar model
-    if (time.daySeconds != null) out.daySeconds = +time.daySeconds;
-    if (time.dayLength != null) out.dayLength = +time.dayLength;
-    if (time.day != null) out.day = (time.day | 0);
-    if (time.timeOfDay != null) out.timeOfDay = +time.timeOfDay;
-
-    // Simulation controls
     if (time.paused != null) out.paused = !!time.paused;
     if (time.fixedStep != null) out.fixedStep = +time.fixedStep;
     if (time.maxDelta != null) out.maxDelta = +time.maxDelta;
@@ -65,15 +51,6 @@ function normalizeMode(mode) {
     const m = (mode == null) ? "game" : String(mode);
     const t = m.trim();
     return t ? t : "game";
-}
-
-function defaultTimeVariantA() {
-    return {
-        daySeconds: DEFAULT_DAY_SECONDS,
-        dayLength: DEFAULT_DAY_LENGTH,
-        paused: false,
-        maxDelta: 0.25
-    };
 }
 
 class WorldApi {
@@ -93,23 +70,15 @@ class WorldApi {
     }
 
     /**
-     * Reads current world time snapshot from engine (expanded JSON object).
+     * Reads current world time snapshot from engine (JSON object).
      * Returns null if world is not running / not available.
      *
-     * Expected (expanded):
+     * Expected fields:
      *  - worldTime: number
      *  - timeRate: number
      *  - paused: boolean
      *  - fixedStep?: number
      *  - maxDelta?: number
-     *  - daySeconds?: number
-     *  - dayLength?: number
-     *  - day?: number
-     *  - timeOfDay?: number
-     *  - tod01?: number
-     *  - hour?: number
-     *  - minute?: number
-     *  - second?: number
      */
     getWorldTime() {
         const w = subsystem(this.engine, "world");
@@ -120,37 +89,26 @@ class WorldApi {
 
         // Ensure JSON-safe plain object (defensive copy, no host objects)
         const out = {};
-
         if (t.worldTime != null) out.worldTime = +t.worldTime;
         if (t.timeRate != null) out.timeRate = +t.timeRate;
         if (t.paused != null) out.paused = !!t.paused;
-
         if (t.fixedStep != null) out.fixedStep = +t.fixedStep;
         if (t.maxDelta != null) out.maxDelta = +t.maxDelta;
-
-        if (t.daySeconds != null) out.daySeconds = +t.daySeconds;
-        if (t.dayLength != null) out.dayLength = +t.dayLength;
-
-        if (t.day != null) out.day = (t.day | 0);
-        if (t.timeOfDay != null) out.timeOfDay = +t.timeOfDay;
-
-        if (t.tod01 != null) out.tod01 = +t.tod01;
-        if (t.hour != null) out.hour = (t.hour | 0);
-        if (t.minute != null) out.minute = (t.minute | 0);
-        if (t.second != null) out.second = (t.second | 0);
 
         return out;
     }
 
     /**
      * Pure env seed factory. No require(), no IO.
-     * Variant A default time model:
-     *   - 24h game day (86400 game seconds)
-     *   - 1 day passes in 30 real minutes (dayLength=1800)
+     * You can pass it into WORLD.$(seed) and continue chaining.
      *
-     * You can override speed with:
-     *  - opts.dayLength (seconds per game day)
-     *  - opts.time.dayLength
+     * Supported:
+     *  - mode: "game" | "editor" | ...
+     *  - name: string
+     *  - start: boolean
+     *  - runtime/profile: string
+     *  - orderStep: int
+     *  - time: {worldTime,timeRate,paused,fixedStep,maxDelta}
      */
     env(opts) {
         opts = (opts && typeof opts === "object") ? opts : {};
@@ -171,17 +129,8 @@ class WorldApi {
             entities: []
         };
 
-        // Default Variant A time, then allow overrides.
-        const baseTime = defaultTimeVariantA();
-
-        // Shortcut: env({ dayLength: 900 }) -> 1 day per 15 minutes
-        if (opts.dayLength != null) baseTime.dayLength = +opts.dayLength;
-        if (opts.daySeconds != null) baseTime.daySeconds = +opts.daySeconds;
-
-        const userTime = normalizeTimeDesc(opts.time);
-        const mergedTime = userTime ? deepMerge(baseTime, userTime) : baseTime;
-
-        if (mergedTime && Object.keys(mergedTime).length) out.time = mergedTime;
+        const time = normalizeTimeDesc(opts.time);
+        if (time && Object.keys(time).length) out.time = time;
 
         return out;
     }
@@ -204,7 +153,7 @@ class WorldApi {
         const finalDesc = deepMerge(deepMerge({}, d), overrides || {});
         finalDesc.systems = sys;
 
-        delete finalDesc.entities;
+        delete finalDesc.entities; // world-only
         return this.create(finalDesc);
     }
 
@@ -333,6 +282,7 @@ class WorldApi {
         return normalized;
     }
 
+    // kept for compatibility (if somebody uses WorldBuilder directly)
     builder(seed) {
         const b = new WorldBuilder(this);
         if (seed != null) b.merge(seed);

@@ -62,40 +62,7 @@ public final class WorldBuilder {
             if (Double.isFinite(v) && v > 0.0) maxDelta = v;
         }
 
-        double daySeconds = num(t, "daySeconds", WorldTimeParams.DEFAULT_DAY_SECONDS);
-
-        Double dayLength = null;
-        Value dl = member(t, "dayLength");
-        if (dl != null && !dl.isNull() && dl.isNumber()) {
-            double v = dl.asDouble();
-            if (Double.isFinite(v) && v > 0.0) dayLength = v;
-        }
-
-        Integer dayIndex = null;
-        Value di = member(t, "day");
-        if (di != null && !di.isNull() && di.isNumber() && di.fitsInInt()) {
-            int v = di.asInt();
-            if (v >= 0) dayIndex = v;
-        }
-
-        Double timeOfDay = null;
-        Value tod = member(t, "timeOfDay");
-        if (tod != null && !tod.isNull() && tod.isNumber()) {
-            double v = tod.asDouble();
-            if (Double.isFinite(v)) timeOfDay = v;
-        }
-
-        return new WorldTimeParams(
-                worldTime,
-                timeRate,
-                paused,
-                fixedStep,
-                maxDelta,
-                daySeconds,
-                dayLength,
-                dayIndex,
-                timeOfDay
-        );
+        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
     }
 
     public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {

@@ -81,8 +81,6 @@ class PlayerUI {
         const camYaw = f.view.yaw;
         const camPitch = f.view.pitch;
         const worldTime = WORLD.getWorldTime();
-
-        console.log(JSON.stringify(worldTime))
         const eng = this.player.d.engine;
         const fps = (eng && typeof eng.fps === "function") ? (+eng.fps() || 0) : 0;
 
