@@ -136,6 +136,11 @@ public final class WorldAppState extends BaseAppState {
             } catch (Throwable t) {
                 log.error("[World] update failed (world='{}')", safeWorldName(w), t);
             }
+
+            try {
+                engine.__updateWorldTime(w.worldTime());
+            } catch (Throwable ignored) {
+            }
         }
 
         SystemScheduler s = this.scheduler;

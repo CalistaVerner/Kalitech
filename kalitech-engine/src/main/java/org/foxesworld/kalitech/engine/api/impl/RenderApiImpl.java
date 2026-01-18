@@ -25,6 +25,7 @@ import org.foxesworld.kalitech.engine.modules.render.light.LightRigModule;
 import org.foxesworld.kalitech.engine.modules.render.post.PostModule;
 import org.foxesworld.kalitech.engine.modules.render.shadow.Shadow;
 import org.foxesworld.kalitech.engine.modules.render.sky.SkyModule;
+import org.foxesworld.kalitech.engine.world.WorldTime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -206,6 +207,13 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi 
             Shadow s = shadows;
             s.fullReloadNow();
         });
+    }
+
+    void __updateWorldTime(WorldTime time) {
+        if (time == null || !sceneReady) return;
+        LightRigModule rig = lights;
+        if (rig == null) return;
+        rig.applyTimeOfDay((float) time.timeOfDayHours());
     }
 
     // --------------------- ambient ---------------------

@@ -25,6 +25,9 @@ public final class WorldTime {
     private double lastWorldTimeBefore;
     private double lastWorldTimeAfter;
 
+    private double dayLengthSec;
+    private double dayOffsetSec;
+
     public WorldTime(WorldTimeParams params) {
         WorldTimeParams p = (params != null) ? params : WorldTimeParams.defaults();
         this.worldTimeSec = p.worldTime;
@@ -43,6 +46,9 @@ public final class WorldTime {
 
         this.lastWorldTimeBefore = this.worldTimeSec;
         this.lastWorldTimeAfter = this.worldTimeSec;
+
+        this.dayLengthSec = p.dayLengthSec;
+        this.dayOffsetSec = p.dayOffsetSec;
     }
 
     private static double sanitizeNonNegativeFinite(double v) {
@@ -100,6 +106,27 @@ public final class WorldTime {
 
     public double lastWorldTimeAfter() {
         return lastWorldTimeAfter;
+    }
+
+    public double dayLengthSec() {
+        return dayLengthSec;
+    }
+
+    public double dayOffsetSec() {
+        return dayOffsetSec;
+    }
+
+    public double dayTimeSec() {
+        return wrap(worldTimeSec + dayOffsetSec, dayLengthSec);
+    }
+
+    public double dayFraction() {
+        if (dayLengthSec <= 0.0) return 0.0;
+        return dayTimeSec() / dayLengthSec;
+    }
+
+    public double timeOfDayHours() {
+        return dayFraction() * 24.0;
     }
 
     public void seek(double newWorldTimeSec) {
@@ -181,6 +208,29 @@ public final class WorldTime {
         this.paused = paused;
     }
 
+    public void setDayLengthSec(double seconds) {
+        if (!Double.isFinite(seconds) || seconds <= 0.0) return;
+        double fraction = dayFraction();
+        this.dayLengthSec = seconds;
+        setTimeOfDayHours(fraction * 24.0);
+    }
+
+    public void setTimeOfDayHours(double hours) {
+        if (!Double.isFinite(hours)) return;
+        double h = hours % 24.0;
+        if (h < 0.0) h += 24.0;
+        double length = this.dayLengthSec;
+        if (!Double.isFinite(length) || length <= 0.0) return;
+        double targetSec = length * (h / 24.0);
+        double currentSec = wrap(this.worldTimeSec, length);
+        this.dayOffsetSec = wrap(targetSec - currentSec, length);
+    }
+
+    public void setDayOffsetSec(double offsetSec) {
+        if (!Double.isFinite(offsetSec)) return;
+        this.dayOffsetSec = wrap(offsetSec, this.dayLengthSec);
+    }
+
     public Double getFixedStepSec() {
         return fixedStepSec;
     }
@@ -219,5 +269,32 @@ public final class WorldTime {
 
     public double getLastWorldTimeAfter() {
         return lastWorldTimeAfter;
+    }
+
+    public double getDayLengthSec() {
+        return dayLengthSec;
+    }
+
+    public double getDayOffsetSec() {
+        return dayOffsetSec;
+    }
+
+    public double getDayTimeSec() {
+        return dayTimeSec();
+    }
+
+    public double getDayFraction() {
+        return dayFraction();
+    }
+
+    public double getTimeOfDayHours() {
+        return timeOfDayHours();
+    }
+
+    private static double wrap(double value, double length) {
+        if (!Double.isFinite(value) || !Double.isFinite(length) || length <= 0.0) return 0.0;
+        double m = value % length;
+        if (m < 0.0) m += length;
+        return m;
     }
 }

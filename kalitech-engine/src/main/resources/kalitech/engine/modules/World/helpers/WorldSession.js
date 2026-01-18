@@ -13,6 +13,12 @@ function normalizeTimeDesc(time) {
     if (time.paused != null) out.paused = !!time.paused;
     if (time.fixedStep != null) out.fixedStep = +time.fixedStep;
     if (time.maxDelta != null) out.maxDelta = +time.maxDelta;
+    if (time.dayLengthSec != null) out.dayLengthSec = +time.dayLengthSec;
+    if (time.dayLength != null) out.dayLength = +time.dayLength;
+    if (time.dayOffsetSec != null) out.dayOffsetSec = +time.dayOffsetSec;
+    if (time.dayOffset != null) out.dayOffset = +time.dayOffset;
+    if (time.timeOfDay != null) out.timeOfDay = +time.timeOfDay;
+    if (time.timeOfDayHours != null) out.timeOfDayHours = +time.timeOfDayHours;
 
     return out;
 }
