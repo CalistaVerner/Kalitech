@@ -24,7 +24,7 @@ import java.util.Objects;
  */
 public final class MainThreadProxyFactory {
 
-    private final MainThreadDispatcher dispatcher;
+    private MainThreadDispatcher dispatcher;
 
     // Avoid wrapping the same instance repeatedly (identity cache).
     private final Map<Object, Object> cache = new IdentityHashMap<>();
@@ -33,13 +33,14 @@ public final class MainThreadProxyFactory {
     // You can keep it empty to only enforce threading.
     private volatile MethodDenylist denylist = MethodDenylist.none();
 
+    /*
     public MainThreadProxyFactory(MainThreadDispatcher dispatcher) {
         this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher");
     }
 
     public void setDenylist(MethodDenylist denylist) {
         this.denylist = (denylist == null) ? MethodDenylist.none() : denylist;
-    }
+    }*/
 
     @SuppressWarnings("unchecked")
     public <T> T wrap(T target, Class<T> iface) {
@@ -157,7 +158,7 @@ public final class MainThreadProxyFactory {
 
             // Wrap based on DECLARED return type (this closes the leak).
             Class<?> rt = method.getReturnType();
-            if (rt != null && rt.isInterface() && rt.isInstance(r)) {
+            if (rt.isInterface() && rt.isInstance(r)) {
                 @SuppressWarnings("unchecked")
                 Class<Object> ifaceRt = (Class<Object>) rt;
                 return MainThreadProxyFactory.this.wrap(r, ifaceRt);

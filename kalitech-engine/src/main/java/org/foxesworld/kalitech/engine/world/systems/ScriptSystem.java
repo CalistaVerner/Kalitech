@@ -12,12 +12,28 @@ import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.graalvm.polyglot.Value;
 
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * ScriptSystem binds per-entity script components to ScriptRuntime modules.
+ *
+ * <p>Important:</p>
+ * <ul>
+ *   <li>No reflection is used. ScriptRuntime must expose a stable API.</li>
+ *   <li>Errors are observable (logged). The system does not silently swallow failures.</li>
+ * </ul>
+ *
+ * <p>Required ScriptRuntime API (stable contract):</p>
+ * <ul>
+ *   <li>{@code Value require(String moduleId)}</li>
+ *   <li>{@code long moduleVersion(String moduleId)}</li>
+ *   <li>{@code int invalidateManyWithReason(Set<String> ids, String reason)}</li>
+ *   <li>{@code int invalidateAllWithReason(String reason)}</li>
+ * </ul>
+ */
 public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
     private static final Logger log = LogManager.getLogger(ScriptSystem.class);
@@ -42,7 +58,9 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
     }
 
     private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) throw new IllegalStateException("Script module exports is null");
+        if (exports == null || exports.isNull()) {
+            throw new IllegalStateException("Script module exports is null");
+        }
 
         if (exports.canExecute()) return exports.execute();
 
@@ -68,40 +86,6 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         while (s.startsWith("./")) s = s.substring(2);
         while (s.startsWith("/")) s = s.substring(1);
         return s;
-    }
-
-    private static int invalidateAll(ScriptRuntime rt, String reason) {
-        if (rt == null) return 0;
-        final Class<?> c = rt.getClass();
-
-        try {
-            final Method m = c.getMethod("invalidateAllWithReason", String.class);
-            final Object r = m.invoke(rt, reason);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateAllWithReason failed: " + t, t);
-        }
-
-        try {
-            final Method m = c.getMethod("invalidateAll");
-            final Object r = m.invoke(rt);
-            return (r instanceof Number n) ? n.intValue() : 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.invalidateAll failed: " + t, t);
-        }
-
-        try {
-            final Method m = c.getMethod("clearModuleCache");
-            m.invoke(rt);
-            return 0;
-        } catch (NoSuchMethodException ignored) {
-        } catch (Throwable t) {
-            throw new RuntimeException("runtime.clearModuleCache failed: " + t, t);
-        }
-
-        return 0;
     }
 
     @Override
@@ -132,35 +116,10 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
     @Override
     public void onUpdate(SystemContext context, float tpf) {
-        if (runtime == null) return;
+        ScriptRuntime rt = this.runtime;
+        if (rt == null) return;
 
-        if (hotReload && watcher != null) {
-            cooldown -= tpf;
-            if (cooldown <= 0f) {
-                Set<String> changed = watcher.pollChanged();
-                if (changed != null && !changed.isEmpty()) {
-                    cooldown = cooldownSec;
-
-                    int removed;
-                    try {
-                        removed = runtime.invalidateManyWithReason(changed, "hotReload");
-                    } catch (NoSuchMethodError e) {
-                        removed = runtime.invalidateMany(changed);
-                    }
-
-                    log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
-
-                    if (bus != null) {
-                        try {
-                            bus.emit("hotreload:changed", changed);
-                        } catch (Throwable ignored) {
-                        }
-                    }
-                } else {
-                    cooldown = 0f;
-                }
-            }
-        }
+        pumpHotReload(rt, tpf);
 
         Map<Integer, ScriptComponent> scripts = ecs.components().view(ScriptComponent.class);
         if (scripts.isEmpty()) return;
@@ -177,8 +136,19 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 }
                 continue;
             }
-            ensureStarted(uuid, entityId, sc);
-            callIfExists(sc.instance, "update", tpf);
+
+            try {
+                ensureStarted(rt, uuid, entityId, sc);
+            } catch (Throwable t) {
+                log.error("Script ensureStarted failed entityId={} uuid={}", entityId, uuid, t);
+                continue;
+            }
+
+            try {
+                callIfExists(sc.instance, "update", tpf);
+            } catch (Throwable t) {
+                log.error("Script update failed entityId={} uuid={}", entityId, uuid, t);
+            }
         }
     }
 
@@ -189,7 +159,8 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         if (watcher != null) {
             try {
                 watcher.close();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                log.warn("ScriptSystem watcher.close failed", t);
             }
             watcher = null;
         }
@@ -197,29 +168,76 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         app = null;
         bus = null;
         runtime = null;
+
         log.info("ScriptSystem stopped");
     }
 
     @Override
     public void onHotReload(SystemContext ctx, String reason) {
-        // FULL wipe: destroy all instances, reset versions, invalidate ALL modules
         try {
             destroyAllInstances();
 
             if (runtime == null) runtime = ctx.runtime();
-            if (runtime != null) {
-                int removed = invalidateAll(runtime, reason != null ? reason : "F5");
-                log.info("HotReload(F5): ScriptRuntime invalidatedAll removedFromCache={}", removed);
+            ScriptRuntime rt = runtime;
+            if (rt != null) {
+                String r = (reason != null && !reason.isBlank()) ? reason : "F5";
+                int removed = rt.invalidateAllWithReason(r);
+                log.info("HotReload: ScriptRuntime invalidatedAll removedFromCache={}", removed);
+            } else {
+                log.warn("HotReload: ScriptRuntime is null");
             }
 
             if (bus != null) {
                 try {
-                    bus.emit("hotreload:force", reason != null ? reason : "F5");
-                } catch (Throwable ignored) {
+                    bus.emit("hotreload:force", (reason != null) ? reason : "F5");
+                } catch (Throwable t) {
+                    log.error("HotReload: bus emit failed", t);
                 }
             }
         } catch (Throwable t) {
-            log.warn("HotReload(F5) failed in ScriptSystem", t);
+            log.warn("HotReload failed in ScriptSystem", t);
+        }
+    }
+
+    private void pumpHotReload(ScriptRuntime rt, float tpf) {
+        if (!hotReload || watcher == null) return;
+
+        cooldown -= tpf;
+        if (cooldown > 0f) return;
+
+        Set<String> changed;
+        try {
+            changed = watcher.pollChanged();
+        } catch (Throwable t) {
+            log.error("HotReload watcher.pollChanged failed", t);
+            cooldown = cooldownSec;
+            return;
+        }
+
+        if (changed == null || changed.isEmpty()) {
+            cooldown = 0f;
+            return;
+        }
+
+        cooldown = cooldownSec;
+
+        int removed = 0;
+        try {
+            removed = rt.invalidateManyWithReason(changed, "hotReload");
+        } catch (Throwable t) {
+            log.error("HotReload invalidateManyWithReason failed changed={}", changed.size(), t);
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
+        }
+
+        if (bus != null) {
+            try {
+                bus.emit("hotreload:changed", changed);
+            } catch (Throwable t) {
+                log.error("HotReload bus emit failed", t);
+            }
         }
     }
 
@@ -234,7 +252,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                     try {
                         callIfExists(sc.instance, "destroy");
                     } catch (org.graalvm.polyglot.PolyglotException pe) {
-                        // cancelled context is fine
+                        // Cancelled context is acceptable during shutdown.
                     } catch (Throwable t) {
                         log.warn("Script destroy failed for entity {}", e.getKey(), t);
                     }
@@ -248,12 +266,17 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         }
     }
 
-    private void ensureStarted(String uuid, int entityId, ScriptComponent sc) {
+    private void ensureStarted(ScriptRuntime rt, String uuid, int entityId, ScriptComponent sc) {
         String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
                 ? sc.moduleId
                 : normalize(sc.assetPath);
 
-        long v = runtime.moduleVersion(moduleId);
+        long v;
+        try {
+            v = rt.moduleVersion(moduleId);
+        } catch (Throwable t) {
+            throw new IllegalStateException("runtime.moduleVersion failed for moduleId=" + moduleId, t);
+        }
 
         boolean needsStart = (sc.instance == null) || (sc.moduleVersion != v);
         if (!needsStart) return;
@@ -261,18 +284,34 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         if (sc.instance != null) {
             try {
                 callIfExists(sc.instance, "destroy");
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                log.warn("Script destroy (reload) failed entityId={} uuid={}", entityId, uuid, t);
             }
             sc.instance = null;
         }
 
-        Value exports = runtime.require(moduleId);
-        Value instance = createInstance(exports);
+        Value exports;
+        try {
+            exports = rt.require(moduleId);
+        } catch (Throwable t) {
+            throw new IllegalStateException("runtime.require failed for moduleId=" + moduleId, t);
+        }
+
+        Value instance;
+        try {
+            instance = createInstance(exports);
+        } catch (Throwable t) {
+            throw new IllegalStateException("createInstance failed for moduleId=" + moduleId, t);
+        }
 
         sc.instance = instance;
         sc.moduleVersion = v;
 
         EntityScriptAPI api = new EntityScriptAPI(uuid, ecs, bus);
-        callIfExists(sc.instance, "init", api);
+        try {
+            callIfExists(sc.instance, "init", api);
+        } catch (Throwable t) {
+            log.error("Script init failed entityId={} uuid={} moduleId={}", entityId, uuid, moduleId, t);
+        }
     }
 }

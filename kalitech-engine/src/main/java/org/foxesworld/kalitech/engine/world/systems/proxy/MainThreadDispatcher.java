@@ -2,7 +2,7 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems.proxy;
 
-import org.foxesworld.kalitech.engine.script.ScriptJobQueue;
+import org.foxesworld.kalitech.engine.script.jobs.ScriptJobQueue;
 
 import java.util.Objects;
 import java.util.concurrent.*;

@@ -2,6 +2,7 @@
 package org.foxesworld.kalitech.engine.world;
 
 import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetManager;
@@ -23,7 +24,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * WorldAppState is OPTIONAL engine service.
+ * WorldAppState is an optional engine service.
  * It does nothing unless scripts explicitly create/start a world.
  */
 public final class WorldAppState extends BaseAppState {
@@ -32,27 +33,33 @@ public final class WorldAppState extends BaseAppState {
 
     private static final String HOT_RELOAD = "world:hotReload";
 
-    private final RuntimeAppState host;     // keep host to access shared runtime/assets/bus/ecs/etc
+    private final RuntimeAppState host;
     private final EngineApiImpl engine;
+
     private final Map<String, ScriptRuntime> runtimeProfiles = new ConcurrentHashMap<>();
+
     private ScriptRuntime baseRuntime;
-    private SystemScheduler scheduler; // optional (can be null)
-    private KWorld world;
-    private SystemContext worldCtx;
     private final ActionListener hotReloadListener = (name, pressed, tpf) -> {
         if (!pressed) return;
         if (!HOT_RELOAD.equals(name)) return;
 
-        if (world != null && worldCtx != null) {
-            log.warn("[World] F5 hot reload");
-            try {
-                world.hotReload(worldCtx, "F5");
-            } catch (Throwable t) {
-                log.error("[World] hotReload failed", t);
-            }
+        KWorld w = this.world;
+        SystemContext ctx = this.worldCtx;
+        if (w == null || ctx == null) return;
+
+        log.warn("[World] F5 hot reload");
+        try {
+            w.hotReload(ctx, "F5");
+        } catch (Throwable t) {
+            log.error("[World] hotReload failed", t);
         }
     };
+    private boolean baseRuntimeInitialized;
+    private KWorld world;
+    private SystemContext worldCtx;
+    private SystemScheduler scheduler;
     private InputManager input;
+    private volatile boolean schedulerErrorLogged;
 
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.host = Objects.requireNonNull(runtimeAppState, "runtimeAppState");
@@ -69,73 +76,42 @@ public final class WorldAppState extends BaseAppState {
         return id;
     }
 
+    private static String safeWorldName(KWorld w) {
+        try {
+            return (w != null) ? String.valueOf(w.getName()) : "null";
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
+    }
+
+    private static SimpleApplication coerceSimpleApp(Application app) {
+        if (app instanceof SimpleApplication sa) return sa;
+        return null;
+    }
+
     @Override
     protected void initialize(Application app) {
         this.baseRuntime = host.getRuntime();
+        ensureBaseRuntimeInitialized();
 
         try {
-            scheduler = new SystemScheduler(this);
+            this.scheduler = new SystemScheduler(this);
         } catch (Throwable t) {
-            log.warn("[World] SystemScheduler disabled (optional): {}", t.toString());
-            scheduler = null;
+            log.warn("[World] SystemScheduler disabled (optional): {}", t.toString(), t);
+            this.scheduler = null;
         }
 
-        input = (engine.getApp() != null) ? engine.getApp().getInputManager() : null;
-        if (input != null) {
+        this.input = (engine.getApp() != null) ? engine.getApp().getInputManager() : null;
+        if (this.input != null) {
             try {
-                if (!input.hasMapping(HOT_RELOAD)) input.addMapping(HOT_RELOAD, new KeyTrigger(KeyInput.KEY_F5));
+                if (!input.hasMapping(HOT_RELOAD)) {
+                    input.addMapping(HOT_RELOAD, new KeyTrigger(KeyInput.KEY_F5));
+                }
                 input.addListener(hotReloadListener, HOT_RELOAD);
             } catch (Throwable t) {
-                log.warn("[World] HotReload keybind failed: {}", t.toString());
+                log.warn("[World] HotReload keybind failed: {}", t.toString(), t);
             }
         }
-    }
-
-    @Override
-    public void update(float tpf) {
-        if (world != null && worldCtx != null) {
-            world.update(worldCtx, tpf);
-        }
-        if (scheduler != null) {
-            try {
-                scheduler.awaitDefaultBudget();
-            } catch (Throwable ignored) {
-            }
-        }
-    }
-
-    @Override
-    protected void cleanup(Application app) {
-        destroyWorld();
-
-        if (input != null) {
-            try {
-                input.removeListener(hotReloadListener);
-            } catch (Throwable ignored) {
-            }
-            try {
-                if (input.hasMapping(HOT_RELOAD)) input.deleteMapping(HOT_RELOAD);
-            } catch (Throwable ignored) {
-            }
-            input = null;
-        }
-
-        if (scheduler != null) {
-            try {
-                scheduler.close();
-            } catch (Throwable ignored) {
-            }
-            scheduler = null;
-        }
-
-        runtimeProfiles.values().forEach(rt -> {
-            try {
-                rt.close();
-            } catch (Throwable ignored) {
-            }
-        });
-        runtimeProfiles.clear();
-        baseRuntime = null;
     }
 
     @Override
@@ -148,48 +124,113 @@ public final class WorldAppState extends BaseAppState {
 
     // ---------------- World control (called by engine.world()) ----------------
 
+    @Override
+    public void update(float tpf) {
+        KWorld w = this.world;
+        SystemContext ctx = this.worldCtx;
+
+        if (w != null && ctx != null) {
+            try {
+                w.update(ctx, tpf);
+            } catch (Throwable t) {
+                log.error("[World] update failed (world='{}')", safeWorldName(w), t);
+            }
+        }
+
+        SystemScheduler s = this.scheduler;
+        if (s != null) {
+            try {
+                s.awaitDefaultBudget();
+            } catch (Throwable t) {
+                if (!schedulerErrorLogged) {
+                    schedulerErrorLogged = true;
+                    log.error("[World] scheduler.awaitDefaultBudget failed (will be suppressed afterwards)", t);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void cleanup(Application app) {
+        destroyWorld();
+
+        if (input != null) {
+            try {
+                input.removeListener(hotReloadListener);
+            } catch (Throwable t) {
+                log.warn("[World] removeListener failed: {}", t.toString(), t);
+            }
+            try {
+                if (input.hasMapping(HOT_RELOAD)) input.deleteMapping(HOT_RELOAD);
+            } catch (Throwable t) {
+                log.warn("[World] deleteMapping failed: {}", t.toString(), t);
+            }
+            input = null;
+        }
+
+        if (scheduler != null) {
+            try {
+                scheduler.close();
+            } catch (Throwable t) {
+                log.warn("[World] scheduler.close failed: {}", t.toString(), t);
+            }
+            scheduler = null;
+        }
+
+        runtimeProfiles.forEach((k, rt) -> {
+            try {
+                rt.close();
+            } catch (Throwable t) {
+                log.warn("[World] runtime profile close failed (profile='{}'): {}", k, t.toString(), t);
+            }
+        });
+        runtimeProfiles.clear();
+
+        baseRuntime = null;
+        baseRuntimeInitialized = false;
+        schedulerErrorLogged = false;
+    }
+
     public void createWorld(KWorld newWorld, boolean start) {
         Objects.requireNonNull(newWorld, "newWorld");
         destroyWorld();
 
         this.world = newWorld;
 
-        final ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
+        final ScriptRuntime rt0 = getBaseRuntimeOrNull();
+        if (rt0 == null) {
+            log.error("[World] cannot create world: base runtime is null");
+            this.world = null;
+            return;
+        }
+
+        SimpleApplication app = coerceSimpleApp(engine.getApp());
+        if (app == null) {
+            log.error("[World] cannot create world: engine.getApp() is not a SimpleApplication");
+            this.world = null;
+            return;
+        }
+
+        final SystemContext.RuntimePolicy policy = new DefaultRuntimePolicy();
 
         this.worldCtx = new SystemContext(
-                engine.getApp(),
+                app,
                 engine,
                 engine.getEcs(),
                 engine.getBus(),
                 engine.__getPhysicsSpaceOrNull(),
                 rt0,
                 this::getRuntime,
-                null,
+                policy,
                 scheduler,
                 null,
                 null,
                 engine.getLog()
         );
 
-        log.info("[World] created '{}'", world.getName());
+        log.info("[World] created '{}'", safeWorldName(world));
 
         if (start) startWorld();
-    }
-
-    public void startWorld() {
-        if (world == null || worldCtx == null) return;
-        world.start(worldCtx);
-    }
-
-    public void destroyWorld() {
-        if (world != null && worldCtx != null) {
-            try {
-                world.stop(worldCtx);
-            } catch (Throwable ignored) {
-            }
-        }
-        world = null;
-        worldCtx = null;
     }
 
     public KWorld getWorldOrNull() {
@@ -206,42 +247,112 @@ public final class WorldAppState extends BaseAppState {
         return scheduler;
     }
 
+    public void startWorld() {
+        KWorld w = this.world;
+        SystemContext ctx = this.worldCtx;
+        if (w == null || ctx == null) return;
+
+        try {
+            w.start(ctx);
+        } catch (Throwable t) {
+            log.error("[World] start failed (world='{}')", safeWorldName(w), t);
+        }
+    }
+
+    public void destroyWorld() {
+        KWorld w = this.world;
+        SystemContext ctx = this.worldCtx;
+
+        if (w != null && ctx != null) {
+            try {
+                w.stop(ctx);
+            } catch (Throwable t) {
+                log.error("[World] stop failed (world='{}')", safeWorldName(w), t);
+            }
+        }
+
+        this.world = null;
+        this.worldCtx = null;
+    }
+
     public ScriptRuntime getRuntime(String profile) {
         final String p = (profile == null || profile.isBlank()) ? "world" : profile.trim();
 
         if ("world".equalsIgnoreCase(p) || "main".equalsIgnoreCase(p) || "default".equalsIgnoreCase(p)) {
-            ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
+            ScriptRuntime rt0 = getBaseRuntimeOrNull();
             if (rt0 != null) return rt0;
         }
 
         return runtimeProfiles.computeIfAbsent(p, k -> {
             ScriptRuntime rt = new ScriptRuntime();
-            rt.setModuleStreamProvider(this::openJsModuleStream);
+            try {
+                rt.setModuleStreamProvider(this::openJsModuleStream);
+            } catch (Throwable t) {
+                log.warn("[World] setModuleStreamProvider failed for profile '{}': {}", k, t.toString(), t);
+            }
             try {
                 rt.initBuiltIns(engine);
             } catch (Throwable t) {
-                log.warn("[World] initBuiltIns failed for profile '{}': {}", k, t.toString());
+                log.error("[World] initBuiltIns failed for profile '{}'", k, t);
             }
             return rt;
         });
     }
 
     // ---------------------------------------------------------------------
-    // Asset-backed module loading (same logic as RuntimeAppState)
+    // Asset-backed module loading
     // ---------------------------------------------------------------------
 
     public EngineApiImpl getEngine() {
         return engine;
     }
 
+    private ScriptRuntime getBaseRuntimeOrNull() {
+        ScriptRuntime rt0 = (baseRuntime != null) ? baseRuntime : host.getRuntime();
+        if (rt0 == null) return null;
+
+        if (!baseRuntimeInitialized) {
+            baseRuntime = rt0;
+            ensureBaseRuntimeInitialized();
+        }
+        return rt0;
+    }
+
+    private void ensureBaseRuntimeInitialized() {
+        if (baseRuntimeInitialized) return;
+
+        if (this.baseRuntime == null) {
+            log.warn("[World] base runtime is null (host.getRuntime returned null)");
+            return;
+        }
+
+        try {
+            this.baseRuntime.setModuleStreamProvider(this::openJsModuleStream);
+        } catch (Throwable t) {
+            log.warn("[World] failed to set module stream provider for base runtime: {}", t.toString(), t);
+        }
+
+        try {
+            this.baseRuntime.initBuiltIns(engine);
+        } catch (Throwable t) {
+            log.error("[World] initBuiltIns failed for base runtime", t);
+        }
+
+        baseRuntimeInitialized = true;
+    }
+
     private InputStream openJsModuleStream(String moduleId) {
         try {
             String id = normalizeJsModuleId(moduleId);
+            if (id.isEmpty()) return null;
+
             AssetManager am = (engine.getApp() != null) ? engine.getApp().getAssetManager() : null;
             if (am == null) return null;
+
             var ai = am.locateAsset(new AssetKey<>(id));
             return (ai != null) ? ai.openStream() : null;
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            log.warn("[World] openJsModuleStream failed (moduleId='{}'): {}", moduleId, t.toString(), t);
             return null;
         }
     }
@@ -252,8 +363,32 @@ public final class WorldAppState extends BaseAppState {
             AssetManager am = (engine.getApp() != null) ? engine.getApp().getAssetManager() : null;
             if (am == null) return null;
             return am.loadAsset(new AssetKey<>(path));
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            log.warn("[World] loadTextAssetOrNull failed (path='{}'): {}", path, t.toString(), t);
             return null;
+        }
+    }
+
+    /**
+     * Default runtime policy for WorldAppState. Keeps the contract non-null and enforced.
+     *
+     * <p>Policy:</p>
+     * <ul>
+     *   <li>Deny {@link SystemContext.RuntimePolicy.Capability#UNSAFE}</li>
+     *   <li>Allow everything else by default</li>
+     * </ul>
+     */
+    private static final class DefaultRuntimePolicy implements SystemContext.RuntimePolicy {
+
+        @Override
+        public void assertAllowed(String profile, String systemId, Capability capability) {
+            Objects.requireNonNull(capability, "capability");
+
+            if (capability == Capability.UNSAFE) {
+                String p = (profile == null) ? "" : profile.trim();
+                String s = (systemId == null) ? "" : systemId.trim();
+                throw new SecurityException("Denied capability=" + capability + " for system=" + s + " profile=" + p);
+            }
         }
     }
 }

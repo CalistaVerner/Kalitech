@@ -12,19 +12,28 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * SystemScheduler executes {@link KSystem} updates on worker lanes (striped or dedicated),
+ * applying rate limiting (Hz) and soft/hard time budgets with adaptive frequency control.
+ *
+ * <p>All system errors are observable (logged). The scheduler never throws from worker execution paths.</p>
+ */
 public final class SystemScheduler implements AutoCloseable {
 
     private static final Logger log = LogManager.getLogger(SystemScheduler.class);
 
     private static final double HZ_RECOVERY_STEP = 1.0;
+    private static final double HZ_SOFT_DECAY = 0.85;
+    private static final double HZ_HARD_DECAY = 0.60;
+
+    private static final int BACKPRESSURE_PRIORITY_THRESHOLD = 60;
+
     private final Lane[] lanes;
     private final Map<KSystem, Slot> slots = new IdentityHashMap<>();
 
+    private final Object owner;
+
     private volatile int defaultAwaitBudgetMs = 1;
-    private static final double HZ_SOFT_DECAY = 0.85;
-    private static final double HZ_HARD_DECAY = 0.60;
-    private static final int BACKPRESSURE_PRIORITY_THRESHOLD = 60;
-    private final Object owner; // keep opaque (WorldAppState or any host)
 
     public SystemScheduler(Object owner) {
         this(owner, defaultLaneCount());
@@ -49,49 +58,9 @@ public final class SystemScheduler implements AutoCloseable {
         return defaultAwaitBudgetMs;
     }
 
-    public void ensureStarted(KSystem system, SystemContext ctx) {
-        if (system == null) return;
-        Slot slot;
-        synchronized (slots) {
-            slot = slots.get(system);
-            if (slot == null) {
-                slot = new Slot(system, ctx);
-                slots.put(system, slot);
-            }
-        }
-        slot.startIfNeeded();
-    }
-
-    public void submitUpdate(KSystem system, SystemContext ctx, float tpf) {
-        if (system == null) return;
-        Slot slot;
-        synchronized (slots) {
-            slot = slots.get(system);
-            if (slot == null) {
-                slot = new Slot(system, ctx);
-                slots.put(system, slot);
-            }
-        }
-        slot.startIfNeeded();
-        slot.requestTick(tpf, System.nanoTime());
-    }
-
-    public void awaitDefaultBudget() {
-        awaitBudgetNanos(TimeUnit.MILLISECONDS.toNanos(defaultAwaitBudgetMs));
-    }
-
     private static int defaultLaneCount() {
         int p = Runtime.getRuntime().availableProcessors();
         return Math.max(1, Math.min(8, Math.max(2, p / 2)));
-    }
-
-    public void stopSystem(KSystem system) {
-        if (system == null) return;
-        Slot slot;
-        synchronized (slots) {
-            slot = slots.remove(system);
-        }
-        if (slot != null) slot.shutdown();
     }
 
     private static int safeInt(IntSupplier s, int def) {
@@ -110,8 +79,6 @@ public final class SystemScheduler implements AutoCloseable {
         }
     }
 
-    // ======================================================================
-
     private static double safeHz(DoubleSupplier s, double def) {
         try {
             double v = s.getAsDouble();
@@ -119,33 +86,6 @@ public final class SystemScheduler implements AutoCloseable {
         } catch (Throwable t) {
             return def;
         }
-    }
-
-    // ======================================================================
-
-    private static String safeProfile(KSystem sys) {
-        try {
-            return sys.runtimeProfile();
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static double clampHz(double v, double a, double b) {
-        if (!(v > 0) || !Double.isFinite(v)) v = a;
-        return Math.max(a, Math.min(b, v));
-    }
-
-    private static long computeNextRun(long now, double hz) {
-        if (!(hz > 0)) return now;
-        long period = (long) (1_000_000_000.0 / hz);
-        if (period <= 0) period = 1;
-        return now + period;
-    }
-
-    private static long ema(long prev, long sample) {
-        if (prev <= 0) return sample;
-        return prev + (long) ((sample - prev) * 0.15);
     }
 
     public void awaitBudgetNanos(long budgetNanos) {
@@ -175,6 +115,83 @@ public final class SystemScheduler implements AutoCloseable {
         return out;
     }
 
+    private static String safeProfile(KSystem sys) {
+        try {
+            return sys.runtimeProfile();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ======================================================================
+
+    private static String safeSysName(KSystem sys) {
+        try {
+            return sys.getClass().getSimpleName();
+        } catch (Throwable ignored) {
+            return "KSystem";
+        }
+    }
+
+    private static double clampHz(double v, double a, double b) {
+        if (!(v > 0) || !Double.isFinite(v)) v = a;
+        return Math.max(a, Math.min(b, v));
+    }
+
+    /**
+     * IMPORTANT: must use actual lanes.length, not defaultLaneCount().
+     */
+    private int laneFor(KSystem sys) {
+        int n = lanes.length;
+        if (n <= 1) return 0;
+        return (System.identityHashCode(sys) & 0x7fffffff) % n;
+    }
+
+    private static long computeNextRun(long now, double hz) {
+        if (!(hz > 0)) return now;
+        long period = (long) (1_000_000_000.0 / hz);
+        if (period <= 0) period = 1;
+        return now + period;
+    }
+
+    private static long ema(long prev, long sample) {
+        if (prev <= 0) return sample;
+        return prev + (long) ((sample - prev) * 0.15);
+    }
+
+    public void ensureStarted(KSystem system, SystemContext ctx) {
+        if (system == null) return;
+        Slot slot = getOrCreateSlot(system, ctx);
+        slot.startIfNeeded();
+    }
+
+    public void submitUpdate(KSystem system, SystemContext ctx, float tpf) {
+        if (system == null) return;
+        Slot slot = getOrCreateSlot(system, ctx);
+        slot.startIfNeeded();
+        slot.requestTick(tpf, System.nanoTime());
+    }
+
+    public void stopSystem(KSystem system) {
+        if (system == null) return;
+
+        Slot slot;
+        synchronized (slots) {
+            slot = slots.remove(system);
+        }
+        if (slot != null) {
+            try {
+                slot.shutdown();
+            } catch (Throwable t) {
+                log.warn("[scheduler] stopSystem shutdown failed: {}", safeSysName(system), t);
+            }
+        }
+    }
+
+    public void awaitDefaultBudget() {
+        awaitBudgetNanos(TimeUnit.MILLISECONDS.toNanos(defaultAwaitBudgetMs));
+    }
+
     @Override
     public void close() {
         Slot[] snapshot;
@@ -186,25 +203,32 @@ public final class SystemScheduler implements AutoCloseable {
         for (Slot s : snapshot) {
             try {
                 s.shutdown();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                log.warn("[scheduler] slot shutdown failed: {}", s.safeId(), t);
             }
         }
 
         for (Lane lane : lanes) {
             try {
                 lane.shutdown();
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                log.warn("[scheduler] lane shutdown failed: index={}", lane.index, t);
             }
         }
     }
 
-    /**
-     * IMPORTANT: must use actual lanes.length, not defaultLaneCount().
-     */
-    private int laneFor(KSystem sys) {
-        int n = lanes.length;
-        if (n <= 1) return 0;
-        return (System.identityHashCode(sys) & 0x7fffffff) % n;
+    private Slot getOrCreateSlot(KSystem system, SystemContext ctx) {
+        Objects.requireNonNull(ctx, "ctx");
+
+        Slot slot;
+        synchronized (slots) {
+            slot = slots.get(system);
+            if (slot == null) {
+                slot = new Slot(system, ctx);
+                slots.put(system, slot);
+            }
+        }
+        return slot;
     }
 
     private interface IntSupplier {
@@ -231,10 +255,7 @@ public final class SystemScheduler implements AutoCloseable {
         }
 
         void shutdown() {
-            try {
-                exec.shutdownNow();
-            } catch (Throwable ignored) {
-            }
+            exec.shutdownNow();
         }
     }
 
@@ -261,22 +282,21 @@ public final class SystemScheduler implements AutoCloseable {
         }
     }
 
+    // ======================================================================
+
     private final class Slot {
 
         private final KSystem system;
         private final SystemContext ctx;
-        private final String profile;
 
         private final boolean sharedLane;
         private final int laneIndex;
 
         private final ExecutorService exec;
+        private final String profile;
 
         @SuppressWarnings("unused")
-        private final ScriptRuntime runtime; // can be used by systems if they pull it from ctx.runtime(profile)
-
-        private volatile boolean started = false;
-        private volatile Future<?> inFlight;
+        private final ScriptRuntime runtime;
 
         private final int priority;
         private final double desiredHz;
@@ -305,17 +325,28 @@ public final class SystemScheduler implements AutoCloseable {
         private final AtomicLong lastQueueLagNanos = new AtomicLong();
         private final AtomicLong emaQueueLagNanos = new AtomicLong();
 
+        private final AtomicInteger started = new AtomicInteger(0);
+        private final AtomicInteger startFailureLogged = new AtomicInteger(0);
+
         private volatile String threadName = "unknown";
+        private volatile Future<?> inFlight;
 
         Slot(KSystem system, SystemContext ctx) {
             this.system = Objects.requireNonNull(system, "system");
             this.ctx = Objects.requireNonNull(ctx, "ctx");
 
-            ThreadMode mode = system.threadMode();
+            ThreadMode mode;
+            try {
+                mode = system.threadMode();
+            } catch (Throwable t) {
+                mode = ThreadMode.WORKER_STRIPED;
+            }
+
             this.sharedLane = (mode == ThreadMode.WORKER_STRIPED);
             this.laneIndex = sharedLane ? laneFor(system) : -1;
 
             this.priority = safeInt(system::priority, 50);
+
             this.desiredHz = safeHz(system::desiredHz, 60.0);
             this.minHz = safeHz(system::minHz, this.desiredHz);
             this.maxHz = safeHz(system::maxHz, this.desiredHz);
@@ -326,45 +357,56 @@ public final class SystemScheduler implements AutoCloseable {
 
             String requested = safeProfile(system);
             if (requested == null || requested.isBlank()) {
-                requested = "sys." + system.getClass().getSimpleName().toLowerCase();
+                requested = "sys." + safeSysName(system).toLowerCase();
             }
             if (sharedLane) requested = requested + ".lane" + laneIndex;
 
-            // policy optional
-            SystemContext.RuntimePolicy pol = ctx.runtimePolicy();
-            this.profile = (pol != null)
-                    ? pol.resolveProfile(requested, SystemContext.RuntimePolicy.Origin.JAVA_PROVIDER)
-                    : requested;
+            // Enforce policy (non-null in fixed SystemContext).
+            // Default stance: deny UNSAFE, allow others (see SystemContext).
+            try {
+                ctx.runtimePolicy().assertAllowed(requested, safeSysName(system), SystemContext.RuntimePolicy.Capability.WORLD_ACCESS);
+            } catch (Throwable t) {
+                throw new SecurityException("RuntimePolicy denied system=" + safeSysName(system) + " profile=" + requested, t);
+            }
+
+            this.profile = requested;
 
             if (sharedLane) {
                 Lane lane = lanes[laneIndex];
                 this.exec = lane.exec;
                 this.threadName = lane.threadName;
             } else {
-                String baseName = "sys-" + system.getClass().getSimpleName();
+                String baseName = "sys-" + safeSysName(system);
                 this.exec = Executors.newSingleThreadExecutor(new NamedThreadFactory(baseName, n -> this.threadName = n));
             }
 
-            // runtime per profile (provider optional; fallback to ctx.runtime())
             ScriptRuntime rt = ctx.runtime(profile);
             if (rt == null) rt = ctx.runtime();
-            if (rt == null) throw new IllegalStateException("SystemScheduler requires ScriptRuntime in SystemContext");
+            if (rt == null) {
+                throw new IllegalStateException("SystemScheduler requires ScriptRuntime in SystemContext");
+            }
             this.runtime = rt;
         }
 
         void startIfNeeded() {
-            if (started) return;
-            started = true;
+            if (!started.compareAndSet(0, 1)) return;
 
-            if (system.threadMode() == ThreadMode.WORKER_DEDICATED || system.threadMode() == ThreadMode.WORKER_STRIPED) {
-                // start on worker
+            ThreadMode mode;
+            try {
+                mode = system.threadMode();
+            } catch (Throwable t) {
+                mode = ThreadMode.WORKER_STRIPED;
+            }
+
+            if (mode == ThreadMode.WORKER_DEDICATED || mode == ThreadMode.WORKER_STRIPED) {
                 submitInternal(0f, true);
             } else {
-                // fallback safety
+                // Safety fallback: execute on caller thread.
                 try {
                     system.onStart(ctx);
                 } catch (Throwable t) {
                     exceptions.incrementAndGet();
+                    log.error("[scheduler] onStart failed (system={}, profile={}, thread=caller)", safeSysName(system), profile, t);
                 }
             }
         }
@@ -383,7 +425,6 @@ public final class SystemScheduler implements AutoCloseable {
                 return;
             }
 
-            // backpressure hook (optional)
             MainThreadBudgetQueue q = ctx.mainQueue();
             if (q != null && priority < BACKPRESSURE_PRIORITY_THRESHOLD) {
                 if (q.isOverloaded()) {
@@ -400,20 +441,31 @@ public final class SystemScheduler implements AutoCloseable {
 
             inFlight = exec.submit(() -> {
                 threadName = Thread.currentThread().getName();
+
                 long start = System.nanoTime();
                 lastStartNanos.set(start);
 
                 long submit = lastSubmitNanos.get();
-                long lag = (submit > 0L) ? (start - submit) : 0L;
+                long lag = (submit > 0L) ? Math.max(0L, start - submit) : 0L;
                 lastQueueLagNanos.set(lag);
                 emaQueueLagNanos.set(ema(emaQueueLagNanos.get(), lag));
 
                 try {
-                    if (isStart) system.onStart(ctx);
-                    else system.onUpdate(ctx, tpf);
+                    if (isStart) {
+                        system.onStart(ctx);
+                    } else {
+                        system.onUpdate(ctx, tpf);
+                    }
                 } catch (Throwable t) {
                     exceptions.incrementAndGet();
-                    log.error("[scheduler] {} failed (profile={}, thread={})", system, profile, threadName, t);
+
+                    if (isStart && startFailureLogged.compareAndSet(0, 1)) {
+                        log.error("[scheduler] onStart failed (system={}, profile={}, thread={})",
+                                safeSysName(system), profile, threadName, t);
+                    } else {
+                        log.error("[scheduler] onUpdate failed (system={}, profile={}, thread={})",
+                                safeSysName(system), profile, threadName, t);
+                    }
                 } finally {
                     long end = System.nanoTime();
                     lastEndNanos.set(end);
@@ -438,10 +490,18 @@ public final class SystemScheduler implements AutoCloseable {
         void await(long budgetNanos) {
             Future<?> f = inFlight;
             if (f == null || f.isDone()) return;
+
             try {
                 f.get(Math.max(1L, budgetNanos), TimeUnit.NANOSECONDS);
             } catch (TimeoutException ignored) {
-            } catch (Throwable ignored) {
+                // Budget exhausted; continue.
+            } catch (ExecutionException e) {
+                // Should be already logged in worker path; keep observable for diagnostics.
+                log.debug("[scheduler] await saw ExecutionException (system={}, profile={})", safeSysName(system), profile, e.getCause());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Throwable t) {
+                log.debug("[scheduler] await failed (system={}, profile={})", safeSysName(system), profile, t);
             }
         }
 
@@ -450,17 +510,23 @@ public final class SystemScheduler implements AutoCloseable {
             if (f != null) {
                 try {
                     f.cancel(false);
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    log.debug("[scheduler] cancel failed (system={}, profile={})", safeSysName(system), profile, t);
                 }
-            }
-            try {
-                if (!sharedLane) exec.shutdownNow();
-            } catch (Throwable ignored) {
             }
 
             try {
                 system.onStop(ctx);
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                log.error("[scheduler] onStop failed (system={}, profile={})", safeSysName(system), profile, t);
+            }
+
+            if (!sharedLane) {
+                try {
+                    exec.shutdownNow();
+                } catch (Throwable t) {
+                    log.warn("[scheduler] dedicated executor shutdown failed (system={}, profile={})", safeSysName(system), profile, t);
+                }
             }
         }
 
@@ -469,7 +535,7 @@ public final class SystemScheduler implements AutoCloseable {
             boolean runningNow = (f != null && !f.isDone());
 
             return new WorkerSystemStats(
-                    system.getClass().getSimpleName(),
+                    safeSysName(system),
                     profile,
                     threadName,
                     runningNow,
@@ -495,6 +561,10 @@ public final class SystemScheduler implements AutoCloseable {
 
         private boolean isDue(long now) {
             return now >= nextRunAtNanos;
+        }
+
+        private String safeId() {
+            return safeSysName(system) + "@" + Integer.toHexString(System.identityHashCode(system));
         }
     }
 }
