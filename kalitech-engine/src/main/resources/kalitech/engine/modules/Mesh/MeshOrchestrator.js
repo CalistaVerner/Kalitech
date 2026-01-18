@@ -114,7 +114,7 @@ class MeshOrchestrator {
                     };
                 }
 
-                // optional passthroughs (если есть в ENGINE.physics())
+                // optional passthroughs (if available in ENGINE.physics())
                 if (prop === "applyCentralForce") {
                     return (v3) => {
                         const p = I.requirePhysics(ENGINE);
@@ -258,9 +258,9 @@ class MeshOrchestrator {
 
                         const b = {
                             /**
-                             * Унифицированный размер.
+                             * Unified size setter.
                              * - sphere: size(v) -> cfg.radius = v
-                             * - остальные: size(v) -> cfg.size = v
+                             * - others: size(v) -> cfg.size = v
                              */
                             size(v) {
                                 const n = M.num(v, (state.type === "sphere" ? state.radius : state.size));

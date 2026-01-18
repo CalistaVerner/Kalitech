@@ -28,37 +28,11 @@ function _safeCall(fn, fb) {
 }
 
 /**
- * ✅ Kalitech priority:
- *  1) engine.api().bus()  -> Java EventsApiImpl (what you used successfully)
- *  2) engine.bus()        -> sometimes directly exposes EventsApiImpl
- *  3) engine.getBus()     -> raw ScriptEventBus (may not match)
- *  4) K.bus/K.BUS/global BUS
+ * Resolve the canonical engine event bus.
  */
-function _getBus(engine, K) {
+function _getBus(engine) {
     if (!engine) return null;
-
-    // 1) engine.api().bus()
-    const api = _safeCall(() => (_isFn(engine.api) ? engine.api() : null), null);
-    if (api) {
-        const b = _safeCall(() => (_isFn(api.bus) ? api.bus() : null), null);
-        if (b) return b;
-        const b2 = _safeCall(() => (_isFn(api.getBus) ? api.getBus() : null), null);
-        if (b2) return b2;
-    }
-
-    // 2) engine.bus()
-    const eb = _safeCall(() => (_isFn(engine.bus) ? engine.bus() : null), null);
-    if (eb) return eb;
-
-    // 3) engine.getBus()
-    const gb = _safeCall(() => (_isFn(engine.getBus) ? engine.getBus() : null), null);
-    if (gb) return gb;
-
-    // 4) injects / globals
-    if (K && (K.bus || K.BUS)) return (K.bus || K.BUS);
-    if (typeof BUS !== "undefined" && BUS) return BUS;
-
-    return null;
+    return _safeCall(() => (_isFn(engine.bus) ? engine.bus() : null), null);
 }
 
 function _busOn(bus, topic, fn) {
@@ -144,8 +118,6 @@ function _busEmit(bus, topic, payload) {
 class EventsApi {
     constructor(engine, K) {
         this.engineRef = engine;
-        this.K = K || (globalThis.__kalitech || Object.create(null));
-
         this._bus = null;
         this._defaultSeparator = ".";
         this._throwIfNoBus = true;
@@ -164,7 +136,7 @@ class EventsApi {
         }
         this._lastResolveAt = now;
 
-        const b = _getBus(this.engineRef, this.K);
+        const b = _getBus(this.engineRef);
         if (b) this._bus = b;
         return this._bus;
     }
@@ -196,7 +168,7 @@ class EventsApi {
 
         const token = _busOn(bus, t, handler);
 
-        // ✅ return offFn (JS-friendly), but actually removes token in Java
+        // return offFn (JS-friendly), but actually removes token in Java
         return () => _busOffToken(bus, token, t);
     }
 
@@ -227,7 +199,7 @@ class EventsApi {
         return _busOffClassic(bus, t, handler);
     }
 
-    // ✅ preferred: token-based off
+    // preferred: token-based off
     offToken(token, topicMaybe) {
         const bus = this.bus();
         if (!bus) return false;

@@ -179,8 +179,8 @@ class KalitechBootstrap {
             if (meta && meta.engineMin && engVer && !U.semverGte(engVer, meta.engineMin)) {
                 throw new Error(
                     "[bootstrap] Engine version " + sOrUnknown(engVer) +
-                    " is ниже минимальной " + sOrUnknown(meta.engineMin) +
-                    " для модуля " + mid
+                    " is below minimum " + sOrUnknown(meta.engineMin) +
+                    " for module " + mid
                 );
             }
 

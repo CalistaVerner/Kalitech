@@ -21,14 +21,14 @@ public final class KalitechLauncher {
     private static final String VMOPTIONS_PROP = "kalitech.vmoptions";
 
     public static void main(String[] args) {
-        // 1) Если ещё не перезапускались — читаем vmoptions и перезапускаем JVM
+        // Relaunch with vmoptions once, if configured.
         if (!Boolean.getBoolean(RELAUNCH_FLAG)) {
             Path vmoptions = resolveVmOptionsPath();
             if (Files.isRegularFile(vmoptions)) {
                 List<String> opts = readVmOptions(vmoptions);
                 if (!opts.isEmpty()) {
                     relaunchWithVmOptions(opts, args);
-                    return; // важно: текущий процесс уходит
+                    return; // current process exits after relaunch
                 }
             }
         }
@@ -107,7 +107,7 @@ public final class KalitechLauncher {
             boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
             File javaExe = Path.of(javaHome, "bin", isWindows ? "java.exe" : "java").toFile();
 
-            // classpath и main class
+            // classpath and main class
             String classPath = System.getProperty("java.class.path");
             String mainClass = KalitechLauncher.class.getName();
 

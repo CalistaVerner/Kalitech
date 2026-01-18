@@ -9,8 +9,8 @@ public final class JsSyntaxVerifier {
 
     private static final Engine ENGINE = Engine.create();
 
-    // Context не потокобезопасен -> держим per-thread.
-    // Важно: parse не требует HostAccess/IO.
+    // Context is not thread-safe, keep per-thread.
+    // Parsing does not require HostAccess/IO.
     private static final ThreadLocal<Context> CTX = ThreadLocal.withInitial(() ->
             Context.newBuilder("js")
                     .engine(ENGINE)
@@ -27,7 +27,7 @@ public final class JsSyntaxVerifier {
 
         try {
             Source src = Source.newBuilder("js", jsCode, name).cached(false).buildLiteral();
-            // parse == синтаксическая проверка; НЕ выполняет код
+            // parse performs syntax validation; it does not execute code
             CTX.get().parse(src);
 
         } catch (PolyglotException pe) {

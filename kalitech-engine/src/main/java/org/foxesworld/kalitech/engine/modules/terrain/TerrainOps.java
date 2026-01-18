@@ -89,7 +89,7 @@ public final class TerrainOps {
 
         if (world) n = tq.getWorldRotation().mult(n);
 
-        // Важно: ProxyObject -> в JS будет {x:..., y:..., z:...} с dot-доступом
+        // ProxyObject ensures JS sees {x,y,z} with dot-access.
         Map<String, Object> out = new HashMap<>(4, 1.0f);
         out.put("x", (double) n.x);
         out.put("y", (double) n.y);

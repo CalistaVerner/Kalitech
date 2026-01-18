@@ -14,7 +14,7 @@ public final class TransformSystem implements KSystem {
 
     @Override
     public void onUpdate(SystemContext ctx, float tpf) {
-        // Наивно: пробегаем по всем Transform-ам и двигаем Spatial если есть Renderable
+        // Simple pass: update Spatial from Transform when Renderable is present.
         for (var entry : ecs.components().view(TransformComponent.class).entrySet()) {
             int e = entry.getKey();
             TransformComponent tr = entry.getValue();

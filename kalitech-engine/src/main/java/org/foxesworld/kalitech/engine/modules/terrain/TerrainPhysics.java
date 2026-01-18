@@ -36,7 +36,7 @@ public final class TerrainPhysics {
         Map<String, Object> out = new HashMap<>();
         out.put("surface", surface.id());
         out.put("mass", 0.0);
-        out.put("kinematic", false); // статик лучше как НЕ-кинематик
+        out.put("kinematic", false); // static bodies should be non-kinematic
 
         Map<String, Object> col = new HashMap<>();
         col.put("type", isTerrain ? "dynamicMesh" : "mesh");
@@ -51,7 +51,7 @@ public final class TerrainPhysics {
                         Value t = member(c, "type");
                         String type = (t != null && !t.isNull()) ? str(c, "type", "") : "";
 
-                        //  форсим dynamicMesh для TerrainQuad
+                        // force dynamicMesh for TerrainQuad
                         if (isTerrain && "mesh".equalsIgnoreCase(type)) {
                             Map<String, Object> c2 = new HashMap<>();
                             for (String ck : c.getMemberKeys()) c2.put(ck, c.getMember(ck));

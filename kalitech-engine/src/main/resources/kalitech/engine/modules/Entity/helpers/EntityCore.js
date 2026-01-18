@@ -17,7 +17,7 @@ class EntityCore {
         this.body = null;
         this.bodyAccess = null;
 
-        this.uuid = "";     // ✅ UUID-only
+        this.uuid = "";     // UUID-only
         this.surfaceId = 0;
         this.bodyId = 0;
 
@@ -31,7 +31,7 @@ class EntityCore {
         this.state = {
             alive: false,
 
-            uuid: "",        // ✅ mirrored into state for convenience
+            uuid: "",        // mirrored into state for convenience
             mass: 0,
             radius: 0,
             height: 0,
@@ -70,7 +70,7 @@ class EntityCore {
         this.body = body || null;
         this.bodyAccess = req(bodyAccess, "[EntityCore] bodyAccess is required");
 
-        // ✅ UUID-only core
+        // UUID-only core
         const u =
             (typeof handle.uuidString === "function" ? handle.uuidString() : handle.uuid) || "";
 
