@@ -2,6 +2,13 @@
 
 module.exports = {
     modules: [
+        "@module/Assets/Assets",
+        "@module/Render/Render",
+        "@module/Time/Time",
+        "@module/Light/Light",
+        "@module/Surface/Surface",
+        "@module/Editor/Editor",
+        "@module/Editor/EditorLines",
         "@module/Material/Material",
         "@module/World/World",
         "@module/Mesh/Mesh",

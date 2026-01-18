@@ -6,12 +6,12 @@ import org.graalvm.polyglot.Value;
 
 public interface SystemProvider {
     /**
-     * строковый ID, по которому JS будет подключать систему
+     * String ID used by JS to reference the system.
      */
     String id();
 
     /**
-     * создаёт систему. config — кусок JS-объекта (Value)
+     * Creates a system instance. Config is a JS object (Value).
      */
     KSystem create(SystemContext ctx, Value config);
 }

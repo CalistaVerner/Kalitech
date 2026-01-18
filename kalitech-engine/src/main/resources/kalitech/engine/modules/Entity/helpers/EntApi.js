@@ -160,7 +160,7 @@ class EntApi {
         const debug = !!cfg.debug;
 
         const ctx = {
-            uuid: "",         // ✅ primary
+            uuid: "",         // primary UUID
             surface: null,
             body: null,
             surfaceId: 0,
@@ -243,7 +243,7 @@ class EntApi {
                     });
                 }
 
-                // ✅ preferred: setComponent(uuid,type,value)
+                // preferred: setComponent(uuid,type,value)
                 if (typeof ent.setComponent === "function") {
                     // try uuid signature first (Java side should have it)
                     ent.setComponent(ctx.uuid, key, data);

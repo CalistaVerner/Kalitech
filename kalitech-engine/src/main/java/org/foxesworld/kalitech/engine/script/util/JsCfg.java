@@ -189,7 +189,7 @@ public final class JsCfg {
             if (o == null) throw new IllegalArgumentException("readFloatArray: host object is null");
 
             if (o instanceof float[] a) {
-                return a; // можно copyOf(a,a.length) если хочешь защититься от мутаций
+                return a; // use Arrays.copyOf if you need mutation safety
             }
             if (o instanceof double[] a) {
                 float[] out = new float[a.length];
@@ -241,7 +241,7 @@ public final class JsCfg {
                     }
                 }
 
-                out[i] = 0f; // не падаем: JS должен быть простым
+                out[i] = 0f; // keep lenient: JS values should be simple
             }
 
             return out;

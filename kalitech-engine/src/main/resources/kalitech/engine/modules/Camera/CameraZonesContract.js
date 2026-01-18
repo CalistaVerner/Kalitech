@@ -78,7 +78,7 @@ function validateAabb(aabb, zoneId) {
 function validateOverrides(over, zoneId) {
     if (!isObj(over)) fail("[camera][zones] zone '" + zoneId + "' overrides must be an object");
 
-    // allowed keys (строго!)
+    // Allowed keys (strict)
     const allowed = {
         // third-person camera behavior
         pivotOffset: 1,        // vec3
@@ -120,7 +120,7 @@ function validateOverrides(over, zoneId) {
 
     if (over.shoulderX != null) out.shoulderX = asNum(over.shoulderX, "overrides.shoulderX");
 
-    // sanity checks (если обе заданы)
+    // Sanity checks (when both bounds are provided)
     if (out.zoomMin != null && out.zoomMax != null && !(out.zoomMax >= out.zoomMin)) {
         fail("[camera][zones] zone '" + zoneId + "' overrides zoomMax must be >= zoomMin");
     }

@@ -180,7 +180,7 @@ public final class TerrainNoise {
         // finalize (90..100)
         if (prog != null) prog.stage("finalize", 90);
 
-        // (сейчас finalize почти пустой — оставлено место под future: remap/curve/erosion post-pass)
+        // finalize hook (reserved for remap/curve/erosion post-pass)
         if (prog != null) prog.abs(100);
         if (prog != null) prog.done("generated");
 

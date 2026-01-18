@@ -69,7 +69,7 @@ public final class EntityScriptAPI {
         t.rotY += radians;
     }
 
-    // Потом расширим:
+    // Future extensions:
     // - spawn/attach renderable
     // - input, timers, etc.
 }

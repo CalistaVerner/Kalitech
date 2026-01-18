@@ -10,7 +10,7 @@ public final class InputTextLoader implements AssetLoader {
 
     @Override
     public Object load(AssetInfo assetInfo) throws IOException {
-        // единый пайплайн (и нормальные ошибки с describe())
+        // Single pipeline (with consistent errors via describe()).
         return AssetIO.readText(assetInfo, StandardCharsets.UTF_8);
     }
 }

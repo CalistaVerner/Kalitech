@@ -1,5 +1,5 @@
 // FILE: resources/kalitech/builtin/helpers/world/WorldBuilder.js
-// (оставляем ваш файл как есть, он не конфликтует; можно позже удалить/депрекейт)
+// Kept for compatibility with existing scripts. Safe to remove if not used.
 // NOTE: unchanged from current version
 "use strict";
 

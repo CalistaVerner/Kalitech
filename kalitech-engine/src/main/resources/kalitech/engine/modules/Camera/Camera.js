@@ -20,8 +20,8 @@ function makeApi(engine /*, K */) {
         if (log && typeof log.warn === "function") log.warn(String(msg));
     }
 
-    // Единственная “точка знания” где лежит оркестратор.
-    // Хотите переехать — меняете только тут.
+    // Single source of truth for the orchestrator location.
+    // If the file moves, update it here.
     const ORCH_MODULE_ID = "./CameraOrchestrator.js";
 
     function requireOrchestrator() {

@@ -152,12 +152,12 @@ public final class TerrainFactory {
             patchSize = clampInt(num(terr, "patchSize", patchSize), 17, 257);
         }
 
-        // Optional auto-center: if heights look like normalized 0..1, map to -0.5..+0.5
-        // (чтобы “по умолчанию” земля была вокруг Y=0, а не вся в плюс)
+        // Optional auto-center: if heights look normalized 0..1, map to -0.5..+0.5
+        // (so terrain is centered around Y=0 by default)
         boolean autoCenter = bool(cfg, "autoCenter", true);
         if (autoCenter) {
             float min = Float.POSITIVE_INFINITY, max = Float.NEGATIVE_INFINITY;
-            // sampling is enough (быстро)
+            // sampling is enough (fast)
             int step = Math.max(1, heights.length / 4096);
             for (int i = 0; i < heights.length; i += step) {
                 float v = heights[i];
@@ -172,7 +172,7 @@ public final class TerrainFactory {
         final String name = str(cfg, "name", TerrainDefaults.NAME_TERRAIN);
 
         final TerrainQuad tq = new TerrainQuad(name, patchSize, size, heights);
-        tq.setLocalScale(1f, 1f, 1f); // масштаб делаем в ops.scale / applyTransform, чтобы не было двойного скейла
+        tq.setLocalScale(1f, 1f, 1f); // scaling happens in ops.scale/applyTransform to avoid double scaling
 
         final boolean shadows = bool(cfg, "shadows", TerrainDefaults.SHADOWS_BOOL_DEFAULT);
         tq.setShadowMode(shadows ? RenderQueue.ShadowMode.CastAndReceive : RenderQueue.ShadowMode.Receive);

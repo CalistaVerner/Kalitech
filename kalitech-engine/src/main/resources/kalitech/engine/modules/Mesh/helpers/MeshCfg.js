@@ -32,7 +32,7 @@ function normalizeCfg(cfg) {
     if (out.radius != null) out.radius = num(out.radius, out.radius);
     if (out.height != null) out.height = num(out.height, out.height);
 
-    // physics конфиг — оставляем как есть (без “legacy top-level” магии)
+    // Physics config: keep as-is, only normalize numeric shorthand.
     if (out.physics != null && typeof out.physics === "number") out.physics = {mass: out.physics};
 
     return out;

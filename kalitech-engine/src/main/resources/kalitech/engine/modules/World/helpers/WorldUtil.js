@@ -1,5 +1,5 @@
 // FILE: resources/kalitech/builtin/helpers/world/WorldUtil.js
-// (ваш файл, без изменений)
+// Compatibility utility helpers.
 "use strict";
 
 function isObj(v) {

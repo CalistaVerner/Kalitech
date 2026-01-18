@@ -1,9 +1,9 @@
 "use strict";
 
-// ------------------- строгие предположения -------------------
-// 1) SurfaceHandle имеет метод id():int (без вариантов)
+// ------------------- strict assumptions -------------------
+// 1) SurfaceHandle provides id():int
 // 2) ENGINE.surface().attachedBody(surfaceId)->int
-// 3) ENGINE.physics() содержит операции только по bodyId
+// 3) ENGINE.physics() operates only on bodyId
 
 function surfaceId(handle) {
     if (!handle || typeof handle.id !== "function") throw new Error("[MSH] SurfaceHandle must provide id()");
