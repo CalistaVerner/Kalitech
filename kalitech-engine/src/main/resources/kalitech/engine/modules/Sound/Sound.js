@@ -165,6 +165,8 @@ class SoundObject {
         this._seed = null;
         this._positional = null;
 
+        this._random = null;
+
         this._context = {entityId: 0, surfaceId: 0, seq: 0, tick: 0, slot: 0};
         this._overrides = null;
 
@@ -185,6 +187,11 @@ class SoundObject {
 
     setPositional(v = true) {
         this._positional = !!v;
+        return this;
+    }
+
+    setRandom(v = true) {
+        this._random = !!v;
         return this;
     }
 
@@ -252,6 +259,8 @@ class SoundObject {
 
             if (this._deterministic != null) cfg.deterministic = !!this._deterministic;
             if (this._seed != null) cfg.seed = Number(this._seed) || 0;
+
+            if (this._random != null) cfg.random = !!this._random;
 
             cfg.context = {
                 entityId: this._context.entityId,
@@ -444,6 +453,8 @@ class SoundRegistry {
     _normalizeEventCfg(cfg) {
         const out = {event: s(cfg.event)};
 
+        if (cfg.random != null) out.random = !!cfg.random;
+
         if (cfg.deterministic != null) out.deterministic = !!cfg.deterministic;
         if (cfg.seed != null) out.seed = Number(cfg.seed) || 0;
 
@@ -531,7 +542,7 @@ function create(engine, K) {
 create.META = {
     moduleId: "sound",
     globalName: "SND",
-    version: "1.3.0",
+    version: "1.4.0",
     description: "Universal sound facade: playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
     engineMin: "0.1.0"
 };

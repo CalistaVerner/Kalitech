@@ -6,9 +6,9 @@
 
 Он объединяет **event‑банк** и **произвольные локальные звуки** (`src`) в один декларативный формат:
 
-* быстрый one‑shot: `ENGINE.sound().playSound({ event: "player.action.throw" })`
-* локальный звук без банка: `ENGINE.sound().playSound({ src: "Sounds/throw.ogg" })`
-* объектный режим (пер‑объект конфиг): `ENGINE.sound().getSound("any.event").setDeterministic(true).play()`
+- быстрый one‑shot: `ENGINE.sound().playSound({ event: "player.action.throw" })`
+- локальный звук без банка: `ENGINE.sound().playSound({ src: "Sounds/throw.ogg" })`
+- объектный режим (пер‑объект конфиг): `ENGINE.sound().getSound("any.event").setDeterministic(true).play()`
 
 Цель: **детерминированность уровня АРСАКИ**, предсказуемое поведение, минимум «магии».
 
@@ -49,7 +49,20 @@ ENGINE.sound().playSound({
 });
 ```
 
-### 3) Локальный звук без банка (`src`)
+### 3) Event + явный `random`
+
+```js
+ENGINE.sound().playSound({
+    event: "weapon.hit",
+    random: true,
+    is3D: true,
+    pos: hitPos,
+    volume: [0.75, 1.0],
+    pitch: [0.9, 1.1]
+});
+```
+
+### 4) Локальный звук без банка (`src`)
 
 ```js
 ENGINE.sound().playSound({
@@ -70,28 +83,32 @@ ENGINE.sound().playSound({
 
 ### Правило выбора режима
 
-* если задано `cfg.event` → используется event‑банк (`playEventCfg` на Java‑стороне)
-* иначе если задано `cfg.src` → создаётся `AudioNode` через `create(cfg)` и проигрывается
-* если не задано ни `event`, ни `src` → ошибка
+- если задано `cfg.event` → используется event‑банк (`playEventCfg` на Java‑стороне)
+- иначе если задано `cfg.src` → создаётся `AudioNode` через `create(cfg)` и проигрывается
+- если не задано ни `event`, ни `src` → ошибка
 
-### Поддерживаемые поля `cfg`
+---
 
-#### Общие
+## Поддерживаемые поля `cfg`
 
-* `is3D: boolean` — позиционность
-* `looping: boolean`
-* `volume: number | [min,max]`
-* `pitch: number | [min,max]`
-* позиция: `pos` / `position` / `x,y,z`
-* `type: "buffer" | "stream"` — для `src` (и для некоторых конфигов на Java)
+### Общие
 
-#### Только для event
+- `is3D: boolean` — позиционность
+- `looping: boolean`
+- `volume: number | [min,max]`
+- `pitch: number | [min,max]`
+- позиция: `pos` / `position` / `x,y,z`
+- `type: "buffer" | "stream"` — для `src` (и для некоторых конфигов на Java)
 
-* `event: string` — ключ события
-* `deterministic: boolean` — режим выбора варианта
-* `seed: number` — seed (пер‑вызов)
-* `context: { entityId, surfaceId, seq, tick, slot }` — контекст выбора варианта
-* `overrides: object` — overrides, применяются поверх дефолтной `SoundDef`
+### Только для event
+
+- `event: string` — ключ события
+- `random: boolean` — если `true` и у события больше одного варианта, выбор будет случайным (недетерминированным). При
+  `random=true` поля `deterministic`, `seed`, `context` игнорируются на стороне движка.
+- `deterministic: boolean` — режим выбора варианта
+- `seed: number` — seed (пер‑вызов)
+- `context: { entityId, surfaceId, seq, tick, slot }` — контекст выбора варианта
+- `overrides: object` — overrides, применяются поверх дефолтной `SoundDef`
 
 ---
 
@@ -114,6 +131,17 @@ sound
     .play();
 ```
 
+#### Рандом в объектном режиме
+
+```js
+const snd = ENGINE.sound();
+
+snd.getSound("weapon.hit")
+    .setRandom(true)
+    .setPositional(true)
+    .play();
+```
+
 ### File‑объект (`src`)
 
 ```js
@@ -129,33 +157,59 @@ sound2
 
 ### Почему объектный режим стабилен
 
-* объект хранит **чётко описанный конфиг**
-* `play()` использует **универсальный** `playSound(cfg)`
-* минимум имплицитных зависимостей
+- объект хранит **чётко описанный конфиг**
+- `play()` использует **универсальный** `playSound(cfg)`
+- минимум имплицитных зависимостей
 
 ---
 
 ## Детерминизм и «рандом»
 
-### Когда deterministic=true даёт одинаковый звук
+В модуле есть два независимых понятия:
+
+- `deterministic` — **воспроизводимость** (сеть/реплеи/синхронизация)
+- `random` — **дизайнерский рандом** (вариативность без гарантий воспроизводимости)
+
+### Флаг `random`
+
+`random: true` применим **только** к event‑звукам, когда у события больше одного варианта.
+
+- `random: true` → вариант выбирается случайно (недетерминированно)
+- `random: false` → принудительно отключает рандом и использует детерминированный/обычный путь
+- `random` не задан → сохраняется текущее поведение (backward compatible)
+
+При `random: true` поля `deterministic`, `seed`, `context` **игнорируются** на стороне движка.
+
+#### Пример: явный рандом
+
+```js
+ENGINE.sound().playSound({
+    event: "weapon.hit",
+    random: true,
+    is3D: true,
+    pos: hitPos,
+    volume: [0.75, 1.0],
+    pitch: [0.9, 1.1]
+});
+```
+
+---
+
+## Детерминированный выбор (как получить вариативность и сохранить воспроизводимость)
+
+### Когда `deterministic=true` даёт одинаковый звук
 
 Если одновременно:
 
-* `deterministic: true`
-* `seed` один и тот же
-* `context` неизменен (или отсутствует)
+- `deterministic: true`
+- `seed` один и тот же
+- `context` неизменен (или отсутствует)
 
 …то выбор варианта события будет одинаковый.
 
-### Как получить «рандом», но управляемый
+### Как получить «вариативность», но детерминированно
 
-1. Самое простое: отключить детерминизм для вызова/объекта
-
-```js
-ENGINE.sound().playSound({event: "player.action.throw", deterministic: false});
-```
-
-2. Если нужен детерминизм (реплеи/сеть), но вариативность — двигайте `context.seq`
+Двигайте `context.seq` (или другой компонент контекста) при каждом вызове.
 
 ```js
 let seq = 0;
@@ -171,8 +225,8 @@ ENGINE.sound().playSound({
 
 Event‑объект имеет авто‑счётчик `seq`, который по умолчанию увеличивается при каждом `play()`.
 
-* `enableAutoSeq(false)` — отключить
-* `setSeqMode("keep")` — не увеличивать `seq`, если он уже задан
+- `enableAutoSeq(false)` — отключить
+- `setSeqMode("keep")` — не увеличивать `seq`, если он уже задан
 
 ---
 
@@ -193,9 +247,9 @@ snd.loadBank({
 
 Типичный пайплайн:
 
-* `loadBank(bankObj)`
-* `listEvents()`
-* `playSound({event: ...})` / `getSound(event)`
+- `loadBank(bankObj)`
+- `listEvents()`
+- `playSound({event: ...})` / `getSound(event)`
 
 ---
 
@@ -205,24 +259,24 @@ snd.loadBank({
 
 ### Для event
 
-* `playEventCfg(Value cfg)` (желательно)
-* `createEventCfg(Value cfg)` (опционально, но полезно)
+- `playEventCfg(Value cfg)` (желательно)
+- `createEventCfg(Value cfg)` (опционально, но полезно)
 
 ### Для src
 
-* `create(Value cfg)`
-* `play(AudioNode node)`
+- `create(Value cfg)`
+- `play(AudioNode node)`
 
 Дополнительно (желательно):
 
-* `setSeed(long)`
-* `setDeterministic(boolean)`
+- `setSeed(long)`
+- `setDeterministic(boolean)`
 
 ---
 
 ## Версия
 
-* Sound JS: **v1.3.0**
+- Sound JS: **v1.4.0**
 
 ---
 
@@ -247,12 +301,12 @@ function playFootstep(surfaceId) {
 }
 ```
 
-### Impacts: недетерминированно
+### Impacts: явный `random`
 
 ```js
 ENGINE.sound().playSound({
     event: "weapon.hit",
-    deterministic: false,
+    random: true,
     is3D: true,
     pos: hitPos,
     volume: [0.75, 1.0],

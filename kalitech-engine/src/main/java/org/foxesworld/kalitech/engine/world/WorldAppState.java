@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
+import org.foxesworld.kalitech.engine.world.systems.MainThreadBudgetQueue;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
 
@@ -54,6 +55,7 @@ public final class WorldAppState extends BaseAppState {
             log.error("[World] hotReload failed", t);
         }
     };
+
     private boolean baseRuntimeInitialized;
     private KWorld world;
     private SystemContext worldCtx;
@@ -85,8 +87,7 @@ public final class WorldAppState extends BaseAppState {
     }
 
     private static SimpleApplication coerceSimpleApp(Application app) {
-        if (app instanceof SimpleApplication sa) return sa;
-        return null;
+        return (app instanceof SimpleApplication sa) ? sa : null;
     }
 
     @Override
@@ -204,8 +205,8 @@ public final class WorldAppState extends BaseAppState {
             return;
         }
 
-        SimpleApplication app = coerceSimpleApp(engine.getApp());
-        if (app == null) {
+        SimpleApplication sa = coerceSimpleApp(engine.getApp());
+        if (sa == null) {
             log.error("[World] cannot create world: engine.getApp() is not a SimpleApplication");
             this.world = null;
             return;
@@ -213,18 +214,22 @@ public final class WorldAppState extends BaseAppState {
 
         final SystemContext.RuntimePolicy policy = new DefaultRuntimePolicy();
 
+        // IMPORTANT FIX:
+        // - pass WorldTime from KWorld
+        // - pass MainThreadBudgetQueue instance
         this.worldCtx = new SystemContext(
-                app,
+                sa,
                 engine,
                 engine.getEcs(),
                 engine.getBus(),
                 engine.__getPhysicsSpaceOrNull(),
-                rt0,
-                this::getRuntime,
+                newWorld.worldTime(),     // WorldTime
+                rt0,                      // base runtime
+                this::getRuntime,          // runtime provider
                 policy,
                 scheduler,
-                null,
-                null,
+                new MainThreadBudgetQueue(),
+                null,                     // perf provider (optional)
                 engine.getLog()
         );
 

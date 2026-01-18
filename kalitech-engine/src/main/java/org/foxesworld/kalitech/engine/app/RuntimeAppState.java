@@ -16,7 +16,6 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
-import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.graalvm.polyglot.Value;
 
@@ -25,6 +24,10 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Runtime host: scripts, hot-reload, engine API, ECS, bus, optional physics.
+ * Does NOT manage WorldAppState or any world lifecycle.
+ */
 public final class RuntimeAppState extends BaseAppState {
 
     private static final Logger log = LogManager.getLogger(RuntimeAppState.class);
@@ -36,8 +39,8 @@ public final class RuntimeAppState extends BaseAppState {
     private ScriptRuntime runtime;
     private HotReloadWatcher watcher;
 
-    private ScriptEventBus bus;
-    private EcsWorld ecs;
+    private final ScriptEventBus bus;
+    private final EcsWorld ecs;
 
     private EngineApiImpl engineApi;
 
@@ -94,18 +97,32 @@ public final class RuntimeAppState extends BaseAppState {
         return id;
     }
 
+    private static SimpleApplication coerceSimpleApp(Application app) {
+        return (app instanceof SimpleApplication sa) ? sa : null;
+    }
+
     @Override
     protected void initialize(Application app) {
-        this.app = (SimpleApplication) app;
+        this.app = coerceSimpleApp(app);
+        if (this.app == null) {
+            throw new IllegalStateException("RuntimeAppState requires SimpleApplication");
+        }
 
         // --- Physics (optional) ---
         bullet = new BulletAppState();
         bullet.setDebugEnabled(Boolean.parseBoolean(System.getProperty("physicsDebug", "false").toLowerCase()));
-        app.getStateManager().attach(bullet);
-        physicsSpace = bullet.getPhysicsSpace();
-        physicsSpace.setMaxSubSteps(8);
-        physicsSpace.setAccuracy(1f / 60f);
+
+        try {
+            this.app.getStateManager().attach(bullet);
+        } catch (Throwable t) {
+            log.warn("[Runtime] BulletAppState not attached (optional): {}", t.toString());
+            bullet = null;
+        }
+
+        physicsSpace = (bullet != null) ? bullet.getPhysicsSpace() : null;
         if (physicsSpace != null) {
+            physicsSpace.setMaxSubSteps(8);
+            physicsSpace.setAccuracy(1f / 60f);
             physicsSpace.setGravity(new Vector3f(0f, -9.81f, 0f));
         }
 
@@ -113,44 +130,39 @@ public final class RuntimeAppState extends BaseAppState {
         engineApi = new EngineApiImpl(this);
         engineApi.__setPhysicsSpace(physicsSpace);
 
-        // --- Script runtime (shared base for app + world) ---
+        // --- Script runtime (shared base for app + potential worlds) ---
         runtime = new ScriptRuntime();
 
-        // CRITICAL: providers for require()/assets MUST be set BEFORE any require() or builtins init
+        // CRITICAL: providers MUST be set BEFORE any require() or builtins init
         runtime.setModuleStreamProvider(this::openJsModuleStream);
-        // runtime.setModuleSourceProvider(this::loadTextAssetOrNull); // optional if you use it
 
-        // Builtins must be initialized AFTER engineApi exists (bootstrap needs engine to attach)
+        // Builtins must be initialized AFTER engineApi exists
         runtime.initBuiltIns(engineApi);
 
         // --- Hot reload watcher ---
         watcher = new HotReloadWatcher(watchRoot);
 
-        // --- Optional world subsystem (SERVICE) ---
-        // IMPORTANT: WorldAppState must see THIS RuntimeAppState, to reuse runtime with providers.
-        try {
-            app.getStateManager().attach(new WorldAppState(this));
-        } catch (Throwable t) {
-            log.warn("[Runtime] WorldAppState not attached (optional): {}", t.toString());
-        }
-
         // --- App-only context ---
+        // WorldTime is world-only => null here.
         appCtx = new SystemContext(
                 this.app,
                 engineApi,
                 ecs,
                 bus,
                 physicsSpace,
+                null,      // WorldTime (world-only)
                 runtime,
-                null,
-                null,
-                null,
-                null,
-                null,
+                null,      // runtimeProvider
+                null,      // runtimePolicy (default inside SystemContext)
+                null,      // scheduler
+                null,      // mainQueue
+                null,      // perfProvider
                 engineApi.getLog()
         );
 
         dirty = true;
+        cooldown = 0f;
+
         log.info("[Runtime] started entry={} watchRoot={}", entry, watchRoot.toAbsolutePath());
     }
 
@@ -158,21 +170,22 @@ public final class RuntimeAppState extends BaseAppState {
     public void update(float tpf) {
         if (!isEnabled()) return;
 
-        // keep time/fps updated even without world
+        // Keep time/fps updated even without world
         try {
-            engineApi.__updateTime(tpf);
+            if (engineApi != null) engineApi.__updateTime(tpf);
         } catch (Throwable ignored) {
         }
 
-        // hot reload
+        // Hot reload
         cooldown -= tpf;
-        if (cooldown <= 0f && watcher != null) {
+        if (cooldown <= 0f && watcher != null && runtime != null) {
             Set<String> changed = watcher.pollChanged();
             if (changed != null && !changed.isEmpty()) {
                 try {
                     runtime.invalidateMany(changed);
                 } catch (Throwable ignored) {
                 }
+
                 dirty = true;
                 cooldown = reloadCooldown;
 
@@ -189,30 +202,36 @@ public final class RuntimeAppState extends BaseAppState {
         }
 
         try {
-            engineApi.input().endFrame();
+            if (engineApi != null) engineApi.input().endFrame();
         } catch (Throwable ignored) {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Asset-backed module loading
-    // ---------------------------------------------------------------------
-
     private void restartApp() {
+        final ScriptRuntime rt = this.runtime;
+        final SystemContext ctx = this.appCtx;
+
+        if (rt == null || ctx == null) return;
+
         try {
+            // Optional: hard-reset physics on reload to avoid ghost bodies
             try {
-                engineApi.physics().__clearAll();
+                if (engineApi != null) engineApi.physics().__clearAll();
             } catch (Throwable ignored) {
             }
 
-            runtime.invalidate(entry);
-            Value main = runtime.require(entry);
+            try {
+                rt.invalidate(entry);
+            } catch (Throwable ignored) {
+            }
+
+            Value main = rt.require(entry);
             Value appObj = resolveApp(main);
 
             if (appObj != null && !appObj.isNull() && appObj.hasMember("start")) {
                 Value start = appObj.getMember("start");
                 if (start != null && start.canExecute()) {
-                    start.execute(appCtx);
+                    start.execute(ctx);
                 }
             }
 
@@ -220,6 +239,7 @@ public final class RuntimeAppState extends BaseAppState {
                 bus.emit("app:started", null);
             } catch (Throwable ignored) {
             }
+
             log.info("[Runtime] app started");
         } catch (Throwable t) {
             log.error("[Runtime] app start failed", t);
@@ -229,8 +249,11 @@ public final class RuntimeAppState extends BaseAppState {
     private InputStream openJsModuleStream(String moduleId) {
         try {
             String id = normalizeJsModuleId(moduleId);
+            if (id.isEmpty()) return null;
+
             AssetManager am = (app != null) ? app.getAssetManager() : null;
             if (am == null) return null;
+
             var ai = am.locateAsset(new AssetKey<>(id));
             return (ai != null) ? ai.openStream() : null;
         } catch (Throwable ignored) {
@@ -252,7 +275,7 @@ public final class RuntimeAppState extends BaseAppState {
     @Override
     protected void cleanup(Application app) {
         try {
-            if (bullet != null) app.getStateManager().detach(bullet);
+            if (this.app != null && bullet != null) this.app.getStateManager().detach(bullet);
         } catch (Throwable ignored) {
         }
         bullet = null;
@@ -272,15 +295,21 @@ public final class RuntimeAppState extends BaseAppState {
 
         appCtx = null;
         engineApi = null;
+        this.app = null;
 
         log.info("[Runtime] stopped");
     }
 
-    @Override protected void onEnable() {}
-    @Override protected void onDisable() {}
+    @Override
+    protected void onEnable() {
+    }
+
+    @Override
+    protected void onDisable() {
+    }
 
     // ---------------------------------------------------------------------
-    // Getters used by EngineApiImpl / WorldAppState
+    // Getters used by EngineApiImpl / WorldApiImpl (lazy attach WorldAppState)
     // ---------------------------------------------------------------------
 
     public SimpleApplication getSa() {

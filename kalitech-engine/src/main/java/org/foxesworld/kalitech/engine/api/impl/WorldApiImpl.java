@@ -1,6 +1,7 @@
+// FILE: WorldApiImpl.java
 package org.foxesworld.kalitech.engine.api.impl;
 
-
+import com.jme3.app.Application;
 import com.jme3.app.state.AppStateManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,11 +13,13 @@ import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.WorldApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.world.KWorld;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
+import org.foxesworld.kalitech.engine.world.WorldTimeParams;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -35,7 +38,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     private EcsWorld ecs;
 
     public WorldApiImpl() {
-        super("world", "World", "2.0.0");
+        super("world", "World", "2.4.1");
     }
 
     private static Value requireMember(Value obj, String key, String err) {
@@ -70,6 +73,16 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (v == null || v.isNull()) return def;
         if (!v.isNumber() || !v.fitsInInt()) throw new IllegalArgumentException(errPrefix + key + " must be an int");
         return v.asInt();
+    }
+
+    private static double readDouble(Value obj, String key, double def, String errPrefix) {
+        if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) return def;
+        final Value v = obj.getMember(key);
+        if (v == null || v.isNull()) return def;
+        if (!v.isNumber()) throw new IllegalArgumentException(errPrefix + key + " must be a number");
+        final double x = v.asDouble();
+        if (!Double.isFinite(x)) throw new IllegalArgumentException(errPrefix + key + " must be finite");
+        return x;
     }
 
     private static String normalizeProfile(String p) {
@@ -133,6 +146,81 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (b != null) b.emit(name, payload);
     }
 
+    private static WorldTimeParams parseWorldTimeParams(Value desc) {
+        if (desc == null || desc.isNull() || !desc.hasMembers() || !desc.hasMember("time")) {
+            return WorldTimeParams.defaults();
+        }
+
+        final Value t = desc.getMember("time");
+        if (t == null || t.isNull()) return WorldTimeParams.defaults();
+        if (!t.hasMembers()) throw new IllegalArgumentException("world.create: desc.time must be an object");
+
+        final double worldTime = readDouble(t, "worldTime", 0.0, "world time.");
+        final double timeRate = readDouble(t, "timeRate", 1.0, "world time.");
+        final boolean paused = readBool(t, "paused", false, "world time.");
+
+        final Double fixedStep = t.hasMember("fixedStep") && !t.getMember("fixedStep").isNull()
+                ? readOptionalPositiveDouble(t, "fixedStep", "world time.")
+                : null;
+
+        final Double maxDelta = t.hasMember("maxDelta") && !t.getMember("maxDelta").isNull()
+                ? readOptionalPositiveDouble(t, "maxDelta", "world time.")
+                : null;
+
+        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
+    }
+
+    private static Double readOptionalPositiveDouble(Value obj, String key, String errPrefix) {
+        final double v = readDouble(obj, key, 0.0, errPrefix);
+        if (v <= 0.0) return null;
+        return v;
+    }
+
+    private WorldAppState getWorldAppStateOrNull() {
+        final EngineApiImpl e = this.engine;
+        if (e == null) return null;
+
+        final var app = e.getApp();
+        if (app == null) return null;
+
+        final var sm = app.getStateManager();
+        if (sm == null) return null;
+
+        return sm.getState(WorldAppState.class);
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    public Object getWorldTime() {
+        final WorldAppState wa = getWorldAppStateOrNull();
+        if (wa == null) return null;
+
+        final KWorld w = wa.getWorldOrNull();
+        if (w == null) return null;
+
+        final var t = w.getTime();
+        if (t == null) return null;
+
+        final Map<String, Object> out = new LinkedHashMap<>();
+        out.put("worldTime", t.getWorldTimeSec());
+        out.put("timeRate", t.getTimeRate());
+        out.put("paused", t.isPaused());
+
+        if (t.fixedStepSec() != null) {
+            out.put("fixedStep", t.fixedStepSec());
+        }
+        if (t.getMaxDeltaSec() != null) {
+            out.put("maxDelta", t.getMaxDeltaSec());
+        }
+
+        return ProxyObject.fromMap(out);
+    }
+
     @HostAccess.Export
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -153,7 +241,8 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             throw new IllegalArgumentException("world.create: desc.systems must be an array");
         }
 
-        final KWorld world = new KWorld(name);
+        final WorldTimeParams timeParams = parseWorldTimeParams(desc);
+        final KWorld world = new KWorld(name, timeParams);
 
         final long n = systems.getArraySize();
         for (long i = 0; i < n; i++) {
@@ -164,7 +253,9 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
             final String id = requireStr(it, "id", "world.create: systems[" + i + "].id is required");
             if (!"jsSystem".equals(id)) {
-                throw new IllegalArgumentException("world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')");
+                throw new IllegalArgumentException(
+                        "world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')"
+                );
             }
 
             final int order = readInt(it, "order", 0, "world system.");
@@ -194,7 +285,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             world.addSystem(new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtime), order);
         }
 
-        final WorldAppState wa = requireWorldAppState();
+        final WorldAppState wa = ensureWorldAppStateAttached();
         wa.createWorld(world, start);
 
         emit("world.created", Map.of(
@@ -270,11 +361,37 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (log.isDebugEnabled()) log.debug("[world.destroy] uuid={}", uuid);
     }
 
-    private WorldAppState requireWorldAppState() {
-        final var app = engine.getApp();
+    /**
+     * Ensures WorldAppState is attached when world.create() is called.
+     * This keeps RuntimeAppState free from any world lifecycle responsibilities.
+     */
+    private WorldAppState ensureWorldAppStateAttached() {
+        final EngineApiImpl e = this.engine;
+        if (e == null) throw new IllegalStateException("WorldApiImpl is not attached");
+
+        final Application app = e.getApp();
+        if (app == null) throw new IllegalStateException("Engine application is null");
+
         final AppStateManager sm = app.getStateManager();
-        final WorldAppState wa = sm.getState(WorldAppState.class);
-        if (wa == null) throw new IllegalStateException("WorldAppState is not attached");
-        return wa;
+        if (sm == null) throw new IllegalStateException("AppStateManager is null");
+
+        WorldAppState wa = sm.getState(WorldAppState.class);
+        if (wa != null) return wa;
+
+        final RuntimeAppState host = sm.getState(RuntimeAppState.class);
+        if (host == null) {
+            throw new IllegalStateException("WorldAppState is not attached and RuntimeAppState is missing");
+        }
+
+        wa = new WorldAppState(host);
+        sm.attach(wa);
+
+        final WorldAppState wa2 = sm.getState(WorldAppState.class);
+        if (wa2 == null) {
+            throw new IllegalStateException("WorldAppState attach failed");
+        }
+
+        log.info("[world] WorldAppState attached lazily");
+        return wa2;
     }
 }

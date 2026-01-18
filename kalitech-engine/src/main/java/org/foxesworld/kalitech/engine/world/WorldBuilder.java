@@ -40,13 +40,39 @@ public final class WorldBuilder {
         this.registry = Objects.requireNonNull(registry, "registry");
     }
 
+    private static WorldTimeParams parseWorldTimeParams(Value worldDesc) {
+        Value t = member(worldDesc, "time");
+        if (t == null || t.isNull()) return WorldTimeParams.defaults();
+
+        double worldTime = num(t, "worldTime", 0.0);
+        double timeRate = num(t, "timeRate", 1.0);
+        boolean paused = bool(t, "paused", false);
+
+        Double fixedStep = null;
+        Value fs = member(t, "fixedStep");
+        if (fs != null && !fs.isNull()) {
+            double v = fs.fitsInDouble() ? fs.asDouble() : num(t, "fixedStep", 0.0);
+            if (Double.isFinite(v) && v > 0.0) fixedStep = v;
+        }
+
+        Double maxDelta = null;
+        Value md = member(t, "maxDelta");
+        if (md != null && !md.isNull()) {
+            double v = md.fitsInDouble() ? md.asDouble() : num(t, "maxDelta", 0.0);
+            if (Double.isFinite(v) && v > 0.0) maxDelta = v;
+        }
+
+        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
+    }
 
     public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {
         Objects.requireNonNull(ctx, "ctx");
         Objects.requireNonNull(worldDesc, "worldDesc");
 
         String name = str(worldDesc, "name", "main");
-        KWorld world = new KWorld(name);
+
+        WorldTimeParams time = parseWorldTimeParams(worldDesc);
+        KWorld world = new KWorld(name, time);
 
         Value systems = member(worldDesc, "systems");
         if (systems == null || !systems.hasArrayElements()) {
@@ -78,7 +104,6 @@ public final class WorldBuilder {
                 continue;
             }
 
-            //  New world API: order is explicit
             world.addSystem(sys, d.order);
 
             log.info("WorldBuilder: added system id={} order={}", d.id, d.order);

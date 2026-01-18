@@ -10,9 +10,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * World orchestrator.
+ * Script is expected to provide an explicit time configuration during create().
+ */
 public final class KWorld {
 
     private final String name;
+    private final WorldTime time;
 
     private final List<Entry> systems = new ArrayList<>();
 
@@ -22,7 +27,12 @@ public final class KWorld {
     private boolean started = false;
 
     public KWorld(String name) {
-        this.name = (name == null || name.isBlank()) ? "world" : name;
+        this(name, WorldTimeParams.defaults());
+    }
+
+    public KWorld(String name, WorldTimeParams timeParams) {
+        this.name = (name == null || name.isBlank()) ? "world" : name.trim();
+        this.time = new WorldTime(timeParams);
     }
 
     public String getName() {
@@ -31,6 +41,10 @@ public final class KWorld {
 
     public boolean isStarted() {
         return started;
+    }
+
+    public WorldTime worldTime() {
+        return time;
     }
 
     public void addSystem(KSystem system, int order) {
@@ -85,13 +99,85 @@ public final class KWorld {
         started = true;
     }
 
-    public void update(SystemContext ctx, float tpf) {
+    public void update(SystemContext ctx, float realTpf) {
         if (!started) return;
         Objects.requireNonNull(ctx, "ctx");
 
+        final double realDt = (double) realTpf;
+        if (!Double.isFinite(realDt) || realDt <= 0.0) {
+            time.beginFrame(0.0, 0.0);
+            awaitWorkers(ctx, 0L);
+            pumpEvents(ctx);
+            return;
+        }
+
+        if (time.paused()) {
+            time.beginFrame(realDt, 0.0);
+            awaitWorkers(ctx, 0L);
+            pumpEvents(ctx);
+            return;
+        }
+
+        double dt = realDt * time.timeRate();
+
+        Double maxDelta = time.maxDeltaSec();
+        if (maxDelta != null && maxDelta.doubleValue() > 0.0) {
+            dt = Math.min(dt, maxDelta.doubleValue());
+        }
+
+        Double fixedStep = time.fixedStepSec();
+        if (fixedStep != null && fixedStep.doubleValue() > 0.0) {
+            time.beginFrame(realDt, dt);
+            runFixedStep(ctx, dt, fixedStep.doubleValue());
+        } else {
+            time.beginFrame(realDt, dt);
+            time.beginStep(dt);
+            time.advanceWorldTime(dt);
+            updateSystems(ctx, (float) dt);
+            time.endStep();
+        }
+
+        awaitWorkers(ctx, 0L);
+        pumpEvents(ctx);
+    }
+
+    private void runFixedStep(SystemContext ctx, double dt, double step) {
+        time.addAccumulator(dt);
+
+        int maxSteps = 8;
+        Double maxDelta = time.maxDeltaSec();
+        if (maxDelta != null && maxDelta.doubleValue() > 0.0 && step > 0.0) {
+            maxSteps = Math.max(1, (int) Math.ceil(maxDelta.doubleValue() / step));
+            maxSteps = Math.min(maxSteps, 64);
+        }
+
+        int steps = 0;
+        while (time.accumulatorSec() >= step && steps < maxSteps) {
+            time.consumeAccumulator(step);
+            time.beginStep(step);
+            time.advanceWorldTime(step);
+            updateSystems(ctx, (float) step);
+            time.endStep();
+            steps++;
+        }
+    }
+
+    private void awaitWorkers(SystemContext ctx, long budgetNanos) {
+        final SystemScheduler sch = ctx.scheduler();
+        if (sch == null) return;
+
+        try {
+            if (budgetNanos > 0L) sch.awaitBudgetNanos(budgetNanos);
+            else sch.awaitDefaultBudget();
+        } catch (Throwable t) {
+            ctx.log().warn("[world:{}] scheduler await failed: {}", name, t.toString());
+        }
+    }
+
+    private void updateSystems(SystemContext ctx, float tpfSim) {
         for (KSystem sys : mainSystems) {
             try {
-                sys.onUpdate(ctx, tpf);
+                sys.onUpdate(ctx, tpfSim);
             } catch (Throwable t) {
                 ctx.log().error("[world:{}] system onUpdate failed: {}", name, sys, t);
             }
@@ -100,13 +186,20 @@ public final class KWorld {
         final SystemScheduler sch = ctx.scheduler();
         for (KSystem sys : workerSystems) {
             try {
-                if (sch != null) sch.submitUpdate(sys, ctx, tpf);
-                else sys.onUpdate(ctx, tpf);
+                if (sch != null) sch.submitUpdate(sys, ctx, tpfSim);
+                else sys.onUpdate(ctx, tpfSim);
             } catch (Throwable t) {
                 ctx.log().error("[world:{}] worker update failed: {}", name, sys, t);
             }
         }
-        ctx.events().pump();
+    }
+
+    private void pumpEvents(SystemContext ctx) {
+        try {
+            if (ctx.events() != null) ctx.events().pump();
+        } catch (Throwable t) {
+            ctx.log().warn("[world:{}] events.pump failed: {}", name, t.toString());
+        }
     }
 
     public void stop(SystemContext ctx) {
@@ -140,14 +233,12 @@ public final class KWorld {
 
         if (started) stop(ctx);
 
-        // 1) global hooks (no hardcode: modules register themselves)
         try {
             ctx.hotReloadHub().fire(why);
         } catch (Throwable t) {
             ctx.log().warn("[world:{}] hotReload hub.fire failed: {}", name, t.toString());
         }
 
-        // 2) per-system hooks (cache invalidation etc.)
         for (KSystem sys : mainSystems) {
             if (sys instanceof HotReloadableSystem hr) {
                 try {
@@ -184,5 +275,9 @@ public final class KWorld {
             this.system = system;
             this.order = order;
         }
+    }
+
+    public WorldTime getTime() {
+        return time;
     }
 }

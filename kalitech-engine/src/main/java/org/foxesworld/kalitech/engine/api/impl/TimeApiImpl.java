@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.api.impl;
 import org.foxesworld.kalitech.engine.api.interfaces.TimeApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 
+@Deprecated
 public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
 
     private final long startNs = System.nanoTime();

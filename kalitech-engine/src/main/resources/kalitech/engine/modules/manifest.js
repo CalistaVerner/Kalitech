@@ -3,6 +3,7 @@
 module.exports = {
     modules: [
         "@module/Material/Material",
+        "@module/World/World",
         "@module/Mesh/Mesh",
         "@module/Sound/Sound",
         "@module/Entity/Entity",

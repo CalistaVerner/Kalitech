@@ -13,6 +13,7 @@ import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.jobs.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.world.HotReloadHub;
+import org.foxesworld.kalitech.engine.world.WorldTime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -20,26 +21,18 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * SystemContext
- *
  * Universal execution context for systems and app scripts.
  * World subsystem is optional.
- *
- * <p>Key guarantees:</p>
- * <ul>
- *   <li>Runtime policy is always non-null (fallback policy is installed if none provided).</li>
- *   <li>Errors are observable (no silent swallow in core domains).</li>
- * </ul>
  */
 public final class SystemContext {
 
     private static final Logger FALLBACK_LOG = LogManager.getLogger(SystemContext.class);
 
-    // ---------------- JS-visible stable domains ----------------
-
     @HostAccess.Export public final EngineDomain engine;
     @HostAccess.Export
     public final WorldDomain world;
+    @HostAccess.Export
+    public final TimeDomain time;
     @HostAccess.Export
     public final RenderDomain render;
     @HostAccess.Export
@@ -49,8 +42,6 @@ public final class SystemContext {
     @HostAccess.Export
     public final HotReloadDomain hotReloadDomain;
 
-    // ---------------- Core environment ----------------
-
     private final SimpleApplication app;
     private final AssetManager assets;
     private final EngineApi api;
@@ -59,16 +50,15 @@ public final class SystemContext {
     private final ScriptEventBus events;      // nullable
     private final EcsWorld ecs;               // nullable
     private final PhysicsSpace physicsSpace;  // nullable
+    private final WorldTime worldTime;        // nullable
 
-    private final ScriptRuntime runtime;             // nullable
-    private final RuntimeProvider runtimeProvider;   // nullable
-    private final RuntimePolicy runtimePolicy;       // never null (fallback installed)
+    private final ScriptRuntime runtime;           // nullable
+    private final RuntimeProvider runtimeProvider; // nullable
+    private final RuntimePolicy runtimePolicy;     // never null (fallback installed)
 
-    private final SystemScheduler scheduler;         // nullable (world-only)
-    private final MainThreadBudgetQueue mainQueue;   // nullable (world-only)
-    private final PerfProvider perfProvider;         // nullable (world-only)
-
-    // ---------------- Hot Reload ----------------
+    private final SystemScheduler scheduler;       // nullable (world-only)
+    private final MainThreadBudgetQueue mainQueue; // nullable (world-only)
+    private final PerfProvider perfProvider;       // nullable (world-only)
 
     private final HotReloadHub hotReloadHub;
 
@@ -80,6 +70,7 @@ public final class SystemContext {
             EcsWorld ecs,
             ScriptEventBus events,
             PhysicsSpace physicsSpace,
+            WorldTime worldTime,
             ScriptRuntime runtime,
             RuntimeProvider runtimeProvider,
             RuntimePolicy runtimePolicy,
@@ -96,6 +87,7 @@ public final class SystemContext {
         this.ecs = ecs;
         this.events = events;
         this.physicsSpace = physicsSpace;
+        this.worldTime = worldTime;
 
         this.runtime = runtime;
         this.runtimeProvider = runtimeProvider;
@@ -109,13 +101,12 @@ public final class SystemContext {
 
         this.engine = new EngineDomain(this.api);
         this.world = new WorldDomain(this.ecs, this.events, this.log);
+        this.time = new TimeDomain(this.worldTime);
         this.render = new RenderDomain(this.api);
         this.stateDomain = new StateDomain(this.state);
         this.perfDomain = new PerfDomain(this.perfProvider, this.log);
         this.hotReloadDomain = new HotReloadDomain(this.hotReloadHub, this.log);
     }
-
-    // ---------------- Accessors ----------------
 
     public SimpleApplication app() {
         return app;
@@ -145,17 +136,14 @@ public final class SystemContext {
         return physicsSpace;
     }
 
-    /**
-     * Base runtime (may be null).
-     */
+    public WorldTime worldTime() {
+        return worldTime;
+    }
+
     public ScriptRuntime runtime() {
         return runtime;
     }
 
-    /**
-     * Runtime by profile (optional).
-     * If no provider is installed, returns {@link #runtime()}.
-     */
     public ScriptRuntime runtime(String profile) {
         if (runtimeProvider == null) return runtime;
         String p = (profile == null) ? "" : profile.trim();
@@ -163,9 +151,6 @@ public final class SystemContext {
         return runtimeProvider.runtime(p);
     }
 
-    /**
-     * Runtime policy is never null (fallback policy installed).
-     */
     public RuntimePolicy runtimePolicy() {
         return runtimePolicy;
     }
@@ -185,8 +170,6 @@ public final class SystemContext {
     public HotReloadHub hotReloadHub() {
         return hotReloadHub;
     }
-
-    // ---------------- JS helpers ----------------
 
     @HostAccess.Export
     public ScriptJobQueue jobs() {
@@ -221,25 +204,11 @@ public final class SystemContext {
     @HostAccess.Export public Object get(String key) { return stateDomain.get(key); }
     @HostAccess.Export public Object remove(String key) { return stateDomain.remove(key); }
 
-    // ---------------- Optional extension points ----------------
-
     public interface RuntimeProvider {
         ScriptRuntime runtime(String profile);
     }
 
-    /**
-     * Mandatory policy in practice. A fallback is installed when constructor param is null.
-     */
     public interface RuntimePolicy {
-
-        /**
-         * Enforce capability for a system in a given runtime profile.
-         *
-         * @param profile    runtime profile/lane (may be empty)
-         * @param systemId   system id/name
-         * @param capability requested capability
-         * @throws SecurityException if denied
-         */
         void assertAllowed(String profile, String systemId, Capability capability);
 
         enum Capability {
@@ -250,27 +219,17 @@ public final class SystemContext {
         }
     }
 
-    /**
-     * Optional perf provider (world-only).
-     */
     public interface PerfProvider {
         FrameStats getLastFrameStats();
-
         WorkerSystemStats[] getWorkerStatsSnapshot();
-
         void dumpPerfSnapshotToLog();
-
         void setTargetFps(int fps);
-
         void setStatsLogEverySeconds(int sec);
-
         void setFrameOverBudgetLogEverySeconds(int sec);
-
         boolean isWorldThread();
     }
 
     private static final class RuntimePolicies {
-
         private RuntimePolicies() {
         }
 
@@ -291,7 +250,6 @@ public final class SystemContext {
                 String p = (profile == null) ? "" : profile.trim();
                 String s = (systemId == null) ? "" : systemId.trim();
 
-                // Default stance: deny UNSAFE, allow others.
                 if (capability == Capability.UNSAFE) {
                     log.warn("[RuntimePolicy] denied capability={} profile='{}' system='{}'", capability, p, s);
                     throw new SecurityException("Denied capability=" + capability + " for system=" + s + " profile=" + p);
@@ -299,8 +257,6 @@ public final class SystemContext {
             }
         }
     }
-
-    // ---------------- Domains ----------------
 
     public static final class EngineDomain {
         private final EngineApi api;
@@ -331,6 +287,92 @@ public final class SystemContext {
 
         @HostAccess.Export
         public EcsWorld ecs() { return ecs; }
+    }
+
+    public static final class TimeDomain {
+        private final WorldTime time;
+
+        TimeDomain(WorldTime time) {
+            this.time = time;
+        }
+
+        @HostAccess.Export
+        public boolean available() {
+            return time != null;
+        }
+
+        @HostAccess.Export
+        public double now() {
+            return (time != null) ? time.worldTimeSec() : 0.0;
+        }
+
+        @HostAccess.Export
+        public double rate() {
+            return (time != null) ? time.timeRate() : 1.0;
+        }
+
+        @HostAccess.Export
+        public boolean paused() {
+            return time != null && time.paused();
+        }
+
+        @HostAccess.Export
+        public Double fixedStepSec() {
+            return (time != null) ? time.fixedStepSec() : null;
+        }
+
+        @HostAccess.Export
+        public Double maxDeltaSec() {
+            return (time != null) ? time.maxDeltaSec() : null;
+        }
+
+        @HostAccess.Export
+        public double accumulatorSec() {
+            return (time != null) ? time.accumulatorSec() : 0.0;
+        }
+
+        @HostAccess.Export
+        public long frameIndex() {
+            return (time != null) ? time.frameIndex() : 0L;
+        }
+
+        @HostAccess.Export
+        public long tickIndex() {
+            return (time != null) ? time.tickIndex() : 0L;
+        }
+
+        @HostAccess.Export
+        public double realDtSec() {
+            return (time != null) ? time.lastRealDtSec() : 0.0;
+        }
+
+        @HostAccess.Export
+        public double simDtSec() {
+            return (time != null) ? time.lastSimDtSec() : 0.0;
+        }
+
+        @HostAccess.Export
+        public double stepDtSec() {
+            return (time != null) ? time.lastStepDtSec() : 0.0;
+        }
+
+        @HostAccess.Export
+        public void setRate(double rate) {
+            if (time == null) return;
+            time.setTimeRate(rate);
+        }
+
+        @HostAccess.Export
+        public void setPaused(boolean paused) {
+            if (time == null) return;
+            time.setPaused(paused);
+        }
+
+        @HostAccess.Export
+        public void seek(double worldTimeSec) {
+            if (time == null) return;
+            time.seek(worldTimeSec);
+        }
     }
 
     public static final class RenderDomain {
@@ -424,8 +466,6 @@ public final class SystemContext {
             }
         }
     }
-
-    // ---------------- Hot Reload ----------------
 
     public static final class HotReloadDomain {
         private final HotReloadHub hub;

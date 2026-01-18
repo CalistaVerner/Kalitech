@@ -90,7 +90,8 @@ public final class ComponentStore {
     }
 
     public Object getByName(int entity, String type) {
-        Pool p = named.get(type);
+        String key = requireTypeName(type);
+        Pool p = named.get(key);
         if (p == null) return null;
         return p.get(entity);
     }
@@ -105,12 +106,14 @@ public final class ComponentStore {
     }
 
     public boolean hasByName(int entity, String type) {
-        Pool p = named.get(type);
+        String key = requireTypeName(type);
+        Pool p = named.get(key);
         return p != null && p.has(entity);
     }
 
     public void removeByName(int entity, String type) {
-        Pool p = named.get(type);
+        String key = requireTypeName(type);
+        Pool p = named.get(key);
         if (p == null) return;
         p.remove(entity);
     }

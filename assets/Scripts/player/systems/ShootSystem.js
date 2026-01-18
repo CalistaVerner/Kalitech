@@ -364,7 +364,7 @@ class ShootSystem {
         const impCfg = c.impact;
         if (!impCfg || !impCfg.enabled || !pos) return;
 
-        ENGINE.sound.playSound({event: impCfg.soundEvent, is3D: true, x: pos.x, y: pos.y, z: pos.z});
+        ENGINE.sound.playSound({event: impCfg.soundEvent, is3D: true, random: true, x: pos.x, y: pos.y, z: pos.z});
 
         PARTICLES.spawn("impact", {
             pos: {x: pos.x, y: pos.y, z: pos.z},
@@ -416,7 +416,7 @@ class ShootSystem {
     }
 
     _fire(frame, ownerBodyId) {
-        ENGINE.sound.playSound({event: "player.action.throw"});
+        ENGINE.sound.playSound({event: "player.action.throw", random: true});
 
         const c = this.cfg;
         if (!c.enabled || !ownerBodyId) return;
