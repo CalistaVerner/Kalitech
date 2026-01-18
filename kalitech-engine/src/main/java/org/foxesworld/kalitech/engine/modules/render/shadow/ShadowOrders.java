@@ -1,6 +1,6 @@
 // FILE: org/foxesworld/kalitech/engine/modules/render/shadow/pipeline/ShadowOrders.java
 // Author: Calista Verner (KΛYLΛ)
-package org.foxesworld.kalitech.engine.modules.render.shadow.pipeline;
+package org.foxesworld.kalitech.engine.modules.render.shadow;
 
 /**
  * Canonical filter order constants for the shadow pipeline.

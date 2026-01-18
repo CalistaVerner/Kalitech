@@ -43,12 +43,6 @@ function normalizeTimeDesc(time) {
     if (time.paused != null) out.paused = !!time.paused;
     if (time.fixedStep != null) out.fixedStep = +time.fixedStep;
     if (time.maxDelta != null) out.maxDelta = +time.maxDelta;
-    if (time.dayLengthSec != null) out.dayLengthSec = +time.dayLengthSec;
-    if (time.dayLength != null) out.dayLength = +time.dayLength;
-    if (time.dayOffsetSec != null) out.dayOffsetSec = +time.dayOffsetSec;
-    if (time.dayOffset != null) out.dayOffset = +time.dayOffset;
-    if (time.timeOfDay != null) out.timeOfDay = +time.timeOfDay;
-    if (time.timeOfDayHours != null) out.timeOfDayHours = +time.timeOfDayHours;
 
     return out;
 }
@@ -85,10 +79,6 @@ class WorldApi {
      *  - paused: boolean
      *  - fixedStep?: number
      *  - maxDelta?: number
-     *  - dayLengthSec?: number
-     *  - dayOffsetSec?: number
-     *  - timeOfDay?: number
-     *  - dayFraction?: number
      */
     getWorldTime() {
         const w = subsystem(this.engine, "world");
@@ -104,10 +94,6 @@ class WorldApi {
         if (t.paused != null) out.paused = !!t.paused;
         if (t.fixedStep != null) out.fixedStep = +t.fixedStep;
         if (t.maxDelta != null) out.maxDelta = +t.maxDelta;
-        if (t.dayLengthSec != null) out.dayLengthSec = +t.dayLengthSec;
-        if (t.dayOffsetSec != null) out.dayOffsetSec = +t.dayOffsetSec;
-        if (t.timeOfDay != null) out.timeOfDay = +t.timeOfDay;
-        if (t.dayFraction != null) out.dayFraction = +t.dayFraction;
 
         return out;
     }
@@ -122,7 +108,7 @@ class WorldApi {
      *  - start: boolean
      *  - runtime/profile: string
      *  - orderStep: int
-     *  - time: {worldTime,timeRate,paused,fixedStep,maxDelta,dayLengthSec,dayOffsetSec,timeOfDay}
+     *  - time: {worldTime,timeRate,paused,fixedStep,maxDelta}
      */
     env(opts) {
         opts = (opts && typeof opts === "object") ? opts : {};

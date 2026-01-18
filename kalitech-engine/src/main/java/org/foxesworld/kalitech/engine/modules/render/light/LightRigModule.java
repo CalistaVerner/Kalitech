@@ -143,19 +143,8 @@ public final class LightRigModule {
         timeOfDay = (timeOfDay + deltaHours) % 24.0f;
         if (timeOfDay < 0f) timeOfDay += 24.0f;
 
-        applyTimeOfDay(timeOfDay);
-    }
-
-    /**
-     * Sets the absolute time of day and immediately applies the lighting.
-     * Use this when the time of day is derived from external world time.
-     */
-    public void applyTimeOfDay(float timeOfDayHours) {
-        float h = normalizeHours(timeOfDayHours);
-        this.timeOfDay = h;
-
         // compute fractional day [0..1)
-        float t = h / 24.0f;
+        float t = timeOfDay / 24.0f;
 
         // compute solar elevation angle: 0 at midnight, 0.5 at midday
         // shift so that 0.25 (6h) is sunrise, 0.75 (18h) is sunset
@@ -163,8 +152,7 @@ public final class LightRigModule {
 
         // sun elevation (Y component) is sine of phase; clamp below horizon
         float sunY = (float) Math.sin(phase);
-        float sunHeight = clamp01(sunY);
-        float sunIntensity = (float) Math.pow(sunHeight, 1.6);
+        float sunIntensity = Math.max(0f, sunY);
 
         // compute horizontal XZ direction. The sun travels around the scene in the XZ plane.
         float sunX = (float) Math.cos(phase);
@@ -175,22 +163,22 @@ public final class LightRigModule {
         if (sunDir.lengthSquared() < 1e-6f) sunDir.set(0f, -1f, 0f);
         sunDir.normalizeLocal();
 
-        float twilight = (sunY > 0f)
-                ? smoothstep(0.0f, 0.5f, 1.0f - sunHeight)
-                : 0.0f;
-
-        // compute sun colour: interpolate between warm twilight and cool midday
+        // compute sun colour: interpolate between warm sunset and cool midday
         ColorRGBA dayColour = new ColorRGBA(1f, 0.98f, 0.90f, 1f);
-        ColorRGBA twilightColour = new ColorRGBA(1f, 0.55f, 0.32f, 1f);
-        float sr = lerp(dayColour.r, twilightColour.r, twilight);
-        float sg = lerp(dayColour.g, twilightColour.g, twilight);
-        float sb = lerp(dayColour.b, twilightColour.b, twilight);
+        ColorRGBA sunsetColour = new ColorRGBA(1f, 0.63f, 0.39f, 1f);
+        float sunsetWeight = 1f - Math.min(1f, Math.abs(sunY));
+        float sr = dayColour.r * (1f - sunsetWeight) + sunsetColour.r * sunsetWeight;
+        float sg = dayColour.g * (1f - sunsetWeight) + sunsetColour.g * sunsetWeight;
+        float sb = dayColour.b * (1f - sunsetWeight) + sunsetColour.b * sunsetWeight;
 
         final float finalSunIntensity = sunIntensity * 1.2f; // scale intensity to match defaults
+        final float finalSunR = sr;
+        final float finalSunG = sg;
+        final float finalSunB = sb;
 
         // compute moon direction and intensity (opposite the sun)
         Vector3f moonDir = new Vector3f(-sunDir.x, -sunDir.y, -sunDir.z);
-        float moonIntensity = (float) Math.pow(1f - sunHeight, 1.2);
+        float moonIntensity = Math.max(0f, 1f - sunIntensity);
 
         // moon colour fixed to a cool blue tone
         float mr = 0.45f;
@@ -198,19 +186,19 @@ public final class LightRigModule {
         float mb = 0.85f;
 
         // ambient colour: dim blue at night, neutral grey at midday
-        ColorRGBA ambientNight = new ColorRGBA(0.06f, 0.08f, 0.12f, 1f);
+        ColorRGBA ambientNight = new ColorRGBA(0.08f, 0.10f, 0.14f, 1f);
         ColorRGBA ambientDay = new ColorRGBA(0.25f, 0.28f, 0.35f, 1f);
-        float ambientWeight = smoothstep(0.0f, 0.75f, sunHeight);
-        float ambR = lerp(ambientNight.r, ambientDay.r, ambientWeight);
-        float ambG = lerp(ambientNight.g, ambientDay.g, ambientWeight);
-        float ambB = lerp(ambientNight.b, ambientDay.b, ambientWeight);
+        float ambientWeight = sunIntensity;
+        float ambR = ambientDay.r * ambientWeight + ambientNight.r * (1f - ambientWeight);
+        float ambG = ambientDay.g * ambientWeight + ambientNight.g * (1f - ambientWeight);
+        float ambB = ambientDay.b * ambientWeight + ambientNight.b * (1f - ambientWeight);
 
         // apply changes on the JME thread
         thread.onJme(() -> {
             ensure();
             // update sun
             sun.setDirection(sunDir);
-            sun.setColor(new ColorRGBA(sr, sg, sb, 1f).mult(finalSunIntensity));
+            sun.setColor(new ColorRGBA(finalSunR, finalSunG, finalSunB, 1f).mult(finalSunIntensity));
             // update moon
             moon.setDirection(moonDir);
             moon.setColor(new ColorRGBA(mr, mg, mb, 1f).mult(moonIntensity));
@@ -343,26 +331,5 @@ public final class LightRigModule {
         moon.setColor(new ColorRGBA(0.45f, 0.55f, 0.85f, 1f).mult(0.0f));
         app.getRootNode().addLight(moon);
         log.info("RenderApi: moon created");
-    }
-
-    private static float normalizeHours(float hours) {
-        if (!Float.isFinite(hours)) return 0f;
-        float h = hours % 24.0f;
-        if (h < 0f) h += 24.0f;
-        return h;
-    }
-
-    private static float clamp01(float v) {
-        return v < 0f ? 0f : Math.min(1f, v);
-    }
-
-    private static float smoothstep(float edge0, float edge1, float x) {
-        if (edge0 == edge1) return 0f;
-        float t = clamp01((x - edge0) / (edge1 - edge0));
-        return t * t * (3f - 2f * t);
-    }
-
-    private static float lerp(float a, float b, float t) {
-        return a + (b - a) * t;
     }
 }

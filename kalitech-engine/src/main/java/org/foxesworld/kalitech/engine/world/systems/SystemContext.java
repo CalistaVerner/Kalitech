@@ -357,31 +357,6 @@ public final class SystemContext {
         }
 
         @HostAccess.Export
-        public double dayLengthSec() {
-            return (time != null) ? time.dayLengthSec() : 0.0;
-        }
-
-        @HostAccess.Export
-        public double dayOffsetSec() {
-            return (time != null) ? time.dayOffsetSec() : 0.0;
-        }
-
-        @HostAccess.Export
-        public double dayTimeSec() {
-            return (time != null) ? time.dayTimeSec() : 0.0;
-        }
-
-        @HostAccess.Export
-        public double dayFraction() {
-            return (time != null) ? time.dayFraction() : 0.0;
-        }
-
-        @HostAccess.Export
-        public double timeOfDayHours() {
-            return (time != null) ? time.timeOfDayHours() : 0.0;
-        }
-
-        @HostAccess.Export
         public void setRate(double rate) {
             if (time == null) return;
             time.setTimeRate(rate);
@@ -397,24 +372,6 @@ public final class SystemContext {
         public void seek(double worldTimeSec) {
             if (time == null) return;
             time.seek(worldTimeSec);
-        }
-
-        @HostAccess.Export
-        public void setDayLengthSec(double seconds) {
-            if (time == null) return;
-            time.setDayLengthSec(seconds);
-        }
-
-        @HostAccess.Export
-        public void setTimeOfDayHours(double hours) {
-            if (time == null) return;
-            time.setTimeOfDayHours(hours);
-        }
-
-        @HostAccess.Export
-        public void setDayOffsetSec(double offsetSec) {
-            if (time == null) return;
-            time.setDayOffsetSec(offsetSec);
         }
     }
 

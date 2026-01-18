@@ -12,7 +12,7 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowSplit
 
 import java.util.Set;
 
-import static org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowOrders.TEMPORAL_GATE;
+import static org.foxesworld.kalitech.engine.modules.render.shadow.ShadowOrders.TEMPORAL_GATE;
 
 /**
  * Temporal gate to reduce shimmer: only allow texel snap when camera moved/rotated enough.

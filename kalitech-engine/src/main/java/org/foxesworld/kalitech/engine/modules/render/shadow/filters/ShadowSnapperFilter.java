@@ -9,7 +9,7 @@ import org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.*;
 
 import java.util.Set;
 
-import static org.foxesworld.kalitech.engine.modules.render.shadow.pipeline.ShadowOrders.TEXEL_SNAP_FINAL;
+import static org.foxesworld.kalitech.engine.modules.render.shadow.ShadowOrders.TEXEL_SNAP_FINAL;
 
 /**
  * Texel snapping for cascaded shadow cameras.

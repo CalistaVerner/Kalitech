@@ -19,7 +19,6 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.foxesworld.kalitech.engine.world.WorldTime;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -176,15 +175,6 @@ public final class EngineApiImpl implements EngineApi {
         //} catch (Throwable ignored) {}
 
         perf.endFrame(tpf);
-    }
-
-    public void __updateWorldTime(WorldTime time) {
-        if (renderApi instanceof RenderApiImpl impl) {
-            try {
-                impl.__updateWorldTime(time);
-            } catch (Throwable ignored) {
-            }
-        }
     }
 
 

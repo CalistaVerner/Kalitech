@@ -1,366 +1,694 @@
-[22:56:57.324][INFO][KalitechApplication] NEOCORE 0.3.2-SNAPSHOT
-[22:56:57.326][INFO][KalitechApplication] Java: 17.0.15
-[22:56:57.327][INFO][KalitechApplication] OS: Windows 10 10.0
-[22:56:57.338][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@4dd6dfbb
-[22:56:57.345][INFO][GuiGlobals] Lemur build date:20220405
-[22:56:57.346][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[22:56:58.295][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[22:56:58.874][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[22:56:58.910][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
-[22:56:58.915][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
-[22:56:58.917][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
-[22:56:58.918][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
-[22:56:58.918][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
-[22:56:58.944][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
-[22:56:58.951][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
-[22:56:58.951][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
-[22:56:58.961][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
-[22:56:58.962][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
-[22:56:58.963][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
-[22:56:58.974][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
-[22:56:58.975][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' ecsBound=true
-[22:56:58.975][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
-[22:56:58.980][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
-[22:56:58.981][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
-[22:56:58.981][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
-[22:56:58.983][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
-[22:56:58.984][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
-[22:56:58.986][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.2.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
-[22:56:58.987][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
-[22:56:58.988][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[22:56:59.054][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[22:56:59.247][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[22:56:59.247][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
-[22:56:59.249][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.4.1' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
-[22:56:59.250][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
-[22:56:59.254][DEBUG][ParticlesApiImpl] [particles] attach ok alive=0
-[22:56:59.254][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='3.2.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
-[22:57:00.022][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
-[22:57:00.025][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
-[22:57:00.140][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
-[22:57:00.228][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
-[22:57:00.231][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
-[22:57:00.234][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
-[22:57:00.254][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
-[22:57:00.259][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
-[22:57:00.267][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
-[22:57:00.273][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
-[22:57:00.276][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
-[22:57:00.362][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
-[22:57:00.377][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
-[22:57:00.523][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/World.js
-[22:57:00.526][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldUtil.js
-[22:57:00.531][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldApi.js
-[22:57:00.542][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldBuilder.js
-[22:57:00.546][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldSession.js
-[22:57:00.559][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
-[22:57:00.561][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
-[22:57:00.574][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
-[22:57:00.576][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
-[22:57:00.580][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
-[22:57:00.590][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
-[22:57:00.708][WARN][SoundParsers] [sound] asset not found for 'src': Sounds/DEBRIS/DEBRIS_10ogg
-[22:57:00.931][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
-[22:57:00.933][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
-[22:57:00.935][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
-[22:57:00.941][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
-[22:57:00.943][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
-[22:57:00.945][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
-[22:57:00.950][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
-[22:57:00.953][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
-[22:57:00.956][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
-[22:57:00.966][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
-[22:57:00.969][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
-[22:57:00.977][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
-[22:57:00.979][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
-[22:57:00.981][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
-[22:57:00.992][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
-[22:57:01.001][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
-[22:57:01.001][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
-[22:57:01.012][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
-[22:57:01.013][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
-[22:57:01.021][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
-[22:57:01.022][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
-[22:57:01.025][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
-[22:57:01.026][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
-[22:57:01.031][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
-[22:57:01.034][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
-[22:57:01.037][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
-[22:57:01.043][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
-[22:57:01.043][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
-[22:57:01.045][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
-[22:57:01.047][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
-[22:57:01.051][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
-[22:57:01.054][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
-[22:57:01.058][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
-[22:57:01.063][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
-[22:57:01.063][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
-[22:57:01.068][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
-[22:57:01.070][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
-[22:57:01.074][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
-[22:57:01.076][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
-[22:57:01.079][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.5' from='@module/Controllers/Controllers'
-[22:57:01.080][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
-[22:57:01.088][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
-[22:57:01.089][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
-[22:57:01.092][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
-[22:57:01.093][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
-[22:57:01.094][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Particles/Particles.js
-[22:57:01.123][INFO][EngineApiImpl] [ENGINE] module registered: key='particles' name='@module/Particles/Particles' ver='3.2.1' from='@module/Particles/Particles'
-[22:57:01.124][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (1100 ms)
-[22:57:01.124][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
-[22:57:01.128][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[22:57:01.130][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
-[22:57:01.130][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
-[22:57:01.131][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
-[22:57:01.131][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
-[22:57:01.131][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
-[22:57:01.132][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
-[22:57:01.132][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
-[22:57:01.132][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
-[22:57:01.133][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
-[22:57:01.133][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
-[22:57:01.133][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
-[22:57:01.134][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
-[22:57:01.134][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
-[22:57:01.134][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\DEBRIS
-[22:57:01.135][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\hit
-[22:57:01.135][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\spawn
-[22:57:01.136][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\throw
-[22:57:01.136][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
-[22:57:01.136][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Particles
-[22:57:01.137][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
-[22:57:01.137][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
-[22:57:01.138][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
-[22:57:01.138][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
-[22:57:01.138][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
-[22:57:01.139][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
-[22:57:01.139][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
-[22:57:01.139][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
-[22:57:01.139][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
-[22:57:01.140][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
-[22:57:01.140][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[22:57:01.143][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
-[22:57:01.196][INFO][WorldApiImpl] [world] WorldAppState attached lazily
-[22:57:01.197][INFO][WorldAppState] [World] created 'main'
-[22:57:01.220][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
-[22:57:01.234][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
-[22:57:01.242][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
-[22:57:01.244][INFO][LightRigModule] RenderApi: ambient created
-[22:57:01.244][INFO][LightRigModule] RenderApi: sun created
-[22:57:01.245][INFO][LightRigModule] RenderApi: moon created
-[22:57:01.246][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
-[22:57:01.246][INFO][RenderApiImpl] RenderApi: scene ensured
-[22:57:01.246][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
-[22:57:01.257][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
-[22:57:01.269][WARN][Shadow] [shadow][cfg] mapSize clamped requested=16384 actual=12456
-[22:57:01.284][INFO][Shadow] [shadow][cfg] reload=false type=PipelineDirectionalLightShadowRenderer map=12456 splits=4 lambda=0.72 intensity=0.75 snap=true snapCascades=2 pad=1.02 hyst=10.0 smooth=0.1 zExtend=1000.0 zFade=0.0 fixedSplits=null pipeline=splits=4|hysteresis(hysteresis=12,smoothing=0.12);basis(type=com.oracle.truffle.api.strings.TruffleString);onlySplit(split=0);onlySplit(maxSplit=7,minSplit=1);poissonPcf(baseRadiusTexels=1.35,camMoveEventThreshold=0.03,camRotateEventThresholdDeg=0.2,enabled=true,rotateEveryFrames=12,rotateKernel=true,rotateOnlyOnCameraEvent=true,samples=16,split0=0.95,split1=1.1,split2=1.35,split3=1.65);temporalGate(minMoveTexels=1.25,minRotateDeg=0.25,teleportMoveTexels=24);texelSnap(enabled=true,snapFirstCascades=2);telemetry(allSplits=true,driftTexelsThreshold=0.35,everyFrames=60,resizeRatio=0.02);trace(everyFrames=60);
-[22:57:01.325][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
-[22:57:02.565][DEBUG][EngineApiImpl] [sky] EVENTS wired
-[22:57:02.568][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
-[22:57:02.569][INFO][EngineApiImpl] [scene] init
-[22:57:03.090][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
-[22:57:03.151][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
-[22:57:03.190][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.3489828, -300.0)
-[22:57:03.193][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 7.006365, -300.0)
-[22:57:03.194][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 11.419549, -300.0)
-[22:57:03.195][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 15.565304, -300.0)
-[22:57:03.197][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 19.642624, -300.0)
-[22:57:03.198][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 23.484543, -300.0)
-[22:57:03.199][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 26.980202, -300.0)
-[22:57:03.201][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 29.925434, -300.0)
-[22:57:03.202][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 32.04389, -300.0)
-[22:57:03.203][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 33.519722, -300.0)
-[22:57:03.205][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 34.718227, -300.0)
-[22:57:03.207][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.2969937, -300.0)
-[22:57:03.208][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 6.5050845, -300.0)
-[22:57:03.209][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 9.961289, -300.0)
-[22:57:03.210][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 12.59629, -300.0)
-[22:57:03.212][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 14.769179, -300.0)
-[22:57:03.213][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 16.872854, -300.0)
-[22:57:03.214][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 18.899864, -300.0)
-[22:57:03.216][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 20.650055, -300.0)
-[22:57:03.217][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 22.030382, -300.0)
-[22:57:03.218][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 23.216333, -300.0)
-[22:57:03.219][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 24.31109, -300.0)
-[22:57:03.221][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 2.4633527, -300.0)
-[22:57:03.222][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 7.374545, -300.0)
-[22:57:03.223][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 12.061905, -300.0)
-[22:57:03.224][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 16.220465, -300.0)
-[22:57:03.226][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 20.056376, -300.0)
-[22:57:03.227][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 23.56534, -300.0)
-[22:57:03.228][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 26.387245, -300.0)
-[22:57:03.229][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 28.75792, -300.0)
-[22:57:03.230][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 30.62587, -300.0)
-[22:57:03.231][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 31.965527, -300.0)
-[22:57:03.232][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 33.093884, -300.0)
-[22:57:03.234][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.3450298, -300.0)
-[22:57:03.235][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 6.609713, -300.0)
-[22:57:03.236][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 9.977478, -300.0)
-[22:57:03.237][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 12.85213, -300.0)
-[22:57:03.238][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 15.395476, -300.0)
-[22:57:03.239][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 17.58309, -300.0)
-[22:57:03.240][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 19.522724, -300.0)
-[22:57:03.241][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 21.214178, -300.0)
-[22:57:03.242][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 22.844624, -300.0)
-[22:57:03.244][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 24.453863, -300.0)
-[22:57:03.245][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 25.863035, -300.0)
-[22:57:03.246][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 2.4342582, -300.0)
-[22:57:03.247][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 6.581656, -300.0)
-[22:57:03.248][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 9.990527, -300.0)
-[22:57:03.249][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 13.322621, -300.0)
-[22:57:03.251][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 16.479057, -300.0)
-[22:57:03.252][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 19.470243, -300.0)
-[22:57:03.253][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 22.39643, -300.0)
-[22:57:03.254][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 25.168064, -300.0)
-[22:57:03.255][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 27.667881, -300.0)
-[22:57:03.255][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 29.738317, -300.0)
-[22:57:03.257][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 31.264063, -300.0)
-[22:57:03.258][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.2519727, -300.0)
-[22:57:03.259][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 6.6668506, -300.0)
-[22:57:03.260][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 10.988022, -300.0)
-[22:57:03.261][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 14.967911, -300.0)
-[22:57:03.262][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 18.513323, -300.0)
-[22:57:03.263][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 21.628958, -300.0)
-[22:57:03.264][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 24.264318, -300.0)
-[22:57:03.265][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 26.64509, -300.0)
-[22:57:03.266][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 28.869719, -300.0)
-[22:57:03.267][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 30.764734, -300.0)
-[22:57:03.268][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 32.28262, -300.0)
-[22:57:03.320][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
-[22:57:03.342][DEBUG][EntityApiImpl] [entity] created uuid=931319de-9cdc-7cdb-14a0-8bc19e18aa3f name='player'
-[22:57:03.345][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=box name=box worldPos=(135.0, -10.0, -334.0)
-[22:57:03.348][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=931319de-9cdc-7cdb-14a0-8bc19e18aa3f
-[22:57:03.389][INFO][WorldApiImpl] [world.create] name=main systems=4 start=true
-[22:57:03.390][INFO][RuntimeAppState] [Runtime] app started
-[22:57:03.397][DEBUG][ShadowTraceFilter] [shadow][trace] frame=0 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:03.404][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:03.490][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:03.541][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:03.592][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:03.712][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2501
-[22:57:03.725][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
-[22:57:03.729][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
-[22:57:03.731][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
-[22:57:03.732][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
-[22:57:03.734][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
-[22:57:03.741][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
-[22:57:03.743][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
-[22:57:03.750][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
-[22:57:03.756][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
-[22:57:03.881][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
-[22:57:03.882][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.348982810974121z=-300)
-[22:57:03.882][DEBUG][EngineApiImpl] Spawned at (x=120,y=7.006364822387695z=-300)
-[22:57:03.882][DEBUG][EngineApiImpl] Spawned at (x=120,y=11.419548988342285z=-300)
-[22:57:03.883][DEBUG][EngineApiImpl] Spawned at (x=120,y=15.565303802490234z=-300)
-[22:57:03.884][DEBUG][EngineApiImpl] Spawned at (x=120,y=19.642623901367188z=-300)
-[22:57:03.885][DEBUG][EngineApiImpl] Spawned at (x=120,y=23.484542846679688z=-300)
-[22:57:03.885][DEBUG][EngineApiImpl] Spawned at (x=120,y=26.980201721191406z=-300)
-[22:57:03.886][DEBUG][EngineApiImpl] Spawned at (x=120,y=29.925434112548828z=-300)
-[22:57:03.886][DEBUG][EngineApiImpl] Spawned at (x=120,y=32.04389190673828z=-300)
-[22:57:03.886][DEBUG][EngineApiImpl] Spawned at (x=120,y=33.51972198486328z=-300)
-[22:57:03.887][DEBUG][EngineApiImpl] Spawned at (x=120,y=34.71822738647461z=-300)
-[22:57:03.887][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.2969937324523926z=-300)
-[22:57:03.887][DEBUG][EngineApiImpl] Spawned at (x=128,y=6.50508451461792z=-300)
-[22:57:03.887][DEBUG][EngineApiImpl] Spawned at (x=128,y=9.961289405822754z=-300)
-[22:57:03.888][DEBUG][EngineApiImpl] Spawned at (x=128,y=12.59628963470459z=-300)
-[22:57:03.888][DEBUG][EngineApiImpl] Spawned at (x=128,y=14.769179344177246z=-300)
-[22:57:03.888][DEBUG][EngineApiImpl] Spawned at (x=128,y=16.872854232788086z=-300)
-[22:57:03.889][DEBUG][EngineApiImpl] Spawned at (x=128,y=18.899864196777344z=-300)
-[22:57:03.889][DEBUG][EngineApiImpl] Spawned at (x=128,y=20.650054931640625z=-300)
-[22:57:03.889][DEBUG][EngineApiImpl] Spawned at (x=128,y=22.03038215637207z=-300)
-[22:57:03.889][DEBUG][EngineApiImpl] Spawned at (x=128,y=23.216333389282227z=-300)
-[22:57:03.890][DEBUG][EngineApiImpl] Spawned at (x=128,y=24.31109046936035z=-300)
-[22:57:03.890][DEBUG][EngineApiImpl] Spawned at (x=136,y=2.463352680206299z=-300)
-[22:57:03.890][DEBUG][EngineApiImpl] Spawned at (x=136,y=7.374545097351074z=-300)
-[22:57:03.891][DEBUG][EngineApiImpl] Spawned at (x=136,y=12.061904907226562z=-300)
-[22:57:03.891][DEBUG][EngineApiImpl] Spawned at (x=136,y=16.2204647064209z=-300)
-[22:57:03.891][DEBUG][EngineApiImpl] Spawned at (x=136,y=20.05637550354004z=-300)
-[22:57:03.891][DEBUG][EngineApiImpl] Spawned at (x=136,y=23.565340042114258z=-300)
-[22:57:03.892][DEBUG][EngineApiImpl] Spawned at (x=136,y=26.387245178222656z=-300)
-[22:57:03.892][DEBUG][EngineApiImpl] Spawned at (x=136,y=28.757919311523438z=-300)
-[22:57:03.892][DEBUG][EngineApiImpl] Spawned at (x=136,y=30.625869750976562z=-300)
-[22:57:03.893][DEBUG][EngineApiImpl] Spawned at (x=136,y=31.965526580810547z=-300)
-[22:57:03.893][DEBUG][EngineApiImpl] Spawned at (x=136,y=33.0938835144043z=-300)
-[22:57:03.893][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.345029830932617z=-300)
-[22:57:03.893][DEBUG][EngineApiImpl] Spawned at (x=144,y=6.609713077545166z=-300)
-[22:57:03.894][DEBUG][EngineApiImpl] Spawned at (x=144,y=9.97747802734375z=-300)
-[22:57:03.894][DEBUG][EngineApiImpl] Spawned at (x=144,y=12.852129936218262z=-300)
-[22:57:03.894][DEBUG][EngineApiImpl] Spawned at (x=144,y=15.395476341247559z=-300)
-[22:57:03.894][DEBUG][EngineApiImpl] Spawned at (x=144,y=17.58308982849121z=-300)
-[22:57:03.894][DEBUG][EngineApiImpl] Spawned at (x=144,y=19.522724151611328z=-300)
-[22:57:03.895][DEBUG][EngineApiImpl] Spawned at (x=144,y=21.21417808532715z=-300)
-[22:57:03.895][DEBUG][EngineApiImpl] Spawned at (x=144,y=22.844623565673828z=-300)
-[22:57:03.895][DEBUG][EngineApiImpl] Spawned at (x=144,y=24.4538631439209z=-300)
-[22:57:04.075][DEBUG][EngineApiImpl] Spawned at (x=144,y=25.863035202026367z=-300)
-[22:57:04.076][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.434258222579956z=-300)
-[22:57:04.076][DEBUG][EngineApiImpl] Spawned at (x=152,y=6.581655979156494z=-300)
-[22:57:04.076][DEBUG][EngineApiImpl] Spawned at (x=152,y=9.990527153015137z=-300)
-[22:57:04.077][DEBUG][EngineApiImpl] Spawned at (x=152,y=13.32262134552002z=-300)
-[22:57:04.077][DEBUG][EngineApiImpl] Spawned at (x=152,y=16.47905731201172z=-300)
-[22:57:04.077][DEBUG][EngineApiImpl] Spawned at (x=152,y=19.470243453979492z=-300)
-[22:57:04.077][DEBUG][EngineApiImpl] Spawned at (x=152,y=22.39642906188965z=-300)
-[22:57:04.078][DEBUG][EngineApiImpl] Spawned at (x=152,y=25.16806411743164z=-300)
-[22:57:04.078][DEBUG][EngineApiImpl] Spawned at (x=152,y=27.66788101196289z=-300)
-[22:57:04.078][DEBUG][EngineApiImpl] Spawned at (x=152,y=29.738317489624023z=-300)
-[22:57:04.078][DEBUG][EngineApiImpl] Spawned at (x=152,y=31.264062881469727z=-300)
-[22:57:04.078][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.2519726753234863z=-300)
-[22:57:04.079][DEBUG][EngineApiImpl] Spawned at (x=160,y=6.666850566864014z=-300)
-[22:57:04.079][DEBUG][EngineApiImpl] Spawned at (x=160,y=10.988021850585938z=-300)
-[22:57:04.079][DEBUG][EngineApiImpl] Spawned at (x=160,y=14.967910766601562z=-300)
-[22:57:04.079][DEBUG][EngineApiImpl] Spawned at (x=160,y=18.513322830200195z=-300)
-[22:57:04.080][DEBUG][EngineApiImpl] Spawned at (x=160,y=21.628957748413086z=-300)
-[22:57:04.080][DEBUG][EngineApiImpl] Spawned at (x=160,y=24.264318466186523z=-300)
-[22:57:04.080][DEBUG][EngineApiImpl] Spawned at (x=160,y=26.645090103149414z=-300)
-[22:57:04.080][DEBUG][EngineApiImpl] Spawned at (x=160,y=28.869718551635742z=-300)
-[22:57:04.080][DEBUG][EngineApiImpl] Spawned at (x=160,y=30.764734268188477z=-300)
-[22:57:04.081][DEBUG][EngineApiImpl] Spawned at (x=160,y=32.28261947631836z=-300)
-[22:57:04.081][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
-[22:57:05.141][DEBUG][ShadowTraceFilter] [shadow][trace] frame=60 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:05.141][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:05.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:05.143][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:05.144][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:06.142][DEBUG][ShadowTraceFilter] [shadow][trace] frame=120 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:06.143][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.134869 camRotDeg=1.811805 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:06.143][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.134869 camRotDeg=1.811805 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:06.144][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.134869 camRotDeg=1.811805 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:06.145][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.134869 camRotDeg=1.811805 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:07.140][DEBUG][ShadowTraceFilter] [shadow][trace] frame=180 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:07.141][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:07.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:07.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:07.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:08.140][DEBUG][ShadowTraceFilter] [shadow][trace] frame=240 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:08.141][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.161798 camRotDeg=2.122556 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:08.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.161798 camRotDeg=2.122556 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:08.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.161798 camRotDeg=2.122556 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:08.142][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.161798 camRotDeg=2.122556 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:09.139][DEBUG][ShadowTraceFilter] [shadow][trace] frame=300 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:09.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.115151 camRotDeg=1.196142 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:09.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.115151 camRotDeg=1.196142 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:09.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.115151 camRotDeg=1.196142 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:09.141][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.115151 camRotDeg=1.196142 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:10.139][DEBUG][ShadowTraceFilter] [shadow][trace] frame=360 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:10.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:10.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:10.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:10.141][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:11.139][DEBUG][ShadowTraceFilter] [shadow][trace] frame=420 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:11.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.015554 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:11.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.015554 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:11.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.015554 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:11.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.015554 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
-[22:57:12.138][DEBUG][ShadowTraceFilter] [shadow][trace] frame=480 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:12.138][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:12.138][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:12.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:12.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:13.138][DEBUG][ShadowTraceFilter] [shadow][trace] frame=540 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
-[22:57:13.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:13.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:13.139][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:13.140][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
-[22:57:13.485][INFO][ScriptRuntime] Closing ScriptRuntime
-[22:57:13.494][INFO][ScriptRuntime] [script] invalidateAll removed=30 reason=reset
-[22:57:13.500][INFO][RuntimeAppState] [Runtime] stopped
+[01:34:37.245][INFO][KalitechApplication] NEOCORE 0.3.2-SNAPSHOT
+[01:34:37.248][INFO][KalitechApplication] Java: 17.0.15
+[01:34:37.248][INFO][KalitechApplication] OS: Windows 10 10.0
+[01:34:37.260][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@79e31e11
+[01:34:37.267][INFO][GuiGlobals] Lemur build date:20220405
+[01:34:37.267][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[01:34:38.221][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[01:34:38.813][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[01:34:38.848][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
+[01:34:38.852][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
+[01:34:38.854][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
+[01:34:38.855][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
+[01:34:38.855][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
+[01:34:38.881][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
+[01:34:38.887][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
+[01:34:38.887][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
+[01:34:38.898][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
+[01:34:38.899][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
+[01:34:38.900][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
+[01:34:38.911][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
+[01:34:38.912][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' ecsBound=true
+[01:34:38.912][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
+[01:34:38.917][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
+[01:34:38.918][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
+[01:34:38.918][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
+[01:34:38.920][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
+[01:34:38.921][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
+[01:34:38.923][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.2.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
+[01:34:38.924][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
+[01:34:38.926][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[01:34:39.000][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[01:34:39.193][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[01:34:39.194][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
+[01:34:39.195][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.4.1' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
+[01:34:39.196][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
+[01:34:39.199][DEBUG][ParticlesApiImpl] [particles] attach ok alive=0
+[01:34:39.199][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='3.2.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
+[01:34:39.973][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
+[01:34:39.976][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
+[01:34:40.088][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
+[01:34:40.174][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
+[01:34:40.177][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
+[01:34:40.180][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
+[01:34:40.200][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
+[01:34:40.203][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
+[01:34:40.211][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
+[01:34:40.216][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
+[01:34:40.219][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
+[01:34:40.310][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
+[01:34:40.326][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
+[01:34:40.476][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/World.js
+[01:34:40.479][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldUtil.js
+[01:34:40.484][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldApi.js
+[01:34:40.495][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldBuilder.js
+[01:34:40.499][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldSession.js
+[01:34:40.512][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
+[01:34:40.514][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
+[01:34:40.526][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
+[01:34:40.529][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
+[01:34:40.532][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
+[01:34:40.544][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
+[01:34:40.668][WARN][SoundParsers] [sound] asset not found for 'src': Sounds/DEBRIS/DEBRIS_10ogg
+[01:34:40.898][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
+[01:34:40.900][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
+[01:34:40.903][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
+[01:34:40.909][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
+[01:34:40.912][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
+[01:34:40.914][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
+[01:34:40.920][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
+[01:34:40.924][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
+[01:34:40.927][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
+[01:34:40.939][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
+[01:34:40.942][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
+[01:34:40.950][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
+[01:34:40.952][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
+[01:34:40.954][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
+[01:34:40.965][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
+[01:34:40.974][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.0.0' from='@module/Log/Log'
+[01:34:40.975][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
+[01:34:40.986][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
+[01:34:40.987][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
+[01:34:40.996][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='1.2.0' from='@module/Events/Events'
+[01:34:40.996][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
+[01:34:40.999][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
+[01:34:41.001][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
+[01:34:41.006][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
+[01:34:41.008][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
+[01:34:41.011][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
+[01:34:41.017][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
+[01:34:41.018][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
+[01:34:41.019][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
+[01:34:41.022][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
+[01:34:41.026][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
+[01:34:41.029][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
+[01:34:41.033][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/UIBuilder.js
+[01:34:41.038][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='2.4.3' from='@module/Hud/Hud'
+[01:34:41.038][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
+[01:34:41.043][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
+[01:34:41.045][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
+[01:34:41.049][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
+[01:34:41.051][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
+[01:34:41.054][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.5' from='@module/Controllers/Controllers'
+[01:34:41.054][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
+[01:34:41.063][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
+[01:34:41.063][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
+[01:34:41.067][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
+[01:34:41.068][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
+[01:34:41.069][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Particles/Particles.js
+[01:34:41.098][INFO][EngineApiImpl] [ENGINE] module registered: key='particles' name='@module/Particles/Particles' ver='3.2.1' from='@module/Particles/Particles'
+[01:34:41.098][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (1124 ms)
+[01:34:41.099][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
+[01:34:41.103][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:34:41.104][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data
+[01:34:41.105][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\camera
+[01:34:41.105][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\input
+[01:34:41.106][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\data\player
+[01:34:41.106][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Models
+[01:34:41.106][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts
+[01:34:41.107][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment
+[01:34:41.107][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\sky
+[01:34:41.107][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\environment\world
+[01:34:41.108][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player
+[01:34:41.108][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\controllers
+[01:34:41.109][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Scripts\player\systems
+[01:34:41.109][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds
+[01:34:41.109][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\DEBRIS
+[01:34:41.110][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\hit
+[01:34:41.110][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\spawn
+[01:34:41.111][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Sounds\throw
+[01:34:41.111][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures
+[01:34:41.111][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Particles
+[01:34:41.112][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\sharp-boulder-layered
+[01:34:41.112][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Sky
+[01:34:41.113][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain
+[01:34:41.113][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Grass
+[01:34:41.114][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\Rock
+[01:34:41.114][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\rocky-dunes
+[01:34:41.114][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\Terrain\wavy-sand
+[01:34:41.115][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\Textures\ui
+[01:34:41.115][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui
+[01:34:41.115][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\Kalitech\assets\ui\icons
+[01:34:41.116][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:34:41.119][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\Kalitech\assets
+[01:34:41.179][INFO][WorldApiImpl] [world] WorldAppState attached lazily
+[01:34:41.180][INFO][WorldAppState] [World] created 'main'
+[01:34:41.207][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[01:34:41.223][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[01:34:41.233][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[01:34:41.235][INFO][LightRigModule] RenderApi: ambient created
+[01:34:41.236][INFO][LightRigModule] RenderApi: sun created
+[01:34:41.236][INFO][LightRigModule] RenderApi: moon created
+[01:34:41.237][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
+[01:34:41.238][INFO][RenderApiImpl] RenderApi: scene ensured
+[01:34:41.238][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[01:34:41.250][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[01:34:41.264][WARN][Shadow] [shadow][cfg] mapSize clamped requested=16384 actual=12456
+[01:34:41.278][INFO][Shadow] [shadow][cfg] reload=false type=PipelineDirectionalLightShadowRenderer map=12456 splits=4 lambda=0.72 intensity=0.75 snap=true snapCascades=2 pad=1.02 hyst=10.0 smooth=0.1 zExtend=1000.0 zFade=0.0 fixedSplits=null pipeline=splits=4|hysteresis(hysteresis=12,smoothing=0.12);basis(type=com.oracle.truffle.api.strings.TruffleString);onlySplit(split=0);onlySplit(maxSplit=7,minSplit=1);poissonPcf(baseRadiusTexels=1.35,camMoveEventThreshold=0.03,camRotateEventThresholdDeg=0.2,enabled=true,rotateEveryFrames=12,rotateKernel=true,rotateOnlyOnCameraEvent=true,samples=16,split0=0.95,split1=1.1,split2=1.35,split3=1.65);temporalGate(minMoveTexels=1.25,minRotateDeg=0.25,teleportMoveTexels=24);texelSnap(enabled=true,snapFirstCascades=2);telemetry(allSplits=true,driftTexelsThreshold=0.35,everyFrames=60,resizeRatio=0.02);trace(everyFrames=60);
+[01:34:41.319][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
+[01:34:42.635][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[01:34:42.638][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[01:34:42.638][INFO][EngineApiImpl] [scene] init
+[01:34:43.139][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[01:34:43.200][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[01:34:43.240][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.0816839, -300.0)
+[01:34:43.243][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 6.1337657, -300.0)
+[01:34:43.244][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 10.069567, -300.0)
+[01:34:43.246][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 13.861689, -300.0)
+[01:34:43.247][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 17.385601, -300.0)
+[01:34:43.249][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 20.640594, -300.0)
+[01:34:43.251][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 23.722883, -300.0)
+[01:34:43.252][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 26.45113, -300.0)
+[01:34:43.253][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 28.677637, -300.0)
+[01:34:43.254][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 30.296015, -300.0)
+[01:34:43.256][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 31.454662, -300.0)
+[01:34:43.258][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.239306, -300.0)
+[01:34:43.259][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 6.7076564, -300.0)
+[01:34:43.260][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 11.117477, -300.0)
+[01:34:43.261][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 15.447162, -300.0)
+[01:34:43.263][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 19.709497, -300.0)
+[01:34:43.264][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 23.880249, -300.0)
+[01:34:43.266][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 27.747824, -300.0)
+[01:34:43.267][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 31.36309, -300.0)
+[01:34:43.268][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 34.757374, -300.0)
+[01:34:43.268][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 37.681435, -300.0)
+[01:34:43.270][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 39.519913, -300.0)
+[01:34:43.272][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 1.944652, -300.0)
+[01:34:43.274][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 5.7646255, -300.0)
+[01:34:43.274][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 9.419096, -300.0)
+[01:34:43.275][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 12.931086, -300.0)
+[01:34:43.276][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 16.233358, -300.0)
+[01:34:43.278][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 19.141266, -300.0)
+[01:34:43.279][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 21.69364, -300.0)
+[01:34:43.281][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 24.090767, -300.0)
+[01:34:43.282][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 26.3403, -300.0)
+[01:34:43.283][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 28.419086, -300.0)
+[01:34:43.284][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 29.935501, -300.0)
+[01:34:43.286][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.375877, -300.0)
+[01:34:43.287][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 6.9575963, -300.0)
+[01:34:43.288][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 11.326511, -300.0)
+[01:34:43.288][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 15.627263, -300.0)
+[01:34:43.289][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 19.54621, -300.0)
+[01:34:43.290][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 22.89584, -300.0)
+[01:34:43.291][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 25.771856, -300.0)
+[01:34:43.292][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 28.133299, -300.0)
+[01:34:43.293][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 30.173212, -300.0)
+[01:34:43.294][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 32.130207, -300.0)
+[01:34:43.296][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 33.934494, -300.0)
+[01:34:43.298][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 2.4724562, -300.0)
+[01:34:43.299][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 7.3730617, -300.0)
+[01:34:43.300][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 11.923357, -300.0)
+[01:34:43.301][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 15.907895, -300.0)
+[01:34:43.302][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 19.474604, -300.0)
+[01:34:43.303][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 22.880806, -300.0)
+[01:34:43.304][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 26.283833, -300.0)
+[01:34:43.305][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 29.261753, -300.0)
+[01:34:43.306][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 31.764978, -300.0)
+[01:34:43.307][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 34.03289, -300.0)
+[01:34:43.308][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 35.67799, -300.0)
+[01:34:43.310][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.4286106, -300.0)
+[01:34:43.311][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 6.7538795, -300.0)
+[01:34:43.312][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 10.269222, -300.0)
+[01:34:43.313][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 13.45051, -300.0)
+[01:34:43.314][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 16.558764, -300.0)
+[01:34:43.315][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 19.64372, -300.0)
+[01:34:43.316][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 22.609577, -300.0)
+[01:34:43.317][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 25.157307, -300.0)
+[01:34:43.318][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 27.373243, -300.0)
+[01:34:43.319][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 29.499987, -300.0)
+[01:34:43.320][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 31.352676, -300.0)
+[01:34:43.377][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[01:34:43.401][DEBUG][EntityApiImpl] [entity] created uuid=4e312c59-70e4-a960-7516-8f684c39dcb2 name='player'
+[01:34:43.404][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=box name=box worldPos=(135.0, -10.0, -334.0)
+[01:34:43.407][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=4e312c59-70e4-a960-7516-8f684c39dcb2
+[01:34:43.459][INFO][WorldApiImpl] [world.create] name=main systems=4 start=true
+[01:34:43.460][INFO][RuntimeAppState] [Runtime] app started
+[01:34:43.467][DEBUG][ShadowTraceFilter] [shadow][trace] frame=0 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:43.475][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:43.637][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:43.710][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:43.779][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=0 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:43.901][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2501
+[01:34:43.917][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
+[01:34:43.922][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
+[01:34:43.923][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
+[01:34:43.925][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
+[01:34:43.927][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
+[01:34:43.933][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
+[01:34:43.936][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
+[01:34:43.944][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
+[01:34:43.951][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
+[01:34:44.069][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
+[01:34:44.070][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.081683874130249z=-300)
+[01:34:44.070][DEBUG][EngineApiImpl] Spawned at (x=120,y=6.133765697479248z=-300)
+[01:34:44.070][DEBUG][EngineApiImpl] Spawned at (x=120,y=10.06956672668457z=-300)
+[01:34:44.071][DEBUG][EngineApiImpl] Spawned at (x=120,y=13.861688613891602z=-300)
+[01:34:44.071][DEBUG][EngineApiImpl] Spawned at (x=120,y=17.385601043701172z=-300)
+[01:34:44.072][DEBUG][EngineApiImpl] Spawned at (x=120,y=20.640594482421875z=-300)
+[01:34:44.072][DEBUG][EngineApiImpl] Spawned at (x=120,y=23.722883224487305z=-300)
+[01:34:44.072][DEBUG][EngineApiImpl] Spawned at (x=120,y=26.451129913330078z=-300)
+[01:34:44.073][DEBUG][EngineApiImpl] Spawned at (x=120,y=28.677637100219727z=-300)
+[01:34:44.073][DEBUG][EngineApiImpl] Spawned at (x=120,y=30.2960147857666z=-300)
+[01:34:44.073][DEBUG][EngineApiImpl] Spawned at (x=120,y=31.454662322998047z=-300)
+[01:34:44.073][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.2393059730529785z=-300)
+[01:34:44.074][DEBUG][EngineApiImpl] Spawned at (x=128,y=6.707656383514404z=-300)
+[01:34:44.076][DEBUG][EngineApiImpl] Spawned at (x=128,y=11.117477416992188z=-300)
+[01:34:44.076][DEBUG][EngineApiImpl] Spawned at (x=128,y=15.447161674499512z=-300)
+[01:34:44.077][DEBUG][EngineApiImpl] Spawned at (x=128,y=19.709497451782227z=-300)
+[01:34:44.077][DEBUG][EngineApiImpl] Spawned at (x=128,y=23.8802490234375z=-300)
+[01:34:44.077][DEBUG][EngineApiImpl] Spawned at (x=128,y=27.74782371520996z=-300)
+[01:34:44.078][DEBUG][EngineApiImpl] Spawned at (x=128,y=31.36309051513672z=-300)
+[01:34:44.078][DEBUG][EngineApiImpl] Spawned at (x=128,y=34.75737380981445z=-300)
+[01:34:44.078][DEBUG][EngineApiImpl] Spawned at (x=128,y=37.681434631347656z=-300)
+[01:34:44.078][DEBUG][EngineApiImpl] Spawned at (x=128,y=39.51991271972656z=-300)
+[01:34:44.078][DEBUG][EngineApiImpl] Spawned at (x=136,y=1.9446519613265991z=-300)
+[01:34:44.079][DEBUG][EngineApiImpl] Spawned at (x=136,y=5.764625549316406z=-300)
+[01:34:44.079][DEBUG][EngineApiImpl] Spawned at (x=136,y=9.419095993041992z=-300)
+[01:34:44.079][DEBUG][EngineApiImpl] Spawned at (x=136,y=12.931085586547852z=-300)
+[01:34:44.079][DEBUG][EngineApiImpl] Spawned at (x=136,y=16.23335838317871z=-300)
+[01:34:44.080][DEBUG][EngineApiImpl] Spawned at (x=136,y=19.141265869140625z=-300)
+[01:34:44.080][DEBUG][EngineApiImpl] Spawned at (x=136,y=21.693639755249023z=-300)
+[01:34:44.080][DEBUG][EngineApiImpl] Spawned at (x=136,y=24.09076690673828z=-300)
+[01:34:44.081][DEBUG][EngineApiImpl] Spawned at (x=136,y=26.340299606323242z=-300)
+[01:34:44.081][DEBUG][EngineApiImpl] Spawned at (x=136,y=28.419086456298828z=-300)
+[01:34:44.081][DEBUG][EngineApiImpl] Spawned at (x=136,y=29.935501098632812z=-300)
+[01:34:44.081][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.3758769035339355z=-300)
+[01:34:44.082][DEBUG][EngineApiImpl] Spawned at (x=144,y=6.957596302032471z=-300)
+[01:34:44.082][DEBUG][EngineApiImpl] Spawned at (x=144,y=11.32651138305664z=-300)
+[01:34:44.082][DEBUG][EngineApiImpl] Spawned at (x=144,y=15.627263069152832z=-300)
+[01:34:44.082][DEBUG][EngineApiImpl] Spawned at (x=144,y=19.54620933532715z=-300)
+[01:34:44.082][DEBUG][EngineApiImpl] Spawned at (x=144,y=22.89583969116211z=-300)
+[01:34:44.083][DEBUG][EngineApiImpl] Spawned at (x=144,y=25.7718563079834z=-300)
+[01:34:44.083][DEBUG][EngineApiImpl] Spawned at (x=144,y=28.133298873901367z=-300)
+[01:34:44.083][DEBUG][EngineApiImpl] Spawned at (x=144,y=30.1732120513916z=-300)
+[01:34:44.083][DEBUG][EngineApiImpl] Spawned at (x=144,y=32.13020706176758z=-300)
+[01:34:44.254][DEBUG][EngineApiImpl] Spawned at (x=144,y=33.93449401855469z=-300)
+[01:34:44.254][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.472456216812134z=-300)
+[01:34:44.255][DEBUG][EngineApiImpl] Spawned at (x=152,y=7.373061656951904z=-300)
+[01:34:44.255][DEBUG][EngineApiImpl] Spawned at (x=152,y=11.923357009887695z=-300)
+[01:34:44.255][DEBUG][EngineApiImpl] Spawned at (x=152,y=15.9078950881958z=-300)
+[01:34:44.255][DEBUG][EngineApiImpl] Spawned at (x=152,y=19.4746036529541z=-300)
+[01:34:44.256][DEBUG][EngineApiImpl] Spawned at (x=152,y=22.88080596923828z=-300)
+[01:34:44.256][DEBUG][EngineApiImpl] Spawned at (x=152,y=26.283832550048828z=-300)
+[01:34:44.256][DEBUG][EngineApiImpl] Spawned at (x=152,y=29.26175308227539z=-300)
+[01:34:44.257][DEBUG][EngineApiImpl] Spawned at (x=152,y=31.764978408813477z=-300)
+[01:34:44.257][DEBUG][EngineApiImpl] Spawned at (x=152,y=34.03289031982422z=-300)
+[01:34:44.257][DEBUG][EngineApiImpl] Spawned at (x=152,y=35.6779899597168z=-300)
+[01:34:44.257][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.4286105632781982z=-300)
+[01:34:44.258][DEBUG][EngineApiImpl] Spawned at (x=160,y=6.753879547119141z=-300)
+[01:34:44.258][DEBUG][EngineApiImpl] Spawned at (x=160,y=10.269222259521484z=-300)
+[01:34:44.258][DEBUG][EngineApiImpl] Spawned at (x=160,y=13.450510025024414z=-300)
+[01:34:44.258][DEBUG][EngineApiImpl] Spawned at (x=160,y=16.55876350402832z=-300)
+[01:34:44.259][DEBUG][EngineApiImpl] Spawned at (x=160,y=19.643720626831055z=-300)
+[01:34:44.259][DEBUG][EngineApiImpl] Spawned at (x=160,y=22.609577178955078z=-300)
+[01:34:44.259][DEBUG][EngineApiImpl] Spawned at (x=160,y=25.157306671142578z=-300)
+[01:34:44.259][DEBUG][EngineApiImpl] Spawned at (x=160,y=27.37324333190918z=-300)
+[01:34:44.260][DEBUG][EngineApiImpl] Spawned at (x=160,y=29.49998664855957z=-300)
+[01:34:44.260][DEBUG][EngineApiImpl] Spawned at (x=160,y=31.352676391601562z=-300)
+[01:34:44.260][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
+[01:34:45.309][DEBUG][ShadowTraceFilter] [shadow][trace] frame=60 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:45.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:45.310][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:45.311][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:45.311][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=60 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:45.977][DEBUG][SurfaceRegistry] [surface] registered surfaceId=69 kind=sphere name=shot-1 worldPos=(134.88977, -9.140887, -333.9606)
+[01:34:45.986][DEBUG][EngineApiImpl] Spawned at (x=134.8897705078125,y=-9.140887260437012z=-333.9606018066406)
+[01:34:46.307][DEBUG][ShadowTraceFilter] [shadow][trace] frame=120 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:46.308][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:46.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:46.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:46.310][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=120 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:47.307][DEBUG][ShadowTraceFilter] [shadow][trace] frame=180 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:47.307][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.017048 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:47.308][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.017048 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:47.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.017048 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:47.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=180 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.017048 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:48.170][DEBUG][SurfaceRegistry] [surface] registered surfaceId=70 kind=sphere name=shot-2 worldPos=(134.89178, -9.140722, -333.9606)
+[01:34:48.176][DEBUG][EngineApiImpl] Spawned at (x=134.89178466796875,y=-9.140722274780273z=-333.9606018066406)
+[01:34:48.307][DEBUG][ShadowTraceFilter] [shadow][trace] frame=240 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:48.308][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006569 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:48.308][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006569 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:48.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006569 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:48.309][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=240 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006569 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:49.137][DEBUG][SurfaceRegistry] [surface] registered surfaceId=71 kind=sphere name=shot-3 worldPos=(134.88176, -9.1425295, -333.94806)
+[01:34:49.141][DEBUG][EngineApiImpl] Spawned at (x=134.8817596435547,y=-9.142529487609863z=-333.94805908203125)
+[01:34:49.306][DEBUG][ShadowTraceFilter] [shadow][trace] frame=300 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:49.306][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:49.307][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:49.307][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:49.308][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=300 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:50.305][DEBUG][ShadowTraceFilter] [shadow][trace] frame=360 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:50.306][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:50.306][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:50.307][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:50.307][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=360 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:50.403][DEBUG][SurfaceRegistry] [surface] registered surfaceId=72 kind=sphere name=shot-4 worldPos=(134.88176, -9.1425295, -333.94806)
+[01:34:50.406][DEBUG][EngineApiImpl] Spawned at (x=134.8817596435547,y=-9.142529487609863z=-333.94805908203125)
+[01:34:50.588][DEBUG][ParticlesApiImpl] [particles] create ok id=1 name=impact alive=1
+[01:34:50.973][DEBUG][ParticlesApiImpl] [particles] create ok id=2 name=impact alive=2
+[01:34:51.357][DEBUG][ShadowTraceFilter] [shadow][trace] frame=420 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:51.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.045375 camRotDeg=0.635504 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:51.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.045375 camRotDeg=0.635504 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:51.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.045375 camRotDeg=0.635504 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:51.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=420 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.045375 camRotDeg=0.635504 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:51.637][DEBUG][SurfaceRegistry] [surface] registered surfaceId=73 kind=sphere name=shot-5 worldPos=(134.87552, -9.143186, -333.9463)
+[01:34:51.642][DEBUG][EngineApiImpl] Spawned at (x=134.87551879882812,y=-9.14318561553955z=-333.9462890625)
+[01:34:52.040][DEBUG][ParticlesApiImpl] [particles] create ok id=3 name=impact alive=3
+[01:34:52.356][DEBUG][ShadowTraceFilter] [shadow][trace] frame=480 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:52.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:52.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:52.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:52.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=480 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:52.620][DEBUG][SurfaceRegistry] [surface] registered surfaceId=74 kind=sphere name=shot-6 worldPos=(134.87552, -9.143186, -333.9463)
+[01:34:52.624][DEBUG][EngineApiImpl] Spawned at (x=134.87551879882812,y=-9.14318561553955z=-333.9462890625)
+[01:34:53.355][DEBUG][ShadowTraceFilter] [shadow][trace] frame=540 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:53.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:53.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:53.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:53.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=540 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:53.853][DEBUG][SurfaceRegistry] [surface] registered surfaceId=75 kind=sphere name=shot-7 worldPos=(134.87552, -9.143186, -333.9463)
+[01:34:53.856][DEBUG][EngineApiImpl] Spawned at (x=134.87551879882812,y=-9.14318561553955z=-333.9462890625)
+[01:34:53.972][DEBUG][ParticlesApiImpl] [particles] create ok id=4 name=impact alive=4
+[01:34:54.106][DEBUG][ParticlesApiImpl] [particles] create ok id=5 name=impact alive=5
+[01:34:54.356][DEBUG][ShadowTraceFilter] [shadow][trace] frame=600 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:54.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=600 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.163129 reason=no-snap|cam-default|cam-rot
+[01:34:54.356][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=600 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.163129 reason=no-snap|cam-default|cam-rot
+[01:34:54.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=600 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.163129 reason=no-snap|cam-default|cam-rot
+[01:34:54.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=600 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.163129 reason=no-snap|cam-default|cam-rot
+[01:34:54.770][DEBUG][SurfaceRegistry] [surface] registered surfaceId=76 kind=sphere name=shot-8 worldPos=(134.87552, -9.143186, -333.9463)
+[01:34:54.774][DEBUG][EngineApiImpl] Spawned at (x=134.87551879882812,y=-9.14318561553955z=-333.9462890625)
+[01:34:54.889][DEBUG][ParticlesApiImpl] [particles] create ok id=6 name=impact alive=6
+[01:34:55.356][DEBUG][ShadowTraceFilter] [shadow][trace] frame=660 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:55.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=660 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.040509 camRotDeg=0.659676 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:55.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=660 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.040509 camRotDeg=0.659676 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:55.357][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=660 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.040509 camRotDeg=0.659676 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:55.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=660 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.040509 camRotDeg=0.659676 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:55.486][DEBUG][SurfaceRegistry] [surface] registered surfaceId=77 kind=sphere name=shot-9 worldPos=(134.87482, -9.143298, -333.94553)
+[01:34:55.490][DEBUG][EngineApiImpl] Spawned at (x=134.87481689453125,y=-9.143298149108887z=-333.9455261230469)
+[01:34:55.606][DEBUG][ParticlesApiImpl] [particles] create ok id=7 name=impact alive=7
+[01:34:56.153][DEBUG][SurfaceRegistry] [surface] registered surfaceId=78 kind=sphere name=shot-10 worldPos=(134.87663, -9.143266, -333.9442)
+[01:34:56.157][DEBUG][EngineApiImpl] Spawned at (x=134.8766326904297,y=-9.143265724182129z=-333.9442138671875)
+[01:34:56.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=720 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:56.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=720 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:56.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=720 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:56.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=720 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:56.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=720 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:34:56.772][DEBUG][SurfaceRegistry] [surface] registered surfaceId=79 kind=sphere name=shot-11 worldPos=(134.87234, -9.143559, -333.9451)
+[01:34:56.778][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143559455871582z=-333.9450988769531)
+[01:34:57.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=780 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:57.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=780 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013496 camRotDeg=0.197823 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:57.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=780 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013496 camRotDeg=0.197823 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:57.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=780 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013496 camRotDeg=0.197823 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:57.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=780 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013496 camRotDeg=0.197823 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:57.403][DEBUG][SurfaceRegistry] [surface] registered surfaceId=80 kind=sphere name=shot-12 worldPos=(134.87234, -9.1435375, -333.9451)
+[01:34:57.407][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143537521362305z=-333.9450988769531)
+[01:34:57.523][DEBUG][ParticlesApiImpl] [particles] create ok id=8 name=impact alive=8
+[01:34:58.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=840 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:58.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=840 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.014747 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:58.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=840 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.014747 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:58.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=840 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.014747 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:58.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=840 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.014747 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:34:58.903][DEBUG][SurfaceRegistry] [surface] registered surfaceId=81 kind=sphere name=shot-13 worldPos=(134.87234, -9.1435375, -333.9451)
+[01:34:58.908][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143537521362305z=-333.9450988769531)
+[01:34:59.041][DEBUG][ParticlesApiImpl] [particles] create ok id=9 name=impact alive=9
+[01:34:59.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=900 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:34:59.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=900 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005835 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:59.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=900 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005835 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:59.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=900 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005835 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:34:59.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=900 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005835 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:00.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=960 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:00.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=960 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:00.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=960 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:00.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=960 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:00.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=960 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:00.387][DEBUG][SurfaceRegistry] [surface] registered surfaceId=82 kind=sphere name=shot-14 worldPos=(134.87234, -9.143538, -333.9451)
+[01:35:00.391][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143538475036621z=-333.9450988769531)
+[01:35:00.507][DEBUG][ParticlesApiImpl] [particles] create ok id=10 name=impact alive=10
+[01:35:01.221][DEBUG][SurfaceRegistry] [surface] registered surfaceId=83 kind=sphere name=shot-15 worldPos=(134.87234, -9.143538, -333.9451)
+[01:35:01.224][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143538475036621z=-333.9450988769531)
+[01:35:01.341][DEBUG][ParticlesApiImpl] [particles] create ok id=11 name=impact alive=11
+[01:35:01.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1020 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:01.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1020 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:01.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1020 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:01.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1020 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:01.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1020 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:01.921][DEBUG][SurfaceRegistry] [surface] registered surfaceId=84 kind=sphere name=shot-16 worldPos=(134.87234, -9.1435375, -333.9451)
+[01:35:01.925][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143537521362305z=-333.9450988769531)
+[01:35:02.040][DEBUG][ParticlesApiImpl] [particles] create ok id=12 name=impact alive=12
+[01:35:02.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1080 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:02.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1080 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:02.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1080 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:02.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1080 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:02.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1080 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:02.504][DEBUG][SurfaceRegistry] [surface] registered surfaceId=85 kind=sphere name=shot-17 worldPos=(134.87234, -9.143538, -333.9451)
+[01:35:02.507][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143538475036621z=-333.9450988769531)
+[01:35:02.624][DEBUG][ParticlesApiImpl] [particles] create ok id=13 name=impact alive=13
+[01:35:03.120][DEBUG][SurfaceRegistry] [surface] registered surfaceId=86 kind=sphere name=shot-18 worldPos=(134.87234, -9.143538, -333.9451)
+[01:35:03.125][DEBUG][EngineApiImpl] Spawned at (x=134.87234497070312,y=-9.143538475036621z=-333.9450988769531)
+[01:35:03.240][DEBUG][ParticlesApiImpl] [particles] create ok id=14 name=impact alive=14
+[01:35:03.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1140 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:03.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1140 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005748 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:03.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1140 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005748 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:03.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1140 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005748 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:03.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1140 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.005748 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:03.988][DEBUG][SurfaceRegistry] [surface] registered surfaceId=87 kind=sphere name=shot-19 worldPos=(134.87158, -9.143659, -333.94434)
+[01:35:03.992][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143658638000488z=-333.9443359375)
+[01:35:04.124][DEBUG][ParticlesApiImpl] [particles] create ok id=15 name=impact alive=15
+[01:35:04.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1200 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:04.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1200 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006468 camRotDeg=0.250229 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:04.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1200 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006468 camRotDeg=0.250229 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:04.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1200 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006468 camRotDeg=0.250229 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:04.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1200 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006468 camRotDeg=0.250229 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:04.504][DEBUG][SurfaceRegistry] [surface] registered surfaceId=88 kind=sphere name=shot-20 worldPos=(134.87158, -9.143659, -333.94434)
+[01:35:04.508][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143658638000488z=-333.9443359375)
+[01:35:04.642][DEBUG][ParticlesApiImpl] [particles] create ok id=16 name=impact alive=16
+[01:35:05.237][DEBUG][SurfaceRegistry] [surface] registered surfaceId=89 kind=sphere name=shot-21 worldPos=(134.87158, -9.143659, -333.94434)
+[01:35:05.241][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143658638000488z=-333.9443359375)
+[01:35:05.357][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1260 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:05.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1260 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.007252 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:05.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1260 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.007252 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:05.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1260 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.007252 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:05.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1260 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.007252 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:05.671][DEBUG][SurfaceRegistry] [surface] registered surfaceId=90 kind=sphere name=shot-22 worldPos=(134.87158, -9.143659, -333.94434)
+[01:35:05.674][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143658638000488z=-333.9443359375)
+[01:35:05.904][DEBUG][SurfaceRegistry] [surface] registered surfaceId=91 kind=sphere name=shot-23 worldPos=(134.87158, -9.143658, -333.94434)
+[01:35:05.907][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143657684326172z=-333.9443359375)
+[01:35:06.137][DEBUG][SurfaceRegistry] [surface] registered surfaceId=92 kind=sphere name=shot-24 worldPos=(134.87158, -9.143658, -333.94434)
+[01:35:06.140][DEBUG][EngineApiImpl] Spawned at (x=134.87158203125,y=-9.143657684326172z=-333.9443359375)
+[01:35:06.338][DEBUG][SurfaceRegistry] [surface] registered surfaceId=93 kind=sphere name=shot-25 worldPos=(134.87054, -9.153214, -333.9458)
+[01:35:06.341][DEBUG][EngineApiImpl] Spawned at (x=134.87054443359375,y=-9.153214454650879z=-333.94580078125)
+[01:35:06.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1320 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:06.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1320 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.027094 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:06.369][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1320 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.027094 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:06.369][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1320 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.027094 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:06.370][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1320 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.027094 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:06.375][DEBUG][ParticlesApiImpl] [particles] create ok id=17 name=impact alive=17
+[01:35:06.571][DEBUG][SurfaceRegistry] [surface] registered surfaceId=94 kind=sphere name=shot-26 worldPos=(134.86848, -9.151281, -333.9458)
+[01:35:06.574][DEBUG][EngineApiImpl] Spawned at (x=134.8684844970703,y=-9.151281356811523z=-333.94580078125)
+[01:35:06.788][DEBUG][SurfaceRegistry] [surface] registered surfaceId=95 kind=sphere name=shot-27 worldPos=(134.86784, -9.14444, -333.94266)
+[01:35:06.792][DEBUG][EngineApiImpl] Spawned at (x=134.8678436279297,y=-9.144439697265625z=-333.9426574707031)
+[01:35:07.038][DEBUG][SurfaceRegistry] [surface] registered surfaceId=96 kind=sphere name=shot-28 worldPos=(134.86559, -9.147877, -333.94412)
+[01:35:07.042][DEBUG][EngineApiImpl] Spawned at (x=134.86558532714844,y=-9.147876739501953z=-333.9441223144531)
+[01:35:07.208][DEBUG][ParticlesApiImpl] [particles] create ok id=18 name=impact alive=18
+[01:35:07.254][DEBUG][SurfaceRegistry] [surface] registered surfaceId=97 kind=sphere name=shot-29 worldPos=(134.86421, -9.144714, -333.94116)
+[01:35:07.257][DEBUG][EngineApiImpl] Spawned at (x=134.8642120361328,y=-9.14471435546875z=-333.941162109375)
+[01:35:07.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1380 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:07.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1380 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008755 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:07.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1380 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008755 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:07.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1380 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008755 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:07.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1380 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008755 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:07.423][DEBUG][ParticlesApiImpl] [particles] create ok id=19 name=impact alive=19
+[01:35:07.471][DEBUG][SurfaceRegistry] [surface] registered surfaceId=98 kind=sphere name=shot-30 worldPos=(134.86417, -9.144533, -333.94104)
+[01:35:07.475][DEBUG][EngineApiImpl] Spawned at (x=134.86416625976562,y=-9.144533157348633z=-333.9410400390625)
+[01:35:07.704][DEBUG][SurfaceRegistry] [surface] registered surfaceId=99 kind=sphere name=shot-31 worldPos=(134.86417, -9.144524, -333.94104)
+[01:35:07.707][DEBUG][EngineApiImpl] Spawned at (x=134.86416625976562,y=-9.144523620605469z=-333.9410400390625)
+[01:35:07.904][DEBUG][SurfaceRegistry] [surface] registered surfaceId=100 kind=sphere name=shot-32 worldPos=(134.86417, -9.144524, -333.94104)
+[01:35:07.907][DEBUG][EngineApiImpl] Spawned at (x=134.86416625976562,y=-9.144523620605469z=-333.9410400390625)
+[01:35:08.088][DEBUG][SurfaceRegistry] [surface] registered surfaceId=101 kind=sphere name=shot-33 worldPos=(134.86417, -9.144524, -333.94104)
+[01:35:08.092][DEBUG][EngineApiImpl] Spawned at (x=134.86416625976562,y=-9.144523620605469z=-333.9410400390625)
+[01:35:08.339][DEBUG][SurfaceRegistry] [surface] registered surfaceId=102 kind=sphere name=shot-34 worldPos=(134.86417, -9.144525, -333.94104)
+[01:35:08.342][DEBUG][EngineApiImpl] Spawned at (x=134.86416625976562,y=-9.144524574279785z=-333.9410400390625)
+[01:35:08.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1440 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:08.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1440 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.019400 camRotDeg=0.298707 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:08.369][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1440 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.019400 camRotDeg=0.298707 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:08.369][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1440 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.019400 camRotDeg=0.298707 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:08.369][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1440 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.019400 camRotDeg=0.298707 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:08.537][DEBUG][SurfaceRegistry] [surface] registered surfaceId=103 kind=sphere name=shot-35 worldPos=(134.86346, -9.149233, -333.94125)
+[01:35:08.540][DEBUG][EngineApiImpl] Spawned at (x=134.86346435546875,y=-9.149232864379883z=-333.9412536621094)
+[01:35:08.754][DEBUG][SurfaceRegistry] [surface] registered surfaceId=104 kind=sphere name=shot-36 worldPos=(134.86298, -9.144975, -333.93973)
+[01:35:08.757][DEBUG][EngineApiImpl] Spawned at (x=134.86297607421875,y=-9.144974708557129z=-333.9397277832031)
+[01:35:08.987][DEBUG][SurfaceRegistry] [surface] registered surfaceId=105 kind=sphere name=shot-37 worldPos=(134.86534, -9.147452, -333.94348)
+[01:35:08.991][DEBUG][EngineApiImpl] Spawned at (x=134.86534118652344,y=-9.147452354431152z=-333.9434814453125)
+[01:35:09.204][DEBUG][SurfaceRegistry] [surface] registered surfaceId=106 kind=sphere name=shot-38 worldPos=(134.86472, -9.145463, -333.94028)
+[01:35:09.208][DEBUG][EngineApiImpl] Spawned at (x=134.86471557617188,y=-9.145462989807129z=-333.9402770996094)
+[01:35:09.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1500 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:09.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1500 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006953 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:09.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1500 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006953 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:09.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1500 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006953 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:09.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1500 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.006953 camRotDeg=0.088469 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:09.421][DEBUG][SurfaceRegistry] [surface] registered surfaceId=107 kind=sphere name=shot-39 worldPos=(134.86469, -9.144736, -333.93848)
+[01:35:09.424][DEBUG][EngineApiImpl] Spawned at (x=134.86468505859375,y=-9.144736289978027z=-333.9384765625)
+[01:35:09.558][DEBUG][ParticlesApiImpl] [particles] create ok id=20 name=impact alive=20
+[01:35:09.654][DEBUG][SurfaceRegistry] [surface] registered surfaceId=108 kind=sphere name=shot-40 worldPos=(134.86469, -9.1446905, -333.93848)
+[01:35:09.658][DEBUG][EngineApiImpl] Spawned at (x=134.86468505859375,y=-9.14469051361084z=-333.9384765625)
+[01:35:09.887][DEBUG][SurfaceRegistry] [surface] registered surfaceId=109 kind=sphere name=shot-41 worldPos=(134.86383, -9.149993, -333.943)
+[01:35:09.890][DEBUG][EngineApiImpl] Spawned at (x=134.86383056640625,y=-9.149992942810059z=-333.9429931640625)
+[01:35:10.122][DEBUG][SurfaceRegistry] [surface] registered surfaceId=110 kind=sphere name=shot-42 worldPos=(134.86426, -9.149113, -333.94077)
+[01:35:10.125][DEBUG][EngineApiImpl] Spawned at (x=134.8642578125,y=-9.149112701416016z=-333.9407653808594)
+[01:35:10.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1560 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:10.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1560 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.157577 camRotDeg=2.195784 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:10.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1560 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.157577 camRotDeg=2.195784 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:10.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1560 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.157577 camRotDeg=2.195784 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:10.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1560 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.157577 camRotDeg=2.195784 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:10.388][DEBUG][SurfaceRegistry] [surface] registered surfaceId=111 kind=sphere name=shot-43 worldPos=(134.8637, -9.145043, -333.9365)
+[01:35:10.392][DEBUG][EngineApiImpl] Spawned at (x=134.8636932373047,y=-9.14504337310791z=-333.9364929199219)
+[01:35:10.654][DEBUG][SurfaceRegistry] [surface] registered surfaceId=112 kind=sphere name=shot-44 worldPos=(134.8625, -9.147151, -333.93585)
+[01:35:10.658][DEBUG][EngineApiImpl] Spawned at (x=134.8625030517578,y=-9.147150993347168z=-333.93585205078125)
+[01:35:10.854][DEBUG][SurfaceRegistry] [surface] registered surfaceId=113 kind=sphere name=shot-45 worldPos=(134.86148, -9.149888, -333.93546)
+[01:35:10.858][DEBUG][EngineApiImpl] Spawned at (x=134.86148071289062,y=-9.149888038635254z=-333.9354553222656)
+[01:35:10.974][DEBUG][ParticlesApiImpl] [particles] create ok id=21 name=impact alive=21
+[01:35:11.104][DEBUG][SurfaceRegistry] [surface] registered surfaceId=114 kind=sphere name=shot-46 worldPos=(134.85802, -9.149479, -333.9371)
+[01:35:11.108][DEBUG][EngineApiImpl] Spawned at (x=134.85801696777344,y=-9.149478912353516z=-333.9371032714844)
+[01:35:11.258][DEBUG][ParticlesApiImpl] [particles] create ok id=22 name=impact alive=22
+[01:35:11.338][DEBUG][SurfaceRegistry] [surface] registered surfaceId=115 kind=sphere name=shot-47 worldPos=(134.85672, -9.145776, -333.93512)
+[01:35:11.341][DEBUG][EngineApiImpl] Spawned at (x=134.85671997070312,y=-9.14577579498291z=-333.93511962890625)
+[01:35:11.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1620 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:11.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1620 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.024555 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:11.370][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1620 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.024555 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:11.370][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1620 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.024555 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:11.370][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1620 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.024555 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:11.588][DEBUG][SurfaceRegistry] [surface] registered surfaceId=116 kind=sphere name=shot-48 worldPos=(134.8567, -9.145605, -333.9351)
+[01:35:11.592][DEBUG][EngineApiImpl] Spawned at (x=134.85670471191406,y=-9.145605087280273z=-333.9350891113281)
+[01:35:11.806][DEBUG][SurfaceRegistry] [surface] registered surfaceId=117 kind=sphere name=shot-49 worldPos=(134.85669, -9.145601, -333.9351)
+[01:35:11.810][DEBUG][EngineApiImpl] Spawned at (x=134.856689453125,y=-9.145601272583008z=-333.9350891113281)
+[01:35:12.056][DEBUG][SurfaceRegistry] [surface] registered surfaceId=118 kind=sphere name=shot-50 worldPos=(134.85667, -9.145601, -333.9351)
+[01:35:12.063][DEBUG][EngineApiImpl] Spawned at (x=134.85667419433594,y=-9.145601272583008z=-333.9350891113281)
+[01:35:12.288][DEBUG][SurfaceRegistry] [surface] registered surfaceId=119 kind=sphere name=shot-51 worldPos=(134.85663, -9.145606, -333.9351)
+[01:35:12.291][DEBUG][EngineApiImpl] Spawned at (x=134.85662841796875,y=-9.14560604095459z=-333.9350891113281)
+[01:35:12.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1680 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:12.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1680 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.055953 reason=no-snap|cam-default|cam-rot
+[01:35:12.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1680 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.055953 reason=no-snap|cam-default|cam-rot
+[01:35:12.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1680 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.055953 reason=no-snap|cam-default|cam-rot
+[01:35:12.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1680 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.055953 reason=no-snap|cam-default|cam-rot
+[01:35:12.538][DEBUG][SurfaceRegistry] [surface] registered surfaceId=120 kind=sphere name=shot-52 worldPos=(134.85658, -9.14561, -333.9351)
+[01:35:12.542][DEBUG][EngineApiImpl] Spawned at (x=134.85658264160156,y=-9.145609855651855z=-333.9350891113281)
+[01:35:12.657][DEBUG][ParticlesApiImpl] [particles] create ok id=23 name=impact alive=23
+[01:35:12.755][DEBUG][SurfaceRegistry] [surface] registered surfaceId=121 kind=sphere name=shot-53 worldPos=(134.85655, -9.145613, -333.9351)
+[01:35:12.758][DEBUG][EngineApiImpl] Spawned at (x=134.85655212402344,y=-9.145612716674805z=-333.9350891113281)
+[01:35:12.955][DEBUG][SurfaceRegistry] [surface] registered surfaceId=122 kind=sphere name=shot-54 worldPos=(134.85654, -9.145612, -333.93512)
+[01:35:12.958][DEBUG][EngineApiImpl] Spawned at (x=134.85653686523438,y=-9.145611763000488z=-333.93511962890625)
+[01:35:13.208][DEBUG][ParticlesApiImpl] [particles] create ok id=24 name=impact alive=24
+[01:35:13.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1740 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:13.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1740 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.076272 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:13.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1740 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.076272 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:13.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1740 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.076272 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:13.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1740 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.076272 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:13.705][DEBUG][SurfaceRegistry] [surface] registered surfaceId=123 kind=sphere name=shot-55 worldPos=(134.85648, -9.145614, -333.93515)
+[01:35:13.709][DEBUG][EngineApiImpl] Spawned at (x=134.85647583007812,y=-9.145613670349121z=-333.9351501464844)
+[01:35:13.807][DEBUG][ParticlesApiImpl] [particles] create ok id=25 name=impact alive=25
+[01:35:14.357][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1800 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:14.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1800 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.043404 camRotDeg=0.654913 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:14.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1800 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.043404 camRotDeg=0.654913 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:14.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1800 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.043404 camRotDeg=0.654913 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:14.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1800 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.043404 camRotDeg=0.654913 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:15.155][DEBUG][SurfaceRegistry] [surface] registered surfaceId=124 kind=sphere name=shot-56 worldPos=(134.85693, -9.14566, -333.93408)
+[01:35:15.158][DEBUG][EngineApiImpl] Spawned at (x=134.85693359375,y=-9.145660400390625z=-333.93408203125)
+[01:35:15.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1860 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:15.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1860 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:15.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1860 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:15.358][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1860 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:15.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1860 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:15.804][DEBUG][SurfaceRegistry] [surface] registered surfaceId=125 kind=sphere name=shot-57 worldPos=(134.85756, -9.145606, -333.9341)
+[01:35:15.808][DEBUG][EngineApiImpl] Spawned at (x=134.85755920410156,y=-9.14560604095459z=-333.9341125488281)
+[01:35:16.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1920 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:16.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1920 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.009772 camRotDeg=0.068528 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:16.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1920 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.009772 camRotDeg=0.068528 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:16.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1920 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.009772 camRotDeg=0.068528 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:16.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1920 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.009772 camRotDeg=0.068528 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:16.371][DEBUG][SurfaceRegistry] [surface] registered surfaceId=126 kind=sphere name=shot-58 worldPos=(134.85797, -9.145573, -333.9341)
+[01:35:16.374][DEBUG][EngineApiImpl] Spawned at (x=134.85797119140625,y=-9.145572662353516z=-333.9341125488281)
+[01:35:16.490][DEBUG][ParticlesApiImpl] [particles] create ok id=26 name=impact alive=26
+[01:35:16.941][DEBUG][ParticlesApiImpl] [particles] create ok id=27 name=impact alive=27
+[01:35:17.358][DEBUG][ShadowTraceFilter] [shadow][trace] frame=1980 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:17.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1980 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.033513 camRotDeg=0.158259 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:17.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1980 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.033513 camRotDeg=0.158259 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:17.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1980 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.033513 camRotDeg=0.158259 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:17.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=1980 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.033513 camRotDeg=0.158259 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:17.571][DEBUG][SurfaceRegistry] [surface] registered surfaceId=127 kind=sphere name=shot-59 worldPos=(134.85591, -9.145647, -333.93527)
+[01:35:17.575][DEBUG][EngineApiImpl] Spawned at (x=134.8559112548828,y=-9.145647048950195z=-333.9352722167969)
+[01:35:17.707][DEBUG][ParticlesApiImpl] [particles] create ok id=28 name=impact alive=28
+[01:35:18.105][DEBUG][SurfaceRegistry] [surface] registered surfaceId=128 kind=sphere name=shot-60 worldPos=(134.85486, -9.145862, -333.93417)
+[01:35:18.109][DEBUG][EngineApiImpl] Spawned at (x=134.8548583984375,y=-9.145861625671387z=-333.9341735839844)
+[01:35:18.224][DEBUG][ParticlesApiImpl] [particles] create ok id=29 name=impact alive=29
+[01:35:18.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2040 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:18.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2040 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:18.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2040 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:18.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2040 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:18.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2040 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:18.939][DEBUG][SurfaceRegistry] [surface] registered surfaceId=129 kind=sphere name=shot-61 worldPos=(134.85422, -9.145926, -333.93347)
+[01:35:18.942][DEBUG][EngineApiImpl] Spawned at (x=134.85421752929688,y=-9.145926475524902z=-333.9334716796875)
+[01:35:19.041][DEBUG][ParticlesApiImpl] [particles] create ok id=30 name=impact alive=30
+[01:35:19.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2100 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:19.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2100 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:19.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2100 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:19.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2100 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:19.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2100 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:19.689][DEBUG][SurfaceRegistry] [surface] registered surfaceId=130 kind=sphere name=shot-62 worldPos=(134.85252, -9.14625, -333.9311)
+[01:35:19.692][DEBUG][EngineApiImpl] Spawned at (x=134.85252380371094,y=-9.146249771118164z=-333.93109130859375)
+[01:35:20.360][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2160 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:20.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2160 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013966 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:20.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2160 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013966 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:20.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2160 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013966 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:20.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2160 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.013966 camRotDeg=0.000000 reason=no-snap|cam-default|cam-move
+[01:35:20.439][DEBUG][SurfaceRegistry] [surface] registered surfaceId=131 kind=sphere name=shot-63 worldPos=(134.85225, -9.1462965, -333.9308)
+[01:35:20.443][DEBUG][EngineApiImpl] Spawned at (x=134.8522491455078,y=-9.146296501159668z=-333.9307861328125)
+[01:35:21.056][DEBUG][SurfaceRegistry] [surface] registered surfaceId=132 kind=sphere name=shot-64 worldPos=(134.85228, -9.146295, -333.9308)
+[01:35:21.060][DEBUG][EngineApiImpl] Spawned at (x=134.85227966308594,y=-9.146294593811035z=-333.9307861328125)
+[01:35:21.193][DEBUG][ParticlesApiImpl] [particles] create ok id=31 name=impact alive=31
+[01:35:21.360][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2220 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:21.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2220 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:21.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2220 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:21.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2220 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:21.362][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2220 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:21.772][DEBUG][SurfaceRegistry] [surface] registered surfaceId=133 kind=sphere name=shot-65 worldPos=(134.85234, -9.146291, -333.9308)
+[01:35:21.776][DEBUG][EngineApiImpl] Spawned at (x=134.8523406982422,y=-9.14629077911377z=-333.9307861328125)
+[01:35:21.910][DEBUG][ParticlesApiImpl] [particles] create ok id=32 name=impact alive=32
+[01:35:22.339][DEBUG][SurfaceRegistry] [surface] registered surfaceId=134 kind=sphere name=shot-66 worldPos=(134.85242, -9.146282, -333.9308)
+[01:35:22.343][DEBUG][EngineApiImpl] Spawned at (x=134.8524169921875,y=-9.146282196044922z=-333.9307861328125)
+[01:35:22.360][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2280 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:22.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2280 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.023306 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:22.370][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2280 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.023306 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:22.371][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2280 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.023306 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:22.371][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2280 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.023306 camRotDeg=0.079129 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:22.923][DEBUG][SurfaceRegistry] [surface] registered surfaceId=135 kind=sphere name=shot-67 worldPos=(134.85242, -9.146283, -333.9308)
+[01:35:22.927][DEBUG][EngineApiImpl] Spawned at (x=134.8524169921875,y=-9.146283149719238z=-333.9307861328125)
+[01:35:23.342][DEBUG][ParticlesApiImpl] [particles] create ok id=33 name=impact alive=33
+[01:35:23.361][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2340 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:23.361][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2340 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008021 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:23.362][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2340 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008021 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:23.362][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2340 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008021 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:23.362][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2340 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.008021 camRotDeg=0.055953 reason=no-snap|cam-default|cam-move|cam-rot
+[01:35:23.423][DEBUG][SurfaceRegistry] [surface] registered surfaceId=136 kind=sphere name=shot-68 worldPos=(134.85487, -9.146235, -333.92957)
+[01:35:23.427][DEBUG][EngineApiImpl] Spawned at (x=134.85487365722656,y=-9.146235466003418z=-333.9295654296875)
+[01:35:23.855][DEBUG][SurfaceRegistry] [surface] registered surfaceId=137 kind=sphere name=shot-69 worldPos=(134.85487, -9.146182, -333.92957)
+[01:35:23.860][DEBUG][EngineApiImpl] Spawned at (x=134.85487365722656,y=-9.1461820602417z=-333.9295654296875)
+[01:35:24.123][DEBUG][SurfaceRegistry] [surface] registered surfaceId=138 kind=sphere name=shot-70 worldPos=(134.85487, -9.146181, -333.92957)
+[01:35:24.127][DEBUG][EngineApiImpl] Spawned at (x=134.85487365722656,y=-9.146181106567383z=-333.9295654296875)
+[01:35:24.359][DEBUG][ShadowTraceFilter] [shadow][trace] frame=2400 split0 range=[1.0..59.090366] ortho=2.0 texel=1.6056519E-4 scPos=(0.0, 0.0, 0.0) handledCam=false snapped=false texelWorld=0.0
+[01:35:24.359][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2400 split0 range=[1.000000..59.090366] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:24.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2400 split1 range=[59.090366..123.579224] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:24.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2400 split2 range=[123.579224..213.540924] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:24.360][DEBUG][CascadeStabilityTelemetryFilter] [shadow][trace] frame=2400 split3 range=[213.540924..1000.000000] ortho=2.000000 texel=0.000161 scPos=(0.000000, 0.000000, 0.000000) handledCam=false snapped=false texelWorld=0.000000 driftTexels=0.000000 camMove=0.000000 camRotDeg=0.000000 reason=no-snap|cam-default
+[01:35:24.572][INFO][ScriptRuntime] Closing ScriptRuntime
+[01:35:24.578][INFO][ScriptRuntime] [script] invalidateAll removed=30 reason=reset
+[01:35:24.584][INFO][RuntimeAppState] [Runtime] stopped

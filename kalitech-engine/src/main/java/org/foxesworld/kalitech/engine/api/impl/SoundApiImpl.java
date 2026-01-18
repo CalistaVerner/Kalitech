@@ -136,10 +136,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
             long id = registry.getId(audioNode);
 
             if (audioNode.isPositional() && SoundErrors.isMonoOnlyPositionalError(t)) {
-                if (audioNode instanceof org.foxesworld.kalitech.audio.SpatialStereoAudioNode) {
-                    logError("[sound] play failed: SpatialStereoAudioNode triggered mono-only positional error (unexpected) id=" + id, t);
-                    return;
-                }
 
                 logError("[sound] play failed: positional stereo buffer is not supported (use stereo3D L/R mono). id=" + id, t);
 

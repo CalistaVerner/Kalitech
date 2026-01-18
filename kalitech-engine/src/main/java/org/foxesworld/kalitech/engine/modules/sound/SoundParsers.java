@@ -9,7 +9,6 @@ import com.jme3.audio.AudioNode;
 import com.jme3.math.Vector3f;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.foxesworld.kalitech.audio.SpatialStereoAudioNode;
 import org.graalvm.polyglot.Value;
 
 import java.util.ArrayList;
@@ -66,20 +65,13 @@ public final class SoundParsers {
             if (!requireAsset(assets, leftFile, "leftFile") || !requireAsset(assets, rightFile, "rightFile")) {
                 return null;
             }
-
-            if (!is3D) {
                 String f = hasText(soundFile) ? soundFile : leftFile;
                 String field = hasText(soundFile) ? "src" : "leftFile";
                 if (!requireAsset(assets, f, field)) return null;
 
                 node = new AudioNode(assets, f, type);
                 node.setPositional(false);
-            } else {
-                SpatialStereoAudioNode s = new SpatialStereoAudioNode(assets, leftFile, rightFile, type);
-                s.setSeparation(separation);
-                s.setPositional(true);
-                node = s;
-            }
+
         } else {
             if (!hasText(soundFile)) {
                 log.warn("[sound] createFromCfg: missing 'src' (or leftFile+rightFile)");
@@ -138,16 +130,8 @@ public final class SoundParsers {
             if (!requireAsset(assets, def.leftFile, "leftFile") || !requireAsset(assets, def.rightFile, "rightFile")) {
                 return null;
             }
-
-            if (!def.is3D) {
                 node = new AudioNode(assets, def.leftFile, def.type);
                 node.setPositional(false);
-            } else {
-                SpatialStereoAudioNode s = new SpatialStereoAudioNode(assets, def.leftFile, def.rightFile, def.type);
-                s.setSeparation(def.separation);
-                s.setPositional(true);
-                node = s;
-            }
         } else {
             if (!requireAsset(assets, def.src, "src")) return null;
 

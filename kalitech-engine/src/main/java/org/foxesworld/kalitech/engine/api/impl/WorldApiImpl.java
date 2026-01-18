@@ -167,38 +167,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
                 ? readOptionalPositiveDouble(t, "maxDelta", "world time.")
                 : null;
 
-        Double dayLength = null;
-        if (t.hasMember("dayLengthSec") && !t.getMember("dayLengthSec").isNull()) {
-            dayLength = readOptionalPositiveDouble(t, "dayLengthSec", "world time.");
-        } else if (t.hasMember("dayLength") && !t.getMember("dayLength").isNull()) {
-            dayLength = readOptionalPositiveDouble(t, "dayLength", "world time.");
-        }
-
-        Double dayOffset = null;
-        if (t.hasMember("dayOffsetSec") && !t.getMember("dayOffsetSec").isNull()) {
-            dayOffset = readDouble(t, "dayOffsetSec", 0.0, "world time.");
-        } else if (t.hasMember("dayOffset") && !t.getMember("dayOffset").isNull()) {
-            dayOffset = readDouble(t, "dayOffset", 0.0, "world time.");
-        }
-
-        Double timeOfDay = null;
-        if (t.hasMember("timeOfDay") && !t.getMember("timeOfDay").isNull()) {
-            timeOfDay = readDouble(t, "timeOfDay", 0.0, "world time.");
-        } else if (t.hasMember("timeOfDayHours") && !t.getMember("timeOfDayHours").isNull()) {
-            timeOfDay = readDouble(t, "timeOfDayHours", 0.0, "world time.");
-        }
-
-        final double dayOffsetResolved = WorldTimeParams.resolveDayOffsetSec(worldTime, dayLength, dayOffset, timeOfDay);
-
-        return new WorldTimeParams(
-                worldTime,
-                timeRate,
-                paused,
-                fixedStep,
-                maxDelta,
-                dayLength,
-                dayOffsetResolved
-        );
+        return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
     }
 
     private static Double readOptionalPositiveDouble(Value obj, String key, String errPrefix) {
@@ -241,10 +210,6 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         out.put("worldTime", t.getWorldTimeSec());
         out.put("timeRate", t.getTimeRate());
         out.put("paused", t.isPaused());
-        out.put("dayLengthSec", t.getDayLengthSec());
-        out.put("dayOffsetSec", t.getDayOffsetSec());
-        out.put("timeOfDay", t.getTimeOfDayHours());
-        out.put("dayFraction", t.getDayFraction());
 
         if (t.fixedStepSec() != null) {
             out.put("fixedStep", t.fixedStepSec());
