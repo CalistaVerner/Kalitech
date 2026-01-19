@@ -1,20 +1,30 @@
 package org.foxesworld.kalitech.engine.world.systems.providers;
 
-import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.ScriptSystem;
+import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
+import org.foxesworld.kalitech.engine.world.systems.registry.AbstractSystemProvider;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemDescriptor;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemModule;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemType;
 import org.graalvm.polyglot.Value;
 
 import java.nio.file.Path;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
-public final class ScriptEntitiesSystemProvider implements SystemProvider {
+/**
+ * Provider for script-driven entity lifecycle systems.
+ */
+public final class ScriptEntitiesSystemProvider extends AbstractSystemProvider {
 
-    @Override
-    public String id() {
-        return "scriptEntities";
+    public ScriptEntitiesSystemProvider() {
+        super(new SystemDescriptor(
+                "scriptEntities",
+                SystemType.SCRIPTED,
+                SystemModule.scripting("entities"),
+                "Executes per-entity script lifecycles and hot-reload hooks."
+        ));
     }
 
     @Override
