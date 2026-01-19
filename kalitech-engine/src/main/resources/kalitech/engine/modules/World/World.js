@@ -39,13 +39,21 @@ function create(engine, K) {
 
 create.META = {
     moduleId: "world",
+    id: "world",
     globalName: "WORLD",
-    version: "2.4.1",
+    version: "2.5.0",
     description:
         "World bootstrap DSL. Object-mode via WORLD.$(). " +
         "Pure env seed via WORLD.env() (no IO). " +
         "Explicit systems only. Read-only access to world time via WORLD.getWorldTime().",
-    engineMin: "0.2.0"
+    engineMin: "0.2.0",
+    changelog: [
+        "2.5.0: world time snapshots now include frame/tick indices and dt/interpolation fields."
+    ],
+    deprecation: {
+        status: "active",
+        policy: "Breaking changes require major bump."
+    }
 };
 
 module.exports = create;

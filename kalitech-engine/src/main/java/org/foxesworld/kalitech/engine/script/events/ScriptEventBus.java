@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.script.events;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
 import java.lang.reflect.Field;
@@ -49,6 +50,11 @@ public final class ScriptEventBus {
     private final Queue<QEvent> queue = new ConcurrentLinkedQueue<>();
     private final AtomicInteger nextSubId = new AtomicInteger(1);
     private final AtomicLong nextSeq = new AtomicLong(1);
+    private final AtomicLong emittedCount = new AtomicLong();
+    private final AtomicLong pumpedCount = new AtomicLong();
+    private final AtomicLong windowCount = new AtomicLong();
+    private volatile long lastRateNanos = System.nanoTime();
+    private volatile double eventsPerSec = 0.0;
 
     /**
      * token -> location of subscription (for off(token))
@@ -181,6 +187,7 @@ public final class ScriptEventBus {
         if (name == null) return;
         String key = normalizeTopic(name);
         if (key.isEmpty()) return;
+        emittedCount.incrementAndGet();
         queue.add(new QEvent(key, payload, null, false));
     }
 
@@ -192,6 +199,7 @@ public final class ScriptEventBus {
         if (topic == null) return;
         String key = normalizeTopic(topic);
         if (key.isEmpty()) return;
+        emittedCount.incrementAndGet();
         queue.add(new QEvent(key, payload, meta, true));
     }
 
@@ -422,7 +430,21 @@ public final class ScriptEventBus {
 
             if ((processed & checkMask) == 0 && System.nanoTime() >= deadline) break;
         }
+        if (processed > 0) {
+            pumpedCount.addAndGet(processed);
+            windowCount.addAndGet(processed);
+            updateRate(now);
+        }
         return processed;
+    }
+
+    private void updateRate(long nowNanos) {
+        long elapsed = nowNanos - lastRateNanos;
+        if (elapsed < 1_000_000_000L) return;
+        long count = windowCount.getAndSet(0);
+        double secs = elapsed / 1_000_000_000.0;
+        if (secs > 0) eventsPerSec = count / secs;
+        lastRateNanos = nowNanos;
     }
 
     private void dispatch(QEvent qe) {
@@ -517,6 +539,10 @@ public final class ScriptEventBus {
         return queue.size();
     }
 
+    public EventStats stats() {
+        return new EventStats(eventsPerSec, emittedCount.get(), pumpedCount.get(), queue.size());
+    }
+
     public enum Phase {PRE, MAIN, POST}
 
     private enum SubKind {LEGACY_TOPIC, EVENT_TOPIC, ANY, PATTERN}
@@ -559,6 +585,20 @@ public final class ScriptEventBus {
         public String source;
         public String world;
         public String entityUuid;
+    }
+
+    public static final class EventStats {
+        @HostAccess.Export public final double eventsPerSec;
+        @HostAccess.Export public final long emitted;
+        @HostAccess.Export public final long pumped;
+        @HostAccess.Export public final int queued;
+
+        public EventStats(double eventsPerSec, long emitted, long pumped, int queued) {
+            this.eventsPerSec = eventsPerSec;
+            this.emitted = emitted;
+            this.pumped = pumped;
+            this.queued = queued;
+        }
     }
 
     /**

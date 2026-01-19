@@ -94,6 +94,16 @@ public final class WorldTime {
         return lastStepDtSec;
     }
 
+    public double interpolationAlpha() {
+        if (fixedStepSec == null || fixedStepSec <= 0.0) return 1.0;
+        double acc = accumulatorSec;
+        if (!Double.isFinite(acc) || acc < 0.0) acc = 0.0;
+        double alpha = acc / fixedStepSec;
+        if (alpha < 0.0) return 0.0;
+        if (alpha > 1.0) return 1.0;
+        return alpha;
+    }
+
     public double lastWorldTimeBefore() {
         return lastWorldTimeBefore;
     }

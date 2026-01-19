@@ -22,6 +22,7 @@ import org.graalvm.polyglot.Value;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.foxesworld.kalitech.engine.modules.material.MaterialUtils.applyParamAsync;
@@ -32,6 +33,7 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
 
     private static final Logger log = LogManager.getLogger(MaterialApiImpl.class);
     private final AtomicInteger ids = new AtomicInteger(1);
+    private final ConcurrentHashMap<Integer, MaterialHandle> handleById = new ConcurrentHashMap<>();
     private final Cache<MaterialKey, Material> templateCache = Caffeine.newBuilder()
             .maximumSize(4096)
             .softValues()
@@ -171,7 +173,9 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
                 m = buildTemplate(def, params);
             }
 
-            return new MaterialHandle(ids.getAndIncrement(), m);
+            MaterialHandle h = new MaterialHandle(ids.getAndIncrement(), m);
+            handleById.put(h.id(), h);
+            return h;
         });
     }
 
@@ -222,7 +226,56 @@ public final class MaterialApiImpl extends AbstractApiModule implements Material
 
     @Override
     public void destroy(MaterialHandle handle) {
-        // no-op
+        if (handle == null) return;
+        handleById.remove(handle.id());
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    public int createId(Value cfg) {
+        return create(cfg).id();
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    public MaterialHandle getById(int id) {
+        return handleById.get(id);
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    public void destroyById(int id) {
+        handleById.remove(id);
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    public void setById(int id, Value params) {
+        MaterialHandle handle = handleById.get(id);
+        if (handle == null) {
+            throw new IllegalArgumentException("material.setById: unknown materialId=" + id);
+        }
+        set(handle, params);
     }
 
     public static final class MaterialHandle {

@@ -37,10 +37,10 @@ declare namespace KalitechSound {
         [k: string]: unknown;
     }
 
-    export type SoundNodeHandle = unknown;
+    export type SoundId = number;
 
     export interface SoundInstance {
-        __node(): SoundNodeHandle;
+        id(): SoundId;
         play(): this;
         stop(): this;
         pause(): this;

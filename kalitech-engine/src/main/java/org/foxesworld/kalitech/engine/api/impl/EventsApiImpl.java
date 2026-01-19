@@ -79,6 +79,9 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     private static final Method M_CLEAR_ALL =
             method(EventsApiImpl.class, "clearAll");
 
+    private static final Method M_STATS =
+            method(EventsApiImpl.class, "stats");
+
     public EventsApiImpl() {
         super("bus", "Events", "1.0.0");
     }
@@ -432,6 +435,22 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
                 apiVoid(M_CLEAR_ALL, new Object[0], () -> {
                     ScriptEventBus b = bus();
                     if (b != null) b.clearAll();
+                })
+        );
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.CHEAP
+    )
+    public ScriptEventBus.EventStats stats() {
+        return profiled(() ->
+                apiCall(M_STATS, new Object[0], () -> {
+                    ScriptEventBus b = bus();
+                    return (b != null) ? b.stats() : new ScriptEventBus.EventStats(0.0, 0L, 0L, 0);
                 })
         );
     }

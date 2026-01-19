@@ -210,6 +210,12 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         out.put("worldTime", t.getWorldTimeSec());
         out.put("timeRate", t.getTimeRate());
         out.put("paused", t.isPaused());
+        out.put("frameIndex", t.getFrameIndex());
+        out.put("tickIndex", t.getTickIndex());
+        out.put("realDt", t.getLastRealDtSec());
+        out.put("simDt", t.getLastSimDtSec());
+        out.put("stepDt", t.getLastStepDtSec());
+        out.put("interpAlpha", t.interpolationAlpha());
 
         if (t.fixedStepSec() != null) {
             out.put("fixedStep", t.fixedStepSec());
