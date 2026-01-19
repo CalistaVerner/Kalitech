@@ -107,7 +107,7 @@ ENGINE.sound().playSound({
   `random=true` поля `deterministic`, `seed`, `context` игнорируются на стороне движка.
 - `deterministic: boolean` — режим выбора варианта
 - `seed: number` — seed (пер‑вызов)
-- `context: { entityId, surfaceId, seq, tick, slot }` — контекст выбора варианта
+- `context: { entityUuid, surfaceId, seq, tick, slot }` — контекст выбора варианта
 - `overrides: object` — overrides, применяются поверх дефолтной `SoundDef`
 
 ---
@@ -126,7 +126,7 @@ const sound = snd.getSound("any.event");
 sound
     .setDeterministic(true)
     .setPositional(true)
-    .setEntityId(42)
+    .setEntityUuid("b5c1a3c2-2b4f-4b68-8a2d-2b91cb1b66e9")
     .setSurfaceId(7)
     .play();
 ```
@@ -217,7 +217,7 @@ ENGINE.sound().playSound({
     event: "player.action.throw",
     deterministic: true,
     seed: 1337,
-    context: {entityId: 42, surfaceId: 7, seq: ++seq, tick: ENGINE.tick(), slot: 0}
+    context: {entityUuid: "b5c1a3c2-2b4f-4b68-8a2d-2b91cb1b66e9", surfaceId: 7, seq: ++seq, tick: ENGINE.tick(), slot: 0}
 });
 ```
 
@@ -276,7 +276,7 @@ snd.loadBank({
 
 ## Версия
 
-- Sound JS: **v1.4.0**
+- Sound JS: **v1.5.0**
 
 ---
 
@@ -289,7 +289,7 @@ const snd = ENGINE.sound();
 const step = snd.getSound("player.footstep")
     .setDeterministic(true)
     .setSeed(1337)
-    .setEntityId(PLAYER.id)
+    .setEntityUuid(PLAYER.uuid)
     .setSlot(0);
 
 let seq = 0;

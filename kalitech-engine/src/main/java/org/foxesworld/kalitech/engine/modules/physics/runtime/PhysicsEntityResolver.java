@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * Resolves engine entity identifiers from surfaces/spatials.
  *
- * <p>Central place for mapping surfaceId -> entity id/uuid string.</p>
+ * <p>Central place for mapping surfaceId -> entity UUID string.</p>
  */
 public final class PhysicsEntityResolver {
 
@@ -20,19 +20,13 @@ public final class PhysicsEntityResolver {
     }
 
     /**
-     * Returns entity identifier from spatial userData (entityUuid/entityId/uuid) or null.
+     * Returns entity identifier from spatial userData (entityUuid/uuid) or null.
      */
     public static String entityOfSpatial(Spatial sp) {
         if (sp == null) return null;
 
         try {
             Object v = sp.getUserData("entityUuid");
-            if (v != null) return String.valueOf(v);
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            Object v = sp.getUserData("entityId");
             if (v != null) return String.valueOf(v);
         } catch (Throwable ignored) {
         }
@@ -62,13 +56,8 @@ public final class PhysicsEntityResolver {
 
         SurfaceRegistry sr = this.surfaces;
         if (sr == null) return null;
-
-        Spatial sp;
-        try {
-            sp = sr.get(surfaceId);
-        } catch (Throwable ignored) {
-            return null;
-        }
-        return entityOfSpatial(sp);
+        String uuid = sr.attachedEntityUuid(surfaceId);
+        if (uuid == null || uuid.isBlank()) return null;
+        return uuid;
     }
 }
