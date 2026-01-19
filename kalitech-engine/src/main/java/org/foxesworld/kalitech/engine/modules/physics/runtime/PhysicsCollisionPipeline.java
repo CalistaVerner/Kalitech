@@ -414,10 +414,13 @@ public final class PhysicsCollisionPipeline {
 
         ProxyObject contact = contactPayload(agg);
 
+        String aUuid = (sr != null) ? sr.attachedEntityUuid(a.surfaceId) : null;
+        if (aUuid != null && aUuid.isBlank()) aUuid = null;
+
         ProxyObject aObj = evtJs(
                 "bodyId", a.id,
                 "surfaceId", a.surfaceId,
-                "entity", PhysicsEntityResolver.entityOfSpatial(sa),
+                "entity", aUuid,
                 "name", (sa != null ? sa.getName() : null),
                 "pos", jsVec3SafePos(ra),
                 "rot", jsQuatSafe(ra),
@@ -429,10 +432,13 @@ public final class PhysicsCollisionPipeline {
                 "groups", groupsSafe(ra)
         );
 
+        String bUuid = (sr != null) ? sr.attachedEntityUuid(b.surfaceId) : null;
+        if (bUuid != null && bUuid.isBlank()) bUuid = null;
+
         ProxyObject bObj = evtJs(
                 "bodyId", b.id,
                 "surfaceId", b.surfaceId,
-                "entity", PhysicsEntityResolver.entityOfSpatial(sb),
+                "entity", bUuid,
                 "name", (sb != null ? sb.getName() : null),
                 "pos", jsVec3SafePos(rb),
                 "rot", jsQuatSafe(rb),

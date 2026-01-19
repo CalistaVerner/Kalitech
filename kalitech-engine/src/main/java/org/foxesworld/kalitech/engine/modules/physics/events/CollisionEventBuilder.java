@@ -72,14 +72,11 @@ public final class CollisionEventBuilder {
         return evtJs("group", group, "mask", mask);
     }
 
-    private static String entityOfSpatial(Spatial sp) {
-        if (sp == null) return null;
-        try {
-            Object e = sp.getUserData("entity");
-            return e != null ? String.valueOf(e) : null;
-        } catch (Throwable ignored) {
-            return null;
-        }
+    private String entityOfSurface(int surfaceId) {
+        if (surfaces == null || surfaceId <= 0) return null;
+        String uuid = surfaces.attachedEntityUuid(surfaceId);
+        if (uuid == null || uuid.isBlank()) return null;
+        return uuid;
     }
 
     private static ProxyObject jsVec3SafePos(RigidBodyControl rb) {
@@ -184,7 +181,7 @@ public final class CollisionEventBuilder {
             }
         }
 
-        String ent = entityOfSpatial(sp);
+        String ent = entityOfSurface(h.surfaceId);
 
         return evtJs(
                 "bodyId", h.id,

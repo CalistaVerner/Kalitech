@@ -167,7 +167,7 @@ class SoundObject {
 
         this._random = null;
 
-        this._context = {entityId: 0, surfaceId: 0, seq: 0, tick: 0, slot: 0};
+        this._context = {entityUuid: "", surfaceId: 0, seq: 0, tick: 0, slot: 0};
         this._overrides = null;
 
         this._autoSeq = 0;
@@ -202,7 +202,7 @@ class SoundObject {
 
     setContext(ctx) {
         if (ctx && typeof ctx === "object") {
-            if (ctx.entityId != null) this._context.entityId = Number(ctx.entityId) || 0;
+            if (ctx.entityUuid != null) this._context.entityUuid = s(ctx.entityUuid);
             if (ctx.surfaceId != null) this._context.surfaceId = Number(ctx.surfaceId) || 0;
             if (ctx.seq != null) this._context.seq = Number(ctx.seq) || 0;
             if (ctx.tick != null) this._context.tick = Number(ctx.tick) || 0;
@@ -211,8 +211,8 @@ class SoundObject {
         return this;
     }
 
-    setEntityId(id) {
-        this._context.entityId = Number(id) || 0;
+    setEntityUuid(uuid) {
+        this._context.entityUuid = s(uuid);
         return this;
     }
 
@@ -263,7 +263,7 @@ class SoundObject {
             if (this._random != null) cfg.random = !!this._random;
 
             cfg.context = {
-                entityId: this._context.entityId,
+                entityUuid: this._context.entityUuid,
                 surfaceId: this._context.surfaceId,
                 seq: this._context.seq,
                 tick: this._context.tick,
@@ -461,7 +461,7 @@ class SoundRegistry {
         if (cfg.context && typeof cfg.context === "object") {
             const c = cfg.context;
             out.context = {
-                entityId: Number(c.entityId) || 0,
+                entityUuid: s(c.entityUuid),
                 surfaceId: Number(c.surfaceId) || 0,
                 seq: Number(c.seq) || 0,
                 tick: Number(c.tick) || 0,
@@ -542,7 +542,7 @@ function create(engine, K) {
 create.META = {
     moduleId: "sound",
     globalName: "SND",
-    version: "1.4.0",
+    version: "1.5.0",
     description: "Universal sound facade: playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
     engineMin: "0.1.0"
 };

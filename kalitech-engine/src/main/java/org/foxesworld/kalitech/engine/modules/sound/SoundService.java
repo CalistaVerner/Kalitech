@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class SoundService {
@@ -129,17 +130,18 @@ public final class SoundService {
         if (org.foxesworld.kalitech.engine.script.util.JsCfg.has(cfg, "context")) {
             Value c = org.foxesworld.kalitech.engine.script.util.JsCfg.member(cfg, "context");
             if (c != null && !c.isNull() && c.hasMembers()) {
-                long entityId = (long) org.foxesworld.kalitech.engine.script.util.JsCfg.num(c, "entityId", 0);
+                String entityUuid = org.foxesworld.kalitech.engine.script.util.JsCfg.str(c, "entityUuid", "");
                 long surfaceId = (long) org.foxesworld.kalitech.engine.script.util.JsCfg.num(c, "surfaceId", 0);
                 long seq = (long) org.foxesworld.kalitech.engine.script.util.JsCfg.num(c, "seq", 0);
                 long tick = (long) org.foxesworld.kalitech.engine.script.util.JsCfg.num(c, "tick", 0);
                 long slot = (long) org.foxesworld.kalitech.engine.script.util.JsCfg.num(c, "slot", 0);
 
                 // packing: stable fields -> ctx a/b/c
-                // a: entityId, b: surfaceId ^ (slot<<32), c: seq ^ (tick<<32)
+                // a: entityUuidHash, b: surfaceId ^ (slot<<32), c: seq ^ (tick<<32)
+                long entitySeed = uuidSeed(entityUuid);
                 long b = surfaceId ^ (slot << 32);
                 long cc = seq ^ (tick << 32);
-                ctx = new SoundEventContext(entityId, b, cc);
+                ctx = new SoundEventContext(entitySeed, b, cc);
             }
         }
 
@@ -149,6 +151,13 @@ public final class SoundService {
                 : SoundDeterminism.Mode.NON_DETERMINISTIC;
 
         return createEventInternal(eventKey, overrides, ctx, callMode, seedCall);
+    }
+
+    private static long uuidSeed(String uuid) {
+        if (uuid == null || uuid.isBlank()) return 0L;
+        UUID u = UUID.fromString(uuid.trim());
+        long mixed = u.getMostSignificantBits() ^ u.getLeastSignificantBits();
+        return SoundDeterminism.mix64(mixed);
     }
 
     private AudioNode createEventInternal(String eventKey, Value overrides, SoundEventContext ctx,

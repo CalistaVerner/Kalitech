@@ -10,7 +10,6 @@ import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsRegistry;
-import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsEntityResolver;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.body.PhysicsBodyConfigParser;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.body.PhysicsBodyManager;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.service.collision.CachedCollisionShapeProvider;
@@ -190,6 +189,8 @@ public final class PhysicsService {
     private String entityOfSurface(int surfaceId) {
         SurfaceRegistry sr = this.surfaces;
         if (sr == null || surfaceId <= 0) return null;
-        return PhysicsEntityResolver.entityOfSpatial(sr.get(surfaceId));
+        String uuid = sr.attachedEntityUuid(surfaceId);
+        if (uuid == null || uuid.isBlank()) return null;
+        return uuid;
     }
 }
