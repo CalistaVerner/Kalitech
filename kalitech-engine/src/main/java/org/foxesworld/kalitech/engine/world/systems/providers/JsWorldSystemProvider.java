@@ -5,7 +5,10 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
+import org.foxesworld.kalitech.engine.world.systems.registry.AbstractSystemProvider;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemDescriptor;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemModule;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemType;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
@@ -17,13 +20,20 @@ import java.util.Objects;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
 
-public final class JsWorldSystemProvider implements SystemProvider {
+/**
+ * Provider for script-defined world systems implemented in JavaScript modules.
+ */
+public final class JsWorldSystemProvider extends AbstractSystemProvider {
 
     private static final Logger log = LogManager.getLogger(JsWorldSystemProvider.class);
 
-    @Override
-    public String id() {
-        return "jsSystem";
+    public JsWorldSystemProvider() {
+        super(new SystemDescriptor(
+                "jsSystem",
+                SystemType.SCRIPTED,
+                SystemModule.scripting("world"),
+                "Executes JavaScript-defined world systems."
+        ));
     }
 
     private static String normalizeProfile(String s) {

@@ -11,6 +11,15 @@ public interface SystemProvider {
     String id();
 
     /**
+     * Metadata describing the provider for diagnostics and logging.
+     * <p>
+     * Default implementation returns a simple descriptor based on {@link #id()}.
+     */
+    default SystemDescriptor descriptor() {
+        return SystemDescriptor.simple(id());
+    }
+
+    /**
      * Creates a system instance. Config is a JS object (Value).
      */
     KSystem create(SystemContext ctx, Value config);
