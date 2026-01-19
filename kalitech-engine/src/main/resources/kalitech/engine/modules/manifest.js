@@ -20,7 +20,6 @@ module.exports = {
         "@module/Events/Events",
         "@module/Terrain/Terrain",
         "@module/Hud/Hud",
-        "@module/Profiler/Profiler",
         "@module/Controllers/Controllers",
         "@module/Debug/Debug",
         "@module/Camera/Camera",

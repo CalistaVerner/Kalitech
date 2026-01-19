@@ -48,7 +48,7 @@
       "Sounds/DEBRIS/DEBRIS_16.ogg"
     ],
     "impact": [
-      "Sounds/impact.ogg"
+      "Sounds/hit/hit3.ogg"
     ],
     "combat": {
       "hit": [

@@ -5,7 +5,6 @@ package org.foxesworld.kalitech.engine.world.systems;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
-import org.foxesworld.kalitech.engine.script.util.StateCapsule;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
 
@@ -23,8 +22,6 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
 
     private volatile Value exports;
     private volatile boolean needsInit = true;
-    private volatile Object stateCapsule;
-    private volatile Object pendingReloadState;
 
     public JsWorldSystem(String module, Object cfg, Object sysDesc, String runtimeProfile) {
         this.module = Objects.requireNonNull(module, "module");
@@ -37,28 +34,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
     public void onStart(SystemContext ctx) {
         withScopedSystem(ctx, () -> {
             ensureLoaded(ctx);
-            if (needsInit) {
-                Object loadState = null;
-                if (exports.hasMember("onLoad")) {
-                    loadState = invokeForState("onLoad", ctx);
-                } else {
-                    invokeIfPresent("init", ctx);
-                }
-
-                if (loadState != null) stateCapsule = loadState;
-
-                Object prevState = pendingReloadState;
-                if (prevState != null && exports.hasMember("onReload")) {
-                    Object reloaded = invokeForState("onReload", prevState);
-                    if (reloaded != null) stateCapsule = reloaded;
-                    else stateCapsule = prevState;
-                }
-
-                pendingReloadState = null;
-                needsInit = false;
-            }
-
-            invokeIfPresent("onStart");
+            invokeIfPresent("init", ctx);
             needsInit = false;
             return null;
         });
@@ -70,18 +46,11 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
             ensureLoaded(ctx);
 
             if (needsInit) {
-                if (exports.hasMember("onLoad")) {
-                    Object loadState = invokeForState("onLoad", ctx);
-                    if (loadState != null) stateCapsule = loadState;
-                } else {
-                    invokeIfPresent("init", ctx);
-                }
+                invokeIfPresent("init", ctx);
                 needsInit = false;
             }
 
             invokeIfPresent("update", ctx, tpf);
-            Object state = snapshotState();
-            if (state != null) stateCapsule = state;
             return null;
         });
     }
@@ -89,13 +58,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
     @Override
     public void onStop(SystemContext ctx) {
         withScopedSystem(ctx, () -> {
-            Object state = snapshotState();
-            if (state != null) stateCapsule = state;
-            if (exports != null && exports.hasMember("onStop")) {
-                invokeIfPresent("onStop", "stop");
-            } else {
-                invokeIfPresent("destroy", ctx);
-            }
+            invokeIfPresent("destroy", ctx);
             return null;
         });
     }
@@ -107,13 +70,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
         try {
             withScopedSystem(ctx, () -> {
                 try {
-                    Object state = snapshotState();
-                    if (state != null) stateCapsule = state;
-                    if (exports != null && exports.hasMember("onStop")) {
-                        invokeIfPresent("onStop", why);
-                    } else {
-                        invokeIfPresent("destroy", ctx);
-                    }
+                    invokeIfPresent("destroy", ctx);
                 } catch (Throwable t) {
                     log.debug("[JsWorldSystem] destroy during hotReload failed module={} (ignored): {}", module, t.toString());
                 }
@@ -129,7 +86,6 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
 
                 exports = null;
                 needsInit = true;
-                pendingReloadState = stateCapsule;
 
                 log.info("[JsWorldSystem] HotReload({}) module={}", why, module);
                 return null;
@@ -222,34 +178,7 @@ public final class JsWorldSystem implements KSystem, HotReloadableSystem {
             fn.execute(args);
         } catch (PolyglotException pe) {
             if (pe.isCancelled()) return;
-            invokeIfPresent("onError", String.valueOf(pe));
             throw new RuntimeException("[JsWorldSystem] js threw in " + fnName + " module=" + module + " err=" + pe.getMessage(), pe);
-        }
-    }
-
-    private Object invokeForState(String fnName, Object... args) {
-        final Value ex = exports;
-        if (ex == null || ex.isNull() || !ex.hasMember(fnName)) return null;
-
-        final Value fn = ex.getMember(fnName);
-        if (fn == null || fn.isNull() || !fn.canExecute()) return null;
-
-        try {
-            return StateCapsule.toState(fn.execute(args));
-        } catch (PolyglotException pe) {
-            if (pe.isCancelled()) return null;
-            invokeIfPresent("onError", String.valueOf(pe));
-            throw new RuntimeException("[JsWorldSystem] js threw in " + fnName + " module=" + module + " err=" + pe.getMessage(), pe);
-        }
-    }
-
-    private Object snapshotState() {
-        final Value ex = exports;
-        if (ex == null || ex.isNull() || !ex.hasMember("state")) return null;
-        try {
-            return StateCapsule.toState(ex.getMember("state"));
-        } catch (Throwable ignored) {
-            return null;
         }
     }
 }

@@ -422,9 +422,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
                 Object host = v.asHostObject();
                 if (host instanceof MaterialApiImpl.MaterialHandle mh) return mh.__material();
             }
-            if (v.isNumber() && v.fitsInInt()) {
-                return resolveMaterialById(v.asInt());
-            }
             return null;
         }
 
@@ -432,21 +429,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             return mh.__material();
         }
 
-        if (materialHandle instanceof Number n) {
-            return resolveMaterialById(n.intValue());
-        }
-
-        return null;
-    }
-
-    private Material resolveMaterialById(int id) {
-        try {
-            if (engine.material() instanceof MaterialApiImpl impl) {
-                MaterialApiImpl.MaterialHandle h = impl.getById(id);
-                return h != null ? h.__material() : null;
-            }
-        } catch (Throwable ignored) {
-        }
         return null;
     }
 

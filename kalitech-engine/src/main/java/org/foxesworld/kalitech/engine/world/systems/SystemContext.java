@@ -357,11 +357,6 @@ public final class SystemContext {
         }
 
         @HostAccess.Export
-        public double interpAlpha() {
-            return (time != null) ? time.interpolationAlpha() : 0.0;
-        }
-
-        @HostAccess.Export
         public void setRate(double rate) {
             if (time == null) return;
             time.setTimeRate(rate);

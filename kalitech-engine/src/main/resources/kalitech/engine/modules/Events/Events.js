@@ -22,32 +22,6 @@
  */
 
 function _isFn(x) { return typeof x === "function"; }
-function _isPlainObj(x) {
-    if (!x || typeof x !== "object") return false;
-    const p = Object.getPrototypeOf(x);
-    return p === Object.prototype || p === null;
-}
-
-function _isJsonValue(x, depth = 0) {
-    if (depth > 24) return false;
-    if (x == null) return true;
-    const t = typeof x;
-    if (t === "string" || t === "number" || t === "boolean") return true;
-    if (Array.isArray(x)) return x.every((v) => _isJsonValue(v, depth + 1));
-    if (_isPlainObj(x)) {
-        for (const k of Object.keys(x)) {
-            if (!_isJsonValue(x[k], depth + 1)) return false;
-        }
-        return true;
-    }
-    return false;
-}
-
-function _typeOfValue(v) {
-    if (v == null) return "null";
-    if (Array.isArray(v)) return "array";
-    return typeof v;
-}
 
 function _safeCall(fn, fb) {
     try { return fn(); } catch (_) { return fb; }
@@ -144,12 +118,9 @@ function _busEmit(bus, topic, payload) {
 class EventsApi {
     constructor(engine, K) {
         this.engineRef = engine;
-        this.K = K || (globalThis.__kalitech || Object.create(null));
         this._bus = null;
         this._defaultSeparator = ".";
         this._throwIfNoBus = true;
-        this._validate = !!(this.K && this.K.config && this.K.config.dev);
-        this._schemas = Object.create(null);
 
         // Re-resolve bus if missing (early boot)
         this._lastResolveAt = 0;
@@ -177,7 +148,6 @@ class EventsApi {
         cfg = (cfg && typeof cfg === "object") ? cfg : {};
         if (cfg.separator != null) this._defaultSeparator = String(cfg.separator);
         if (cfg.throwIfNoBus != null) this._throwIfNoBus = !!cfg.throwIfNoBus;
-        if (cfg.validate != null) this._validate = !!cfg.validate;
         if (cfg.resolveCooldownMs != null) this._resolveCooldownMs = Math.max(0, cfg.resolveCooldownMs | 0);
         return this;
     }
@@ -246,63 +216,6 @@ class EventsApi {
         return _busEmit(bus, t, payload);
     }
 
-    register(def) {
-        def = (def && typeof def === "object") ? def : {};
-        const id = String(def.id || "").trim();
-        if (!id) throw new Error("[EVENTS] schema id is required");
-        const version = def.version != null ? String(def.version) : "1.0.0";
-        const schema = _isPlainObj(def.schema) ? def.schema : Object.create(null);
-        const delivery = def.delivery || def.frequency || "at-most-once";
-        const order = def.order || "none";
-        this._schemas[id] = {id, version, schema, delivery, order};
-        return this._schemas[id];
-    }
-
-    schema(id) {
-        return this._schemas[String(id || "")];
-    }
-
-    evt(id, payload, meta) {
-        const topic = String(id || "");
-        if (!topic) throw new Error("[EVENTS] evt id is required");
-
-        const def = this._schemas[topic];
-        if (this._validate) {
-            if (!def) {
-                throw new Error("[EVENTS] missing schema for event: " + topic);
-            }
-            if (!_isJsonValue(payload)) {
-                throw new Error("[EVENTS] event payload must be JSON-safe (no host objects): " + topic);
-            }
-            const schema = def.schema || Object.create(null);
-            if (_isPlainObj(schema)) {
-                for (const key of Object.keys(schema)) {
-                    const rule = schema[key];
-                    const expected = _isPlainObj(rule) ? String(rule.type || "any") : String(rule || "any");
-                    const optional = _isPlainObj(rule) ? !!rule.optional : false;
-                    const actual = _typeOfValue(payload ? payload[key] : undefined);
-                    if (actual === "undefined") {
-                        if (!optional) throw new Error("[EVENTS] missing field '" + key + "' in " + topic);
-                        continue;
-                    }
-                    if (expected !== "any" && expected !== actual) {
-                        throw new Error("[EVENTS] field '" + key + "' type mismatch in " + topic +
-                            " (expected " + expected + ", got " + actual + ")");
-                    }
-                }
-            }
-        }
-
-        const bus = this._needBus();
-        if (!bus) return false;
-
-        const metaObj = meta || null;
-        if (_isFn(bus.emitEvent)) {
-            try { bus.emitEvent(topic, payload, metaObj); return true; } catch (_) {}
-        }
-        return _busEmit(bus, topic, payload);
-    }
-
     scope(scopeName, separator) {
         const scope = String(scopeName || "").trim();
         const sep = (separator == null ? this._defaultSeparator : String(separator));
@@ -315,7 +228,6 @@ class EventsApi {
             once: (topic, handler) => self.once(prefix + String(topic || ""), handler),
             off: (topic, handler) => self.off(prefix + String(topic || ""), handler),
             emit: (topic, payload) => self.emit(prefix + String(topic || ""), payload),
-            evt: (topic, payload, meta) => self.evt(prefix + String(topic || ""), payload, meta),
             offToken: (token, topicMaybe) => self.offToken(token, topicMaybe != null ? (prefix + String(topicMaybe)) : null)
         });
     }
@@ -331,18 +243,10 @@ function create(engine, K) {
 
 create.META = {
     moduleId: "events",
-    id: "events",
     globalName: "EVENTS",
-    version: "2.0.0",
-    description: "Event bus v2: schema-aware evt() with optional validation and JSON-only payloads.",
-    engineMin: "0.1.0",
-    changelog: [
-        "2.0.0: added schema registry + evt() with dev-mode validation, JSON-only payload enforcement."
-    ],
-    deprecation: {
-        status: "active",
-        policy: "Breaking changes require major bump."
-    }
+    version: "1.2.0",
+    description: "Native-first Events wrapper for Kalitech (token-based offFn, stable with Java EventsApiImpl)",
+    engineMin: "0.1.0"
 };
 
 module.exports = create;
