@@ -219,7 +219,7 @@ class KalitechBootstrap {
 
             K.moduleIds[idKey] = moduleId;
 
-            logEngineModule(ENGINE, key, meta, moduleId);
+            //logEngineModule(ENGINE, key, meta, moduleId);
         }
 
         try {

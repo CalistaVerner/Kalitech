@@ -4,7 +4,6 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
-import org.foxesworld.kalitech.engine.api.registry.TaskRegistry;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -21,7 +20,6 @@ public final class ApiContext {
     public final ScriptEventBus bus; // may be null
     public final EcsWorld ecs;
     public final Logger log;
-    public final TaskRegistry tasks;
 
     public ApiContext(EngineApiImpl engine) {
         this.engine = Objects.requireNonNull(engine, "engine");
@@ -31,6 +29,5 @@ public final class ApiContext {
         this.bus = engine.getBus();
         this.ecs = engine.getEcs();
         this.log = engine.getLog();
-        this.tasks = engine.getTaskRegistry();
     }
 }

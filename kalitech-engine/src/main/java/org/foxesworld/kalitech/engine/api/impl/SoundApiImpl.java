@@ -47,12 +47,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
         if (node == null) throw new IllegalArgumentException(op + ": audioNode is required");
     }
 
-    private AudioNode requireNodeById(long id, String op) {
-        AudioNode node = registry.getById(id);
-        if (node == null) throw new IllegalArgumentException(op + ": id not found: " + id);
-        return node;
-    }
-
     private void bind(EngineApiImpl engineApi) {
         this.engine = Objects.requireNonNull(engineApi, "engine");
         this.assetManager = engineApi.getApp().getAssetManager();
@@ -195,18 +189,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public long playEventCfgId(Value cfg) {
-        AudioNode n = playEventCfg(cfg);
-        return registry.getId(n);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
     public AudioNode createEventCfg(Value cfg) {
         if (cfg == null || cfg.isNull()) {
             IllegalArgumentException e = new IllegalArgumentException("sound.createEventCfg(cfg): cfg is required");
@@ -221,18 +203,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
             logError("[sound] createEventCfg failed", t);
             throw t;
         }
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public long createEventId(Value cfg) {
-        AudioNode n = createEventCfg(cfg);
-        return registry.getId(n);
     }
 
     @HostAccess.Export
@@ -462,105 +432,6 @@ public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
             logError("[sound] setDryFilter failed id=" + registry.getId(audioNode), t);
             throw t;
         }
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setPositionId(long id, float x, float y, float z) {
-        setPosition(requireNodeById(id, "setPositionId"), x, y, z);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setPositionalId(long id, boolean positional) {
-        setPositional(requireNodeById(id, "setPositionalId"), positional);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setLoopingId(long id, boolean loop) {
-        setLooping(requireNodeById(id, "setLoopingId"), loop);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setVolumeId(long id, float volume) {
-        setVolume(requireNodeById(id, "setVolumeId"), volume);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setPitchId(long id, float pitch) {
-        setPitch(requireNodeById(id, "setPitchId"), pitch);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setDirectionalId(long id, boolean directional) {
-        setDirectional(requireNodeById(id, "setDirectionalId"), directional);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setMaxDistanceId(long id, float maxDistance) {
-        setMaxDistance(requireNodeById(id, "setMaxDistanceId"), maxDistance);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setReverbEnabledId(long id, boolean reverbEnabled) {
-        setReverbEnabled(requireNodeById(id, "setReverbEnabledId"), reverbEnabled);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void setDryFilterId(long id, Object filter) {
-        setDryFilter(requireNodeById(id, "setDryFilterId"), filter);
     }
 
     @HostAccess.Export

@@ -1,6 +1,62 @@
 // FILE: resources/kalitech/builtin/helpers/entity/BodyAccessResolver.js
 "use strict";
 
+function isObj(v) {
+    return !!v && typeof v === "object";
+}
+
+function hasXYZ(v) {
+    return isObj(v) && ("x" in v || "y" in v || "z" in v);
+}
+
+function has012(v) {
+    return isObj(v) && (0 in v || 1 in v || 2 in v);
+}
+
+/**
+ * Normalizes vec3-like values into an object with {x,y,z}.
+ *
+ * Accepts:
+ *  - {x,y,z}
+ *  - [x,y,z]
+ *  - {0,1,2}
+ */
+function vec3Obj(v, fbX = 0, fbY = 0, fbZ = 0) {
+    if (!v) return {x: fbX, y: fbY, z: fbZ};
+
+    if (Array.isArray(v)) {
+        const x = +v[0];
+        const y = +v[1];
+        const z = +v[2];
+        return {
+            x: Number.isFinite(x) ? x : fbX,
+            y: Number.isFinite(y) ? y : fbY,
+            z: Number.isFinite(z) ? z : fbZ
+        };
+    }
+
+    if (hasXYZ(v)) return v;
+
+    if (has012(v)) {
+        const x = +v[0];
+        const y = +v[1];
+        const z = +v[2];
+        return {
+            x: Number.isFinite(x) ? x : fbX,
+            y: Number.isFinite(y) ? y : fbY,
+            z: Number.isFinite(z) ? z : fbZ
+        };
+    }
+
+    return {x: fbX, y: fbY, z: fbZ};
+}
+
+function vec3In(v, fbX = 0, fbY = 0, fbZ = 0) {
+    // Always send {x,y,z} into the physics API.
+    const o = vec3Obj(v, fbX, fbY, fbZ);
+    return {x: +o.x || 0, y: +o.y || 0, z: +o.z || 0};
+}
+
 /**
  * Unified strict body access for EntityCore/EntityHandle.
  *
@@ -34,7 +90,7 @@ function resolveBodyAccess(physics, _bodyHandle, bodyId) {
             ? (x, y, z) => physics.warp(id, {x, y, z})
             : null;
 
-    const setVel = (v) => physics.velocity(id, v);
+    const setVel = (v) => physics.velocity(id, vec3In(v, 0, 0, 0));
 
     const applyImpulse = (typeof physics.applyImpulse === "function")
         ? (ix, iy, iz) => physics.applyImpulse(id, {x: ix, y: iy, z: iz})
@@ -59,9 +115,14 @@ function resolveBodyAccess(physics, _bodyHandle, bodyId) {
     return Object.freeze({
         bodyId: id,
 
-        position: () => physics.position(id),
+        /**
+         * Movement should use velocity-set mode for determinism and frame-rate stability.
+         */
+        mode: "SET_VEL",
 
-        getVel: () => physics.velocity(id),
+        position: () => vec3Obj(physics.position(id), 0, 0, 0),
+
+        getVel: () => vec3Obj(physics.velocity(id), 0, 0, 0),
         setVel,
 
         teleport: teleportImpl,

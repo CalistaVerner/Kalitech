@@ -16,10 +16,8 @@ import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.world.systems.MainThreadBudgetQueue;
-import org.foxesworld.kalitech.engine.world.systems.FrameStats;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
-import org.foxesworld.kalitech.engine.world.systems.WorkerSystemStats;
 
 import java.io.InputStream;
 import java.util.Map;
@@ -64,8 +62,6 @@ public final class WorldAppState extends BaseAppState {
     private SystemScheduler scheduler;
     private InputManager input;
     private volatile boolean schedulerErrorLogged;
-    private volatile FrameStats lastFrameStats;
-    private final WorldPerfProvider perfProvider = new WorldPerfProvider();
 
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.host = Objects.requireNonNull(runtimeAppState, "runtimeAppState");
@@ -136,10 +132,7 @@ public final class WorldAppState extends BaseAppState {
 
         if (w != null && ctx != null) {
             try {
-                long start = System.nanoTime();
                 w.update(ctx, tpf);
-                long worldUpdateNanos = Math.max(0L, System.nanoTime() - start);
-                recordFrameStats(w, worldUpdateNanos, 0L);
             } catch (Throwable t) {
                 log.error("[World] update failed (world='{}')", safeWorldName(w), t);
             }
@@ -148,10 +141,7 @@ public final class WorldAppState extends BaseAppState {
         SystemScheduler s = this.scheduler;
         if (s != null) {
             try {
-                long awaitStart = System.nanoTime();
                 s.awaitDefaultBudget();
-                long awaitNanos = Math.max(0L, System.nanoTime() - awaitStart);
-                recordFrameStats(w, 0L, awaitNanos);
             } catch (Throwable t) {
                 if (!schedulerErrorLogged) {
                     schedulerErrorLogged = true;
@@ -239,7 +229,7 @@ public final class WorldAppState extends BaseAppState {
                 policy,
                 scheduler,
                 new MainThreadBudgetQueue(),
-                perfProvider,             // perf provider
+                null,                     // perf provider (optional)
                 engine.getLog()
         );
 
@@ -271,81 +261,6 @@ public final class WorldAppState extends BaseAppState {
             w.start(ctx);
         } catch (Throwable t) {
             log.error("[World] start failed (world='{}')", safeWorldName(w), t);
-        }
-    }
-
-    private void recordFrameStats(KWorld w, long worldUpdateNanos, long awaitWorkersNanos) {
-        long frameIdx = 0L;
-        if (w != null && w.getTime() != null) frameIdx = w.getTime().getFrameIndex();
-
-        long existingWorld = 0L;
-        long existingAwait = 0L;
-        if (lastFrameStats != null && lastFrameStats.frameIndex == frameIdx) {
-            existingWorld = lastFrameStats.worldUpdateNanos;
-            existingAwait = lastFrameStats.awaitWorkersNanos;
-        }
-
-        long totalWorld = existingWorld + worldUpdateNanos;
-        long totalAwait = existingAwait + awaitWorkersNanos;
-        long frameNanos = totalWorld + totalAwait;
-        long budgetNanos = (long) (1_000_000_000.0 / 60.0);
-
-        lastFrameStats = new FrameStats(
-                frameIdx,
-                budgetNanos,
-                frameNanos,
-                0L,
-                0L,
-                0L,
-                totalWorld,
-                totalAwait,
-                0L,
-                0,
-                0L,
-                0L
-        );
-    }
-
-    private final class WorldPerfProvider implements SystemContext.PerfProvider {
-        @Override
-        public FrameStats getLastFrameStats() {
-            return lastFrameStats;
-        }
-
-        @Override
-        public WorkerSystemStats[] getWorkerStatsSnapshot() {
-            SystemScheduler s = scheduler;
-            return (s != null) ? s.statsSnapshot() : new WorkerSystemStats[0];
-        }
-
-        @Override
-        public void dumpPerfSnapshotToLog() {
-            if (lastFrameStats == null) return;
-            log.info("[perf][frame] frame={} totalMs={} worldMs={} awaitMs={}",
-                    lastFrameStats.frameIndex,
-                    lastFrameStats.frameNanos / 1_000_000.0,
-                    lastFrameStats.worldUpdateNanos / 1_000_000.0,
-                    lastFrameStats.awaitWorkersNanos / 1_000_000.0);
-        }
-
-        @Override
-        public void setTargetFps(int fps) {
-            // no-op (fixed budget derived from fps is not yet configurable)
-        }
-
-        @Override
-        public void setStatsLogEverySeconds(int sec) {
-            // no-op
-        }
-
-        @Override
-        public void setFrameOverBudgetLogEverySeconds(int sec) {
-            // no-op
-        }
-
-        @Override
-        public boolean isWorldThread() {
-            return engine.isJmeThread();
         }
     }
 

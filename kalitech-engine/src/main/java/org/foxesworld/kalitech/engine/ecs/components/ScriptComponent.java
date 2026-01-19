@@ -26,7 +26,6 @@ public final class ScriptComponent {
     // runtime state (not serialized)
     public transient Value instance;      // created instance: {init,update,destroy}
     public transient long moduleVersion;  // last runtime module version applied to this entity
-    public transient Object stateCapsule; // JSON-safe state for hot reload
 
     public ScriptComponent(String assetPath) {
         this.assetPath = assetPath;

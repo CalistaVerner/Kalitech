@@ -45,10 +45,18 @@ export type MaterialOverrides = MaterialOverridesFull | MaterialOverridesShort |
  * Host material handle returned by engine.material().create(cfg).
  * Keep permissive to match host object shape across versions.
  */
+export interface MaterialHandle {
+    id?: number | (() => number);
+    __material?: () => unknown;
+
+    [key: string]: unknown;
+}
+
 /**
- * MaterialId (handle-based, JS-safe).
+ * Host material object (jME Material).
+ * In JS you usually treat it as opaque host object.
  */
-export type MaterialId = number;
+export type HostMaterial = unknown;
 
 /**
  * Preset function returned by M.preset(...):
@@ -57,13 +65,13 @@ export type MaterialId = number;
  * - carries some metadata for debugging/tooling
  */
 export interface MaterialPresetFn {
-    handle: (overrides?: MaterialOverrides) => MaterialId;
+    handle: (overrides?: MaterialOverrides) => MaterialHandle;
     /** Name of base material (best-effort) */
     name?: string;
     /** Original preset overrides (best-effort) */
     overrides?: MaterialOverridesFull | null;
 
-    (overrides?: MaterialOverrides): MaterialId;
+    (overrides?: MaterialOverrides): HostMaterial;
 }
 
 /**
@@ -88,25 +96,25 @@ export interface MaterialsRegistryApi {
      * Returns a cached MaterialHandle for a named material definition.
      * With overrides: may be cached depending on configure({overrideCache...}).
      */
-    getHandle(name: string, overrides?: MaterialOverrides): MaterialId;
+    getHandle(name: string, overrides?: MaterialOverrides): MaterialHandle;
 
     /**
      * Returns a cached host Material for a named material definition.
      * With overrides: may be cached depending on configure({overrideCache...}).
      */
-    getMaterial(name: string, overrides?: MaterialOverrides): MaterialId;
+    getMaterial(name: string, overrides?: MaterialOverrides): HostMaterial;
 
     /**
      * Sugar: default getter, returns HostMaterial.
      * Alias of getMaterial(name, overrides).
      */
-    get(name: string, overrides?: MaterialOverrides): MaterialId;
+    get(name: string, overrides?: MaterialOverrides): HostMaterial;
 
     /**
      * Sugar: returns MaterialHandle.
      * Alias of getHandle(name, overrides).
      */
-    handle(name: string, overrides?: MaterialOverrides): MaterialId;
+    handle(name: string, overrides?: MaterialOverrides): MaterialHandle;
 
     /**
      * Create reusable material preset (callable factory).
@@ -122,7 +130,7 @@ export interface MaterialsRegistryApi {
      * Convenience for params-only overrides:
      * M.params("box", { Color:[...] })
      */
-    params(name: string, params?: MaterialParams | null): MaterialId;
+    params(name: string, params?: MaterialParams | null): HostMaterial;
 
     /**
      * Tune registry behavior (optional).

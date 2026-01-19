@@ -101,8 +101,13 @@ class EntityCore {
         const q = this._getRot();
         const av = this._getAngVel();
 
-        const px = this._num(p.x), py = this._num(p.y), pz = this._num(p.z);
-        const vx = this._num(v.x), vy = this._num(v.y), vz = this._num(v.z);
+        const px = this._num((p && p.x !== undefined) ? p.x : (p && p[0]));
+        const py = this._num((p && p.y !== undefined) ? p.y : (p && p[1]));
+        const pz = this._num((p && p.z !== undefined) ? p.z : (p && p[2]));
+
+        const vx = this._num((v && v.x !== undefined) ? v.x : (v && v[0]));
+        const vy = this._num((v && v.y !== undefined) ? v.y : (v && v[1]));
+        const vz = this._num((v && v.z !== undefined) ? v.z : (v && v[2]));
 
         const rx = this._qx(q), ry = this._qy(q), rz = this._qz(q), rw = this._qw(q);
 

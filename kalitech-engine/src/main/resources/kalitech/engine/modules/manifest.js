@@ -2,6 +2,7 @@
 
 module.exports = {
     modules: [
+        "@module/Log/Log",
         "@module/Assets/Assets",
         "@module/Render/Render",
         "@module/Time/Time",
@@ -15,12 +16,10 @@ module.exports = {
         "@module/Sound/Sound",
         "@module/Entity/Entity",
         "@module/Physics/Physics",
-        "@module/Log/Log",
         "@module/Input/Input",
         "@module/Events/Events",
         "@module/Terrain/Terrain",
         "@module/Hud/Hud",
-        "@module/Profiler/Profiler",
         "@module/Controllers/Controllers",
         "@module/Debug/Debug",
         "@module/Camera/Camera",

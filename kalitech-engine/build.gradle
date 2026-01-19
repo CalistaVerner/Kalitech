@@ -10,6 +10,7 @@ application {
 
 repositories {
     mavenCentral()
+    maven { url "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/" }
 }
 
 
@@ -24,7 +25,10 @@ dependencies {
     api "org.jmonkeyengine:jme3-lwjgl3:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
-    //api "org.jmonkeyengine:jme3-jbullet:${rootProject.ext.jmeVersion}"
+
+        implementation "me.friwi:jcefmaven:110.0.25.1"
+        runtimeOnly "me.friwi:jcef-natives-windows-amd64:jcef-87476e9+cef-110.0.25+g75b1c96+chromium-110.0.5481.78"
+
 
 
     implementation "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"

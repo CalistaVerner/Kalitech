@@ -1,6 +1,7 @@
 package org.foxesworld.kalitech.engine;
 
 import com.jme3.system.AppSettings;
+import org.apache.logging.log4j.LogManager;
 import org.foxesworld.kalitech.core.ICOParser;
 import org.foxesworld.kalitech.core.KalitechVersion;
 
@@ -22,6 +23,10 @@ public final class KalitechLauncher {
 
     public static void main(String[] args) {
         // Relaunch with vmoptions once, if configured.
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            LogManager.getLogger("Uncaught").error("Uncaught exception on thread=" + t.getName(), e);
+        });
+
         if (!Boolean.getBoolean(RELAUNCH_FLAG)) {
             Path vmoptions = resolveVmOptionsPath();
             if (Files.isRegularFile(vmoptions)) {

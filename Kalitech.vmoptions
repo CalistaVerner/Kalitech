@@ -49,3 +49,9 @@
 -Dgraal.CompilationFailureAction=Silent
 -Dgraal.TruffleCompilationExceptionsAreFatal=false
 -Dgraal.TraceTruffleCompilation=false
+
+
+-Dkalitech.chromium.enabled=true
+-Dkalitech.chromium.w=1024
+-Dkalitech.chromium.h=640
+-Dkalitech.chromium.url=https://example.com

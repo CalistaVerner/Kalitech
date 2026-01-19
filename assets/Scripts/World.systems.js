@@ -139,6 +139,12 @@ const worldSystems = [{
         id: "jsSystem", order: 50, stableId: "player", config: {
             module: "Scripts/player/index.js",
 
+            controllers: [
+                { id: "player.events",   module: "./controllers/PlayerEventsController.js",   export: "PlayerEventsController",   order: 10 },
+                { id: "player.gameplay", module: "./controllers/PlayerGameplayController.js", export: "PlayerGameplayController", order: 20, deps: ["player.events"] },
+                { id: "player.camera",   module: "./controllers/PlayerCameraController.js",   export: "PlayerCameraController",   order: 30, deps: ["player.gameplay"] },
+                { id: "player.ui",       module: "./controllers/PlayerUIController.js",       export: "PlayerUIController",       order: 40, deps: ["player.events", "player.gameplay"] }
+            ],
             spawn: {pos: {x: 129, y: 3, z: -300}, radius: 0.35, height: 1.8, mass: 80}, camera: {
                 type: "first", volumeZones: {
                     enabled: true, zones: [{

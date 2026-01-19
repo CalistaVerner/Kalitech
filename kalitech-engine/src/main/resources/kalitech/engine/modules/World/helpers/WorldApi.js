@@ -77,12 +77,6 @@ class WorldApi {
      *  - worldTime: number
      *  - timeRate: number
      *  - paused: boolean
-     *  - frameIndex: number
-     *  - tickIndex: number
-     *  - realDt: number
-     *  - simDt: number
-     *  - stepDt: number
-     *  - interpAlpha: number
      *  - fixedStep?: number
      *  - maxDelta?: number
      */
@@ -98,12 +92,6 @@ class WorldApi {
         if (t.worldTime != null) out.worldTime = +t.worldTime;
         if (t.timeRate != null) out.timeRate = +t.timeRate;
         if (t.paused != null) out.paused = !!t.paused;
-        if (t.frameIndex != null) out.frameIndex = +t.frameIndex;
-        if (t.tickIndex != null) out.tickIndex = +t.tickIndex;
-        if (t.realDt != null) out.realDt = +t.realDt;
-        if (t.simDt != null) out.simDt = +t.simDt;
-        if (t.stepDt != null) out.stepDt = +t.stepDt;
-        if (t.interpAlpha != null) out.interpAlpha = +t.interpAlpha;
         if (t.fixedStep != null) out.fixedStep = +t.fixedStep;
         if (t.maxDelta != null) out.maxDelta = +t.maxDelta;
 
