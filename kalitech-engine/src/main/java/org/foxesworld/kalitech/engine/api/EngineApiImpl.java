@@ -13,6 +13,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
+import org.foxesworld.kalitech.engine.api.registry.TaskRegistry;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
@@ -45,6 +46,7 @@ public final class EngineApiImpl implements EngineApi {
 
     private final ApiContext apiCtx;
     private final ApiRegistry apiRegistry;
+    private final TaskRegistry taskRegistry;
 
     private final LogApi logApi;
     private final AssetsApi assetsApi;
@@ -107,6 +109,7 @@ public final class EngineApiImpl implements EngineApi {
 
         this.jmeThread = Thread.currentThread();
 
+        this.taskRegistry = new TaskRegistry();
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
@@ -323,6 +326,10 @@ public final class EngineApiImpl implements EngineApi {
 
     public ScriptRuntime getRuntime() {
         return runtime;
+    }
+
+    public TaskRegistry getTaskRegistry() {
+        return taskRegistry;
     }
 
     public SurfaceRegistry getSurfaceRegistry() {
