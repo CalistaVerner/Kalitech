@@ -12,6 +12,7 @@ module.exports = {
         "@module/Material/Material",
         "@module/World/World",
         "@module/Mesh/Mesh",
+        "@module/Rig/Rig",
         "@module/Sound/Sound",
         "@module/Entity/Entity",
         "@module/Physics/Physics",
