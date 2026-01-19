@@ -50,105 +50,103 @@ function safeExec(log, label, fn) {
 }
 
 class SoundInstance {
-    constructor(engine, node, api, log) {
-        this._node = node;
+    constructor(engine, id, api, log) {
+        this._id = Number(id) || 0;
         this._api = api;
         this._log = log;
     }
 
-    __node() {
-        return this._node;
-    }
+    id() { return this._id; }
 
     play() {
-        safeExec(this._log, "play", () => this._api.play(this._node));
+        safeExec(this._log, "play", () => this._api.playId(this._id));
         return this;
     }
 
     stop() {
-        safeExec(this._log, "stop", () => this._api.stop(this._node));
+        safeExec(this._log, "stop", () => this._api.stopId(this._id));
         return this;
     }
 
     pause() {
-        if (this._api.pause) safeExec(this._log, "pause", () => this._api.pause(this._node));
+        if (this._api.pauseId) safeExec(this._log, "pause", () => this._api.pauseId(this._id));
         return this;
     }
 
     volume(v) {
-        safeExec(this._log, "volume", () => this._api.setVolume(this._node, Math.max(0, Number(v))));
+        safeExec(this._log, "volume", () => this._api.setVolumeId(this._id, Math.max(0, Number(v))));
         return this;
     }
 
     pitch(v) {
         const pv = Math.min(Math.max(Number(v), 0.5), 2.0);
-        safeExec(this._log, "pitch", () => this._api.setPitch(this._node, pv));
+        safeExec(this._log, "pitch", () => this._api.setPitchId(this._id, pv));
         return this;
     }
 
     loop(v = true) {
-        safeExec(this._log, "loop", () => this._api.setLooping(this._node, !!v));
+        safeExec(this._log, "loop", () => this._api.setLoopingId(this._id, !!v));
         return this;
     }
 
     pos(x, y, z) {
         const p = v3(x, y, z);
-        safeExec(this._log, "pos", () => this._api.setPosition(this._node, p[0], p[1], p[2]));
+        safeExec(this._log, "pos", () => this._api.setPositionId(this._id, p[0], p[1], p[2]));
         return this;
     }
 
     positional(v = true) {
-        if (this._api.setPositional) safeExec(this._log, "positional", () => this._api.setPositional(this._node, !!v));
+        if (this._api.setPositionalId) safeExec(this._log, "positional", () => this._api.setPositionalId(this._id, !!v));
         return this;
     }
 
     maxDistance(v) {
-        if (this._api.setMaxDistance) safeExec(this._log, "maxDistance", () => this._api.setMaxDistance(this._node, Number(v)));
+        if (this._api.setMaxDistanceId) safeExec(this._log, "maxDistance", () => this._api.setMaxDistanceId(this._id, Number(v)));
         return this;
     }
 
     refDistance(v) {
-        if (this._api.setRefDistance) safeExec(this._log, "refDistance", () => this._api.setRefDistance(this._node, Number(v)));
+        if (this._api.setRefDistanceId) safeExec(this._log, "refDistance", () => this._api.setRefDistanceId(this._id, Number(v)));
         return this;
     }
 
     reverb(v = true) {
-        safeExec(this._log, "reverb", () => this._api.setReverbEnabled(this._node, !!v));
+        safeExec(this._log, "reverb", () => this._api.setReverbEnabledId(this._id, !!v));
         return this;
     }
 
     directional(v = true) {
-        safeExec(this._log, "directional", () => this._api.setDirectional(this._node, !!v));
+        safeExec(this._log, "directional", () => this._api.setDirectionalId(this._id, !!v));
         return this;
     }
 
     innerAngle(v) {
-        if (this._api.setInnerAngle) safeExec(this._log, "innerAngle", () => this._api.setInnerAngle(this._node, Number(v)));
+        if (this._api.setInnerAngleId) safeExec(this._log, "innerAngle", () => this._api.setInnerAngleId(this._id, Number(v)));
         return this;
     }
 
     outerAngle(v) {
-        if (this._api.setOuterAngle) safeExec(this._log, "outerAngle", () => this._api.setOuterAngle(this._node, Number(v)));
+        if (this._api.setOuterAngleId) safeExec(this._log, "outerAngle", () => this._api.setOuterAngleId(this._id, Number(v)));
         return this;
     }
 
     direction(x, y, z) {
-        if (!this._api.setDirection) return this;
+        if (!this._api.setDirectionId) return this;
         const d = v3(x, y, z);
-        safeExec(this._log, "direction", () => this._api.setDirection(this._node, d[0], d[1], d[2]));
+        safeExec(this._log, "direction", () => this._api.setDirectionId(this._id, d[0], d[1], d[2]));
         return this;
     }
 
     velocity(x, y, z) {
-        if (!this._api.setVelocity) return this;
+        if (!this._api.setVelocityId) return this;
         const vv = v3(x, y, z);
-        safeExec(this._log, "velocity", () => this._api.setVelocity(this._node, vv[0], vv[1], vv[2]));
+        safeExec(this._log, "velocity", () => this._api.setVelocityId(this._id, vv[0], vv[1], vv[2]));
         return this;
     }
 
     velocityFromTranslation(v = true) {
-        if (this._api.setVelocityFromTranslation) {
-            safeExec(this._log, "velocityFromTranslation", () => this._api.setVelocityFromTranslation(this._node, !!v));
+        if (this._api.setVelocityFromTranslationId) {
+            safeExec(this._log, "velocityFromTranslation", () => this._api.setVelocityFromTranslationId(this._id, !!v));
         }
         return this;
     }
@@ -325,8 +323,8 @@ class SoundRegistry {
 
     api() {
         const soundApi = this.engine.sound && this.engine.sound();
-        if (!soundApi || typeof soundApi.create !== "function") {
-            throw new Error("[SND] engine.sound().create(cfg) is required");
+        if (!soundApi || typeof soundApi.createId !== "function") {
+            throw new Error("[SND] engine.sound().createId(cfg) is required");
         }
         return soundApi;
     }
@@ -375,14 +373,15 @@ class SoundRegistry {
 
     create(cfg) {
         const api = this.api();
-        const node = safeExec(this._log, "create", () => api.create(cfg));
-        return new SoundInstance(this.engine, node, api, this._log);
+        const id = safeExec(this._log, "createId", () => api.createId(cfg));
+        return new SoundInstance(this.engine, id, api, this._log);
     }
 
     createAndPlay(cfg) {
-        const s0 = this.create(cfg);
-        s0.play();
-        return s0;
+        const api = this.api();
+        const id = safeExec(this._log, "createId", () => api.createId(cfg));
+        safeExec(this._log, "play", () => api.playId(id));
+        return new SoundInstance(this.engine, id, api, this._log);
     }
 
     loadBank(bankObj) {
@@ -436,18 +435,18 @@ class SoundRegistry {
 
         if (hasEvent) {
             this._ensureBankLoaded();
-            if (!api.playEventCfg) {
-                throw new Error("[SND] engine.sound().playEventCfg(cfg) is required for event sounds");
+            if (!api.playEventCfgId) {
+                throw new Error("[SND] engine.sound().playEventCfgId(cfg) is required for event sounds");
             }
             const ecfg = this._normalizeEventCfg(cfg);
-            const node = safeExec(this._log, "playEventCfg", () => api.playEventCfg(ecfg));
-            return new SoundInstance(this.engine, node, api, this._log);
+            const id = safeExec(this._log, "playEventCfgId", () => api.playEventCfgId(ecfg));
+            return new SoundInstance(this.engine, id, api, this._log);
         }
 
         const scfg = this._normalizeSrcCfg(cfg);
-        const node = safeExec(this._log, "create", () => api.create(scfg));
-        safeExec(this._log, "play", () => api.play(node));
-        return new SoundInstance(this.engine, node, api, this._log);
+        const id = safeExec(this._log, "createId", () => api.createId(scfg));
+        safeExec(this._log, "play", () => api.playId(id));
+        return new SoundInstance(this.engine, id, api, this._log);
     }
 
     _normalizeEventCfg(cfg) {
@@ -541,10 +540,18 @@ function create(engine, K) {
 
 create.META = {
     moduleId: "sound",
+    id: "sound",
     globalName: "SND",
-    version: "1.5.0",
-    description: "Universal sound facade: playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
-    engineMin: "0.1.0"
+    version: "2.0.0",
+    description: "Universal sound facade (SoundId-only): playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
+    engineMin: "0.1.0",
+    changelog: [
+        "2.0.0: switched JS surface to SoundId-only; no AudioNode references exposed."
+    ],
+    deprecation: {
+        status: "active",
+        policy: "Breaking changes require major bump."
+    }
 };
 
 module.exports = create;

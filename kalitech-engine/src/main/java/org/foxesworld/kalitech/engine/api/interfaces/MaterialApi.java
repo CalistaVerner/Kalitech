@@ -25,6 +25,9 @@ public interface MaterialApi {
     @HostAccess.Export
     org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl.MaterialHandle create(Value cfg);
 
+    @HostAccess.Export
+    int createId(Value cfg);
+
     /**
      * Destroys (releases) a previously created material handle.
      * Implementations may treat this as a no-op if materials are GC-managed or cached.
@@ -33,5 +36,14 @@ public interface MaterialApi {
     void destroy(MaterialApiImpl.MaterialHandle handle);
 
     @HostAccess.Export
+    void destroyById(int id);
+
+    @HostAccess.Export
+    MaterialApiImpl.MaterialHandle getById(int id);
+
+    @HostAccess.Export
     void set(MaterialApiImpl.MaterialHandle handle, Value params);
+
+    @HostAccess.Export
+    void setById(int id, Value params);
 }

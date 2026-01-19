@@ -10,6 +10,7 @@ import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
+import org.foxesworld.kalitech.engine.script.util.StateCapsule;
 import org.graalvm.polyglot.Value;
 
 import java.nio.file.Path;
@@ -80,6 +81,38 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         fn.execute(args);
     }
 
+    private static Object callForState(Value obj, String member, Object... args) {
+        if (obj == null || obj.isNull()) return null;
+        if (!obj.hasMember(member)) return null;
+        Value fn = obj.getMember(member);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return null;
+        try {
+            return StateCapsule.toState(fn.execute(args));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object snapshotState(Value obj) {
+        if (obj == null || obj.isNull() || !obj.hasMember("state")) return null;
+        try {
+            return StateCapsule.toState(obj.getMember("state"));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void callOnError(Value obj, Throwable t) {
+        if (obj == null || obj.isNull()) return;
+        if (!obj.hasMember("onError")) return;
+        Value fn = obj.getMember("onError");
+        if (fn == null || fn.isNull() || !fn.canExecute()) return;
+        try {
+            fn.execute(String.valueOf(t));
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static String normalize(String id) {
         if (id == null) return "";
         String s = id.trim().replace('\\', '/');
@@ -141,13 +174,17 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 ensureStarted(rt, uuid, entityId, sc);
             } catch (Throwable t) {
                 log.error("Script ensureStarted failed entityId={} uuid={}", entityId, uuid, t);
+                callOnError(sc != null ? sc.instance : null, t);
                 continue;
             }
 
             try {
                 callIfExists(sc.instance, "update", tpf);
+                Object state = snapshotState(sc.instance);
+                if (state != null) sc.stateCapsule = state;
             } catch (Throwable t) {
                 log.error("Script update failed entityId={} uuid={}", entityId, uuid, t);
+                callOnError(sc.instance, t);
             }
         }
     }
@@ -250,11 +287,18 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
                 if (sc.instance != null) {
                     try {
-                        callIfExists(sc.instance, "destroy");
+                        Object state = snapshotState(sc.instance);
+                        if (state != null) sc.stateCapsule = state;
+                        if (sc.instance.hasMember("onStop")) {
+                            callIfExists(sc.instance, "onStop", "stop");
+                        } else {
+                            callIfExists(sc.instance, "destroy");
+                        }
                     } catch (org.graalvm.polyglot.PolyglotException pe) {
                         // Cancelled context is acceptable during shutdown.
                     } catch (Throwable t) {
                         log.warn("Script destroy failed for entity {}", e.getKey(), t);
+                        callOnError(sc.instance, t);
                     }
                 }
 
@@ -281,11 +325,19 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         boolean needsStart = (sc.instance == null) || (sc.moduleVersion != v);
         if (!needsStart) return;
 
+        Object prevState = sc.stateCapsule;
         if (sc.instance != null) {
             try {
-                callIfExists(sc.instance, "destroy");
+                Object state = snapshotState(sc.instance);
+                if (state != null) prevState = state;
+                if (sc.instance.hasMember("onStop")) {
+                    callIfExists(sc.instance, "onStop", "reload");
+                } else {
+                    callIfExists(sc.instance, "destroy");
+                }
             } catch (Throwable t) {
                 log.warn("Script destroy (reload) failed entityId={} uuid={}", entityId, uuid, t);
+                callOnError(sc.instance, t);
             }
             sc.instance = null;
         }
@@ -309,9 +361,27 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
         EntityScriptAPI api = new EntityScriptAPI(uuid, ecs, bus);
         try {
-            callIfExists(sc.instance, "init", api);
+            Object onLoadState = null;
+            if (sc.instance.hasMember("onLoad")) {
+                onLoadState = callForState(sc.instance, "onLoad", api);
+            } else if (sc.instance.hasMember("init")) {
+                callIfExists(sc.instance, "init", api);
+            }
+
+            if (onLoadState != null) sc.stateCapsule = onLoadState;
+            if (prevState != null && sc.instance.hasMember("onReload")) {
+                Object reloaded = callForState(sc.instance, "onReload", prevState);
+                if (reloaded != null) sc.stateCapsule = reloaded;
+            } else if (prevState != null) {
+                sc.stateCapsule = prevState;
+            }
+
+            if (sc.instance.hasMember("onStart")) {
+                callIfExists(sc.instance, "onStart");
+            }
         } catch (Throwable t) {
             log.error("Script init failed entityId={} uuid={} moduleId={}", entityId, uuid, moduleId, t);
+            callOnError(sc.instance, t);
         }
     }
 }

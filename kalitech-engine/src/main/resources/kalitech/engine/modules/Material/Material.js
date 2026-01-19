@@ -40,11 +40,9 @@ class MaterialsRegistry {
         this.defs = null;
 
         // base caches (no overrides)
-        this.cacheMat = Object.create(null);
         this.cacheHandle = Object.create(null);
 
         // per-override caches
-        this.cacheMatOv = Object.create(null);     // key -> Material
         this.cacheHandleOv = Object.create(null);  // key -> handle
 
         // tuning
@@ -147,23 +145,6 @@ class MaterialsRegistry {
         if (normalized.scales) cfg.scales = Object.assign(cfg.scales || {}, normalized.scales);
     }
 
-    unwrapMaterial(v) {
-        let m = v;
-
-        try {
-            if (m && typeof m.__material === "function") m = m.__material();
-        } catch (_) {
-        }
-
-        if (!m) throw new Error("[MAT] expected Material, got: " + String(m));
-
-        if (isPlainJsObject(m)) {
-            throw new Error("[MAT] expected host Material, got plain JS object");
-        }
-
-        return m;
-    }
-
     // ---------- caching helpers ----------
 
     _ovKey(name, normalized) {
@@ -202,11 +183,11 @@ class MaterialsRegistry {
         this.applyOverrides(cfg, ov);
 
         const matApi = this.engine().material && this.engine().material();
-        if (!matApi || typeof matApi.create !== "function") {
-            throw new Error("[MAT] engine.material().create(cfg) is required");
+        if (!matApi || typeof matApi.createId !== "function") {
+            throw new Error("[MAT] engine.material().createId(cfg) is required");
         }
 
-        const h = matApi.create(cfg);
+        const h = matApi.createId(cfg);
 
         if (!ov) this.cacheHandle[n] = h;
         else this._ovCachePut(this.cacheHandleOv, ovKey, h);
@@ -215,29 +196,7 @@ class MaterialsRegistry {
     }
 
     getMaterial(name, overrides = null) {
-        const n = String(name || "");
-        const ov = this.normalizeOverrides(overrides);
-
-        if (!ov && this.cacheMat[n]) return this.cacheMat[n];
-
-        const ovKey = this._ovKey(n, ov);
-        if (ovKey && this.cacheMatOv[ovKey]) return this.cacheMatOv[ovKey];
-
-        const cfg = this.cloneCfg(this.base(n));
-        this.applyOverrides(cfg, ov);
-
-        const matApi = this.engine().material && this.engine().material();
-        if (!matApi || typeof matApi.create !== "function") {
-            throw new Error("[MAT] engine.material().create(cfg) is required");
-        }
-
-        const created = matApi.create(cfg);
-        const mat = this.unwrapMaterial(created);
-
-        if (!ov) this.cacheMat[n] = mat;
-        else this._ovCachePut(this.cacheMatOv, ovKey, mat);
-
-        return mat;
+        return this.getHandle(name, overrides);
     }
 
     // ---------- sugar ----------
@@ -302,10 +261,8 @@ class MaterialsRegistry {
     reload() {
         this.defs = null;
 
-        for (const k in this.cacheMat) delete this.cacheMat[k];
         for (const k in this.cacheHandle) delete this.cacheHandle[k];
 
-        for (const k in this.cacheMatOv) delete this.cacheMatOv[k];
         for (const k in this.cacheHandleOv) delete this.cacheHandleOv[k];
         this._overrideCacheOrder.length = 0;
 
@@ -322,10 +279,18 @@ function create(engine, K) {
 // META (adult contract)
 create.META = {
     moduleId: "materials",
+    id: "materials",
     globalName: "MAT",
-    version: "1.0.0",
-    description: "Materials registry with JSON DB, caching, overrides and presets",
-    engineMin: "0.1.0"
+    version: "2.0.0",
+    description: "Materials registry (MaterialId-only) with JSON DB, caching, overrides and presets",
+    engineMin: "0.1.0",
+    changelog: [
+        "2.0.0: switched JS API to return MaterialId only (no host Material objects)."
+    ],
+    deprecation: {
+        status: "active",
+        policy: "Breaking changes require major bump."
+    }
 };
 
 module.exports = create;
