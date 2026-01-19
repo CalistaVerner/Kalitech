@@ -14,24 +14,87 @@ function safeJson(v) {
     return "[unserializable]";
 }
 
-function normalizeArgs(args) {
-    if (!args || args.length === 0) return "";
-    if (args.length === 1) {
-        const a = args[0];
-        if (typeof a === "string") return a;
-        if (a instanceof Error) return (a.stack || a.message || String(a));
-        if (a && typeof a === "object") return safeJson(a);
-        return String(a);
+function isThrowableLike(v) {
+    if (!v) return false;
+
+    try {
+        if (v instanceof Error) return true;
+    } catch (_) {
     }
+
+    const t = typeof v;
+    if (t !== "object" && t !== "function") return false;
+
+    try {
+        const stack = v.stack;
+        if (typeof stack === "string" && stack.length > 0) return true;
+    } catch (_) {
+    }
+
+    try {
+        const name = v.name;
+        const msg = v.message;
+        if (typeof name === "string" && name.length > 0 && typeof msg === "string") return true;
+    } catch (_) {
+    }
+
+    // Host exceptions (PolyglotException/Throwable) sometimes expose Java-ish surface
+    try {
+        if (typeof v.getClass === "function") return true;
+    } catch (_) {
+    }
+
+    return false;
+}
+
+function throwableToText(e) {
+    if (!e) return "null";
+
+    try {
+        if (e instanceof Error) return (e.stack || e.message || String(e));
+    } catch (_) {
+    }
+
+    try {
+        if (typeof e.stack === "string" && e.stack) return e.stack;
+    } catch (_) {
+    }
+
+    try {
+        if (typeof e.message === "string" && e.message) return e.message;
+    } catch (_) {
+    }
+
+    try {
+        return String(e);
+    } catch (_) {
+    }
+
+    return "[unserializable-exception]";
+}
+
+function valueToText(v) {
+    if (v == null) return "null";
+
+    const t = typeof v;
+    if (t === "string") return v;
+    if (t === "number" || t === "boolean" || t === "bigint") return String(v);
+
+    if (isThrowableLike(v)) return throwableToText(v);
+
+    if (t === "object") return safeJson(v);
+
+    try {
+        return String(v);
+    } catch (_) {
+    }
+    return "[unserializable]";
+}
+
+function joinArgs(args, from, toExclusive) {
     let out = "";
-    for (let i = 0; i < args.length; i++) {
-        const a = args[i];
-        let s;
-        if (typeof a === "string") s = a;
-        else if (a instanceof Error) s = (a.stack || a.message || String(a));
-        else if (a && typeof a === "object") s = safeJson(a);
-        else s = String(a);
-        out += (i ? " " : "") + s;
+    for (let i = from; i < toExclusive; i++) {
+        out += (i > from ? " " : "") + valueToText(args[i]);
     }
     return out;
 }
@@ -48,12 +111,44 @@ function makeApi(engine /*, K */) {
         return !!(log && typeof log[fn] === "function");
     }
 
+    function call1(levelFn, msg) {
+        if (!log) return;
+        if (has(levelFn)) log[levelFn](msg);
+        else if (has("info")) log.info(msg);
+    }
+
+    /**
+     * Important: we NEVER call log[levelFn](msg, err) here.
+     * Java side may expose only 1-arity overload and Graal interop may throw uncatchable arity errors.
+     */
     function write(levelFn, scope, args) {
-        const msg = makePrefix(scope) + normalizeArgs(args);
-        if (!log) return msg;
+        const prefix = makePrefix(scope);
+
+        if (!args || args.length === 0) {
+            const msg0 = prefix;
+            try {
+                call1(levelFn, msg0);
+            } catch (_) {
+            }
+            return msg0;
+        }
+
+        // If last arg is throwable-like, append it on a new line.
+        if (args.length >= 2 && isThrowableLike(args[args.length - 1])) {
+            const head = prefix + joinArgs(args, 0, args.length - 1);
+            const err = args[args.length - 1];
+            const msg = head + "\n" + throwableToText(err);
+
+            try {
+                call1(levelFn, msg);
+            } catch (_) {
+            }
+            return msg;
+        }
+
+        const msg = prefix + joinArgs(args, 0, args.length);
         try {
-            if (has(levelFn)) log[levelFn](msg);
-            else if (has("info")) log.info(msg);
+            call1(levelFn, msg);
         } catch (_) {
         }
         return msg;
@@ -85,8 +180,7 @@ function makeApi(engine /*, K */) {
 
     function scoped(scopeName) {
         const scope = String(scopeName || "").trim();
-
-        const s = Object.freeze({
+        return Object.freeze({
             trace: function () {
                 return write("trace", scope, arguments);
             },
@@ -107,8 +201,6 @@ function makeApi(engine /*, K */) {
             },
             scope: scope
         });
-
-        return s;
     }
 
     function enabled() {
@@ -116,16 +208,16 @@ function makeApi(engine /*, K */) {
     }
 
     return Object.freeze({
-        enabled,
-        trace,
-        debug,
-        info,
-        warn,
-        error,
-        fatal,
+        enabled: enabled,
+        trace: trace,
+        debug: debug,
+        info: info,
+        warn: warn,
+        error: error,
+        fatal: fatal,
         child: scoped,
         scope: scoped,
-        safeJson
+        safeJson: safeJson
     });
 }
 
@@ -137,7 +229,7 @@ function create(engine, K) {
 create.META = {
     moduleId: "log",
     globalName: "LOG",
-    version: "1.0.0",
+    version: "1.2.0",
     description: "Rootkit wrapper for engine.log() with safe formatting + scoped child loggers",
     engineMin: "0.1.0"
 };

@@ -341,7 +341,7 @@ class SoundRegistry {
         if (typeof soundApi.loadBank !== "function") return false;
 
         try {
-            const txt = ENGINE.assets().readText(this._bankPath);
+            const txt = this.engine.assets().readText(this._bankPath);
             const obj = JSON.parse(txt);
             soundApi.loadBank(obj);
         } catch (e) {

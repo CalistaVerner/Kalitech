@@ -181,7 +181,7 @@ function create(engine, K) {
         for (let i = 0; i < uniq.length; i++) {
             const p = uniq[i];
             try {
-                const txt = ENGINE.assets().readText(p);
+                const txt = ASSETS.readText(p);
                 const obj = JSON.parse(txt);
                 loadBank(obj);
                 bank.path = p;
