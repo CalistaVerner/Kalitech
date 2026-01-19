@@ -1,3 +1,4 @@
+// FILE: Scripts/player/controllers/PlayerUIController.js
 "use strict";
 
 const PlayerUI = require("../PlayerUI.js");
@@ -8,23 +9,16 @@ function req(v, msg) {
 }
 
 class PlayerUIController {
-    constructor() {
-        this.ctx = null;
-        this.entity = null;
+    constructor(player) {
+        this.player = req(player, "[PlayerUIController] player is required");
         this.impl = null;
         this._started = false;
-    }
-
-    bind(ctx, entity) {
-        this.ctx = req(ctx, "[PlayerUIController] ctx is required");
-        this.entity = req(entity, "[PlayerUIController] entity is required");
-        return this;
     }
 
     onStart() {
         if (this._started && this.impl) return;
 
-        const pawn = req(this.entity, "[PlayerUIController] pawn is required");
+        const pawn = req(this.player.pawn, "[PlayerUIController] player.pawn is required");
         const d = req(pawn.d, "[PlayerUIController] pawn.d is required");
         req(d.hud, "[PlayerUIController] domains.hud is required for PlayerUI");
 
@@ -32,26 +26,29 @@ class PlayerUIController {
             d.hudNative.setCursorEnabled(false, true);
         }
 
-        const ui = new PlayerUI(pawn).create();
-        this.impl = ui;
-
+        this.impl = new PlayerUI(pawn).create();
         this._started = true;
     }
 
     onUpdate(dt) {
-        // REDengine MAX stability: UI must exist. If not — re-init deterministically.
         if (!this.impl) this.onStart();
         if (!this.impl) throw new Error("[PlayerUIController] UI impl is null after onStart()");
 
+        const pawn = req(this.player.pawn, "[PlayerUIController] player.pawn is required");
+
         this.impl.refresh();
-        this.entity.endFrame();
+        pawn.endFrame();
+
+        void dt;
     }
 
     onStop() {
-        if (this.impl && typeof this.impl.destroy === "function") this.impl.destroy();
+        if (this.impl && typeof this.impl.destroy === "function") {
+            try { this.impl.destroy(); } catch (_) {}
+        }
         this.impl = null;
         this._started = false;
     }
 }
 
-module.exports = {PlayerUIController};
+module.exports = { PlayerUIController };

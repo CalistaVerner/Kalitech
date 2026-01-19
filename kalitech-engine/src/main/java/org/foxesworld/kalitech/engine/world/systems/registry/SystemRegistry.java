@@ -1,38 +1,45 @@
-// FILE: SystemRegistry.java
+// FILE: org/foxesworld/kalitech/engine/world/systems/SystemRegistry.java
+// Author: Calista Verner (KΛYLΛ)
 package org.foxesworld.kalitech.engine.world.systems.registry;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
+import org.foxesworld.kalitech.engine.world.systems.registry.SystemProvider;
 import org.graalvm.polyglot.Value;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.Set;
 
 /**
- * SystemRegistry
- * <p>
- * Script-driven world building requires a stable Java-side registry that maps string IDs
- * (coming from JS world descriptors) to {@link SystemProvider} factories discovered via
- * {@link java.util.ServiceLoader}.
- * <p>
- * Goals:
- * - Zero magic: Java resolves only system IDs; no special-case keys like "mode"/"entities".
- * - Stable failures: unknown/failed systems are logged and safely skipped.
- * - Fast hot path: O(1) lookup by id.
+ * Registry of world system providers discovered via ServiceLoader.
+ * Lives in the world subsystem (not API) by design.
  */
 public final class SystemRegistry {
 
     private static final Logger log = LogManager.getLogger(SystemRegistry.class);
 
+    private static final class Holder {
+        private static final SystemRegistry INSTANCE = new SystemRegistry();
+    }
+
+    public static SystemRegistry get() {
+        return Holder.INSTANCE;
+    }
+
     private final Map<String, SystemProvider> providers;
 
-    public SystemRegistry() {
-        Map<String, SystemProvider> map = new LinkedHashMap<>();
-        ServiceLoader<SystemProvider> loader = ServiceLoader.load(SystemProvider.class);
+    private SystemRegistry() {
+        final Map<String, SystemProvider> map = new LinkedHashMap<>();
+        final ServiceLoader<SystemProvider> loader = ServiceLoader.load(SystemProvider.class);
 
         for (SystemProvider p : loader) {
-            String id = safeId(p);
+            final String id = safeId(p);
             if (id == null) continue;
 
             if (map.containsKey(id)) {
@@ -51,43 +58,29 @@ public final class SystemRegistry {
             String id = (p != null) ? p.id() : null;
             if (id == null) return null;
             id = id.trim();
-            if (id.isEmpty()) return null;
-            return id;
-        } catch (Throwable t) {
+            return id.isEmpty() ? null : id;
+        } catch (Throwable ignored) {
             return null;
         }
     }
 
-    /** Returns provider or throws if missing. Prefer {@link #create(String, SystemContext, Value)} for resilient builds. */
-    public SystemProvider require(String id) {
-        SystemProvider p = providers.get(id);
-        if (p == null) throw new IllegalArgumentException("Unknown system id: " + id);
-        return p;
-    }
-
-    /**
-     * Returns provider or null if missing.
-     */
-    public SystemProvider get(String id) {
-        return (id == null) ? null : providers.get(id);
-    }
-
-    /**
-     * Resilient factory: creates a system instance from provider id.
-     * Returns null if id unknown or provider threw; caller may skip.
-     */
-    public KSystem create(String id, SystemContext ctx, Value config) {
+    public SystemProvider getProvider(String id) {
         if (id == null || id.isBlank()) return null;
-        Objects.requireNonNull(ctx, "ctx");
+        return providers.get(id);
+    }
 
-        SystemProvider p = providers.get(id);
+    public KSystem create(String id, SystemContext ctx, Value config) {
+        Objects.requireNonNull(ctx, "ctx");
+        if (id == null || id.isBlank()) return null;
+
+        final SystemProvider p = providers.get(id);
         if (p == null) {
             log.warn("Unknown system id: {} (known: {})", id, providers.keySet());
             return null;
         }
 
         try {
-            KSystem sys = p.create(ctx, config);
+            final KSystem sys = p.create(ctx, config);
             if (sys == null) {
                 log.warn("SystemProvider {} returned null system (skipping)", id);
             }

@@ -25,7 +25,7 @@ dependencies {
     api "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
     //api "org.jmonkeyengine:jme3-jbullet:${rootProject.ext.jmeVersion}"
-
+    implementation "me.friwi:jcefmaven:141.0.10"
 
     implementation "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
     implementation "org.jmonkeyengine:jme3-jogg:${rootProject.ext.jmeVersion}"

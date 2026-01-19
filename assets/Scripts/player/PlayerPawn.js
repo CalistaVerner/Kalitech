@@ -114,7 +114,13 @@ class PlayerPawn {
             events: {enabled: true},
             input: {},
             movement: {},
-            shoot: {}
+            shoot: {},
+            hands: {
+                enabled: true,
+                model: "Models/rig/assets/Models/rig/rigged_fps_arms.glb",
+                material: "player_hands"
+            }
+
         }, this.cfg);
 
         this.d = buildDomains(this.ctx);

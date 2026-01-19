@@ -1,28 +1,36 @@
+// FILE: Scripts/player/PlayerControllers.js
 "use strict";
 
-const {PlayerEventsController} = require("./controllers/PlayerEventsController.js");
-const {PlayerGameplayController} = require("./controllers/PlayerGameplayController.js");
-const {PlayerCameraController} = require("./controllers/PlayerCameraController.js");
-const {PlayerUIController} = require("./controllers/PlayerUIController.js");
+const { PlayerEventsController } = require("./controllers/PlayerEventsController.js");
+const { PlayerGameplayController } = require("./controllers/PlayerGameplayController.js");
+const { PlayerCameraController } = require("./controllers/PlayerCameraController.js");
+const { PlayerHandsRigController } = require("./controllers/PlayerHandsRigController.js");
+const { PlayerUIController } = require("./controllers/PlayerUIController.js");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);
     return v;
 }
 
-function createPlayerRegistry() {
-    const ENGINE = req(globalThis.ENGINE, "[PlayerControllers] ENGINE is required");
-    const C = req(ENGINE.controllers, "[PlayerControllers] ENGINE.controllers is required");
-    if (typeof C.registry !== "function") throw new Error("[PlayerControllers] ENGINE.controllers.registry(name) required");
+/**
+ * Creates controller instances for the given player.
+ * Controllers are ordered deterministically (no registry magic).
+ *
+ * @param {object} player PlayerController instance
+ * @returns {Array<object>} controllers
+ */
+function createPlayerControllers(player) {
+    req(player, "[PlayerControllers] player is required");
 
-    const R = C.registry("player");
-
-    R.register("player.events", PlayerEventsController, {order: 10});
-    R.register("player.gameplay", PlayerGameplayController, {order: 20, deps: ["player.events"]});
-    R.register("player.camera", PlayerCameraController, {order: 30, deps: ["player.gameplay"]});
-    R.register("player.ui", PlayerUIController, {order: 40, deps: ["player.events", "player.gameplay"]});
-
-    return R;
+    // Strict instantiation with dependency injection (player -> controller).
+    // Order is the only dependency mechanism here (simple + stable).
+    return [
+        new PlayerEventsController(player),     // order: 10
+        new PlayerGameplayController(player),   // order: 20
+        new PlayerHandsRigController(player),   // order: 25
+        new PlayerCameraController(player),     // order: 30
+        new PlayerUIController(player)          // order: 40
+    ];
 }
 
-module.exports = {createPlayerRegistry};
+module.exports = { createPlayerControllers };

@@ -70,7 +70,7 @@ const worldSystems = [{
         // ----------------------------------------------------------------
         shadows: {
             enabled: true,
-            mapSizeDay: 16384,
+            mapSizeDay: 2048,
             mapSizeNight: 8192,
             splits: 4,
             lambda: 0.85,
@@ -136,6 +136,13 @@ const worldSystems = [{
     },
 
     {
+        id: "rig",
+        order: 15,
+        stableId: "sys.rig",
+        config: { enabled: true }
+    },
+
+    {
         id: "jsSystem", order: 50, stableId: "player", config: {
             module: "Scripts/player/index.js",
 
@@ -177,7 +184,25 @@ const worldSystems = [{
                 speed: 24, spawnOffset: 0.25, events: {fire: "game.shoot.fire", hit: "game.shoot.hit"}
             },
 
-            events: {enabled: true}
+            events: {enabled: true}, handsRig: {
+                enabled: true,
+
+                // 1) PATH TO HANDS MODEL
+                modelPath: "Models/rig/rigged_fps_arms.glb",
+
+                // 2) MATERIAL ASSIGNMENT
+                // can be: "mat.fp.hands"  OR  {id:"mat.fp.hands"}
+                material: {id: "mat.fp.hands"},
+
+                // attach: "camera" (first-person) or "socket" (fallback)
+                attach: "camera",
+
+                // if attach != camera, will try to attach hands model to this socket on player model
+                attachSocket: "m.arm.socket.r",
+
+                // local transform (relative to camera or socket)
+                offset: [0.12, -0.12, 0.35], rotation: [0, 0, 0, 1], scale: [1, 1, 1]
+            }
         }
     }];
 

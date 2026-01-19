@@ -1,39 +1,44 @@
+// FILE: Scripts/player/controllers/PlayerCameraController.js
 "use strict";
 
 const PlayerCamera = require("../PlayerCamera.js");
 
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
+    return v;
+}
+
 class PlayerCameraController {
-    constructor() {
-        this.ctx = null;
-        this.entity = null;
+    constructor(player) {
+        this.player = req(player, "[PlayerCameraController] player is required");
         this.impl = null;
     }
 
-    bind(ctx, entity) {
-        this.ctx = ctx;
-        this.entity = entity;
-        return this;
-    }
-
     onStart() {
-        this.impl = new PlayerCamera(this.entity);
+        const pawn = req(this.player.pawn, "[PlayerCameraController] player.pawn is required");
+        this.impl = new PlayerCamera(pawn);
         this.impl.attach();
     }
 
     onUpdate(dt) {
-        const pawn = this.entity;
+        const pawn = req(this.player.pawn, "[PlayerCameraController] player.pawn is required");
+        const impl = req(this.impl, "[PlayerCameraController] impl is null");
 
-        this.impl.update(pawn.frame);
+        impl.update(pawn.frame);
 
-        pawn.frame.view.yaw = this.impl.getYaw();
-        pawn.frame.view.pitch = this.impl.getPitch();
-        pawn.frame.view.type = this.impl.getType();
+        pawn.frame.view.yaw = impl.getYaw();
+        pawn.frame.view.pitch = impl.getPitch();
+        pawn.frame.view.type = impl.getType();
+
+        void dt;
     }
 
     onStop() {
-        if (this.impl && typeof this.impl.destroy === "function") this.impl.destroy();
+        if (this.impl && typeof this.impl.destroy === "function") {
+            try { this.impl.destroy(); } catch (_) {}
+        }
         this.impl = null;
     }
 }
 
-module.exports = {PlayerCameraController};
+module.exports = { PlayerCameraController };

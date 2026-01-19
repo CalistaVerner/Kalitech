@@ -20,8 +20,8 @@
 
 
 # ===== Memory =====
--Xms8g
--Xmx8g
+-Xms2g
+-Xmx2g
 -XX:MaxMetaspaceSize=512m
 #-XX:+AlwaysPreTouch
 

@@ -1,10 +1,16 @@
+// FILE: Scripts/player/controllers/PlayerGameplayController.js
 "use strict";
 
 const MovementSystem = require("../systems/MovementSystem.js");
 const ShootSystem = require("../systems/ShootSystem.js");
 
+function req(v, msg) {
+    if (v == null) throw new Error(msg);
+    return v;
+}
+
 /**
- * PlayerGameplayController (module, no extends)
+ * PlayerGameplayController
  *
  * Owns gameplay loop for PlayerPawn:
  *  - beginFrame(dt)
@@ -13,25 +19,17 @@ const ShootSystem = require("../systems/ShootSystem.js");
  *  - shoot.update(frame, ownerBodyId)
  */
 class PlayerGameplayController {
-    constructor() {
-        this.ctx = null;
-        this.entity = null;
-
+    constructor(player) {
+        this.player = req(player, "[PlayerGameplayController] player is required");
         this.movement = null;
         this.shoot = null;
     }
 
-    bind(ctx, entity) {
-        this.ctx = ctx;
-        this.entity = entity;
-        return this;
-    }
-
     onStart() {
-        const pawn = this.entity;
+        const pawn = req(this.player.pawn, "[PlayerGameplay] player.pawn is required");
 
-        if (!pawn || typeof pawn.beginFrame !== "function") throw new Error("[PlayerGameplay] entity must be PlayerPawn (beginFrame)");
-        if (typeof pawn.syncPose !== "function") throw new Error("[PlayerGameplay] entity must be PlayerPawn (syncPose)");
+        if (typeof pawn.beginFrame !== "function") throw new Error("[PlayerGameplay] pawn.beginFrame required");
+        if (typeof pawn.syncPose !== "function") throw new Error("[PlayerGameplay] pawn.syncPose required");
         if (!pawn.frame) throw new Error("[PlayerGameplay] pawn.frame is required");
         if ((pawn.bodyId | 0) <= 0) throw new Error("[PlayerGameplay] pawn.bodyId must be > 0");
 
@@ -40,7 +38,7 @@ class PlayerGameplayController {
     }
 
     onUpdate(dt) {
-        const pawn = this.entity;
+        const pawn = req(this.player.pawn, "[PlayerGameplay] player.pawn is required");
 
         pawn.beginFrame(dt);
         pawn.syncPose();
@@ -55,10 +53,12 @@ class PlayerGameplayController {
     }
 
     onStop() {
-        if (this.shoot && typeof this.shoot.destroy === "function") this.shoot.destroy();
+        if (this.shoot && typeof this.shoot.destroy === "function") {
+            try { this.shoot.destroy(); } catch (_) {}
+        }
         this.shoot = null;
         this.movement = null;
     }
 }
 
-module.exports = {PlayerGameplayController};
+module.exports = { PlayerGameplayController };

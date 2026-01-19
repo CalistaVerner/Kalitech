@@ -172,6 +172,9 @@ class WorldApi {
         for (let i = 0; i < systemsIn.length; i++) {
             const it = systemsIn[i];
 
+            // --------------------------------------------------------------------
+            // 1) String form means "jsSystem module path"
+            // --------------------------------------------------------------------
             if (typeof it === "string") {
                 const module = it.trim();
                 if (!module) throw new Error("[WORLD] systems[" + i + "]: empty module string");
@@ -188,8 +191,14 @@ class WorldApi {
 
             if (!isObj(it)) throw new Error("[WORLD] systems[" + i + "]: must be string or object");
 
-            if (it.id === "jsSystem" && isObj(it.config)) {
-                const cfg = deepMerge({}, it.config);
+            const id = (it.id != null) ? String(it.id) : "";
+
+            // --------------------------------------------------------------------
+            // 2) Explicit jsSystem descriptor
+            // --------------------------------------------------------------------
+            if (id === "jsSystem") {
+                const cfgIn = isObj(it.config) ? it.config : Object.create(null);
+                const cfg = deepMerge({}, cfgIn);
 
                 const module = str(cfg.module, "");
                 if (!module) throw new Error("[WORLD] systems[" + i + "].config.module is required");
@@ -201,27 +210,40 @@ class WorldApi {
                 const order = numInt(it.order, i * orderStep);
                 const stableId = (it.stableId != null) ? String(it.stableId) : stableIdFromModule(module);
 
-                systems.push({id: "jsSystem", order, stableId, config: cfg});
+                systems.push({ id: "jsSystem", order, stableId, config: cfg });
                 continue;
             }
 
+            // --------------------------------------------------------------------
+            // 3) "Implicit jsSystem" object form:
+            //    If config.module exists -> treat as jsSystem for backward compatibility.
+            // --------------------------------------------------------------------
             if (it.config && isObj(it.config)) {
-                const cfg = deepMerge({}, it.config);
+                const cfgPeek = it.config;
+                const modulePeek = str(cfgPeek.module, "");
 
-                const module = str(cfg.module, "");
-                if (!module) throw new Error("[WORLD] systems[" + i + "].config.module is required");
+                if (modulePeek) {
+                    const cfg = deepMerge({}, cfgPeek);
 
-                const rt = str(cfg.runtime ?? cfg.profile, runtime);
-                cfg.module = module;
-                cfg.runtime = rt;
+                    const module = str(cfg.module, "");
+                    if (!module) throw new Error("[WORLD] systems[" + i + "].config.module is required");
 
-                const order = numInt(it.order, i * orderStep);
-                const stableId = (it.stableId != null) ? String(it.stableId) : stableIdFromModule(module);
+                    const rt = str(cfg.runtime ?? cfg.profile, runtime);
+                    cfg.module = module;
+                    cfg.runtime = rt;
 
-                systems.push({id: "jsSystem", order, stableId, config: cfg});
-                continue;
+                    const order = numInt(it.order, i * orderStep);
+                    const stableId = (it.stableId != null) ? String(it.stableId) : stableIdFromModule(module);
+
+                    systems.push({ id: "jsSystem", order, stableId, config: cfg });
+                    continue;
+                }
+                // If config exists but has no module: this is NOT jsSystem -> handled below as native system.
             }
 
+            // --------------------------------------------------------------------
+            // 4) Legacy implicit jsSystem form: object has "module" at top-level
+            // --------------------------------------------------------------------
             if (it.module != null) {
                 const module = str(it.module, "");
                 if (!module) throw new Error("[WORLD] systems[" + i + "].module is required");
@@ -242,22 +264,37 @@ class WorldApi {
                 cfg.module = module;
                 cfg.runtime = rt;
 
-                systems.push({id: "jsSystem", order, stableId, config: cfg});
+                systems.push({ id: "jsSystem", order, stableId, config: cfg });
                 continue;
             }
 
-            throw new Error("[WORLD] systems[" + i + "]: cannot infer jsSystem (missing module/config.module)");
+            // --------------------------------------------------------------------
+            // 5) Native/system-provider descriptor (non-js)
+            //    Example: { id:"rig", order:15, stableId:"sys.rig", config:{enabled:true} }
+            // --------------------------------------------------------------------
+            if (!id) {
+                throw new Error("[WORLD] systems[" + i + "]: cannot infer system id (missing id/module/config.module)");
+            }
+
+            const order = numInt(it.order, i * orderStep);
+            const stableId = (it.stableId != null) ? String(it.stableId) : ("sys." + id);
+
+            // keep config as object (or empty)
+            const cfg = isObj(it.config) ? deepMerge({}, it.config) : {};
+
+            systems.push({ id, order, stableId, config: cfg });
         }
 
         const time = normalizeTimeDesc(desc.time);
 
         ensureUniqueStableIds(systems);
 
-        const out = {name, start, systems};
+        const out = { name, start, systems };
         if (time && Object.keys(time).length) out.time = time;
 
         return out;
     }
+
 
     _mkJsSystem({module, runtime, order, stableId, config}) {
         const cfg = deepMerge({}, config || {});

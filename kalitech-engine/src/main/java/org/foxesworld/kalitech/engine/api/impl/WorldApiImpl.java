@@ -1,4 +1,5 @@
-// FILE: WorldApiImpl.java
+// FILE: org/foxesworld/kalitech/engine/api/impl/WorldApiImpl.java
+// Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.impl;
 
 import com.jme3.app.Application;
@@ -21,6 +22,7 @@ import org.foxesworld.kalitech.engine.world.KWorld;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.WorldTimeParams;
 import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
+import org.foxesworld.kalitech.engine.world.systems.ProviderWorldSystem;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
@@ -38,7 +40,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
     private EcsWorld ecs;
 
     public WorldApiImpl() {
-        super("world", "World", "2.4.1");
+        super("world", "World", "2.4.2");
     }
 
     private static Value requireMember(Value obj, String key, String err) {
@@ -252,12 +254,6 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             }
 
             final String id = requireStr(it, "id", "world.create: systems[" + i + "].id is required");
-            if (!"jsSystem".equals(id)) {
-                throw new IllegalArgumentException(
-                        "world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')"
-                );
-            }
-
             final int order = readInt(it, "order", 0, "world system.");
             final String stableId = readStr(it, "stableId", null, "world system.");
 
@@ -266,23 +262,28 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
                 throw new IllegalArgumentException("world.create: systems[" + i + "].config must be an object");
             }
 
-            final String module = requireStr(cfg, "module", "world.create: systems[" + i + "].config.module is required");
+            if ("jsSystem".equals(id)) {
+                final String module = requireStr(cfg, "module", "world.create: systems[" + i + "].config.module is required");
 
-            final String runtime = normalizeProfile(
-                    readStr(cfg, "runtime", readStr(cfg, "profile", "world", "world cfg."), "world cfg.")
-            );
+                final String runtime = normalizeProfile(
+                        readStr(cfg, "runtime", readStr(cfg, "profile", "world", "world cfg."), "world cfg.")
+                );
 
-            final Object cfgJs = toProxy(cfg);
+                final Object cfgJs = toProxy(cfg);
 
-            final Map<String, Object> sysDesc = new LinkedHashMap<>();
-            sysDesc.put("id", "jsSystem");
-            sysDesc.put("order", order);
-            sysDesc.put("stableId", stableId);
-            sysDesc.put("module", module);
-            sysDesc.put("runtime", runtime);
-            sysDesc.put("config", cfgJs);
+                final Map<String, Object> sysDesc = new LinkedHashMap<>();
+                sysDesc.put("id", "jsSystem");
+                sysDesc.put("order", order);
+                sysDesc.put("stableId", stableId);
+                sysDesc.put("module", module);
+                sysDesc.put("runtime", runtime);
+                sysDesc.put("config", cfgJs);
 
-            world.addSystem(new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtime), order);
+                world.addSystem(new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtime), order);
+                continue;
+            }
+
+            world.addSystem(new ProviderWorldSystem(id, cfg), order);
         }
 
         final WorldAppState wa = ensureWorldAppStateAttached();
@@ -361,10 +362,6 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (log.isDebugEnabled()) log.debug("[world.destroy] uuid={}", uuid);
     }
 
-    /**
-     * Ensures WorldAppState is attached when world.create() is called.
-     * This keeps RuntimeAppState free from any world lifecycle responsibilities.
-     */
     private WorldAppState ensureWorldAppStateAttached() {
         final EngineApiImpl e = this.engine;
         if (e == null) throw new IllegalStateException("WorldApiImpl is not attached");

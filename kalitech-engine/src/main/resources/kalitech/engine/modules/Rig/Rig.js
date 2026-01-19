@@ -252,6 +252,7 @@ function create(engine) {
 
 create.META = {
     moduleId: "rig",
+    globalName: "RIG",
     version: "0.2.0",
     description: "Rig utilities for profile normalization, registration, and binding",
     engineMin: "0.2.0"
