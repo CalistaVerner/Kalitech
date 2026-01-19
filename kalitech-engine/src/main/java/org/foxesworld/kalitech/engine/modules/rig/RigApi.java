@@ -75,4 +75,23 @@ public final class RigApi {
         RigBinding b = service.bind(profileId, view);
         return RigBindingValueCodec.toJs(js, b);
     }
+
+    @HostAccess.Export
+    public String[] listBones(Object spatialObj) {
+        if (!(spatialObj instanceof Spatial sp)) {
+            throw new IllegalArgumentException("listBones expects com.jme3.scene.Spatial as argument");
+        }
+
+        SkeletonView view = JmeSkeletonResolver.resolve(sp);
+        if (view == null) {
+            return new String[0];
+        }
+
+        int count = view.boneCount();
+        String[] out = new String[count];
+        for (int i = 0; i < count; i++) {
+            out[i] = view.boneName(i);
+        }
+        return out;
+    }
 }

@@ -22,6 +22,22 @@ public final class JmeSkeletonResolver {
     public static SkeletonView resolve(Spatial spatial) {
         Objects.requireNonNull(spatial, "spatial");
 
+        SkeletonView local = resolveLocal(spatial);
+        if (local != null) {
+            return local;
+        }
+
+        if (spatial instanceof com.jme3.scene.Node node) {
+            for (Spatial child : node.getChildren()) {
+                SkeletonView childView = resolve(child);
+                if (childView != null) return childView;
+            }
+        }
+
+        return null;
+    }
+
+    private static SkeletonView resolveLocal(Spatial spatial) {
         SkinningControl sc = spatial.getControl(SkinningControl.class);
         if (sc != null && sc.getArmature() != null) {
             return new JmeArmatureSkeletonView(sc.getArmature());

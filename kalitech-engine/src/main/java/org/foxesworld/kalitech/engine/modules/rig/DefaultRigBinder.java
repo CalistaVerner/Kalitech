@@ -59,6 +59,9 @@ public final class DefaultRigBinder implements RigBinder {
         int idx = skeleton.findBoneIndex(authoredBoneName);
         if (idx >= 0) return idx;
 
+        idx = findBoneIndexLoose(skeleton, authoredBoneName);
+        if (idx >= 0) return idx;
+
         String[] aliases = profile.skeleton.aliasesForBone(authoredBoneName);
         if (aliases == null) return -1;
 
@@ -68,6 +71,9 @@ public final class DefaultRigBinder implements RigBinder {
             if (t.isEmpty()) continue;
             idx = skeleton.findBoneIndex(t);
             if (idx >= 0) return idx;
+
+            idx = findBoneIndexLoose(skeleton, t);
+            if (idx >= 0) return idx;
         }
         return -1;
     }
@@ -76,5 +82,34 @@ public final class DefaultRigBinder implements RigBinder {
         String t = (s == null) ? "" : s.trim();
         if (t.isEmpty()) throw new IllegalArgumentException(what + " is empty");
         return t;
+    }
+
+    private static int findBoneIndexLoose(SkeletonView skeleton, String boneName) {
+        if (boneName == null) return -1;
+        String target = boneName.trim();
+        if (target.isEmpty()) return -1;
+
+        String normalizedTarget = normalizeLoose(target);
+        int count = skeleton.boneCount();
+        for (int i = 0; i < count; i++) {
+            String name = skeleton.boneName(i);
+            if (name == null) continue;
+            if (name.equals(target)) return i;
+            if (name.equalsIgnoreCase(target)) return i;
+            if (normalizedTarget.equals(normalizeLoose(name))) return i;
+        }
+
+        return -1;
+    }
+
+    private static String normalizeLoose(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isLetterOrDigit(c)) {
+                out.append(Character.toLowerCase(c));
+            }
+        }
+        return out.toString();
     }
 }
