@@ -2,9 +2,10 @@ package org.foxesworld.kalitech.engine.api.impl;
 
 import org.foxesworld.kalitech.engine.api.interfaces.TimeApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
+import org.foxesworld.kalitech.engine.api.module.EngineTimeModule;
 
 @Deprecated
-public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
+public final class TimeApiImpl extends AbstractApiModule implements TimeApi, EngineTimeModule {
 
     private final long startNs = System.nanoTime();
     private volatile double tpf;
@@ -17,6 +18,7 @@ public final class TimeApiImpl extends AbstractApiModule implements TimeApi {
     /**
      * Called from main update thread once per frame.
      */
+    @Override
     public void update(double tpfSeconds) {
         // keep hot path minimal
         if (!(tpfSeconds > 0.0) || !Double.isFinite(tpfSeconds)) tpfSeconds = 0.0;

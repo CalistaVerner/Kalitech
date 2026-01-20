@@ -25,6 +25,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
+import org.foxesworld.kalitech.engine.api.module.EnginePhysicsModule;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
 import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
@@ -922,10 +923,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!registry.exists(surfaceId)) return 0;
 
         PhysicsApi p = this.physicsApi;
-        if (!(p instanceof PhysicsApiImpl impl)) return 0;
+        if (p == null) return 0;
 
         try {
-            return impl.bodyOfSurface(surfaceId);
+            return p.bodyOfSurface(surfaceId);
         } catch (RuntimeException ignored) {
             return 0;
         }
@@ -948,7 +949,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         onJmeSyncVoid("surface.destroy", () -> {
             PhysicsApi p = this.physicsApi;
-            if (p instanceof PhysicsApiImpl impl) impl.__cleanupSurface(target.id());
+            if (p instanceof EnginePhysicsModule impl) impl.cleanupSurface(target.id());
 
             registry.detachFromParent(target.id());
 
