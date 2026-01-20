@@ -17,7 +17,6 @@ import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
 import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.RenderApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
-import org.foxesworld.kalitech.engine.api.module.EngineRenderModule;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.modules.render.RenderCfg;
 import org.foxesworld.kalitech.engine.modules.render.RenderThread;
@@ -32,7 +31,7 @@ import org.graalvm.polyglot.Value;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
-public final class RenderApiImpl extends AbstractApiModule implements RenderApi, EngineRenderModule {
+public final class RenderApiImpl extends AbstractApiModule implements RenderApi {
 
     private static final Logger log = LogManager.getLogger(RenderApiImpl.class);
 
@@ -190,11 +189,6 @@ public final class RenderApiImpl extends AbstractApiModule implements RenderApi,
                 sky.skyDomeTexClear();
             });
         });
-    }
-
-    @Override
-    public void resetWorldCache(String reason) {
-        __resetWorldCache(reason);
     }
 
     public void __resetWorldCache(String reason) {

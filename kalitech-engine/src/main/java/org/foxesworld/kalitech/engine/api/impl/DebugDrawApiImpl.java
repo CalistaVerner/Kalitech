@@ -21,7 +21,6 @@ import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.DebugDrawApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.foxesworld.kalitech.engine.api.module.EngineDebugModule;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -45,7 +44,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
  *   <li>Thread-safe API: exported methods only enqueue commands; actual mesh rebuild is on JME thread.</li>
  * </ul>
  */
-public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi, EngineDebugModule {
+public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi {
 
     private final AtomicBoolean inited = new AtomicBoolean(false);
     private final Node node = new Node("__kt_debugDraw");
@@ -245,7 +244,6 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    @Override
     public void tick(double tpf) {
         if (!enabled) return;
 

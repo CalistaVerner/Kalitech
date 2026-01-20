@@ -3,20 +3,16 @@ package org.foxesworld.kalitech.engine.api;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetManager;
+import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.PhysicsSpace;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.KalitechApplication;
+import org.foxesworld.kalitech.engine.api.impl.*;
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.foxesworld.kalitech.engine.api.module.ApiModuleProvider;
 import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
-import org.foxesworld.kalitech.engine.api.module.EngineCameraModule;
-import org.foxesworld.kalitech.engine.api.module.EngineDebugModule;
-import org.foxesworld.kalitech.engine.api.module.EnginePhysicsModule;
-import org.foxesworld.kalitech.engine.api.module.EngineRenderModule;
-import org.foxesworld.kalitech.engine.api.module.EngineTimeModule;
 import org.foxesworld.kalitech.engine.api.registry.TaskRegistry;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
@@ -27,11 +23,7 @@ import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -50,6 +42,7 @@ public final class EngineApiImpl implements EngineApi {
     private volatile PhysicsSpace physicsSpace;
     private final ScriptRuntime runtime;
 
+    private final BulletAppState bullet;
 
     private final ApiContext apiCtx;
     private final ApiRegistry apiRegistry;
@@ -61,30 +54,24 @@ public final class EngineApiImpl implements EngineApi {
     private final EntityApi entityApi;
     private final RenderApi renderApi;
     private final CameraApi cameraApi;
-    private final TimeApi timeApi;
-    private final InputApi inputApi;
+    private final TimeApiImpl timeApi;
+    private final InputApiImpl inputApi;
     private final WorldApi worldApi;
     private final MaterialApi materialApi;
     private final EditorApi editorApi;
     private final EditorLinesApi editorLinesApi;
-    private final PhysicsApi physicsApi;
-    private final HudApi hudApi;
+    private final PhysicsApiImpl physicsApi;
+    private final HudApiImpl hudApi;
     private final MeshApi meshApi;
-    private final LightApi lightApi;
-    private final SoundApi soundApi;
-    private final DebugDrawApi debugApi;
-    private final ParticlesApi particles;
+    private final LightApiImpl lightApi;
+    private final SoundApiImpl soundApi;
+    private final DebugDrawApiImpl debugApi;
+    private final ParticlesApiImpl particles;
 
     private final SurfaceRegistry surfaceRegistry;
     private final SurfaceApi surfaceApi;
     private final TerrainApi terrainApi;
     private final TerrainSplatApi terrainSplatApi;
-
-    private final EngineTimeModule timeModule;
-    private final EngineCameraModule cameraModule;
-    private final EngineDebugModule debugModule;
-    private final EnginePhysicsModule physicsModule;
-    private final EngineRenderModule renderModule;
 
     private volatile double fps = 0.0;
     private double fpsAcc = 0.0;
@@ -96,6 +83,8 @@ public final class EngineApiImpl implements EngineApi {
 
     public EngineApiImpl(RuntimeAppState runtimeAppState) {
         Objects.requireNonNull(runtimeAppState, "runtimeAppState");
+
+        this.bullet = runtimeAppState.getBullet();
 
         PerfProfiler.Config pcfg = new PerfProfiler.Config();
         pcfg.enabled = boolProp("kalitech.perf.enabled", true);
@@ -127,40 +116,33 @@ public final class EngineApiImpl implements EngineApi {
         // NO legacy ctor
         this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
 
-        registerApiModules();
+        this.logApi = apiRegistry.register(new LogApiImpl());
+        this.assetsApi = apiRegistry.register(new AssetsApiImpl());
+        this.eventsApi = apiRegistry.register(new EventsApiImpl());
+        this.timeApi = apiRegistry.register(new TimeApiImpl());
+        this.inputApi = apiRegistry.register(new InputApiImpl());
 
-        this.logApi = requireApi(LogApi.class);
-        this.assetsApi = requireApi(AssetsApi.class);
-        this.eventsApi = requireApi(EventsApi.class);
-        this.timeApi = requireApi(TimeApi.class);
-        this.inputApi = requireApi(InputApi.class);
+        this.materialApi = apiRegistry.register(new MaterialApiImpl());
+        this.renderApi = apiRegistry.register(new RenderApiImpl());
+        this.entityApi = apiRegistry.register(new EntityApiImpl());
+        this.cameraApi = apiRegistry.register(new CameraApiImpl());
 
-        this.materialApi = requireApi(MaterialApi.class);
-        this.renderApi = requireApi(RenderApi.class);
-        this.entityApi = requireApi(EntityApi.class);
-        this.cameraApi = requireApi(CameraApi.class);
 
-        this.physicsApi = requireApi(PhysicsApi.class);
-        this.surfaceApi = requireApi(SurfaceApi.class);
+        this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
+        this.surfaceApi = apiRegistry.register(new SurfaceApiImpl());
 
-        this.terrainApi = requireApi(TerrainApi.class);
-        this.terrainSplatApi = requireApi(TerrainSplatApi.class);
-        this.editorLinesApi = requireApi(EditorLinesApi.class);
-        this.meshApi = requireApi(MeshApi.class);
+        this.terrainApi = apiRegistry.register(new TerrainApiImpl());
+        this.terrainSplatApi = apiRegistry.register(new TerrainSplatApiImpl());
+        this.editorLinesApi = apiRegistry.register(new EditorLinesApiImpl());
+        this.meshApi = apiRegistry.register(new MeshApiImpl());
 
-        this.lightApi = requireApi(LightApi.class);
-        this.soundApi = requireApi(SoundApi.class);
-        this.debugApi = requireApi(DebugDrawApi.class);
-        this.hudApi = requireApi(HudApi.class);
-        this.worldApi = requireApi(WorldApi.class);
-        this.editorApi = requireApi(EditorApi.class);
-        this.particles = requireApi(ParticlesApi.class);
-
-        this.timeModule = requireApi(EngineTimeModule.class);
-        this.cameraModule = requireApi(EngineCameraModule.class);
-        this.debugModule = requireApi(EngineDebugModule.class);
-        this.physicsModule = requireApi(EnginePhysicsModule.class);
-        this.renderModule = requireApi(EngineRenderModule.class);
+        this.lightApi = apiRegistry.register(new LightApiImpl());
+        this.soundApi = apiRegistry.register(new SoundApiImpl());
+        this.debugApi = apiRegistry.register(new DebugDrawApiImpl());
+        this.hudApi = apiRegistry.register(new HudApiImpl());
+        this.worldApi = apiRegistry.register(new WorldApiImpl());
+        this.editorApi = apiRegistry.register(new EditorApiImpl());
+        this.particles = apiRegistry.register(new ParticlesApiImpl());
     }
 
     private static boolean boolProp(String key, boolean def) {
@@ -179,15 +161,15 @@ public final class EngineApiImpl implements EngineApi {
         long t;
 
         t = perf.begin("time.update");
-        timeModule.update(tpf);
+        timeApi.update(tpf);
         perf.end("time.update", t);
 
         t = perf.begin("camera.flush");
-        cameraModule.flush();
+        if (cameraApi instanceof CameraApiImpl c) c.__flush();
         perf.end("camera.flush", t);
 
         t = perf.begin("debug.tick");
-        debugModule.tick(tpf);
+        debugApi.tick(tpf);
         perf.end("debug.tick", t);
 
         //try {
@@ -386,13 +368,15 @@ public final class EngineApiImpl implements EngineApi {
         }
 
         try {
-            physicsModule.clearAll();
+            physicsApi.__clearAll();
         } catch (Throwable t) {
             LOG.warn("__resetWorldState: physics.__clearAll failed reason={}", why, t);
         }
 
         try {
-            renderModule.resetWorldCache(why);
+            if (renderApi instanceof RenderApiImpl impl) {
+                impl.__resetWorldCache(why);
+            }
         } catch (Throwable t) {
             LOG.warn("__resetWorldState: render cache reset failed reason={}", why, t);
         }
@@ -417,7 +401,7 @@ public final class EngineApiImpl implements EngineApi {
 
         if (surfaceId != null) {
             try {
-                physicsModule.cleanupSurface(surfaceId);
+                physicsApi.__cleanupSurface(surfaceId);
             } catch (Throwable t) {
                 LOG.warn("__surfaceCleanupOnEntityDestroy: physics cleanup failed surfaceId={} entityUuid={}",
                         surfaceId, uuid, t);
@@ -495,41 +479,5 @@ public final class EngineApiImpl implements EngineApi {
     }
     public EcsWorld getEcs() {
         return ecs;
-    }
-
-    private void registerApiModules() {
-        ServiceLoader<ApiModuleProvider> loader = ServiceLoader.load(ApiModuleProvider.class);
-        List<ApiModuleProvider> providers = new ArrayList<>();
-        for (ApiModuleProvider provider : loader) {
-            providers.add(provider);
-        }
-
-        if (providers.isEmpty()) {
-            LOG.warn("[api] no ApiModuleProvider implementations found");
-            return;
-        }
-
-        providers.sort(Comparator.comparingInt(ApiModuleProvider::order).thenComparing(ApiModuleProvider::id));
-
-        for (ApiModuleProvider provider : providers) {
-            try {
-                provider.register(apiRegistry);
-                LOG.info("[api] ApiModuleProvider registered: id={} class={}",
-                        provider.id(), provider.getClass().getName());
-            } catch (Throwable t) {
-                LOG.error("[api] ApiModuleProvider failed: id={} class={}",
-                        provider.id(), provider.getClass().getName(), t);
-            }
-        }
-    }
-
-    private <T> T requireApi(Class<T> type) {
-        Objects.requireNonNull(type, "type");
-        for (ApiRegistry.Entry entry : apiRegistry.entries()) {
-            if (type.isInstance(entry.api)) {
-                return type.cast(entry.api);
-            }
-        }
-        throw new IllegalStateException("Missing API module for type: " + type.getName());
     }
 }

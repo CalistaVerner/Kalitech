@@ -4,7 +4,6 @@ import org.foxesworld.kalitech.engine.api.contract.*;
 import org.foxesworld.kalitech.engine.api.interfaces.CameraApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.foxesworld.kalitech.engine.api.module.EngineCameraModule;
 import org.foxesworld.kalitech.engine.modules.camera.Camera;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -17,7 +16,7 @@ import java.lang.reflect.Method;
  * <p>Threading:
  * - Mutations are batched and flushed once per frame on the JME thread.
  */
-public final class CameraApiImpl extends AbstractApiModule implements CameraApi, EngineCameraModule {
+public final class CameraApiImpl extends AbstractApiModule implements CameraApi {
 
     private static final Method M_LOCATION =
             method(CameraApiImpl.class, "location");
@@ -88,8 +87,7 @@ public final class CameraApiImpl extends AbstractApiModule implements CameraApi,
      * Engine-internal per-frame flush.
      * Should be called from JME update.
      */
-    @Override
-    public void flush() {
+    public void __flush() {
         Camera c = camera;
         if (c != null) c.flushOncePerFrame();
     }

@@ -19,7 +19,6 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsBodyHandle;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsRayHit;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.foxesworld.kalitech.engine.api.module.EnginePhysicsModule;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.modules.physics.core.PhysicsBodyOps;
 import org.foxesworld.kalitech.engine.modules.physics.runtime.PhysicsBodyStateTracker;
@@ -39,7 +38,7 @@ import java.lang.reflect.Method;
  * <p>This class must stay thin: all logic lives inside engine.modules.physics.* modules.
  * Exported methods are stable and only delegate to runtime services.</p>
  */
-public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi, EnginePhysicsModule {
+public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi {
 
     private static final Logger log = LogManager.getLogger(PhysicsApiImpl.class);
 
@@ -173,11 +172,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         return sp;
     }
 
-    @Override
-    public void clearAll() {
-        __clearAll();
-    }
-
     /**
      * Clears all physics runtime state.
      */
@@ -194,11 +188,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
     // ----------------------------------------------------------------------
     // Export API: debug / gravity
     // ----------------------------------------------------------------------
-
-    @Override
-    public void cleanupSurface(int surfaceId) {
-        __cleanupSurface(surfaceId);
-    }
 
     public void __cleanupSurface(int surfaceId) {
         if (svc == null || surfaceId <= 0) return;
