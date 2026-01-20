@@ -2,25 +2,14 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.render !== "function") {
-        throw new Error("[RENDER] engine.render() is required");
-    }
-    const api = engine.render();
-    if (!api) throw new Error("[RENDER] engine.render() returned null");
-    return api;
-}
-
-function normalizeCfg(cfg) {
-    return (cfg && typeof cfg === "object") ? cfg : {};
-}
+const {requireEngineApi, normalizeCfgObject} = require("../helpers/ModuleCommon.js");
 
 /**
  * Render API wrapper.
  * Provides simple methods that map directly to RenderApi contract.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "render", "RENDER");
 
     return Object.freeze({
         /** Ensure render scene is initialized. */
@@ -31,31 +20,31 @@ function create(engine /*, K */) {
 
         /** Configure ambient light. */
         ambient(cfg) {
-            api.ambientCfg(normalizeCfg(cfg));
+            api.ambientCfg(normalizeCfgObject(cfg));
             return true;
         },
 
         /** Configure sun (directional) light. */
         sun(cfg) {
-            api.sunCfg(normalizeCfg(cfg));
+            api.sunCfg(normalizeCfgObject(cfg));
             return true;
         },
 
         /** Configure sun shadows. */
         sunShadows(cfg) {
-            api.sunShadowsCfg(normalizeCfg(cfg));
+            api.sunShadowsCfg(normalizeCfgObject(cfg));
             return true;
         },
 
         /** Configure fog. */
         fog(cfg) {
-            api.fogCfg(normalizeCfg(cfg));
+            api.fogCfg(normalizeCfgObject(cfg));
             return true;
         },
 
         /** Configure post-processing. */
         post(cfg) {
-            api.postCfg(normalizeCfg(cfg));
+            api.postCfg(normalizeCfgObject(cfg));
             return true;
         },
 

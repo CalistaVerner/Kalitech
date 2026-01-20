@@ -2,21 +2,14 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.editor !== "function") {
-        throw new Error("[EDITOR] engine.editor() is required");
-    }
-    const api = engine.editor();
-    if (!api) throw new Error("[EDITOR] engine.editor() returned null");
-    return api;
-}
+const {requireEngineApi} = require("../helpers/ModuleCommon.js");
 
 /**
  * Editor API wrapper.
  * Provides explicit toggles for runtime editor helpers.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "editor", "EDITOR");
 
     return Object.freeze({
         enabled: () => !!api.enabled(),

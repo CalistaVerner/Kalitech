@@ -2,14 +2,7 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.surface !== "function") {
-        throw new Error("[SURFACE] engine.surface() is required");
-    }
-    const api = engine.surface();
-    if (!api) throw new Error("[SURFACE] engine.surface() returned null");
-    return api;
-}
+const {requireEngineApi} = require("../helpers/ModuleCommon.js");
 
 function requireHandle(handle, method) {
     if (!handle) throw new Error("[SURFACE] " + method + " requires a SurfaceHandle");
@@ -21,7 +14,7 @@ function requireHandle(handle, method) {
  * Exposes strict handle-based operations and world picking helpers.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "surface", "SURFACE");
 
     return Object.freeze({
         setMaterial(handle, materialHandleOrCfg) {

@@ -2,29 +2,18 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.editorLines !== "function") {
-        throw new Error("[EDITOR_LINES] engine.editorLines() is required");
-    }
-    const api = engine.editorLines();
-    if (!api) throw new Error("[EDITOR_LINES] engine.editorLines() returned null");
-    return api;
-}
-
-function normalizeCfg(cfg) {
-    return (cfg && typeof cfg === "object") ? cfg : {};
-}
+const {requireEngineApi, normalizeCfgObject} = require("../helpers/ModuleCommon.js");
 
 /**
  * Editor lines API wrapper.
  * Manages editor-only grid plane helpers.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "editorLines", "EDITOR_LINES");
 
     return Object.freeze({
         createGridPlane(cfg) {
-            return api.createGridPlane(normalizeCfg(cfg));
+            return api.createGridPlane(normalizeCfgObject(cfg));
         },
 
         destroy(handle) {
