@@ -2,27 +2,7 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    const fn = engine && engine.assets;
-    if (typeof fn !== "function") {
-        throw new Error("[ASSETS] engine.assets() is required");
-    }
-
-    const api = fn.call(engine);
-    if (!api) {
-        throw new Error("[ASSETS] engine.assets() returned null");
-    }
-    if (typeof api.readText !== "function") {
-        throw new Error("[ASSETS] engine.assets() must provide readText(path)");
-    }
-    if (typeof api.loadModel !== "function") {
-        throw new Error("[ASSETS] engine.assets() must provide loadModel(path, cfg)");
-    }
-    // Optional but very useful for verified JS loader fallback
-    // (AssetsApiImpl exports readJsVerified)
-    // We don't hard-require it to keep backward compatibility.
-    return api;
-}
+const {requireEngineApi, normalizeNullableObject} = require("../helpers/ModuleCommon.js");
 
 function normalizePath(path, label) {
     const p = String(path || "").trim();
@@ -31,10 +11,7 @@ function normalizePath(path, label) {
 }
 
 function normalizeCfg(cfg) {
-    if (cfg === undefined) return null;
-    if (cfg === null) return null;
-    if (typeof cfg === "object") return cfg;
-    throw new Error("[ASSETS] cfg must be an object or null");
+    return normalizeNullableObject(cfg, "ASSETS", "cfg");
 }
 
 /**
@@ -48,7 +25,16 @@ function normalizeCfg(cfg) {
 function create(engine /*, K */) {
     if (!engine) throw new Error("[ASSETS] engine is required");
 
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "assets", "ASSETS");
+    if (typeof api.readText !== "function") {
+        throw new Error("[ASSETS] engine.assets() must provide readText(path)");
+    }
+    if (typeof api.loadModel !== "function") {
+        throw new Error("[ASSETS] engine.assets() must provide loadModel(path, cfg)");
+    }
+    // Optional but very useful for verified JS loader fallback
+    // (AssetsApiImpl exports readJsVerified)
+    // We don't hard-require it to keep backward compatibility.
 
     function readText(path) {
         return api.readText(normalizePath(path, "path"));

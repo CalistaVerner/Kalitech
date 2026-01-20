@@ -2,35 +2,24 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.light !== "function") {
-        throw new Error("[LIGHT] engine.light() is required");
-    }
-    const api = engine.light();
-    if (!api) throw new Error("[LIGHT] engine.light() returned null");
-    return api;
-}
-
-function normalizeCfg(cfg) {
-    return (cfg && typeof cfg === "object") ? cfg : {};
-}
+const {requireEngineApi, normalizeCfgObject} = require("../helpers/ModuleCommon.js");
 
 /**
  * Light API wrapper.
  * Provides safe helpers for creating and managing light handles.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "light", "LIGHT");
 
     return Object.freeze({
         /** Create a new light and return its handle. */
         create(cfg) {
-            return api.create(normalizeCfg(cfg));
+            return api.create(normalizeCfgObject(cfg));
         },
 
         /** Update an existing light. */
         set(handle, cfg) {
-            api.set(handle, normalizeCfg(cfg));
+            api.set(handle, normalizeCfgObject(cfg));
             return handle;
         },
 

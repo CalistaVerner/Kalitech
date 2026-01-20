@@ -2,21 +2,14 @@
 // Author: Kalitech
 "use strict";
 
-function requireApi(engine) {
-    if (!engine || typeof engine.time !== "function") {
-        throw new Error("[TIME] engine.time() is required");
-    }
-    const api = engine.time();
-    if (!api) throw new Error("[TIME] engine.time() returned null");
-    return api;
-}
+const {requireEngineApi} = require("../helpers/ModuleCommon.js");
 
 /**
  * Time API wrapper.
  * Provides stable access to frame timing values.
  */
 function create(engine /*, K */) {
-    const api = requireApi(engine);
+    const api = requireEngineApi(engine, "time", "TIME");
     const worldApi = (engine && typeof engine.world === "function") ? engine.world() : null;
 
     function snapshot() {
