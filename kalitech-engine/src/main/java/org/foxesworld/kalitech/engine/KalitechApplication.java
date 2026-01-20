@@ -37,7 +37,6 @@ public class KalitechApplication extends SimpleApplication {
         BaseStyles.loadGlassStyle();
         GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
 
-
         var ecs = new org.foxesworld.kalitech.engine.ecs.EcsWorld();
         var bus = new org.foxesworld.kalitech.engine.script.events.ScriptEventBus();
 

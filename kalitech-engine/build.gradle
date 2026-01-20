@@ -10,7 +10,9 @@ application {
 
 repositories {
     mavenCentral()
-    maven { url "https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/" }
+    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/") }
+    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies/") } // JCEF
+    maven { url = uri("https://jogamp.org/deployment/maven/") } // JOGL/GlueGen
 }
 
 
@@ -26,8 +28,8 @@ dependencies {
     api "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
 
-        implementation "me.friwi:jcefmaven:110.0.25.1"
-        runtimeOnly "me.friwi:jcef-natives-windows-amd64:jcef-87476e9+cef-110.0.25+g75b1c96+chromium-110.0.5481.78"
+    implementation 'me.friwi:jcefmaven:141.0.10'
+    implementation 'me.friwi:jcef-natives-windows-amd64:jcef-2caef5a+cef-141.0.10+g1d65b0d+chromium-141.0.7390.123'
 
 
 

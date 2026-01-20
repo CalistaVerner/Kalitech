@@ -16,8 +16,6 @@ import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.foxesworld.kalitech.engine.modules.ui.chromium.ChromiumService;
-import org.foxesworld.kalitech.engine.modules.ui.chromium.ChromiumUiModule;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -73,8 +71,6 @@ public final class EngineApiImpl implements EngineApi {
     private final SurfaceApi surfaceApi;
     private final TerrainApi terrainApi;
     private final TerrainSplatApi terrainSplatApi;
-    private ChromiumUiModule chromiumUi;
-    private ChromiumService chromiumService;
 
 
     private volatile double fps = 0.0;
@@ -145,30 +141,6 @@ public final class EngineApiImpl implements EngineApi {
         this.hudApi = apiRegistry.register(new HudApiImpl());
 
 
-        // ------------------------------------------------------------
-        // Chromium OSR test bootstrap (temporary)
-        // Enable with: -Dkalitech.chromium.enabled=true
-        // ------------------------------------------------------------
-        try {
-            boolean enabled = boolProp("kalitech.chromium.enabled", false);
-            if (enabled) {
-                int w = intProp("kalitech.chromium.w", 1024);
-                int h = intProp("kalitech.chromium.h", 640);
-                String url = System.getProperty("kalitech.chromium.url", "https://example.com");
-
-                chromiumService = new org.foxesworld.kalitech.engine.modules.ui.chromium.ChromiumService(new File("test"));
-                chromiumUi = new org.foxesworld.kalitech.engine.modules.ui.chromium.ChromiumUiModule(app, app.getGuiNode(), chromiumService);
-
-                // Only request here, no initOnce()
-                chromiumUi.requestInit(w, h, url);
-
-                LOG.info("[chromium] requested init w={} h={} url={}", w, h, url);
-            }
-        } catch (Throwable t) {
-            LOG.warn("[chromium] request failed", t);
-        }
-
-
 
         this.worldApi = apiRegistry.register(new WorldApiImpl());
         this.editorApi = apiRegistry.register(new EditorApiImpl());
@@ -204,12 +176,7 @@ public final class EngineApiImpl implements EngineApi {
 
 
         t = perf.begin("ui.chromium.tick");
-        try {
-            if (chromiumUi != null) {
-                chromiumUi.tick();
-            }
-        } catch (Throwable ignored) {
-        }
+
         perf.end("ui.chromium.tick", t);
 
         perf.endFrame(tpf);
