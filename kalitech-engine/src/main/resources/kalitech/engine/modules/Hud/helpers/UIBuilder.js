@@ -14,14 +14,12 @@ class UIBuilder {
     }
 
     use(panelOrId) {
-        const p = (typeof panelOrId === "string") ? this.layer.get(panelOrId) : panelOrId;
-        this.panel = p || null;
-        return this;
-    }
-
-    text(id, text, cfg) {
-        if (this.panel && this.panel.kind === "panel") this.panel.text(id, text, cfg);
-        else this.layer.text(Object.assign({}, cfg || {}, {id, text}));
+        if (!panelOrId) throw new Error("[HUD] ui().use requires panel or id");
+        const p = (typeof panelOrId === "string" || typeof panelOrId === "number")
+            ? this.layer.get(panelOrId)
+            : panelOrId;
+        if (!p || p.kind !== "panel") throw new Error("[HUD] ui().use expects panel");
+        this.panel = p;
         return this;
     }
 
