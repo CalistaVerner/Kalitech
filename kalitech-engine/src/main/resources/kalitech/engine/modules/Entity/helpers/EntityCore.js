@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/helpers/entity/EntityCore.js
 "use strict";
 
 function req(v, msg) {
@@ -6,9 +5,8 @@ function req(v, msg) {
     return v;
 }
 
-function reqFn(fn, msg) {
-    if (typeof fn !== "function") throw new Error(msg);
-    return fn;
+function isObj(x) {
+    return x != null && typeof x === "object";
 }
 
 class EntityCore {
@@ -17,9 +15,12 @@ class EntityCore {
         this.body = null;
         this.bodyAccess = null;
 
-        this.uuid = "";     // UUID-only
+        this.uuid = "";
         this.surfaceId = 0;
         this.bodyId = 0;
+
+        this.snapshot = null;
+        this.components = Object.create(null);
 
         this._getPos = null;
         this._getVel = null;
@@ -30,8 +31,8 @@ class EntityCore {
 
         this.state = {
             alive: false,
+            uuid: "",
 
-            uuid: "",        // mirrored into state for convenience
             mass: 0,
             radius: 0,
             height: 0,
@@ -65,12 +66,43 @@ class EntityCore {
         return this;
     }
 
+    /**
+     * Hydrate mirror from ECS snapshot (read-only).
+     * @param {*} snapshot
+     * @returns {EntityCore}
+     */
+    hydrate(snapshot) {
+        if (!isObj(snapshot)) return this;
+
+        this.snapshot = snapshot;
+
+        if (isObj(snapshot.components)) {
+            const c = snapshot.components;
+            for (const k of Object.keys(c)) this.components[k] = c[k];
+        }
+
+        if (typeof snapshot.uuid === "string" && snapshot.uuid) {
+            this.uuid = snapshot.uuid;
+            this.state.uuid = this.uuid;
+        }
+        if (snapshot.surfaceId != null) this.surfaceId = (snapshot.surfaceId | 0);
+        if (snapshot.bodyId != null) this.bodyId = (snapshot.bodyId | 0);
+
+        return this;
+    }
+
     attach(handle, body, bodyAccess) {
         this.handle = req(handle, "[EntityCore] handle is required");
         this.body = body || null;
-        this.bodyAccess = req(bodyAccess, "[EntityCore] bodyAccess is required");
 
-        // UUID-only core
+        const ba = req(bodyAccess, "[EntityCore] bodyAccess is required");
+        if (typeof ba.position !== "function") throw new Error("[EntityCore] bodyAccess.position() is required");
+        if (typeof ba.getVel !== "function") throw new Error("[EntityCore] bodyAccess.getVel() is required");
+        if (typeof ba.rotation !== "function") throw new Error("[EntityCore] bodyAccess.rotation() is required");
+        if (typeof ba.getAngVel !== "function") throw new Error("[EntityCore] bodyAccess.getAngVel() is required");
+
+        this.bodyAccess = ba;
+
         const u =
             (typeof handle.uuidString === "function" ? handle.uuidString() : handle.uuid) || "";
 
@@ -79,14 +111,12 @@ class EntityCore {
 
         this.surfaceId = (handle.surfaceId | 0) || 0;
         this.bodyId = (handle.bodyId | 0) || 0;
-
         if (this.bodyId <= 0) throw new Error("[EntityCore] invalid bodyId=" + this.bodyId);
 
-        this._getPos = reqFn(this.bodyAccess.position, "[EntityCore] bodyAccess.position() is required");
-        this._getVel = reqFn(this.bodyAccess.getVel, "[EntityCore] bodyAccess.getVel() is required");
-
-        this._getRot = this._resolveRotationAccessor(this.bodyAccess);
-        this._getAngVel = this._resolveAngularVelocityAccessor(this.bodyAccess);
+        this._getPos = ba.position;
+        this._getVel = ba.getVel;
+        this._getRot = ba.rotation;
+        this._getAngVel = ba.getAngVel;
 
         this.state.uuid = this.uuid;
         this.state.alive = true;
@@ -104,7 +134,7 @@ class EntityCore {
         const px = this._num(p.x), py = this._num(p.y), pz = this._num(p.z);
         const vx = this._num(v.x), vy = this._num(v.y), vz = this._num(v.z);
 
-        const rx = this._qx(q), ry = this._qy(q), rz = this._qz(q), rw = this._qw(q);
+        const rx = this._comp(q, "x"), ry = this._comp(q, "y"), rz = this._comp(q, "z"), rw = this._comp(q, "w");
 
         const avx = this._num(av.x), avy = this._num(av.y), avz = this._num(av.z);
 
@@ -133,14 +163,6 @@ class EntityCore {
         return s;
     }
 
-    model() {
-        const h = this.handle;
-        if (!h) return null;
-        if (typeof h.getModel === "function") return h.getModel();
-        if (h.model !== undefined) return h.model;
-        return null;
-    }
-
     destroy() {
         if (!this.state.alive) return;
 
@@ -154,6 +176,9 @@ class EntityCore {
         this.surfaceId = 0;
         this.bodyId = 0;
 
+        this.snapshot = null;
+        this.components = Object.create(null);
+
         this._getPos = null;
         this._getVel = null;
         this._getRot = null;
@@ -165,70 +190,6 @@ class EntityCore {
         this.state.alive = false;
     }
 
-    _resolveRotationAccessor(ba) {
-        const direct = [
-            "rotation", "getRotation", "getRot",
-            "quat", "getQuat", "getQuaternion",
-            "orientation", "getOrientation",
-            "getWorldRotation", "worldRotation"
-        ];
-        for (let i = 0; i < direct.length; i++) {
-            const fn = ba[direct[i]];
-            if (typeof fn === "function") return fn.bind(ba);
-        }
-
-        const tKeys = ["transform", "getTransform", "worldTransform", "getWorldTransform"];
-        for (let i = 0; i < tKeys.length; i++) {
-            const tf = ba[tKeys[i]];
-            if (typeof tf !== "function") continue;
-
-            return () => {
-                const t = tf.call(ba);
-                if (!t) throw new Error("[EntityCore] transform is null");
-
-                if (typeof t.rotation === "function") return t.rotation();
-                if (t.rotation !== undefined) return t.rotation;
-
-                if (typeof t.getRotation === "function") return t.getRotation();
-                if (typeof t.getQuaternion === "function") return t.getQuaternion();
-
-                throw new Error("[EntityCore] cannot extract rotation from transform");
-            };
-        }
-
-        return () => ({x: 0, y: 0, z: 0, w: 1});
-    }
-
-    _resolveAngularVelocityAccessor(ba) {
-        const keys = [
-            "getAngVel", "angVel",
-            "getAngularVelocity", "angularVelocity",
-            "getOmega", "omega"
-        ];
-        for (let i = 0; i < keys.length; i++) {
-            const fn = ba[keys[i]];
-            if (typeof fn === "function") return fn.bind(ba);
-        }
-
-        const tKeys = ["transform", "getTransform", "worldTransform", "getWorldTransform"];
-        for (let i = 0; i < tKeys.length; i++) {
-            const tf = ba[tKeys[i]];
-            if (typeof tf !== "function") continue;
-
-            return () => {
-                const t = tf.call(ba);
-                if (!t) return {x: 0, y: 0, z: 0};
-
-                if (typeof t.angularVelocity === "function") return t.angularVelocity();
-                if (t.angularVelocity !== undefined) return t.angularVelocity;
-
-                return {x: 0, y: 0, z: 0};
-            };
-        }
-
-        return () => ({x: 0, y: 0, z: 0});
-    }
-
     _num(v) {
         return (typeof v === "function") ? +v() : +v;
     }
@@ -236,22 +197,6 @@ class EntityCore {
     _comp(o, k) {
         const v = o ? o[k] : undefined;
         return (typeof v === "function") ? +v.call(o) : +v;
-    }
-
-    _qx(q) {
-        return this._comp(q, "x");
-    }
-
-    _qy(q) {
-        return this._comp(q, "y");
-    }
-
-    _qz(q) {
-        return this._comp(q, "z");
-    }
-
-    _qw(q) {
-        return this._comp(q, "w");
     }
 }
 

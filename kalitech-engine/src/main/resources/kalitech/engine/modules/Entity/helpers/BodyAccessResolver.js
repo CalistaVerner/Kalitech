@@ -1,79 +1,304 @@
-// FILE: resources/kalitech/builtin/helpers/entity/BodyAccessResolver.js
 "use strict";
 
-/**
- * Unified strict body access for EntityCore/EntityHandle.
- *
- * Required ENGINE.physics contract:
- *   - position(bodyId) -> {x,y,z} | [x,y,z]
- *   - velocity(bodyId) -> {x,y,z} | [x,y,z]
- *   - velocity(bodyId, vec3) -> void
- *
- * Optional:
- *   - teleport(bodyId, vec3) or warp(bodyId, vec3)
- *   - applyImpulse(bodyId, vec3)
- *   - applyCentralForce(bodyId, vec3)
- *   - yaw(bodyId, yawRad)
- *   - lockRotation(bodyId, bool)
- *   - remove(bodyId)
- */
-function resolveBodyAccess(physics, _bodyHandle, bodyId) {
-    if (!physics) throw new Error("[ENT] physics missing");
-    const id = bodyId | 0;
-    if (id <= 0) throw new Error("[ENT] invalid bodyId=" + id);
+function pickFn(obj, names) {
+    if (!obj) return null;
+    for (let i = 0; i < names.length; i++) {
+        const k = names[i];
+        const fn = obj[k];
+        if (typeof fn === "function") return fn.bind(obj);
+    }
+    return null;
+}
 
-    if (typeof physics.position !== "function") throw new Error("[ENT] ENGINE.physics.position(bodyId) missing");
-    if (typeof physics.velocity !== "function") throw new Error("[ENT] ENGINE.physics.velocity(bodyId[,vec3]) missing");
+function constFn(v) {
+    return function () {
+        return v;
+    };
+}
 
-    const hasTeleport = typeof physics.teleport === "function";
-    const hasWarp = typeof physics.warp === "function";
+function toXYZ(a, b, c) {
+    if (a != null && typeof a === "object") {
+        const x = a.x;
+        const y = a.y;
+        const z = a.z;
+        return {
+            x: (typeof x === "function") ? +x() : +x,
+            y: (typeof y === "function") ? +y() : +y,
+            z: (typeof z === "function") ? +z() : +z
+        };
+    }
+    return {x: +a || 0, y: +b || 0, z: +c || 0};
+}
 
-    const teleportImpl = hasTeleport
-        ? (x, y, z) => physics.teleport(id, {x, y, z})
-        : hasWarp
-            ? (x, y, z) => physics.warp(id, {x, y, z})
-            : null;
+function makeAdapter(raw, physicsApi, bodyId) {
+    if (!raw || typeof raw !== "object") return null;
 
-    const setVel = (v) => physics.velocity(id, v);
+    const pos = pickFn(raw, [
+        "position", "getPosition", "pos", "getPos", "worldPosition", "getWorldPosition"
+    ]);
 
-    const applyImpulse = (typeof physics.applyImpulse === "function")
-        ? (ix, iy, iz) => physics.applyImpulse(id, {x: ix, y: iy, z: iz})
-        : null;
+    const vel = pickFn(raw, [
+        "getVel", "vel", "velocity", "getVelocity",
+        "linearVelocity", "getLinearVelocity",
+        "getLinearVel", "linearVel", "getLinVel"
+    ]);
 
-    const applyCentralForce = (typeof physics.applyCentralForce === "function")
-        ? (fx, fy, fz) => physics.applyCentralForce(id, {x: fx, y: fy, z: fz})
-        : null;
+    const rot = pickFn(raw, [
+        "rotation", "getRotation", "getRot",
+        "quat", "getQuat", "getQuaternion",
+        "orientation", "getOrientation",
+        "worldRotation", "getWorldRotation"
+    ]);
 
-    const setYaw = (typeof physics.yaw === "function")
-        ? (yaw) => physics.yaw(id, +yaw || 0)
-        : null;
+    const ang = pickFn(raw, [
+        "getAngVel", "angVel",
+        "angularVelocity", "getAngularVelocity",
+        "omega", "getOmega"
+    ]);
 
-    const lockRotation = (typeof physics.lockRotation === "function")
-        ? (lock) => physics.lockRotation(id, !!lock)
-        : null;
+    const tr = pickFn(raw, [
+        "transform", "getTransform",
+        "worldTransform", "getWorldTransform"
+    ]);
 
-    const remove = (typeof physics.remove === "function")
-        ? () => physics.remove(id)
-        : null;
+    // Write methods on raw (if present)
+    const rawApplyImpulse = pickFn(raw, [
+        "applyImpulse", "applyCentralImpulse",
+        "impulse", "addImpulse", "applyLinearImpulse",
+        "applyImpulseWorld", "applyWorldImpulse"
+    ]);
+
+    const rawSetVel = pickFn(raw, [
+        "setVel", "setVelocity",
+        "setLinearVelocity", "setLinearVel",
+        "velocitySet", "linearVelocitySet"
+    ]);
+
+    const rawSetPos = pickFn(raw, [
+        "setPos", "setPosition",
+        "teleport", "warp", "setWorldPosition"
+    ]);
+
+    // Fallback to physics api (by id) if raw does not support it
+    const pid = bodyId | 0;
+
+    function apiApplyImpulse(x, y, z) {
+        if (!physicsApi || pid <= 0) return false;
+
+        const f = physicsApi;
+
+        // Try a few common shapes of API:
+        // applyImpulse(id, x,y,z) / applyImpulse(id, vec)
+        if (typeof f.applyImpulse === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.applyImpulse(pid, x);
+                else f.applyImpulse(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        // impulse(id, x,y,z) / impulse(id, vec)
+        if (typeof f.impulse === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.impulse(pid, x);
+                else f.impulse(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        // addImpulse(id, ...)
+        if (typeof f.addImpulse === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.addImpulse(pid, x);
+                else f.addImpulse(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        return false;
+    }
+
+    function apiSetVel(x, y, z) {
+        if (!physicsApi || pid <= 0) return false;
+
+        const f = physicsApi;
+
+        if (typeof f.setVel === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.setVel(pid, x);
+                else f.setVel(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        if (typeof f.setVelocity === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.setVelocity(pid, x);
+                else f.setVelocity(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        if (typeof f.setLinearVelocity === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.setLinearVelocity(pid, x);
+                else f.setLinearVelocity(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        return false;
+    }
+
+    function apiSetPos(x, y, z) {
+        if (!physicsApi || pid <= 0) return false;
+
+        const f = physicsApi;
+
+        if (typeof f.setPos === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.setPos(pid, x);
+                else f.setPos(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        if (typeof f.setPosition === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.setPosition(pid, x);
+                else f.setPosition(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        if (typeof f.teleport === "function") {
+            try {
+                if (arguments.length === 1 && x && typeof x === "object") f.teleport(pid, x);
+                else f.teleport(pid, x, y, z);
+                return true;
+            } catch (_ignored) {
+            }
+        }
+
+        return false;
+    }
+
+    const zeroV = {x: 0, y: 0, z: 0};
+    const identQ = {x: 0, y: 0, z: 0, w: 1};
 
     return Object.freeze({
-        bodyId: id,
+        raw,
 
-        position: () => physics.position(id),
+        // Reads (stable)
+        position: pos || constFn(zeroV),
+        getVel: vel || constFn(zeroV),
+        rotation: rot || constFn(identQ),
+        getAngVel: ang || constFn(zeroV),
+        transform: tr || null,
 
-        getVel: () => physics.velocity(id),
-        setVel,
+        // Writes (stable)
+        applyImpulse: function (a, b, c) {
+            const v = toXYZ(a, b, c);
 
-        teleport: teleportImpl,
+            if (rawApplyImpulse) {
+                // Prefer raw method, try both vec and xyz shapes
+                try {
+                    rawApplyImpulse(v);
+                    return;
+                } catch (_ignored) {
+                }
+                try {
+                    rawApplyImpulse(v.x, v.y, v.z);
+                    return;
+                } catch (_ignored) {
+                }
+            }
 
-        applyImpulse,
-        applyCentralForce,
+            if (apiApplyImpulse(v, v.y, v.z)) return;
+            if (apiApplyImpulse(v.x, v.y, v.z)) return;
 
-        setYaw,
-        lockRotation,
+            throw new Error("[BodyAccess] applyImpulse not supported by raw body nor physics api (bodyId=" + pid + ")");
+        },
 
-        remove
+        setVel: function (a, b, c) {
+            const v = toXYZ(a, b, c);
+
+            if (rawSetVel) {
+                try {
+                    rawSetVel(v);
+                    return;
+                } catch (_ignored) {
+                }
+                try {
+                    rawSetVel(v.x, v.y, v.z);
+                    return;
+                } catch (_ignored) {
+                }
+            }
+
+            if (apiSetVel(v, v.y, v.z)) return;
+            if (apiSetVel(v.x, v.y, v.z)) return;
+
+            throw new Error("[BodyAccess] setVel not supported by raw body nor physics api (bodyId=" + pid + ")");
+        },
+
+        setPos: function (a, b, c) {
+            const v = toXYZ(a, b, c);
+
+            if (rawSetPos) {
+                try {
+                    rawSetPos(v);
+                    return;
+                } catch (_ignored) {
+                }
+                try {
+                    rawSetPos(v.x, v.y, v.z);
+                    return;
+                } catch (_ignored) {
+                }
+            }
+
+            if (apiSetPos(v, v.y, v.z)) return;
+            if (apiSetPos(v.x, v.y, v.z)) return;
+
+            throw new Error("[BodyAccess] setPos not supported by raw body nor physics api (bodyId=" + pid + ")");
+        }
     });
+}
+
+function resolveBodyAccess(physicsApi, bodyObj, bodyId) {
+    if (!physicsApi) throw new Error("[BodyAccessResolver] physics api is required");
+
+    if (bodyObj && typeof bodyObj === "object") {
+        const adapted = makeAdapter(bodyObj, physicsApi, bodyId);
+        if (!adapted) throw new Error("[BodyAccessResolver] failed to adapt body object");
+        return adapted;
+    }
+
+    const id = bodyId | 0;
+    if (id <= 0) return null;
+
+    let raw = null;
+    if (typeof physicsApi.body === "function") raw = physicsApi.body(id);
+    else if (typeof physicsApi.getBody === "function") raw = physicsApi.getBody(id);
+    else if (typeof physicsApi.bodyRef === "function") raw = physicsApi.bodyRef(id);
+
+    if (!raw) {
+        throw new Error("[BodyAccessResolver] physics body accessor missing or returned null for id=" + id);
+    }
+
+    const adapted = makeAdapter(raw, physicsApi, id);
+    if (!adapted) throw new Error("[BodyAccessResolver] failed to adapt body for id=" + id);
+
+    return adapted;
 }
 
 module.exports = {resolveBodyAccess};

@@ -189,6 +189,20 @@ class EntityHandle {
         }
     }
 
+    snapshot() {
+        const ent = this.engine && this.engine.entity ? this.engine.entity() : null;
+        const uuid = this.uuidString();
+        if (!ent || !uuid || typeof ent.snapshot !== "function") return null;
+        return ent.snapshot(uuid);
+    }
+
+    hydrateCore() {
+        if (!this.core) return null;
+        const snap = this.snapshot();
+        if (snap) this.core.hydrate(snap);
+        return this.core;
+    }
+
     addDestroyer(fn) {
         if (typeof fn !== "function") throw new Error("[ENT] addDestroyer(fn): fn must be a function");
         this._destroyers.push(fn);

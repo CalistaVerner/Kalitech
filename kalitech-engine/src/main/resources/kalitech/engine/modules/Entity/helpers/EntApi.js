@@ -14,6 +14,13 @@ function isUuidString(s) {
     return x.length >= 32 && x.indexOf("-") > 0;
 }
 
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (_ignored) {
+    }
+}
+
 class EntApi {
     constructor(engine, K) {
         this.engine = engine;
@@ -137,7 +144,6 @@ class EntApi {
                 const sCfg = deepMerge({}, surfCfg);
                 if (sCfg.pos != null) sCfg.pos = vec3(sCfg.pos, 0, 0, 0);
 
-                // If surfaceCfg carries physics block, it may create body implicitly in mesh/surface pipeline.
                 if (sCfg.physics != null) {
                     surfaceHadPhysics = true;
                     if (bodyCfg) {
@@ -147,7 +153,7 @@ class EntApi {
                 }
 
                 ctx.surface = mesh.create(sCfg);
-                ctx.surfaceId = idOf(ctx.surface, "surface");
+                ctx.surfaceId = (idOf(ctx.surface, "surface") | 0);
                 createdSurfaceId = ctx.surfaceId | 0;
 
                 const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
@@ -159,14 +165,12 @@ class EntApi {
                 }
             }
 
-            // Explicit body
             if (bodyCfg) {
                 const made = this._physBind.createBody(this._bodyDefaults, bodyCfg, ctx.surface, surfCfg);
-                ctx.body = made.body;
-                ctx.bodyId = made.bodyId | 0;
+                ctx.body = made.body || null;
+                ctx.bodyId = (made.bodyId | 0);
                 createdBodyId = ctx.bodyId | 0;
             } else if (surfaceHadPhysics && ctx.surface) {
-                // Try resolve implicit body created by surface.physics
                 const bid = this._physBind.resolveBodyIdBySurface(ctx.surfaceId || ctx.surface);
                 if ((bid | 0) > 0) {
                     ctx.bodyId = bid | 0;
@@ -175,24 +179,20 @@ class EntApi {
                 }
             }
 
-            // --- PROD RULE: if core required -> ensure body exists (auto-body from surface collider) ---
             const requireCore = (cfg.requireCore !== false);
             if (requireCore && (ctx.bodyId | 0) <= 0) {
                 if (!ctx.surface) {
-                    throw new Error("[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider (capsule/box/sphere). uuid=" + ctx.uuid);
+                    throw new Error("[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider. uuid=" + ctx.uuid);
                 }
-
-                // Create default body using inferred collider from surfaceCfg
                 const made = this._physBind.createBody(this._bodyDefaults, {}, ctx.surface, surfCfg);
-                ctx.body = made.body;
-                ctx.bodyId = made.bodyId | 0;
+                ctx.body = made.body || null;
+                ctx.bodyId = (made.bodyId | 0);
                 createdBodyId = ctx.bodyId | 0;
 
                 if ((ctx.bodyId | 0) <= 0) {
                     throw new Error("[ENT] core auto-body failed (physics.body returned invalid id). uuid=" + ctx.uuid);
                 }
             }
-            // ------------------------------------------------------------------------------
 
             const comps = cfg.components;
             if (comps && typeof comps === "object") {
@@ -219,9 +219,23 @@ class EntApi {
             const handle = new EntityHandle(engine, ctx);
 
             let core = null;
-            if ((ctx.bodyId | 0) > 0) {
+            if (requireCore) {
                 const bodyAccess = resolveBodyAccess(phys, ctx.body, ctx.bodyId | 0);
                 core = new EntityCore().attach(handle, ctx.body, bodyAccess);
+
+                // Hard contract for player: identity must be available immediately
+                core.uuid = ctx.uuid;
+                core.bodyId = ctx.bodyId | 0;
+                core.surfaceId = ctx.surfaceId | 0;
+                if (core.state && typeof core.state === "object") {
+                    core.state.uuid = core.uuid;
+                }
+
+                // Optional: hydrate from snapshot if supported
+                if (typeof core.hydrate === "function" && typeof ent.snapshot === "function") {
+                    const snap = ent.snapshot(ctx.uuid);
+                    core.hydrate(snap);
+                }
 
                 if (cfg.shape) {
                     const sh = cfg.shape || {};
@@ -253,27 +267,15 @@ class EntApi {
             });
 
         } catch (e) {
-            try {
-                if ((createdBodyId | 0) > 0 && typeof phys.remove === "function") {
-                    phys.remove(createdBodyId | 0);
-                }
-            } catch (_ignored) {
-            }
-
-            try {
-                if ((createdSurfaceId | 0) > 0 && typeof surfApi.drop === "function") {
-                    surfApi.drop(createdSurfaceId | 0, true);
-                }
-            } catch (_ignored) {
-            }
-
-            try {
-                if (createdUuid && typeof ent.destroy === "function") {
-                    ent.destroy(createdUuid);
-                }
-            } catch (_ignored) {
-            }
-
+            safeCall(() => {
+                if ((createdBodyId | 0) > 0 && typeof phys.remove === "function") phys.remove(createdBodyId | 0);
+            });
+            safeCall(() => {
+                if ((createdSurfaceId | 0) > 0 && typeof surfApi.drop === "function") surfApi.drop(createdSurfaceId | 0, true);
+            });
+            safeCall(() => {
+                if (createdUuid && typeof ent.destroy === "function") ent.destroy(createdUuid);
+            });
             throw e;
         }
     }

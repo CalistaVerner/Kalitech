@@ -1,5 +1,3 @@
-// FILE: resources/kalitech/builtin/Entity.js
-// Author: Calista Verner
 "use strict";
 
 const {req} = require("./helpers/EntUtil.js");
@@ -23,10 +21,7 @@ function create(engine, K) {
         bodyDefaults: api.bodyDefaults.bind(api),
         presets: api.presets.bind(api),
 
-        // numeric ids remain only for surface/body
         idOf: api.idOf.bind(api),
-
-        // uuid helper
         uuidOf: api.uuidOf.bind(api)
     });
 }
@@ -34,8 +29,8 @@ function create(engine, K) {
 create.META = {
     moduleId: "entity",
     globalName: "ENT",
-    version: "2.0.0",
-    description: "Declarative entity builder (UUID-only). EntityHandle is UUID-first, surface attach is UUID-only, logs/events do not expose legacy entityId.",
+    version: "2.0.2",
+    description: "Declarative entity builder (UUID-only). Returns {core, handle} (compat). Core mirrors Java snapshot/components.",
     engineMin: "0.2.0"
 };
 
