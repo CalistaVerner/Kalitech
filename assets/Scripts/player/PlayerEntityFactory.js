@@ -14,10 +14,6 @@ function v3(pos, fb) {
     };
 }
 
-function bool(v, fb) {
-    return (v !== undefined) ? !!v : !!fb;
-}
-
 class PlayerEntityFactory {
     constructor(player) {
         this.player = player || null;
@@ -34,17 +30,13 @@ class PlayerEntityFactory {
         const mass = num(cfg.mass, 80.0);
 
         const pos = v3(cfg.pos, {x: 0, y: 3, z: 0});
-        //const hideInFirstPerson = bool(cfg.hideModelInFirstPerson, true);
 
         if (!globalThis.ENT || typeof globalThis.ENT.create !== "function") {
-            throw new Error("[player] ENT.create(cfg) required (engine Entity module)");
+            throw new Error("[player] ENT.create(cfg) required");
         }
 
-        // Single source of truth for physics: cfg.body only.
-        // Surface must be purely visual/attachable, never "surface.physics" in player.
-        const pack = ENT.create({
+        const e = ENT.create({
             name: (cfg.name != null) ? String(cfg.name) : "player",
-            requireCore: true,
 
             surface: {
                 type: "capsule",
@@ -58,41 +50,38 @@ class PlayerEntityFactory {
             body: {
                 mass,
                 lockRotation: false,
-                friction: (cfg.friction != null) ? num(cfg.friction, 0.9) : 0.9,
-                restitution: (cfg.restitution != null) ? num(cfg.restitution, 0.0) : 0.0,
-                damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95},
+                friction: num(cfg.friction, 0.9),
+                restitution: num(cfg.restitution, 0.0),
+                damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95}
 
-                collider: {
-                    type: "capsule",
-                    radius,
-                    height
-                }
+                // collider: оставь ТОЛЬКО если твой PhysicsApiImpl это реально поддерживает
+                // collider: { type: "capsule", radius, height }
             },
 
-            components: {
-                Player: (ctx) => ({
-                    uuid: ctx.uuid,
-                    surfaceId: ctx.surfaceId | 0,
-                    bodyId: ctx.bodyId | 0,
-                    capsule: { radius, height, mass },
-                    //view: { hideModelInFirstPerson: hideModelInFirstPerson }
-                })
-            }
+            debug: !!cfg.debug
         });
 
-        if (!pack || !pack.core) throw new Error("[player] ENT.create() must return {core}");
-        const core = pack.core;
-
-        if (typeof core.uuid !== "string" || !core.uuid) {
-            throw new Error("[player] ENT.create() must return core.uuid (UUID-only)");
+        if (!e || typeof e.uuidString !== "function") {
+            throw new Error("[player] ENT.create() must return EntityHandle");
         }
-        if ((core.bodyId | 0) <= 0) throw new Error("[player] ENT.create() returned invalid core.bodyId");
-        if (!core.bodyAccess) throw new Error("[player] ENT.create() must provide core.bodyAccess (engine-filled)");
 
-        // Optional: keep backward compat fields if older code expects them
-        if (pack.handle && !pack.handle.core) pack.handle.core = core;
+        const uuid = e.uuidString();
+        if (!uuid) throw new Error("[player] ENT.create() returned empty uuid");
 
-        return pack; // { core, handle, uuid, surfaceId, bodyId }
+        if (!e.hasBody || !e.hasBody()) {
+            throw new Error("[player] player must have physics body");
+        }
+
+        // Java хранит данные: пишем компоненты в ECS через Java API
+        // Названия компонентов выбирай те, которые реально у тебя существуют на Java стороне.
+        e.setComponent("Player", {
+            capsule: {radius, height, mass}
+        });
+
+        // UI mirror (если нужно прямо сейчас)
+        // e.hydrateCore();
+
+        return e; // EntityHandle
     }
 }
 

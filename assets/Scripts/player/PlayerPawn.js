@@ -73,10 +73,12 @@ class PlayerPawn {
         this.frame = new FrameContext();
         this.inputRouter = null;
 
-        this.handle = null; // ENT.create(...) result
-        this.core = null;   // handle.core (engine-filled)
+        this.handle = null; // EntityHandle (authoritative access)
+        this.core = null;   // Optional UI mirror only
 
         this.alive = false;
+
+        this._groundProbe = null;
     }
 
     get entity() {
@@ -88,19 +90,48 @@ class PlayerPawn {
     }
 
     get bodyAccess() {
-        return this.core.bodyAccess;
+        const h = this.handle;
+        if (!h) throw new Error("[PlayerPawn] bodyAccess on null handle");
+        if (typeof h.bodyRef !== "function") {
+            throw new Error("[PlayerPawn] EntityHandle.bodyRef() required (canonical physics access)");
+        }
+        return h.bodyRef();
     }
 
     get bodyId() {
-        return this.core.bodyId | 0;
+        const h = this.handle;
+        if (!h) return 0;
+        if (typeof h.requireBodyId === "function") return h.requireBodyId("PlayerPawn.bodyId");
+        if (typeof h.hasBody === "function" && h.hasBody() && typeof h.bodyRef === "function") {
+            // best-effort: bodyRef exists but no id accessor -> treat as contract violation
+            throw new Error("[PlayerPawn] EntityHandle.requireBodyId() required");
+        }
+        return 0;
     }
 
     get surfaceId() {
-        return this.core.surfaceId | 0;
+        const h = this.handle;
+        if (!h) return 0;
+        // If your EntityHandle exposes surfaceId directly, use it.
+        if (typeof h.surfaceId === "number") return h.surfaceId | 0;
+
+        // Otherwise derive from snapshot "binding" (recommended).
+        if (typeof h.snapshot === "function") {
+            const snap = h.snapshot();
+            const byName = snap && (snap.componentsByName || snap.components) || null;
+            const binding = byName ? byName.binding : null;
+            return binding ? (binding.surfaceId | 0) : 0;
+        }
+        return 0;
     }
 
     get state() {
-        return this.core.state;
+        // Optional: if you still need "state", store it in ECS component and read from snapshot.
+        const h = this.handle;
+        if (!h || typeof h.snapshot !== "function") return null;
+        const snap = h.snapshot();
+        const byName = snap && (snap.componentsByName || snap.components) || null;
+        return byName ? (byName.state || null) : null;
     }
 
     init() {
@@ -127,13 +158,24 @@ class PlayerPawn {
         const uuid = this.uuid;
         if (!uuid) throw new Error("[PlayerPawn] player uuid missing (UUID-only)");
 
-        this.core = this.handle.core;
-        if (!this.core) throw new Error("[PlayerPawn] ENT.create() must return {core}");
-        if (!this.core.bodyAccess) throw new Error("[PlayerPawn] core.bodyAccess missing (engine must fill EntityCore)");
-        if ((this.core.bodyId | 0) <= 0) throw new Error("[PlayerPawn] invalid core.bodyId");
+        // Optional UI mirror: keep if factory provides it, но НЕ требуем.
+        this.core = this.handle && this.handle.core ? this.handle.core : null;
+        if (this.core && typeof this.core === "object") {
+            this.core.uuid = uuid;
+        }
 
-        // keep convenience (some controllers may read core.uuid)
-        this.core.uuid = uuid;
+        // Canonical physics access validation
+        if (typeof this.handle.bodyRef !== "function") {
+            throw new Error("[PlayerPawn] EntityHandle.bodyRef() required");
+        }
+        if (typeof this.handle.hasBody === "function" && !this.handle.hasBody()) {
+            throw new Error("[PlayerPawn] player entity has no physics body");
+        }
+        // requireBodyId is preferred (deterministic)
+        if (typeof this.handle.requireBodyId === "function") {
+            const id = this.handle.requireBodyId("PlayerPawn.init");
+            if ((id | 0) <= 0) throw new Error("[PlayerPawn] invalid bodyId");
+        }
 
         if (typeof this.frame.probeGroundCapsule !== "function") {
             throw new Error("[PlayerPawn] FrameContext.probeGroundCapsule required");
@@ -141,13 +183,17 @@ class PlayerPawn {
 
         this.characterCfg.loadFrom(this.cfg, this.cfg.movement);
 
-        // Ground probe contract: EntityCore.syncPhysics calls probe(core)
-        this.core.setGroundProbe((core) => {
+        // Ground probe uses canonical bodyAccess/bodyId
+        this._groundProbe = () => {
             const probe = this.frame.probeGroundCapsule;
+            const ba = this.bodyAccess;
+            const bid = this.bodyId;
+
             return (probe.length >= 3)
-                ? probe.call(this.frame, core.bodyAccess, this.characterCfg, core.bodyId | 0)
-                : probe.call(this.frame, core.bodyAccess, this.characterCfg);
-        });
+                ? probe.call(this.frame, ba, this.characterCfg, bid)
+                : probe.call(this.frame, ba, this.characterCfg);
+        };
+
         this.alive = true;
         return this;
     }
@@ -161,34 +207,45 @@ class PlayerPawn {
 
         this.inputRouter.read(this.frame);
 
-        this.frame.bodyAccess = this.core.bodyAccess;
-        this.frame.bodyId = this.core.bodyId | 0;
+        this.frame.bodyAccess = this.bodyAccess;
+        this.frame.bodyId = this.bodyId;
     }
 
     syncPose() {
         if (!this.alive) throw new Error("[PlayerPawn] syncPose on dead pawn");
 
-        const s = this.core.syncPhysics();
+        // If FrameContext expects syncPhysics() on core, replace with local sampling:
+        // - position/velocity/rotation/angularVelocity from bodyAccess
+        // - grounded from ground probe
+        const ba = this.bodyAccess;
+
+        const p = ba.position();
+        const v = ba.velocity();
+        const r = ba.rotation();
+        const av = ba.angularVelocity();
+
+        const grounded = this._groundProbe ? !!this._groundProbe() : false;
+
         const pose = this.frame.pose;
 
-        pose.x = s.x;
-        pose.y = s.y;
-        pose.z = s.z;
-        pose.vx = s.vx;
-        pose.vy = s.vy;
-        pose.vz = s.vz;
-        pose.speed = s.speed;
-        pose.fallSpeed = (s.vy < 0) ? -s.vy : 0;
+        pose.x = +p.x;
+        pose.y = +p.y;
+        pose.z = +p.z;
+        pose.vx = +v.x;
+        pose.vy = +v.y;
+        pose.vz = +v.z;
+        pose.speed = Math.sqrt(pose.vx * pose.vx + pose.vz * pose.vz);
+        pose.fallSpeed = (pose.vy < 0) ? -pose.vy : 0;
 
-        pose.rx = s.rx;
-        pose.ry = s.ry;
-        pose.rz = s.rz;
-        pose.rw = s.rw;
-        pose.avx = s.avx;
-        pose.avy = s.avy;
-        pose.avz = s.avz;
+        pose.rx = +r.x;
+        pose.ry = +r.y;
+        pose.rz = +r.z;
+        pose.rw = +r.w;
+        pose.avx = +av.x;
+        pose.avy = +av.y;
+        pose.avz = +av.z;
 
-        pose.grounded = s.grounded;
+        pose.grounded = grounded;
     }
 
     endFrame() {
@@ -197,19 +254,30 @@ class PlayerPawn {
     }
 
     destroy() {
+        const h = this.handle;
+        this.handle = null;
+        this.core = null;
+        this.alive = false;
 
+        if (h && typeof h.destroy === "function") {
+            h.destroy();
+        }
     }
 
     getModel() {
-        return this.core.model();
+        // Если раньше это было core.model(), теперь либо:
+        // 1) хранить модель в ECS/snapshot и читать, либо
+        // 2) получать через surfaceId/SurfaceApi.
+        if (this.core && typeof this.core.model === "function") return this.core.model();
+        return null;
     }
 
     getBodyId() {
-        return this.core.bodyId | 0;
+        return this.bodyId;
     }
 
     getSurfaceId() {
-        return this.core.surfaceId | 0;
+        return this.surfaceId;
     }
 
     getUuid() {

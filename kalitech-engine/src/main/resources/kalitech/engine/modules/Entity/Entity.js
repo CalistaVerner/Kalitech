@@ -1,18 +1,17 @@
+// FILE: resources/kalitech/builtin/Entity.js
 "use strict";
 
 const {req} = require("./helpers/EntUtil.js");
 const {EntApi} = require("./helpers/EntApi.js");
 
-function create(engine, K) {
+function create(engine) {
     req(engine, "[ENT] engine is required");
-
-    const api = new EntApi(engine, K);
+    const api = new EntApi(engine);
 
     return Object.freeze({
         create: api.create.bind(api),
 
         $: api.$.bind(api),
-        player$: api.player$.bind(api),
         capsule$: api.capsule$.bind(api),
         box$: api.box$.bind(api),
         sphere$: api.sphere$.bind(api),
@@ -29,8 +28,8 @@ function create(engine, K) {
 create.META = {
     moduleId: "entity",
     globalName: "ENT",
-    version: "2.0.2",
-    description: "Declarative entity builder (UUID-only). Returns {core, handle} (compat). Core mirrors Java snapshot/components.",
+    version: "2.3.0",
+    description: "Deterministic Entity API (UUID-only). Returns EntityHandle. JS mirrors Java snapshot for UI.",
     engineMin: "0.2.0"
 };
 

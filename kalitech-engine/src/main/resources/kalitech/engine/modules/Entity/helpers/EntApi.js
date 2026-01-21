@@ -1,12 +1,15 @@
+// FILE: resources/kalitech/builtin/helpers/entity/EntApi.js
 "use strict";
 
 const {req, vec3, deepMerge, subsystem} = require("./EntUtil.js");
 const {idOf} = require("./IdExtractor.js");
-const {PhysicsBinding} = require("./PhysicsBinding.js");
 const {EntityHandle} = require("./EntityHandle.js");
 const {EntBuilder} = require("./EntBuilder.js");
 const {EntityCore} = require("./EntityCore.js");
-const {resolveBodyAccess} = require("./BodyAccessResolver.js");
+
+function isObj(v) {
+    return !!v && typeof v === "object";
+}
 
 function isUuidString(s) {
     if (typeof s !== "string") return false;
@@ -14,45 +17,36 @@ function isUuidString(s) {
     return x.length >= 32 && x.indexOf("-") > 0;
 }
 
-function safeCall(fn) {
-    try {
-        fn();
-    } catch (_ignored) {
-    }
-}
-
 class EntApi {
-    constructor(engine, K) {
+    constructor(engine) {
         this.engine = engine;
-        this.K = K || (globalThis.__kalitech || Object.create(null));
 
         req(engine, "[ENT] engine is required");
         subsystem(engine, "entity");
         subsystem(engine, "mesh");
         subsystem(engine, "surface");
         subsystem(engine, "physics");
+        subsystem(engine, "log");
 
-        req(engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
         this._log = engine.log();
-        req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
-
-        this._physBind = new PhysicsBinding(engine);
 
         this._presets = Object.create(null);
-
         this._presets.capsule = {
             name: "entity",
             surface: {type: "capsule", name: "entity.capsule", radius: 0.35, height: 1.8, pos: [0, 3, 0], attach: true},
+            body: {mass: 1},
             attachSurface: true
         };
         this._presets.box = {
             name: "entity",
             surface: {type: "box", name: "entity.box", size: 1, pos: [0, 3, 0], attach: true},
+            body: {mass: 1},
             attachSurface: true
         };
         this._presets.sphere = {
             name: "entity",
             surface: {type: "sphere", name: "entity.sphere", radius: 0.5, pos: [0, 3, 0], attach: true},
+            body: {mass: 1},
             attachSurface: true
         };
 
@@ -68,7 +62,7 @@ class EntApi {
     preset(name, cfg) {
         const n = String(name || "");
         if (!n) throw new Error("[ENT] preset(name,cfg): name is required");
-        if (!cfg || typeof cfg !== "object") throw new Error("[ENT] preset(name,cfg): cfg object is required");
+        req(isObj(cfg), "[ENT] preset(name,cfg): cfg object is required");
         this._presets[n] = deepMerge(deepMerge({}, this._presets[n] || {}), cfg);
         return this;
     }
@@ -86,10 +80,6 @@ class EntApi {
         return new EntBuilder(this, presetName ? String(presetName) : "");
     }
 
-    player$(cfg) {
-        return this.$("player").merge(cfg);
-    }
-
     capsule$(cfg) {
         return this.$("capsule").merge(cfg);
     }
@@ -102,180 +92,92 @@ class EntApi {
         return this.$("sphere").merge(cfg);
     }
 
+    /**
+     * Deterministic entity creation.
+     * - JS creates surface/body (if requested)
+     * - JS writes "binding" component into ECS (authoritative for UI)
+     * - No auto-body, no surface.physics magic
+     */
     create(cfg) {
-        cfg = (cfg && typeof cfg === "object") ? cfg : {};
+        cfg = isObj(cfg) ? cfg : {};
         const debug = !!cfg.debug;
 
         const engine = this.engine;
         const ent = subsystem(engine, "entity");
         const mesh = subsystem(engine, "mesh");
-        const surfApi = subsystem(engine, "surface");
+        const surf = subsystem(engine, "surface");
         const phys = subsystem(engine, "physics");
 
-        const ctx = {
-            uuid: "",
-            surface: null,
-            body: null,
-            surfaceId: 0,
-            bodyId: 0,
-            _destroyers: []
-        };
+        const name = String(cfg.name || "entity");
+        const uuid = ent.create(name);
+        if (!isUuidString(uuid)) throw new Error("[ENT] engine.entity().create(name) must return UUID string");
 
-        let createdUuid = "";
-        let createdSurfaceId = 0;
-        let createdBodyId = 0;
+        let surfaceHandle = null;
+        let surfaceId = 0;
+
+        let bodyHandle = null;
+        let bodyId = 0;
 
         try {
-            const name = String(cfg.name || "entity");
-
-            const created = ent.create(name);
-            if (typeof created !== "string" || !isUuidString(created)) {
-                throw new Error("[ENT] engine.entity().create() must return UUID string, got: " + String(created));
-            }
-            createdUuid = created.trim();
-            ctx.uuid = createdUuid;
-
-            const surfCfg = cfg.surface || null;
-            const bodyCfg = cfg.body || null;
-
-            let surfaceHadPhysics = false;
-
-            if (surfCfg) {
-                const sCfg = deepMerge({}, surfCfg);
+            if (cfg.surface) {
+                const sCfg = deepMerge({}, cfg.surface);
                 if (sCfg.pos != null) sCfg.pos = vec3(sCfg.pos, 0, 0, 0);
 
-                if (sCfg.physics != null) {
-                    surfaceHadPhysics = true;
-                    if (bodyCfg) {
-                        delete sCfg.physics;
-                        surfaceHadPhysics = false;
-                    }
-                }
-
-                ctx.surface = mesh.create(sCfg);
-                ctx.surfaceId = (idOf(ctx.surface, "surface") | 0);
-                createdSurfaceId = ctx.surfaceId | 0;
+                surfaceHandle = mesh.create(sCfg);
+                surfaceId = idOf(surfaceHandle, "surface") | 0;
 
                 const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
                 if (attachSurface) {
-                    if (typeof surfApi.attachEntity !== "function") {
-                        throw new Error("[ENT] surface attach missing: engine.surface().attachEntity(surfaceHandle, uuid)");
-                    }
-                    surfApi.attachEntity(ctx.surface, ctx.uuid);
+                    req(typeof surf.attachEntity === "function",
+                        "[ENT] engine.surface().attachEntity(surfaceHandle, uuid) missing");
+                    surf.attachEntity(surfaceHandle, uuid);
                 }
             }
 
-            if (bodyCfg) {
-                const made = this._physBind.createBody(this._bodyDefaults, bodyCfg, ctx.surface, surfCfg);
-                ctx.body = made.body || null;
-                ctx.bodyId = (made.bodyId | 0);
-                createdBodyId = ctx.bodyId | 0;
-            } else if (surfaceHadPhysics && ctx.surface) {
-                const bid = this._physBind.resolveBodyIdBySurface(ctx.surfaceId || ctx.surface);
-                if ((bid | 0) > 0) {
-                    ctx.bodyId = bid | 0;
-                    ctx.body = null;
-                    createdBodyId = ctx.bodyId | 0;
-                }
+            if (cfg.body) {
+                const bCfg = deepMerge(deepMerge({}, this._bodyDefaults), cfg.body);
+                if (!bCfg.surface && surfaceHandle) bCfg.surface = surfaceHandle;
+
+                bodyHandle = phys.body(bCfg);
+                bodyId = idOf(bodyHandle, "body") | 0;
+                if (bodyId <= 0) throw new Error("[ENT] engine.physics().body(cfg) returned invalid bodyId=" + bodyId);
             }
 
-            const requireCore = (cfg.requireCore !== false);
-            if (requireCore && (ctx.bodyId | 0) <= 0) {
-                if (!ctx.surface) {
-                    throw new Error("[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider. uuid=" + ctx.uuid);
-                }
-                const made = this._physBind.createBody(this._bodyDefaults, {}, ctx.surface, surfCfg);
-                ctx.body = made.body || null;
-                ctx.bodyId = (made.bodyId | 0);
-                createdBodyId = ctx.bodyId | 0;
-
-                if ((ctx.bodyId | 0) <= 0) {
-                    throw new Error("[ENT] core auto-body failed (physics.body returned invalid id). uuid=" + ctx.uuid);
-                }
+            // Authoritative binding for UI/editor
+            if (typeof ent.setComponent === "function") {
+                ent.setComponent(uuid, "binding", {surfaceId: surfaceId | 0, bodyId: bodyId | 0});
+                ent.setComponent(uuid, "name", {value: name});
             }
 
-            const comps = cfg.components;
-            if (comps && typeof comps === "object") {
-                if (typeof ent.setComponent !== "function") {
-                    throw new Error("[ENT] engine.entity().setComponent(uuid,type,value) missing");
-                }
-                for (const key of Object.keys(comps)) {
-                    const v = comps[key];
-                    const data = (typeof v === "function")
-                        ? v({
-                            uuid: ctx.uuid,
-                            surface: ctx.surface,
-                            body: ctx.body,
-                            surfaceId: ctx.surfaceId,
-                            bodyId: ctx.bodyId,
-                            cfg
-                        })
-                        : v;
+            const handle = new EntityHandle(engine, {
+                uuid,
+                surfaceId: surfaceId | 0,
+                bodyId: bodyId | 0,
+                _destroyers: []
+            });
 
-                    ent.setComponent(ctx.uuid, String(key), data);
-                }
-            }
-
-            const handle = new EntityHandle(engine, ctx);
-
-            let core = null;
-            if (requireCore) {
-                const bodyAccess = resolveBodyAccess(phys, ctx.body, ctx.bodyId | 0);
-                core = new EntityCore().attach(handle, ctx.body, bodyAccess);
-
-                // Hard contract for player: identity must be available immediately
-                core.uuid = ctx.uuid;
-                core.bodyId = ctx.bodyId | 0;
-                core.surfaceId = ctx.surfaceId | 0;
-                if (core.state && typeof core.state === "object") {
-                    core.state.uuid = core.uuid;
-                }
-
-                // Optional: hydrate from snapshot if supported
-                if (typeof core.hydrate === "function" && typeof ent.snapshot === "function") {
-                    const snap = ent.snapshot(ctx.uuid);
-                    core.hydrate(snap);
-                }
-
-                if (cfg.shape) {
-                    const sh = cfg.shape || {};
-                    core.configureShape(sh.mass, sh.radius, sh.height);
-                }
-                if (typeof cfg.groundProbe === "function") {
-                    core.setGroundProbe(cfg.groundProbe);
-                }
-            }
-
+            const core = new EntityCore(uuid, surfaceId | 0, bodyId | 0);
             handle.core = core;
 
-            if (debug) {
-                this._log.info(
-                    "[ENT] created name=" + name +
-                    " uuid=" + ctx.uuid +
-                    " surfaceId=" + (ctx.surfaceId | 0) +
-                    " bodyId=" + (ctx.bodyId | 0) +
-                    " core=" + (core ? "yes" : "no")
-                );
+            // Optional mirror hydrate (for UI)
+            if (typeof ent.snapshot === "function") {
+                const snap = ent.snapshot(uuid);
+                if (snap) core.hydrate(snap);
             }
 
-            return Object.freeze({
-                core,
-                handle,
-                uuid: handle.uuidString(),
-                surfaceId: handle.surfaceHandleId(),
-                bodyId: handle.bodyHandleId()
-            });
+            if (debug) {
+                this._log.info("[ENT] created name=" + name + " uuid=" + uuid +
+                    " surfaceId=" + (surfaceId | 0) + " bodyId=" + (bodyId | 0));
+            }
+
+            return handle;
 
         } catch (e) {
-            safeCall(() => {
-                if ((createdBodyId | 0) > 0 && typeof phys.remove === "function") phys.remove(createdBodyId | 0);
-            });
-            safeCall(() => {
-                if ((createdSurfaceId | 0) > 0 && typeof surfApi.drop === "function") surfApi.drop(createdSurfaceId | 0, true);
-            });
-            safeCall(() => {
-                if (createdUuid && typeof ent.destroy === "function") ent.destroy(createdUuid);
-            });
+            // Fail loudly; cleanup via Java destroy (which should cleanup attached resources)
+            try {
+                ent.destroy(uuid);
+            } catch (_ignored) {
+            }
             throw e;
         }
     }
