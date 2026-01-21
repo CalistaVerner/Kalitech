@@ -1,24 +1,19 @@
 package org.foxesworld.kalitech.engine.ecs;
 
 import java.util.BitSet;
+import java.util.function.IntConsumer;
 
 /**
  * Dense entity id allocator with liveness tracking.
- *
- * <p>Ids are small positive ints (1...). Id reuse is supported via a free list.
- * A monotonically increasing generation counter per id is maintained to enable
- * stale-reference checks in internal systems.
  */
 public final class EntityManager {
 
     private int nextId = 1;
     private final BitSet alive = new BitSet();
 
-    // free-list without boxing
     private int[] free = new int[256];
     private int freeSize = 0;
 
-    // generation per entityId (0 by default)
     private int[] gen = new int[0];
 
     private static int nextPow2(int v) {
@@ -43,19 +38,11 @@ public final class EntityManager {
         return id;
     }
 
-    /**
-     * Returns the current generation for the entity id.
-     *
-     * <p>Generation is an internal-only concept. Use it only for stale-reference checks.
-     */
     public int generationOf(int id) {
         if (id <= 0 || id >= gen.length) return 0;
         return gen[id];
     }
 
-    /**
-     * Returns true if the entity is alive and the generation matches.
-     */
     public boolean isAlive(int id, int generation) {
         return isAlive(id) && generationOf(id) == generation;
     }
@@ -68,7 +55,7 @@ public final class EntityManager {
 
         ensureGenCapacity(id);
         gen[id] = gen[id] + 1;
-        if (gen[id] == 0) gen[id] = 1; // avoid wrap to 0 on overflow
+        if (gen[id] == 0) gen[id] = 1;
 
         if (freeSize == free.length) {
             int[] n = new int[free.length << 1];
@@ -79,8 +66,17 @@ public final class EntityManager {
     }
 
     /**
-     * Full reset for hot-reload rebuilds.
+     * Iterates alive entity ids in ascending order.
+     *
+     * <p>This is intended for editor/UI listing. Do not use it in hot loops.</p>
      */
+    void forEachAlive(IntConsumer fn) {
+        if (fn == null) throw new NullPointerException("fn");
+        for (int id = alive.nextSetBit(1); id >= 0; id = alive.nextSetBit(id + 1)) {
+            fn.accept(id);
+        }
+    }
+
     void reset() {
         alive.clear();
         nextId = 1;

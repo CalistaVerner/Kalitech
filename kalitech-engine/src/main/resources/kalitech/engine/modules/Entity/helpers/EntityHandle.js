@@ -1,8 +1,12 @@
-// FILE: resources/kalitech/builtin/helpers/entity/EntityHandle.js
 "use strict";
 
 const {req, subsystem} = require("./EntUtil.js");
 const {resolveBodyAccess} = require("./BodyAccessResolver.js");
+
+function pushErr(list, op, e) {
+    const msg = (e && e.stack) ? e.stack : String(e);
+    list.push(op + " :: " + msg);
+}
 
 class EntityHandle {
     constructor(engine, ctx) {
@@ -20,13 +24,13 @@ class EntityHandle {
         this._bodyAccess = null;
         this._bodyAccessId = 0;
 
-        this.core = null;
-
         req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
         this._log = engine.log();
         req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
 
         if (!this.uuid) throw new Error("[ENT] EntityHandle missing uuid (UUID-only)");
+
+        this.core = null; // assigned by EntApi.create()
     }
 
     id() {
@@ -99,13 +103,7 @@ class EntityHandle {
         return p;
     }
 
-    /**
-     * Canonical body access (unified; no duplicate wrappers).
-     */
     bodyAccess() {
-        const core = this.core;
-        if (core && core.bodyAccess) return core.bodyAccess;
-
         const id = this.requireBodyId("bodyAccess()");
         if (this._bodyAccess && (this._bodyAccessId | 0) === id) return this._bodyAccess;
 
@@ -117,64 +115,78 @@ class EntityHandle {
         return ba;
     }
 
-    /**
-     * Compatibility alias. Prefer bodyAccess().
-     */
     bodyRef() {
         return this.bodyAccess();
     }
 
+    snapshot() {
+        const ent = subsystem(this._engine, "entity");
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] snapshot: uuid empty");
+        req(typeof ent.snapshot === "function", "[ENT] engine.entity().snapshot(uuid) missing");
+        return ent.snapshot(uuid);
+    }
+
     destroy() {
+        const errors = [];
+
         const engine = this._engine;
-
-        const ent = subsystem(engine, "entity");
-        const surf = subsystem(engine, "surface");
-        const phys = subsystem(engine, "physics");
-
         const uuid = this.uuid;
         const sid = (this.surfaceId | 0);
         const bid = (this.bodyId | 0);
 
-        try {
-            for (let i = 0; i < this._destroyers.length; i++) {
-                try {
-                    this._destroyers[i]();
-                } catch (_) {
-                }
+        for (let i = 0; i < this._destroyers.length; i++) {
+            try {
+                this._destroyers[i]();
+            } catch (e) {
+                pushErr(errors, "destroyer[" + i + "]", e);
             }
-        } finally {
-            this._destroyers.length = 0;
         }
+        this._destroyers.length = 0;
 
         if (bid > 0) {
             try {
-                if (typeof phys.remove === "function") phys.remove(bid);
-            } catch (_) {
+                const phys = subsystem(engine, "physics");
+                if (typeof phys.remove !== "function") throw new Error("engine.physics().remove(bodyId) missing");
+                phys.remove(bid);
+            } catch (e) {
+                pushErr(errors, "physics.remove(" + bid + ")", e);
             }
-            this.bodyId = 0;
-            this.body = null;
-            this._bodyAccess = null;
-            this._bodyAccessId = 0;
         }
 
         if (sid > 0) {
             try {
-                if (typeof surf.drop === "function") surf.drop(sid, true);
-            } catch (_) {
+                const surf = subsystem(engine, "surface");
+                if (typeof surf.drop !== "function") throw new Error("engine.surface().drop(surfaceId,recursive) missing");
+                surf.drop(sid, true);
+            } catch (e) {
+                pushErr(errors, "surface.drop(" + sid + ")", e);
             }
-            this.surfaceId = 0;
-            this.surface = null;
         }
 
-        if (uuid && typeof ent.destroy === "function") {
+        if (uuid) {
             try {
+                const ent = subsystem(engine, "entity");
+                if (typeof ent.destroy !== "function") throw new Error("engine.entity().destroy(uuid) missing");
                 ent.destroy(uuid);
-            } catch (_) {
+            } catch (e) {
+                pushErr(errors, "entity.destroy(" + uuid + ")", e);
             }
         }
 
-        this.core = null;
+        this.bodyId = 0;
+        this.surfaceId = 0;
+        this.body = null;
+        this.surface = null;
+        this._bodyAccess = null;
+        this._bodyAccessId = 0;
         this.uuid = "";
+        this.core = null;
+
+        if (errors.length) {
+            const err = new Error("[ENT] destroy failed:\n- " + errors.join("\n- "));
+            throw err;
+        }
     }
 
     addDestroyer(fn) {

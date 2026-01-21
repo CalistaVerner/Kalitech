@@ -416,7 +416,9 @@ class ShootSystem {
     }
 
     _fire(frame, ownerBodyId) {
-        ENGINE.sound.playSound({event: "player.action.throw", random: true});
+        let sound = ENGINE.sound.getSound("world.debris");
+        sound.setRandom(true);
+        sound.play();
 
         const c = this.cfg;
         if (!c.enabled || !ownerBodyId) return;

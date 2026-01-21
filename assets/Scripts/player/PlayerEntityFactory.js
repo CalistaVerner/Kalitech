@@ -5,6 +5,19 @@ function num(v, fb) {
     return Number.isFinite(v) ? v : fb;
 }
 
+function v3(pos, fb) {
+    const p = pos || fb || {x: 0, y: 3, z: 0};
+    return {
+        x: num(p.x, 0),
+        y: num(p.y, 3),
+        z: num(p.z, 0)
+    };
+}
+
+function bool(v, fb) {
+    return (v !== undefined) ? !!v : !!fb;
+}
+
 class PlayerEntityFactory {
     constructor(player) {
         this.player = player || null;
@@ -20,51 +33,66 @@ class PlayerEntityFactory {
         const height = num(cfg.height, 1.80);
         const mass = num(cfg.mass, 80.0);
 
-        const pos = cfg.pos || {x: 0, y: 3, z: 0};
-        const hideInFirstPerson = (cfg.hideModelInFirstPerson !== undefined) ? !!cfg.hideModelInFirstPerson : true;
+        const pos = v3(cfg.pos, {x: 0, y: 3, z: 0});
+        //const hideInFirstPerson = bool(cfg.hideModelInFirstPerson, true);
 
         if (!globalThis.ENT || typeof globalThis.ENT.create !== "function") {
             throw new Error("[player] ENT.create(cfg) required (engine Entity module)");
         }
 
-        const h = ENT.create({
-            name: (cfg.name != null) ? cfg.name : "player",
+        // Single source of truth for physics: cfg.body only.
+        // Surface must be purely visual/attachable, never "surface.physics" in player.
+        const pack = ENT.create({
+            name: (cfg.name != null) ? String(cfg.name) : "player",
+            requireCore: true,
+
             surface: {
-                type: "box",
+                type: "capsule",
+                name: "player.surface",
                 radius,
                 height,
                 pos,
-                attach: true,
-                physics: {mass, lockRotation: false}
+                attach: true
             },
+
             body: {
                 mass,
                 lockRotation: false,
-                collider: {type: "dynamicMesh", radius, height},
-                friction: (cfg.friction != null) ? cfg.friction : 0.9,
-                restitution: (cfg.restitution != null) ? cfg.restitution : 0.0,
-                damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95}
+                friction: (cfg.friction != null) ? num(cfg.friction, 0.9) : 0.9,
+                restitution: (cfg.restitution != null) ? num(cfg.restitution, 0.0) : 0.0,
+                damping: (cfg.damping != null) ? cfg.damping : {linear: 0.15, angular: 0.95},
+
+                collider: {
+                    type: "capsule",
+                    radius,
+                    height
+                }
             },
+
             components: {
-                // UUID-only: ctx.uuid provided by Entity module create context
                 Player: (ctx) => ({
                     uuid: ctx.uuid,
-                    surfaceId: ctx.surfaceId,
-                    bodyId: ctx.bodyId,
+                    surfaceId: ctx.surfaceId | 0,
+                    bodyId: ctx.bodyId | 0,
                     capsule: { radius, height, mass },
-                    view: { hideModelInFirstPerson: hideInFirstPerson }
+                    //view: { hideModelInFirstPerson: hideModelInFirstPerson }
                 })
             }
         });
 
-        if (!h || !h.core) throw new Error("[player] ENT.create() must return {core}");
-        if (typeof h.core.uuid !== "string" || !h.core.uuid) {
+        if (!pack || !pack.core) throw new Error("[player] ENT.create() must return {core}");
+        const core = pack.core;
+
+        if (typeof core.uuid !== "string" || !core.uuid) {
             throw new Error("[player] ENT.create() must return core.uuid (UUID-only)");
         }
-        if ((h.core.bodyId | 0) <= 0) throw new Error("[player] ENT.create() returned invalid core.bodyId");
-        if (!h.core.bodyAccess) throw new Error("[player] ENT.create() must provide core.bodyAccess (engine-filled)");
+        if ((core.bodyId | 0) <= 0) throw new Error("[player] ENT.create() returned invalid core.bodyId");
+        if (!core.bodyAccess) throw new Error("[player] ENT.create() must provide core.bodyAccess (engine-filled)");
 
-        return h;
+        // Optional: keep backward compat fields if older code expects them
+        if (pack.handle && !pack.handle.core) pack.handle.core = core;
+
+        return pack; // { core, handle, uuid, surfaceId, bodyId }
     }
 }
 

@@ -11,6 +11,7 @@ import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.graalvm.polyglot.HostAccess;
 
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.Objects;
 
 public final class EntityApiImpl extends AbstractApiModule implements EntityApi {
@@ -38,11 +39,17 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     private static final Method M_REMOVE_COMPONENT =
             method(EntityApiImpl.class, "removeComponent", String.class, String.class);
 
+    private static final Method M_SNAPSHOT =
+            method(EntityApiImpl.class, "snapshot", String.class);
+
+    private static final Method M_LIST =
+            method(EntityApiImpl.class, "list", int.class);
+
     private EngineApiImpl engine;
     private EcsWorld ecs;
 
     public EntityApiImpl() {
-        super("entity", "Entity", "3.0.0"); // UUID-only
+        super("entity", "Entity", "3.1.0");
     }
 
     private static String requireType(String type, String op) {
@@ -56,10 +63,6 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         this.engine = Objects.requireNonNull(ctx.engine, "ctx.engine");
         this.ecs = Objects.requireNonNull(ctx.ecs, "ctx.ecs");
     }
-
-    // -------------------------
-    // lifecycle (UUID-only)
-    // -------------------------
 
     @Override
     public void detach() {
@@ -101,7 +104,6 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
     public void destroy(@NotNull String uuid) {
         profiledVoid(() ->
                 apiVoid(M_DESTROY, new Object[]{uuid}, () -> {
-                    // Cleanup must never prevent actual entity destruction.
                     EngineApiImpl e = this.engine;
                     if (e != null) {
                         try {
@@ -116,10 +118,6 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
                 })
         );
     }
-
-    // -------------------------
-    // components (UUID-only)
-    // -------------------------
 
     @HostAccess.Export
     @Override
@@ -200,6 +198,32 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
                     String t = requireType(type, "[entity] removeComponent");
                     ecs.removeComponentByName(uuid, t);
                 })
+        );
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED, ApiFlag.EDITOR_VISIBLE},
+            cost = ApiCostHint.NORMAL
+    )
+    public Map<String, Object> snapshot(@NotNull String uuid) {
+        return profiled(() ->
+                apiCall(M_SNAPSHOT, new Object[]{uuid}, () -> ecs.snapshotByUuid(uuid))
+        );
+    }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = false,
+            flags = {ApiFlag.SANDBOX_ALLOWED, ApiFlag.EDITOR_VISIBLE},
+            cost = ApiCostHint.NORMAL
+    )
+    public String[] list(int limit) {
+        return profiled(() ->
+                apiCall(M_LIST, new Object[]{limit}, () -> ecs.listUuids(limit))
         );
     }
 }

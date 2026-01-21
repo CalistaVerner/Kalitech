@@ -138,7 +138,7 @@ class LightRig {
 
             render.sunShadowsCfg({
                 shadows: {
-                    mapSize: 16384,
+                    mapSize: 4096,
                     splits: 4,
                     lambda: 0.72,
                     intensity: 0.75,
@@ -190,11 +190,12 @@ class LightRig {
                         },
                         {type: "temporalGate", cfg: {minRotateDeg: 0.25, minMoveTexels: 1.25, teleportMoveTexels: 24}},
                         {type: "texelSnap", cfg: {enabled: true, snapFirstCascades: 2}},
+                        /*
                         {
                             type: "telemetry",
                             cfg: {everyFrames: 60, allSplits: true, resizeRatio: 0.02, driftTexelsThreshold: 0.35}
                         },
-                        {type: "trace", cfg: {everyFrames: 60}}
+                        {type: "trace", cfg: {everyFrames: 60}} */
                     ]
 
                 }

@@ -20,8 +20,8 @@
   "player": {
     "action": {
       "throw": [
-        "Sounds/throw/throw1.ogg",
-        "Sounds/throw/throw2.ogg"
+        "Sounds/throw/throw2.ogg",
+        "Sounds/throw/throw1.ogg"
       ]
     }
   },
@@ -39,7 +39,7 @@
       "Sounds/DEBRIS/DEBRIS_7.ogg",
       "Sounds/DEBRIS/DEBRIS_8.ogg",
       "Sounds/DEBRIS/DEBRIS_9.ogg",
-      "Sounds/DEBRIS/DEBRIS_10ogg",
+      "Sounds/DEBRIS/DEBRIS_10.ogg",
       "Sounds/DEBRIS/DEBRIS_11.ogg",
       "Sounds/DEBRIS/DEBRIS_12.ogg",
       "Sounds/DEBRIS/DEBRIS_13.ogg",

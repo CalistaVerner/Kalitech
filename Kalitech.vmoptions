@@ -1,5 +1,5 @@
 -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
--DphysicsDebug=false
+-DphysicsDebug=true
 -Dhud.debug=false
 -Dhud.debug.smoketest=false
 -Dhud.debug.overlay=false

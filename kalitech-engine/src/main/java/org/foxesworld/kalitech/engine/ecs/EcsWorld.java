@@ -1,13 +1,15 @@
 package org.foxesworld.kalitech.engine.ecs;
 
-import java.util.Objects;
+import java.util.*;
 
 /**
  * UUID-first ECS facade.
- * <p>
- * Public contract:
- * - Create/destroy/exists by UUID only.
- * - int entityId stays internal (dense index for stores).
+ *
+ * <p>Public contract:
+ * <ul>
+ *   <li>Create/destroy/exists by UUID only</li>
+ *   <li>Dense int entityId stays internal</li>
+ * </ul>
  */
 public final class EcsWorld {
 
@@ -84,44 +86,61 @@ public final class EcsWorld {
         return id != EntityId.NULL && entities.isAlive(id);
     }
 
-    /**
-     * INTERNAL: resolve UUID to dense id or throw. Not for scripts.
-     */
     public int resolveEntityId(String uuid) {
         return requireEntityId(uuid, "resolveEntityId");
     }
 
-    /**
-     * INTERNAL: resolve UUID to a packed handle (entityId+generation).
-     * Useful for long-lived references inside engine systems.
-     */
     public long resolveEntityHandle(String uuid) {
         int id = requireEntityId(uuid, "resolveEntityHandle");
         int gen = entities.generationOf(id);
         return EntityId.packHandle(id, gen);
     }
 
-    /**
-     * INTERNAL: liveness check for packed handles.
-     */
     public boolean isAliveHandle(long handle) {
         int id = EntityId.unpackEntityId(handle);
         int gen = EntityId.unpackGeneration(handle);
         return entities.isAlive(id, gen);
     }
 
-    /**
-     * INTERNAL: resolve UUID to dense id or NULL. Not for scripts.
-     */
     public int resolveEntityIdOrNull(String uuid) {
         return entityIdOrNull(uuid);
     }
 
-    /**
-     * INTERNAL.
-     */
     public boolean isAliveEntityId(int entityId) {
         return entities.isAlive(entityId);
+    }
+
+    /**
+     * Returns an immutable UI snapshot for a UUID or null if not alive.
+     *
+     * <p>Cost is O(number of registered named component types). Intended for UI/editor.</p>
+     */
+    public Map<String, Object> snapshotByUuid(String uuid) {
+        int id = entityIdOrNull(uuid);
+        if (id == EntityId.NULL || !entities.isAlive(id)) return null;
+
+        LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+        out.put("uuid", uuids.uuidStringOf(id));
+        out.put("alive", true);
+        out.put("componentTypes", components.namedComponentTypesOf(id));
+        out.put("componentsByName", components.namedComponentsOf(id));
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * Lists alive UUIDs (up to limit). Intended for UI/editor.
+     */
+    public String[] listUuids(int limit) {
+        int lim = Math.max(0, limit);
+        if (lim == 0) return new String[0];
+
+        ArrayList<String> out = new ArrayList<>(Math.min(256, lim));
+        entities.forEachAlive(id -> {
+            if (out.size() >= lim) return;
+            String u = uuids.uuidStringOf(id);
+            if (u != null && !u.isEmpty()) out.add(u);
+        });
+        return out.toArray(new String[0]);
     }
 
     public void reset() {
@@ -131,7 +150,6 @@ public final class EcsWorld {
     }
 
     private void destroyInternal(int id) {
-        // Ensure components are cleared even if some systems still reference the dense id.
         components.removeAll(id);
         uuids.onDestroy(id);
         entities.destroy(id);

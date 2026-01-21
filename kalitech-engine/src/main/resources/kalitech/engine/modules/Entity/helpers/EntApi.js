@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/helpers/entity/EntApi.js
 "use strict";
 
 const {req, vec3, deepMerge, subsystem} = require("./EntUtil.js");
@@ -6,72 +5,13 @@ const {idOf} = require("./IdExtractor.js");
 const {PhysicsBinding} = require("./PhysicsBinding.js");
 const {EntityHandle} = require("./EntityHandle.js");
 const {EntBuilder} = require("./EntBuilder.js");
-
 const {EntityCore} = require("./EntityCore.js");
 const {resolveBodyAccess} = require("./BodyAccessResolver.js");
-
-function inferShapeFromCfg(cfg, surfaceCfg, bodyCfg) {
-    const out = {mass: 0, radius: 0, height: 0};
-
-    if (bodyCfg && typeof bodyCfg === "object") {
-        if (bodyCfg.mass != null) out.mass = +bodyCfg.mass || 0;
-
-        const col = bodyCfg.collider;
-        if (col && typeof col === "object") {
-            if (col.radius != null) out.radius = +col.radius || 0;
-            if (col.height != null) out.height = +col.height || 0;
-            if (col.size != null && out.radius === 0) out.radius = +col.size || 0;
-        }
-    }
-
-    if (surfaceCfg && typeof surfaceCfg === "object") {
-        if (out.radius === 0 && surfaceCfg.radius != null) out.radius = +surfaceCfg.radius || 0;
-        if (out.height === 0 && surfaceCfg.height != null) out.height = +surfaceCfg.height || 0;
-        if (out.radius === 0 && surfaceCfg.size != null) out.radius = +surfaceCfg.size || 0;
-
-        if (out.mass === 0 && surfaceCfg.physics && typeof surfaceCfg.physics === "object") {
-            if (surfaceCfg.physics.mass != null) out.mass = +surfaceCfg.physics.mass || 0;
-        }
-    }
-
-    return out;
-}
-
-function attachCoreOrProxy(handle, core) {
-    if (handle && Object.isExtensible(handle)) {
-        Object.defineProperty(handle, "core", {
-            value: core,
-            enumerable: true,
-            configurable: false,
-            writable: false
-        });
-        return handle;
-    }
-
-    return new Proxy(handle, {
-        get(t, p) {
-            if (p === "core") return core;
-            return t[p];
-        },
-        set() {
-            throw new Error("[ENT] EntityHandle is immutable");
-        }
-    });
-}
 
 function isUuidString(s) {
     if (typeof s !== "string") return false;
     const x = s.trim();
     return x.length >= 32 && x.indexOf("-") > 0;
-}
-
-function attachSurfaceUuid(surfApi, surfaceHandle, uuid) {
-    // UUID-first attach if available
-    if (uuid && typeof surfApi.attachEntity === "function") {
-        surfApi.attachEntity(surfaceHandle, uuid);
-        return;
-    }
-    throw new Error("[ENT] surface attach missing (no attachEntity(uuid))");
 }
 
 class EntApi {
@@ -159,8 +99,14 @@ class EntApi {
         cfg = (cfg && typeof cfg === "object") ? cfg : {};
         const debug = !!cfg.debug;
 
+        const engine = this.engine;
+        const ent = subsystem(engine, "entity");
+        const mesh = subsystem(engine, "mesh");
+        const surfApi = subsystem(engine, "surface");
+        const phys = subsystem(engine, "physics");
+
         const ctx = {
-            uuid: "",         // primary UUID
+            uuid: "",
             surface: null,
             body: null,
             surfaceId: 0,
@@ -168,116 +114,168 @@ class EntApi {
             _destroyers: []
         };
 
-        const ent = subsystem(this.engine, "entity");
-        const mesh = subsystem(this.engine, "mesh");
-        const surfApi = subsystem(this.engine, "surface");
-        const phys = subsystem(this.engine, "physics");
+        let createdUuid = "";
+        let createdSurfaceId = 0;
+        let createdBodyId = 0;
 
-        // 1) entity (UUID-only)
-        const name = String(cfg.name || "entity");
-        const created = ent.create(name);
+        try {
+            const name = String(cfg.name || "entity");
 
-        if (typeof created !== "string" || !isUuidString(created)) {
-            throw new Error("[ENT] engine.entity().create() must return UUID string, got: " + String(created));
-        }
+            const created = ent.create(name);
+            if (typeof created !== "string" || !isUuidString(created)) {
+                throw new Error("[ENT] engine.entity().create() must return UUID string, got: " + String(created));
+            }
+            createdUuid = created.trim();
+            ctx.uuid = createdUuid;
 
-        ctx.uuid = created.trim();
+            const surfCfg = cfg.surface || null;
+            const bodyCfg = cfg.body || null;
 
-        // 2) surface (optional)
-        const surfCfg = cfg.surface || null;
-        const bodyCfg = cfg.body || null;
+            let surfaceHadPhysics = false;
 
-        let surfaceHadPhysics = false;
+            if (surfCfg) {
+                const sCfg = deepMerge({}, surfCfg);
+                if (sCfg.pos != null) sCfg.pos = vec3(sCfg.pos, 0, 0, 0);
 
-        if (surfCfg) {
-            const sCfg = deepMerge({}, surfCfg);
+                // If surfaceCfg carries physics block, it may create body implicitly in mesh/surface pipeline.
+                if (sCfg.physics != null) {
+                    surfaceHadPhysics = true;
+                    if (bodyCfg) {
+                        delete sCfg.physics;
+                        surfaceHadPhysics = false;
+                    }
+                }
 
-            if (sCfg.pos != null) sCfg.pos = vec3(sCfg.pos, 0, 0, 0);
+                ctx.surface = mesh.create(sCfg);
+                ctx.surfaceId = idOf(ctx.surface, "surface");
+                createdSurfaceId = ctx.surfaceId | 0;
 
-            // IMPORTANT: no double body creation
-            if (sCfg.physics != null) {
-                surfaceHadPhysics = true;
-                if (bodyCfg) {
-                    delete sCfg.physics;
-                    surfaceHadPhysics = false;
+                const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
+                if (attachSurface) {
+                    if (typeof surfApi.attachEntity !== "function") {
+                        throw new Error("[ENT] surface attach missing: engine.surface().attachEntity(surfaceHandle, uuid)");
+                    }
+                    surfApi.attachEntity(ctx.surface, ctx.uuid);
                 }
             }
 
-            ctx.surface = mesh.create(sCfg);
-            ctx.surfaceId = idOf(ctx.surface, "surface");
-
-            const attachSurface = (cfg.attachSurface != null) ? !!cfg.attachSurface : true;
-            if (attachSurface) {
-                attachSurfaceUuid(surfApi, ctx.surface, ctx.uuid);
+            // Explicit body
+            if (bodyCfg) {
+                const made = this._physBind.createBody(this._bodyDefaults, bodyCfg, ctx.surface, surfCfg);
+                ctx.body = made.body;
+                ctx.bodyId = made.bodyId | 0;
+                createdBodyId = ctx.bodyId | 0;
+            } else if (surfaceHadPhysics && ctx.surface) {
+                // Try resolve implicit body created by surface.physics
+                const bid = this._physBind.resolveBodyIdBySurface(ctx.surfaceId || ctx.surface);
+                if ((bid | 0) > 0) {
+                    ctx.bodyId = bid | 0;
+                    ctx.body = null;
+                    createdBodyId = ctx.bodyId | 0;
+                }
             }
-        }
 
-        // 3) body (optional)
-        if (bodyCfg) {
-            const made = this._physBind.createBody(this._bodyDefaults, bodyCfg, ctx.surface, surfCfg);
-            ctx.body = made.body;
-            ctx.bodyId = made.bodyId;
-        } else if (surfaceHadPhysics && ctx.surface) {
-            const bid = this._physBind.resolveBodyIdBySurface(ctx.surfaceId || ctx.surface);
-            if (bid > 0) {
-                ctx.bodyId = bid;
-                ctx.body = null;
-            }
-        }
-
-        // 4) components (optional) — UUID-first setComponent
-        const comps = cfg.components;
-        if (comps && typeof comps === "object") {
-            for (const key of Object.keys(comps)) {
-                const v = comps[key];
-                let data = v;
-
-                if (typeof v === "function") {
-                    data = v({
-                        uuid: ctx.uuid,
-                        surface: ctx.surface,
-                        body: ctx.body,
-                        surfaceId: ctx.surfaceId,
-                        bodyId: ctx.bodyId,
-                        cfg
-                    });
+            // --- PROD RULE: if core required -> ensure body exists (auto-body from surface collider) ---
+            const requireCore = (cfg.requireCore !== false);
+            if (requireCore && (ctx.bodyId | 0) <= 0) {
+                if (!ctx.surface) {
+                    throw new Error("[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider (capsule/box/sphere). uuid=" + ctx.uuid);
                 }
 
-                // preferred: setComponent(uuid,type,value)
-                if (typeof ent.setComponent === "function") {
-                    // try uuid signature first (Java side should have it)
-                    ent.setComponent(ctx.uuid, key, data);
-                } else {
+                // Create default body using inferred collider from surfaceCfg
+                const made = this._physBind.createBody(this._bodyDefaults, {}, ctx.surface, surfCfg);
+                ctx.body = made.body;
+                ctx.bodyId = made.bodyId | 0;
+                createdBodyId = ctx.bodyId | 0;
+
+                if ((ctx.bodyId | 0) <= 0) {
+                    throw new Error("[ENT] core auto-body failed (physics.body returned invalid id). uuid=" + ctx.uuid);
+                }
+            }
+            // ------------------------------------------------------------------------------
+
+            const comps = cfg.components;
+            if (comps && typeof comps === "object") {
+                if (typeof ent.setComponent !== "function") {
                     throw new Error("[ENT] engine.entity().setComponent(uuid,type,value) missing");
                 }
+                for (const key of Object.keys(comps)) {
+                    const v = comps[key];
+                    const data = (typeof v === "function")
+                        ? v({
+                            uuid: ctx.uuid,
+                            surface: ctx.surface,
+                            body: ctx.body,
+                            surfaceId: ctx.surfaceId,
+                            bodyId: ctx.bodyId,
+                            cfg
+                        })
+                        : v;
+
+                    ent.setComponent(ctx.uuid, String(key), data);
+                }
             }
+
+            const handle = new EntityHandle(engine, ctx);
+
+            let core = null;
+            if ((ctx.bodyId | 0) > 0) {
+                const bodyAccess = resolveBodyAccess(phys, ctx.body, ctx.bodyId | 0);
+                core = new EntityCore().attach(handle, ctx.body, bodyAccess);
+
+                if (cfg.shape) {
+                    const sh = cfg.shape || {};
+                    core.configureShape(sh.mass, sh.radius, sh.height);
+                }
+                if (typeof cfg.groundProbe === "function") {
+                    core.setGroundProbe(cfg.groundProbe);
+                }
+            }
+
+            handle.core = core;
+
+            if (debug) {
+                this._log.info(
+                    "[ENT] created name=" + name +
+                    " uuid=" + ctx.uuid +
+                    " surfaceId=" + (ctx.surfaceId | 0) +
+                    " bodyId=" + (ctx.bodyId | 0) +
+                    " core=" + (core ? "yes" : "no")
+                );
+            }
+
+            return Object.freeze({
+                core,
+                handle,
+                uuid: handle.uuidString(),
+                surfaceId: handle.surfaceHandleId(),
+                bodyId: handle.bodyHandleId()
+            });
+
+        } catch (e) {
+            try {
+                if ((createdBodyId | 0) > 0 && typeof phys.remove === "function") {
+                    phys.remove(createdBodyId | 0);
+                }
+            } catch (_ignored) {
+            }
+
+            try {
+                if ((createdSurfaceId | 0) > 0 && typeof surfApi.drop === "function") {
+                    surfApi.drop(createdSurfaceId | 0, true);
+                }
+            } catch (_ignored) {
+            }
+
+            try {
+                if (createdUuid && typeof ent.destroy === "function") {
+                    ent.destroy(createdUuid);
+                }
+            } catch (_ignored) {
+            }
+
+            throw e;
         }
-
-        if (debug) {
-            this._log.info(
-                "[ENT] created name=" + name +
-                " uuid=" + ctx.uuid +
-                " surfaceId=" + (ctx.surfaceId | 0) +
-                " bodyId=" + (ctx.bodyId | 0)
-            );
-        }
-
-        // 5) handle
-        const handle = new EntityHandle(this.engine, ctx);
-
-        // 6) core (embedded)
-        if ((ctx.bodyId | 0) > 0) {
-            const bodyAccess = resolveBodyAccess(phys, ctx.body, ctx.bodyId | 0);
-
-            const sh = inferShapeFromCfg(cfg, surfCfg, bodyCfg);
-            const core = new EntityCore()
-                .configureShape(sh.mass, sh.radius, sh.height)
-                .attach(handle, ctx.body, bodyAccess);
-
-            return attachCoreOrProxy(handle, core);
-        }
-
-        return handle;
     }
 
     idOf(h, kind) {
@@ -286,9 +284,7 @@ class EntApi {
 
     uuidOf(ref) {
         if (ref == null) return "";
-
         if (typeof ref === "string") return isUuidString(ref) ? ref.trim() : "";
-
         if (typeof ref === "object") {
             if (typeof ref.uuidString === "function") return String(ref.uuidString() || "");
             if (typeof ref.uuid === "function") return String(ref.uuid() || "");

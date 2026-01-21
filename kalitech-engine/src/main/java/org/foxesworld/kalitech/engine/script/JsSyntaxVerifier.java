@@ -5,6 +5,7 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
 
+@Deprecated
 public final class JsSyntaxVerifier {
 
     private static final Engine ENGINE = Engine.create();

@@ -10,23 +10,37 @@ function isObj(v) {
     return v != null && typeof v === "object";
 }
 
+function isFn(v) {
+    return typeof v === "function";
+}
+
+function toBoolOpt(v) {
+    return (v == null) ? null : !!v;
+}
+
+function toNumOpt(v, defVal) {
+    if (v == null) return defVal;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : defVal;
+}
+
 function getLog(engine) {
     try {
-        if (engine && typeof engine.log === "function") {
+        if (engine && isFn(engine.log)) {
             const l = engine.log();
-            if (l && typeof l.error === "function") return l;
+            if (l && isFn(l.error)) return l;
         }
     } catch (_) {
     }
     try {
-        if (globalThis.ENGINE && typeof ENGINE.log === "function") {
-            const l = ENGINE.log();
-            if (l && typeof l.error === "function") return l;
+        if (globalThis.ENGINE && isFn(globalThis.ENGINE.log)) {
+            const l = globalThis.ENGINE.log();
+            if (l && isFn(l.error)) return l;
         }
     } catch (_) {
     }
 
-    const c = console || Object.create(null);
+    const c = (typeof console !== "undefined") ? console : Object.create(null);
     return {
         error: (m, e) => (c.error ? c.error(m, e) : void 0),
         warn: (m, e) => (c.warn ? c.warn(m, e) : void 0),
@@ -47,6 +61,76 @@ function safeExec(log, label, fn) {
         log.error("[SND] " + label + " failed", e);
         throw e;
     }
+}
+
+function hashString32(str) {
+    let h = 2166136261 >>> 0; // FNV-1a
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i) & 0xff;
+        h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+}
+
+function xorshift32(state) {
+    let x = state >>> 0;
+    x ^= (x << 13) >>> 0;
+    x ^= (x >>> 17) >>> 0;
+    x ^= (x << 5) >>> 0;
+    return x >>> 0;
+}
+
+function normalizeSrcList(cfg) {
+    if (!cfg) return [];
+
+    if (Array.isArray(cfg.src)) return cfg.src.map(s).filter(v => v.length > 0);
+    if (Array.isArray(cfg.srcs)) return cfg.srcs.map(s).filter(v => v.length > 0);
+
+    if (typeof cfg.src === "string") {
+        const one = s(cfg.src);
+        return one.length ? [one] : [];
+    }
+    if (typeof cfg.srcs === "string") {
+        const one = s(cfg.srcs);
+        return one.length ? [one] : [];
+    }
+
+    return [];
+}
+
+function deriveChoiceSeed(cfg) {
+    const det = !!cfg.deterministic;
+    if (!det) return 0;
+
+    const seedOpt = (cfg.seed != null) ? (Number(cfg.seed) || 0) : null;
+    if (seedOpt != null) return (seedOpt >>> 0);
+
+    const c = (cfg.context && typeof cfg.context === "object") ? cfg.context : Object.create(null);
+    const packed = [
+        s(c.entityUuid),
+        String(Number(c.surfaceId) || 0),
+        String(Number(c.seq) || 0),
+        String(Number(c.tick) || 0),
+        String(Number(c.slot) || 0)
+    ].join("|");
+
+    return hashString32(packed);
+}
+
+function chooseIndex(count, cfg) {
+    if (count <= 1) return 0;
+
+    const rnd = !!cfg.random;
+
+    if (!rnd) return 0;
+
+    if (!!cfg.deterministic) {
+        const seed = deriveChoiceSeed(cfg) >>> 0;
+        const next = xorshift32(seed || 1);
+        return (next % count) >>> 0;
+    }
+
+    return (Math.floor(Math.random() * count) % count) >>> 0;
 }
 
 class SoundInstance {
@@ -162,7 +246,6 @@ class SoundObject {
         this._deterministic = null;
         this._seed = null;
         this._positional = null;
-
         this._random = null;
 
         this._context = {entityUuid: "", surfaceId: 0, seq: 0, tick: 0, slot: 0};
@@ -257,7 +340,6 @@ class SoundObject {
 
             if (this._deterministic != null) cfg.deterministic = !!this._deterministic;
             if (this._seed != null) cfg.seed = Number(this._seed) || 0;
-
             if (this._random != null) cfg.random = !!this._random;
 
             cfg.context = {
@@ -285,6 +367,7 @@ class SoundObject {
 
         const cfg = Object.assign({}, this._fileCfg);
         if (this._positional != null) cfg.is3D = !!this._positional;
+        if (this._random != null) cfg.random = !!this._random;
 
         if (this._overrides && typeof this._overrides === "object") {
             Object.assign(cfg, this._overrides);
@@ -323,7 +406,7 @@ class SoundRegistry {
 
     api() {
         const soundApi = this.engine.sound && this.engine.sound();
-        if (!soundApi || typeof soundApi.createId !== "function") {
+        if (!soundApi || !isFn(soundApi.createId)) {
             throw new Error("[SND] engine.sound().createId(cfg) is required");
         }
         return soundApi;
@@ -336,10 +419,14 @@ class SoundRegistry {
         this._bankLoadAttempted = true;
 
         const soundApi = this.api();
-        if (typeof soundApi.loadBank !== "function") return false;
+        if (!isFn(soundApi.loadBank)) return false;
 
         try {
-            const txt = this.engine.assets().readText(this._bankPath);
+            const assets = this.engine.assets && this.engine.assets();
+            if (!assets || !isFn(assets.readText)) {
+                throw new Error("[SND] engine.assets().readText(path) is required for bank autoload");
+            }
+            const txt = assets.readText(this._bankPath);
             const obj = JSON.parse(txt);
             soundApi.loadBank(obj);
         } catch (e) {
@@ -386,7 +473,7 @@ class SoundRegistry {
 
     loadBank(bankObj) {
         const api = this.api();
-        if (typeof api.loadBank !== "function") {
+        if (!isFn(api.loadBank)) {
             throw new Error("[SND] engine.sound().loadBank(bankObj) is required for event sound bank");
         }
         safeExec(this._log, "loadBank", () => api.loadBank(bankObj));
@@ -397,7 +484,7 @@ class SoundRegistry {
 
     clearBank() {
         const api = this.api();
-        if (typeof api.clearBank === "function") safeExec(this._log, "clearBank", () => api.clearBank());
+        if (isFn(api.clearBank)) safeExec(this._log, "clearBank", () => api.clearBank());
         this._bankLoaded = false;
         this._bankLoadAttempted = false;
         return this;
@@ -406,7 +493,7 @@ class SoundRegistry {
     listEvents() {
         this._ensureBankLoaded();
         const api = this.api();
-        if (typeof api.listEvents !== "function") return [];
+        if (!isFn(api.listEvents)) return [];
         return safeExec(this._log, "listEvents", () => api.listEvents());
     }
 
@@ -422,20 +509,22 @@ class SoundRegistry {
 
     playSound(cfg) {
         const api = this.api();
+
         if (!cfg || typeof cfg !== "object") {
             throw new Error("[SND] playSound(cfg): cfg object is required");
         }
 
-        const hasEvent = typeof cfg.event === "string" && cfg.event.length > 0;
-        const hasSrc = typeof cfg.src === "string" && cfg.src.length > 0;
+        const hasEvent = (typeof cfg.event === "string" && cfg.event.length > 0);
+        const srcList = normalizeSrcList(cfg);
+        const hasSrc = srcList.length > 0;
 
         if (!hasEvent && !hasSrc) {
-            throw new Error("[SND] playSound(cfg): 'event' or 'src' is required");
+            throw new Error("[SND] playSound(cfg): 'event' or 'src' (string/array) is required");
         }
 
         if (hasEvent) {
             this._ensureBankLoaded();
-            if (!api.playEventCfgId) {
+            if (!isFn(api.playEventCfgId)) {
                 throw new Error("[SND] engine.sound().playEventCfgId(cfg) is required for event sounds");
             }
             const ecfg = this._normalizeEventCfg(cfg);
@@ -443,8 +532,9 @@ class SoundRegistry {
             return new SoundInstance(this.engine, id, api, this._log);
         }
 
-        const scfg = this._normalizeSrcCfg(cfg);
+        const scfg = this._normalizeSrcCfg(cfg, srcList);
         const id = safeExec(this._log, "createId", () => api.createId(scfg));
+        console.log(id);
         safeExec(this._log, "play", () => api.playId(id));
         return new SoundInstance(this.engine, id, api, this._log);
     }
@@ -453,7 +543,6 @@ class SoundRegistry {
         const out = {event: s(cfg.event)};
 
         if (cfg.random != null) out.random = !!cfg.random;
-
         if (cfg.deterministic != null) out.deterministic = !!cfg.deterministic;
         if (cfg.seed != null) out.seed = Number(cfg.seed) || 0;
 
@@ -492,7 +581,7 @@ class SoundRegistry {
         }
 
         if (cfg.pos != null || cfg.position != null || cfg.x != null || cfg.y != null || cfg.z != null) {
-            const p = cfg.pos != null ? cfg.pos : (cfg.position != null ? cfg.position : {
+            const p = (cfg.pos != null) ? cfg.pos : ((cfg.position != null) ? cfg.position : {
                 x: cfg.x,
                 y: cfg.y,
                 z: cfg.z
@@ -508,17 +597,46 @@ class SoundRegistry {
         return out;
     }
 
-    _normalizeSrcCfg(cfg) {
-        const out = {src: s(cfg.src)};
+    _normalizeSrcCfg(cfg, srcList) {
+        const out = {};
 
-        if (cfg.type != null) out.type = s(cfg.type);
+        out.type = (cfg.type != null) ? s(cfg.type) : void 0;
+
+        const det = toBoolOpt(cfg.deterministic);
+        const seed = toNumOpt(cfg.seed, null);
+        const rnd = toBoolOpt(cfg.random);
+
+        if (det != null) out.deterministic = det;
+        if (seed != null) out.seed = seed;
+        if (rnd != null) out.random = rnd;
+
+        if (cfg.context && typeof cfg.context === "object") {
+            const c = cfg.context;
+            out.context = {
+                entityUuid: s(c.entityUuid),
+                surfaceId: Number(c.surfaceId) || 0,
+                seq: Number(c.seq) || 0,
+                tick: Number(c.tick) || 0,
+                slot: Number(c.slot) || 0
+            };
+        }
+
+        const idx = chooseIndex(srcList.length, {
+            deterministic: !!det,
+            seed: seed,
+            random: !!rnd,
+            context: out.context
+        });
+
+        out.src = s(srcList[idx]);
+
         if (cfg.is3D != null) out.is3D = !!cfg.is3D;
         if (cfg.looping != null) out.looping = !!cfg.looping;
         if (cfg.volume != null) out.volume = cfg.volume;
         if (cfg.pitch != null) out.pitch = cfg.pitch;
 
         if (cfg.pos != null || cfg.position != null || cfg.x != null || cfg.y != null || cfg.z != null) {
-            const p = cfg.pos != null ? cfg.pos : (cfg.position != null ? cfg.position : {
+            const p = (cfg.pos != null) ? cfg.pos : ((cfg.position != null) ? cfg.position : {
                 x: cfg.x,
                 y: cfg.y,
                 z: cfg.z
@@ -542,11 +660,11 @@ create.META = {
     moduleId: "sound",
     id: "sound",
     globalName: "SND",
-    version: "2.0.0",
+    version: "2.1.0",
     description: "Universal sound facade (SoundId-only): playSound(cfg), event bank + src sounds, object-mode getSound/getSoundFile",
     engineMin: "0.1.0",
     changelog: [
-        "2.0.0: switched JS surface to SoundId-only; no AudioNode references exposed."
+        "2.1.0: added random selection support for src arrays; deterministic-safe variant choice; removed stray stdout logging; strengthened validation."
     ],
     deprecation: {
         status: "active",

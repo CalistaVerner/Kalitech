@@ -10,14 +10,7 @@ import java.util.function.BiConsumer;
  * <ul>
  *   <li>O(1) add/remove/get/has</li>
  *   <li>Dense iteration (no full-array scans)</li>
- *   <li>No boxing for entity ids</li>
- * </ul>
- *
- * <p>Implementation is a classic sparse-set:
- * <ul>
- *   <li><b>sparse</b>: entityId -&gt; denseIndex+1</li>
- *   <li><b>denseEntities</b>: denseIndex -&gt; entityId</li>
- *   <li><b>denseValues</b>: denseIndex -&gt; component</li>
+ *   <li>No boxing for entity ids in storage internals</li>
  * </ul>
  */
 public final class ComponentStore {
@@ -25,10 +18,6 @@ public final class ComponentStore {
     private final Map<Class<?>, Pool> typed = new IdentityHashMap<>();
     private final Map<String, Pool> named = new HashMap<>();
 
-    /**
-     * Current maximum entity capacity for sparse arrays (exclusive).
-     * Entity ids are expected to start at 1.
-     */
     private int entityCapacity;
 
     public ComponentStore() {
@@ -135,11 +124,32 @@ public final class ComponentStore {
         return Collections.unmodifiableMap(out);
     }
 
+    private static int nextPow2(int v) {
+        int x = 1;
+        while (x < v) x <<= 1;
+        return x;
+    }
+
+    /**
+     * Returns all named components of an entity as an immutable map.
+     *
+     * <p>This method is intended for editor/UI mirroring, not for hot gameplay loops.</p>
+     */
+    public Map<String, Object> namedComponentsOf(int entity) {
+        requireEntity(entity);
+        if (named.isEmpty()) return Map.of();
+
+        LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Pool> e : named.entrySet()) {
+            Pool p = e.getValue();
+            if (!p.has(entity)) continue;
+            out.put(e.getKey(), p.get(entity));
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
     /**
      * Removes all components of an entity from all pools.
-     *
-     * <p>This operation is O(number of registered component types). In exchange,
-     * per-component iteration is hot and dense.
      */
     public void removeAll(int entity) {
         requireEntity(entity);
@@ -151,16 +161,27 @@ public final class ComponentStore {
         }
     }
 
-    private static int nextPow2(int v) {
-        int x = 1;
-        while (x < v) x <<= 1;
-        return x;
-    }
-
     public void reset() {
         typed.clear();
         named.clear();
         entityCapacity = 0;
+    }
+
+    /**
+     * Returns all named component type names present on an entity.
+     *
+     * <p>This method is intended for editor/UI mirroring.</p>
+     */
+    public List<String> namedComponentTypesOf(int entity) {
+        requireEntity(entity);
+        if (named.isEmpty()) return List.of();
+
+        ArrayList<String> out = new ArrayList<>(Math.min(16, named.size()));
+        for (Map.Entry<String, Pool> e : named.entrySet()) {
+            if (e.getValue().has(entity)) out.add(e.getKey());
+        }
+        out.sort(String::compareTo);
+        return Collections.unmodifiableList(out);
     }
 
     private void ensureEntityCapacity(int entityId) {
@@ -177,13 +198,10 @@ public final class ComponentStore {
         }
     }
 
-    /**
-     * Sparse-set pool for a single component type.
-     */
     static final class Pool {
-        private int[] sparse;              // entityId -> denseIndex+1
-        private int[] denseEntities;       // denseIndex -> entityId
-        private Object[] denseValues;      // denseIndex -> value
+        private int[] sparse;
+        private int[] denseEntities;
+        private Object[] denseValues;
         private int size;
 
         Pool(int entityCapacity) {
