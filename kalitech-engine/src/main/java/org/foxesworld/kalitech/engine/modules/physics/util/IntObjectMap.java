@@ -13,6 +13,8 @@ import java.util.Objects;
  * Keys must be positive (> 0).</p>
  *
  * <p>Iteration is allocation-light: iterator reuses a single mutable {@link Entry} instance.</p>
+ *
+ * <p>Not thread-safe.</p>
  */
 public final class IntObjectMap<T> {
 
@@ -21,7 +23,10 @@ public final class IntObjectMap<T> {
 
     private static final float LOAD_FACTOR = 0.65f;
     private static final float TOMBSTONE_FACTOR = 0.20f;
-    private final EntriesIterable entriesIterable = new EntriesIterable();
+
+    // Must not be initialized before keys/values are created (field init order matters).
+    private EntriesIterable entriesIterable;
+
     private int[] keys;
     private Object[] values;
     private int size;
@@ -39,6 +44,7 @@ public final class IntObjectMap<T> {
         this.values = new Object[cap];
         this.mask = cap - 1;
         this.resizeAt = (int) (cap * LOAD_FACTOR);
+        this.entriesIterable = null;
     }
 
     private static int mix32(int x) {
@@ -129,15 +135,17 @@ public final class IntObjectMap<T> {
 
     /**
      * Iterates over all live entries.
-     * Iterator reuses a single mutable {@link Entry} instance.
+     * Iterator instance is reused (no per-iteration allocation).
      */
     public Iterable<Entry<T>> entries() {
-        return entriesIterable;
+        EntriesIterable it = entriesIterable;
+        if (it == null) {
+            it = new EntriesIterable();
+            entriesIterable = it;
+        }
+        return it;
     }
 
-    /**
-     * Removes entries for which {@code liveness.isAlive(value)} returns false.
-     */
     public void sweep(Liveness<T> liveness) {
         Objects.requireNonNull(liveness, "liveness");
         boolean removedAny = false;
@@ -272,18 +280,29 @@ public final class IntObjectMap<T> {
     }
 
     private final class EntriesIterable implements Iterable<Entry<T>> {
+
+        private final EntryIterator it = new EntryIterator();
+
         @Override
         public Iterator<Entry<T>> iterator() {
-            return new EntryIterator();
+            it.reset();
+            return it;
         }
     }
 
     private final class EntryIterator implements Iterator<Entry<T>> {
         private final Entry<T> entry = new Entry<>();
-        private int idx = -1;
-        private int next = -1;
+        private int idx;
+        private int next;
 
-        EntryIterator() {
+        private EntryIterator() {
+            this.idx = -1;
+            this.next = -1;
+        }
+
+        private void reset() {
+            this.idx = -1;
+            this.next = -1;
             advance();
         }
 
@@ -308,8 +327,9 @@ public final class IntObjectMap<T> {
 
         private void advance() {
             int i = idx + 1;
-            while (i < keys.length) {
-                int k = keys[i];
+            final int[] ks = keys;
+            while (i < ks.length) {
+                int k = ks[i];
                 if (k != EMPTY && k != DELETED) {
                     next = i;
                     return;

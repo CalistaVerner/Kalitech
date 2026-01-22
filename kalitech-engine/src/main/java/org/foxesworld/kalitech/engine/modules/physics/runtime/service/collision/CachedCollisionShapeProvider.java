@@ -29,7 +29,11 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
 
     private static final float MIN_EXTENT = 0.001f;
 
-    private final ConcurrentHashMap<ShapeKey, CollisionShape> shapeCache = new ConcurrentHashMap<>();
+    // Thread-local extent scratch (avoids per-call Vector3f in getExtent(null))
+    private static final ThreadLocal<Vector3f> TL_EXTENT = ThreadLocal.withInitial(Vector3f::new);
+    // No ShapeKey allocations: separate caches for static/dynamic
+    private final ConcurrentHashMap<Mesh, CollisionShape> staticMeshCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Mesh, CollisionShape> dynamicMeshCache = new ConcurrentHashMap<>();
 
     public CachedCollisionShapeProvider(@SuppressWarnings("unused") Logger log) {
         Objects.requireNonNull(log, "log");
@@ -65,14 +69,16 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
     }
 
     private static Vector3f extentFrom(Geometry g, Mesh mesh) {
+        Vector3f tmp = TL_EXTENT.get();
+
         BoundingVolume bv = mesh.getBound();
         if (bv instanceof BoundingBox bb) {
-            return sanitizeExtent(bb.getExtent(null));
+            return sanitizeExtent(bb.getExtent(tmp));
         }
 
         BoundingVolume w = g.getWorldBound();
         if (w instanceof BoundingBox wb) {
-            return sanitizeExtent(wb.getExtent(null));
+            return sanitizeExtent(wb.getExtent(tmp));
         }
 
         return null;
@@ -130,7 +136,8 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
 
     @Override
     public void clear() {
-        shapeCache.clear();
+        staticMeshCache.clear();
+        dynamicMeshCache.clear();
     }
 
     private CollisionShape defaultShapeForSpatial(Spatial spatial, boolean dynamic) {
@@ -140,47 +147,22 @@ public final class CachedCollisionShapeProvider implements CollisionShapeProvide
 
             Mesh mesh = g.getMesh();
             if (mesh != null) {
-                ShapeKey key = new ShapeKey(mesh, dynamic);
-                CollisionShape cached = shapeCache.get(key);
+                ConcurrentHashMap<Mesh, CollisionShape> cache = dynamic ? dynamicMeshCache : staticMeshCache;
+
+                CollisionShape cached = cache.get(mesh);
                 if (cached != null) return cached;
 
                 CollisionShape created = dynamic
                         ? CollisionShapeFactory.createDynamicMeshShape(g)
                         : CollisionShapeFactory.createMeshShape(g);
 
-                shapeCache.putIfAbsent(key, created);
-                return created;
+                CollisionShape prev = cache.putIfAbsent(mesh, created);
+                return (prev != null) ? prev : created;
             }
         }
 
         return dynamic
                 ? CollisionShapeFactory.createDynamicMeshShape(spatial)
                 : CollisionShapeFactory.createMeshShape(spatial);
-    }
-
-    private static final class ShapeKey {
-        private final Mesh mesh;
-        private final boolean dynamic;
-        private final int hash;
-
-        ShapeKey(Mesh mesh, boolean dynamic) {
-            this.mesh = mesh;
-            this.dynamic = dynamic;
-            int h = System.identityHashCode(mesh);
-            h = 31 * h + (dynamic ? 1 : 0);
-            this.hash = h;
-        }
-
-        @Override
-        public int hashCode() {
-            return hash;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ShapeKey k)) return false;
-            return mesh == k.mesh && dynamic == k.dynamic;
-        }
     }
 }

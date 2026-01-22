@@ -39,21 +39,29 @@ public final class PhysicsCollisionPipeline {
     private final AtomicLong stepCounter = new AtomicLong(0);
     private final AtomicBoolean collisionListenerBound = new AtomicBoolean(false);
     private final AtomicBoolean tickListenerBound = new AtomicBoolean(false);
+
     private final LongContactMap currContacts = new LongContactMap(4096);
+
     private volatile float lastDt = 0f;
     private volatile long currentStep = 0L;
+
     private final LongHashSet.LongConsumer emitStayConsumer = k -> {
         if (k == 0L) return;
         emitCollision("engine.physics.collision.stay", currentStep, lastDt, k, currContacts.get(k));
     };
+
     private volatile PhysicsBodyStateTracker bodyStateTracker;
+
     private LongHashSet currPairs = new LongHashSet(4096);
+
     private final LongHashSet.LongConsumer emitEndConsumer = k -> {
         if (k == 0L) return;
         if (currPairs.contains(k)) return;
         emitCollision("engine.physics.collision.end", currentStep, lastDt, k, null);
     };
+
     private LongHashSet prevPairs = new LongHashSet(4096);
+
     private final LongHashSet.LongConsumer emitBeginConsumer = k -> {
         if (k == 0L) return;
         if (prevPairs.contains(k)) return;
@@ -62,6 +70,9 @@ public final class PhysicsCollisionPipeline {
         emitCollision("engine.physics.collision.begin", currentStep, lastDt, k, agg);
         emitImpact(currentStep, lastDt, k, agg);
     };
+
+    // Hot-path temp (safe: ContactAgg.add consumes immediately by copying floats)
+    private final Vector3f tmpMid = new Vector3f();
 
     public PhysicsCollisionPipeline(PhysicsService svc, Logger log) {
         this.svc = Objects.requireNonNull(svc, "svc");
@@ -226,9 +237,6 @@ public final class PhysicsCollisionPipeline {
         ensureTickListenerBound(sp);
     }
 
-    /**
-     * Optional tracker to emit body state after each physics step.
-     */
     public void setBodyStateTracker(PhysicsBodyStateTracker tracker) {
         this.bodyStateTracker = tracker;
     }
@@ -275,8 +283,12 @@ public final class PhysicsCollisionPipeline {
                 try {
                     Vector3f pa = e.getPositionWorldOnA();
                     Vector3f pb = e.getPositionWorldOnB();
-                    if (pa != null && pb != null) point = pa.add(pb).multLocal(0.5f);
-                    else point = (pa != null) ? pa : pb;
+                    if (pa != null && pb != null) {
+                        // no allocation: tmpMid reused
+                        point = tmpMid.set(pa).addLocal(pb).multLocal(0.5f);
+                    } else {
+                        point = (pa != null) ? pa : pb;
+                    }
                 } catch (Throwable ignored) {
                 }
 

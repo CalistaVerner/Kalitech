@@ -22,6 +22,14 @@ public final class PhysicsRaycaster {
 
     private final PhysicsService svc;
 
+    // Hot-path temporaries (single-threaded usage assumed: scripting/update thread)
+    private final Vector3f tmpFrom = new Vector3f();
+    private final Vector3f tmpTo = new Vector3f();
+    private final Vector3f tmpDir = new Vector3f();
+    private final Vector3f tmpHit = new Vector3f();
+
+    private final ArrayList<PhysicsRayTestResult> tmpFiltered = new ArrayList<>(64);
+
     public PhysicsRaycaster(PhysicsService svc) {
         this.svc = svc;
     }
@@ -35,7 +43,7 @@ public final class PhysicsRaycaster {
             Vector3f point,
             Vector3f normal
     ) {
-        Map<String, Object> m = new HashMap<>();
+        Map<String, Object> m = new HashMap<>(10, 1.0f);
         m.put("hit", hit);
         m.put("bodyId", bodyId);
         m.put("surfaceId", surfaceId);
@@ -53,14 +61,15 @@ public final class PhysicsRaycaster {
         PhysicsSpace space = svc.requireSpace();
         if (cfg == null) throw new IllegalArgumentException("physics.raycast(cfg) cfg required");
 
-        Vector3f from = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "from"), 0, 0, 0);
-        Vector3f to = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "to"), 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "from"), tmpFrom, 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "to"), tmpTo, 0, 0, 0);
 
-        List<PhysicsRayTestResult> hits = space.rayTest(from, to);
+        List<PhysicsRayTestResult> hits = space.rayTest(tmpFrom, tmpTo);
         if (hits == null || hits.isEmpty()) return null;
 
         PhysicsRayTestResult best = null;
         float bestFrac = Float.POSITIVE_INFINITY;
+
         for (PhysicsRayTestResult r : hits) {
             float f = r.getHitFraction();
             if (f < bestFrac) {
@@ -74,15 +83,18 @@ public final class PhysicsRaycaster {
         int bodyId = (h != null) ? h.id : 0;
         int surfaceId = (h != null) ? h.surfaceId : 0;
 
-        Vector3f dir = to.subtract(from);
-        Vector3f hitPoint = from.add(dir.mult(bestFrac));
+        // dir = to - from (no alloc)
+        tmpDir.set(tmpTo).subtractLocal(tmpFrom);
+        // hitPoint = from + dir * frac (no alloc)
+        tmpHit.set(tmpDir).multLocal(bestFrac).addLocal(tmpFrom);
+
         Vector3f n = best.getHitNormalLocal();
 
         return new PhysicsRayHit(
                 bodyId,
                 surfaceId,
                 bestFrac,
-                new PhysicsRayHit.Vec3(hitPoint.x, hitPoint.y, hitPoint.z),
+                new PhysicsRayHit.Vec3(tmpHit.x, tmpHit.y, tmpHit.z),
                 n == null ? new PhysicsRayHit.Vec3(0, 1, 0) : new PhysicsRayHit.Vec3(n.x, n.y, n.z)
         );
     }
@@ -92,8 +104,8 @@ public final class PhysicsRaycaster {
         PhysicsSpace space = svc.requireSpace();
         if (cfg == null) throw new IllegalArgumentException("physics.raycastEx(cfg) cfg required");
 
-        Vector3f from = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "from"), 0, 0, 0);
-        Vector3f to = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "to"), 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "from"), tmpFrom, 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "to"), tmpTo, 0, 0, 0);
 
         int ignoreBodyId = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ignoreBodyId"), 0);
         int ignoreSurfaceId = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ignoreSurfaceId"), 0);
@@ -103,9 +115,9 @@ public final class PhysicsRaycaster {
 
         int mask = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "mask"), 0);
 
-        List<PhysicsRayTestResult> hits = space.rayTest(from, to);
+        List<PhysicsRayTestResult> hits = space.rayTest(tmpFrom, tmpTo);
         if (hits == null || hits.isEmpty()) {
-            return hitObj(false, 0, 0, 0f, 0f, from, null);
+            return hitObj(false, 0, 0, 0f, 0f, tmpFrom, null);
         }
 
         PhysicsRayTestResult best = null;
@@ -132,19 +144,20 @@ public final class PhysicsRaycaster {
         }
 
         if (best == null) {
-            return hitObj(false, 0, 0, 0f, 0f, from, null);
+            return hitObj(false, 0, 0, 0f, 0f, tmpFrom, null);
         }
 
         PhysicsBodyHandle bh = svc.registry().findHandleByCollisionObject(best.getCollisionObject());
         int bodyId = (bh != null) ? bh.id : 0;
         int surfaceId = (bh != null) ? bh.surfaceId : 0;
 
-        Vector3f dir = to.subtract(from);
-        float rayLen = dir.length();
-        Vector3f hitPoint = from.add(dir.mult(bestFrac));
+        tmpDir.set(tmpTo).subtractLocal(tmpFrom);
+        float rayLen = tmpDir.length();
+
+        tmpHit.set(tmpDir).multLocal(bestFrac).addLocal(tmpFrom);
         float distance = rayLen * bestFrac;
 
-        return hitObj(true, bodyId, surfaceId, bestFrac, distance, hitPoint, best.getHitNormalLocal());
+        return hitObj(true, bodyId, surfaceId, bestFrac, distance, tmpHit, best.getHitNormalLocal());
     }
 
     public Object raycastAll(Object cfg) {
@@ -152,8 +165,8 @@ public final class PhysicsRaycaster {
         PhysicsSpace space = svc.requireSpace();
         if (cfg == null) throw new IllegalArgumentException("physics.raycastAll(cfg) cfg required");
 
-        Vector3f from = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "from"), 0, 0, 0);
-        Vector3f to = PhysicsValueParsers.vec3(PhysicsValueParsers.member(cfg, "to"), 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "from"), tmpFrom, 0, 0, 0);
+        PhysicsValueParsers.vec3Into(PhysicsValueParsers.member(cfg, "to"), tmpTo, 0, 0, 0);
 
         int ignoreBodyId = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ignoreBodyId"), 0);
         int ignoreSurfaceId = (int) PhysicsValueParsers.asNum(PhysicsValueParsers.member(cfg, "ignoreSurfaceId"), 0);
@@ -167,10 +180,11 @@ public final class PhysicsRaycaster {
         if (maxHits <= 0) maxHits = 16;
         if (maxHits > 256) maxHits = 256;
 
-        List<PhysicsRayTestResult> hits = space.rayTest(from, to);
+        List<PhysicsRayTestResult> hits = space.rayTest(tmpFrom, tmpTo);
         if (hits == null || hits.isEmpty()) return new Object[0];
 
-        ArrayList<PhysicsRayTestResult> filtered = new ArrayList<>(hits.size());
+        tmpFiltered.clear();
+
         for (PhysicsRayTestResult r : hits) {
             float f = r.getHitFraction();
             if (!isFinite(f)) continue;
@@ -185,32 +199,32 @@ public final class PhysicsRaycaster {
             if (!passesStaticDynamicFilter(rb, staticOnly, dynamicOnly)) continue;
             if (!passesMaskFilter(rb, mask)) continue;
 
-            filtered.add(r);
+            tmpFiltered.add(r);
         }
 
-        if (filtered.isEmpty()) return new Object[0];
+        if (tmpFiltered.isEmpty()) return new Object[0];
 
-        filtered.sort((a, b) -> Float.compare(a.getHitFraction(), b.getHitFraction()));
+        tmpFiltered.sort((a, b) -> Float.compare(a.getHitFraction(), b.getHitFraction()));
 
-        Vector3f dir = to.subtract(from);
-        float rayLen = dir.length();
+        tmpDir.set(tmpTo).subtractLocal(tmpFrom);
+        float rayLen = tmpDir.length();
         if (rayLen <= 1e-6f) rayLen = 1e-6f;
 
-        int outN = Math.min(maxHits, filtered.size());
+        int outN = Math.min(maxHits, tmpFiltered.size());
         Object[] out = new Object[outN];
 
         for (int i = 0; i < outN; i++) {
-            PhysicsRayTestResult r = filtered.get(i);
+            PhysicsRayTestResult r = tmpFiltered.get(i);
             float frac = r.getHitFraction();
 
             PhysicsBodyHandle h = svc.registry().findHandleByCollisionObject(r.getCollisionObject());
             int bodyId = (h != null) ? h.id : 0;
             int surfaceId = (h != null) ? h.surfaceId : 0;
 
-            Vector3f hitPoint = from.add(dir.mult(frac));
+            tmpHit.set(tmpDir).multLocal(frac).addLocal(tmpFrom);
             float distance = rayLen * frac;
 
-            out[i] = hitObj(true, bodyId, surfaceId, frac, distance, hitPoint, r.getHitNormalLocal());
+            out[i] = hitObj(true, bodyId, surfaceId, frac, distance, tmpHit, r.getHitNormalLocal());
         }
 
         return out;
