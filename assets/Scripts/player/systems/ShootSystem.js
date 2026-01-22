@@ -85,54 +85,9 @@ function mixU32(a, b) {
     return (a ^ (a >>> 16)) >>> 0;
 }
 
-function _tryCall(fn, arg) {
-    try {
-        return (arg !== undefined) ? fn(arg) : fn();
-    } catch (_) {
-        return null;
-    }
-}
-
-/**
- * Canonical "center of screen" ray reader.
- * Expected outputs: {origin:{x,y,z}, dir:{x,y,z}} or {pos:{x,y,z}, dir:{x,y,z}} or arrays.
- */
-function readCenterRay(frame) {
-    const cam = frame && frame.camera;
-    const Ecam = (typeof ENGINE !== "undefined" && ENGINE && ENGINE.camera) ? ENGINE.camera : null;
-
-    const candidates = [];
-
-    if (cam) {
-        if (typeof cam.rayCenter === "function") candidates.push(() => cam.rayCenter());
-        if (typeof cam.ray === "function") candidates.push(() => cam.ray());
-        if (typeof cam.getRayCenter === "function") candidates.push(() => cam.getRayCenter());
-        if (typeof cam.getRay === "function") candidates.push(() => cam.getRay());
-    }
-
-    if (Ecam) {
-        if (typeof Ecam.rayCenter === "function") candidates.push(() => Ecam.rayCenter());
-        if (typeof Ecam.ray === "function") candidates.push(() => Ecam.ray());
-        if (typeof Ecam.getRayCenter === "function") candidates.push(() => Ecam.getRayCenter());
-        if (typeof Ecam.getRay === "function") candidates.push(() => Ecam.getRay());
-    }
-
-    for (let i = 0; i < candidates.length; i++) {
-        const r = _tryCall(candidates[i]);
-        if (!r) continue;
-
-        const origin = vec3FromAny(r.origin) || vec3FromAny(r.pos) || vec3FromAny(r.from);
-        const dir = vec3FromAny(r.dir) || vec3FromAny(r.direction) || vec3FromAny(r.to);
-
-        if (origin && dir) return {origin, dir};
-    }
-
-    return null;
-}
-
 const DEFAULT_CFG = Object.freeze({
     enabled: true,
-    spawnOffset: 0.05,
+    spawnOffset: 0.0,
     speed: 460.0,
     invertPitch: true,
 
@@ -165,6 +120,11 @@ const DEFAULT_CFG = Object.freeze({
         hit: "game.shoot.hit"
     },
 
+    /**
+     * Determinism settings for shot simulation (JS-side).
+     * - enabled: if true, uses local seeded RNG instead of Math.random().
+     * - seed: optional manual seed; if 0/undefined uses particles frameSeed if available.
+     */
     deterministic: {
         enabled: true,
         seed: 0
@@ -240,11 +200,13 @@ class ShootSystem {
 
         this._P = (typeof PARTICLES !== "undefined" && PARTICLES) ? PARTICLES : null;
 
+        // Deterministic RNG state
         this._rng = null;
         this._rngSeedU32 = 0;
         this._rngReady = false;
 
-        this._sysTagU32 = hashStrU32("ShootSystem.v2.centerRay");
+        // Stable tag for hashing across runs
+        this._sysTagU32 = hashStrU32("ShootSystem.v1");
     }
 
     configure(cfg) {
@@ -287,26 +249,11 @@ class ShootSystem {
         return normalize3_into(sy * cp, sp, cy * cp, outDir);
     }
 
-    /**
-     * Canonical read for "center of screen".
-     * Uses camera ray if possible; otherwise falls back to frame pose + yaw/pitch.
-     */
-    _readCenterRay_into(frame, outOrigin, outDir) {
-        const ray = readCenterRay(frame);
-        if (ray) {
-            outOrigin.x = U.num(ray.origin.x, 0);
-            outOrigin.y = U.num(ray.origin.y, 0);
-            outOrigin.z = U.num(ray.origin.z, 0);
-            normalize3_into(ray.dir.x, ray.dir.y, ray.dir.z, outDir);
-            return true;
-        }
-
-        outOrigin.x = U.num(frame && frame.pose && frame.pose.x, 0);
-        outOrigin.y = U.num(frame && frame.pose && frame.pose.y, 0) + U.num(frame && frame.character && frame.character.eyeHeight, 1.55);
-        outOrigin.z = U.num(frame && frame.pose && frame.pose.z, 0);
-
-        this._dirFromYawPitch_into(frame && frame.view ? frame.view.yaw : 0, frame && frame.view ? frame.view.pitch : 0, outDir);
-        return false;
+    _readOrigin_into(frame, outOrigin) {
+        outOrigin.x = U.num(frame.pose.x, 0);
+        outOrigin.y = U.num(frame.pose.y, 0) + U.num(frame.character.eyeHeight, 1.55);
+        outOrigin.z = U.num(frame.pose.z, 0);
+        return outOrigin;
     }
 
     _ensureRng(frame) {
@@ -317,6 +264,8 @@ class ShootSystem {
             return;
         }
 
+        // Try to anchor to engine particles frameSeed if available.
+        // This is optional: if PARTICLES doesn't provide it, we fall back to deterministic seed only.
         let base = det.seed | 0;
 
         const P = this._P;
@@ -328,12 +277,14 @@ class ShootSystem {
             }
         }
 
+        // If still no base seed, derive from stable inputs (frame time is NOT used).
         if (!base) {
             const owner = (frame && frame.owner && (frame.owner.id | 0)) || 0;
             base = mixU32(this._sysTagU32, owner);
             if (!base) base = 0x12345678;
         }
 
+        // Mix with shotId to avoid repeating patterns across shots within same frame.
         const seedU32 = mixU32(base >>> 0, (this._shotId + 1) >>> 0);
 
         if (this._rngReady && seedU32 === this._rngSeedU32 && this._rng) return;
@@ -426,6 +377,7 @@ class ShootSystem {
             }
         });
 
+
         this._emit(c.events.hit, {
             surfaceId: shotSurfaceId | 0,
             pos,
@@ -464,15 +416,22 @@ class ShootSystem {
     }
 
     _fire(frame, ownerBodyId) {
+        let sound = ENGINE.sound.getSound("world.debris");
+        sound.setRandom(true);
+        sound.play();
+
         const c = this.cfg;
         if (!c.enabled || !ownerBodyId) return;
 
         this._bindPhysicsFx();
+
+        // Prepare deterministic RNG for this shot (does not affect global randomness).
         this._ensureRng(frame);
 
-        this._readCenterRay_into(frame, this._origin, this._dir);
+        this._readOrigin_into(frame, this._origin);
+        this._dirFromYawPitch_into(frame.view.yaw, frame.view.pitch, this._dir);
 
-        const off = +c.spawnOffset || 0.0;
+        const off = c.spawnOffset;
         this._spawn.x = this._origin.x + this._dir.x * off;
         this._spawn.y = this._origin.y + this._dir.y * off;
         this._spawn.z = this._origin.z + this._dir.z * off;

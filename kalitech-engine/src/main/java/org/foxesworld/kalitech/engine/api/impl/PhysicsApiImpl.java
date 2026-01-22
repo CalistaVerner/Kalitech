@@ -308,33 +308,6 @@ public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsAp
         svc.removeBodyById(id);
     }
 
-    // inside PhysicsApiImpl
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public Object rotation(Object handleOrId) {
-        ensureModulesBound();
-        return bodyOps.rotation(handleOrId);
-    }
-
-    @HostAccess.Export
-    @ApiMethod(
-            thread = ApiThreadRule.ANY,
-            sync = false,
-            flags = {ApiFlag.SANDBOX_ALLOWED},
-            cost = ApiCostHint.NORMAL
-    )
-    public void rotation(Object handleOrId, Object quat) {
-        ensureModulesBound();
-        bodyOps.rotation(handleOrId, quat);
-    }
-
-
     @HostAccess.Export
     @ApiMethod(
             thread = ApiThreadRule.ANY,

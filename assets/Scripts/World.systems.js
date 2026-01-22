@@ -171,13 +171,27 @@ const worldSystems = [{
                             }
                         }]
                 }
-            }, ui: {layerName: "player.debug", anchor: "tl"},
+            },
 
             shoot: {
                 speed: 24, spawnOffset: 0.25, events: {fire: "game.shoot.fire", hit: "game.shoot.hit"}
             },
 
-            events: {enabled: true}
+            events: {enabled: true},
+
+        }, "ui": {
+            "layerName": "debug-ui",
+            "htmlPath": "ui/debug.hud.html",
+            "anchor": "tl",
+            "marginLeft": 10,
+            "marginTop": 10,
+            "w": 280,
+            "padX": 12,
+            "padY": 8,
+            "fontTitle": 18,
+            "fontLine": 14,
+            "lineGap": 4,
+            "enableTemplateTokens": true
         }
     }];
 

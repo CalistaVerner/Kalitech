@@ -28,18 +28,4 @@ public final class PhysicsRayHit {
         @HostAccess.Export public float y() { return y; }
         @HostAccess.Export public float z() { return z; }
     }
-
-    public static final class Quat {
-        public final float x;
-        public final float y;
-        public final float z;
-        public final float w;
-
-        public Quat(float x, float y, float z, float w) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.w = w;
-        }
-    }
 }

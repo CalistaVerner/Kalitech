@@ -3,7 +3,8 @@
 const {PlayerEventsController} = require("./controllers/PlayerEventsController.js");
 const {PlayerGameplayController} = require("./controllers/PlayerGameplayController.js");
 const {PlayerCameraController} = require("./controllers/PlayerCameraController.js");
-const {PlayerUIController} = require("./controllers/PlayerUIController.js");
+
+//const {PlayerUIController} = require("./controllers/PlayerUIController.js");
 
 function req(v, msg) {
     if (v == null) throw new Error(msg);
@@ -20,7 +21,7 @@ function createPlayerRegistry() {
     R.register("player.events", PlayerEventsController, {order: 10});
     R.register("player.gameplay", PlayerGameplayController, {order: 20, deps: ["player.events"]});
     R.register("player.camera", PlayerCameraController, {order: 30, deps: ["player.gameplay"]});
-    R.register("player.ui", PlayerUIController, {order: 40, deps: ["player.events", "player.gameplay"]});
+    //R.register("player.ui", PlayerUIController, {order: 40, deps: ["player.events", "player.gameplay"]});
 
     return R;
 }

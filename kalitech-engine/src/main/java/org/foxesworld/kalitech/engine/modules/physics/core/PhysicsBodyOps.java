@@ -57,26 +57,6 @@ public final class PhysicsBodyOps {
         h.__raw().setLinearVelocity(v);
     }
 
-    public Object rotation(Object handleOrId) {
-        PhysicsBodyHandle h = registry.requireHandle(handleOrId, "physics.rotation()");
-        RigidBodyControl rb = h.__raw();
-
-        Quaternion q = TMP.Q.get();
-        rb.getPhysicsRotation(q);
-        return new PhysicsRayHit.Quat(q.getX(), q.getY(), q.getZ(), q.getW());
-    }
-
-    public void rotation(Object handleOrId, Object quat) {
-        PhysicsBodyHandle h = registry.requireHandle(handleOrId, "physics.rotation(q)");
-        RigidBodyControl rb = h.__raw();
-
-        Quaternion q = TMP.Q.get();
-        PhysicsValueParsers.quatInto(quat, q, 0f, 0f, 0f, 1f);
-
-        rb.setPhysicsRotation(q);
-        rb.setAngularVelocity(Vector3f.ZERO);
-    }
-
     public void angularVelocity(Object handleOrId, Object vec3) {
         PhysicsBodyHandle h = registry.requireHandle(handleOrId, "physics.angularVelocity(v)");
         Vector3f v = PhysicsValueParsers.vec3(vec3, 0, 0, 0);

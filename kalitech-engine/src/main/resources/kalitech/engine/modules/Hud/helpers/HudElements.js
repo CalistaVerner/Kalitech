@@ -3,6 +3,26 @@
 
 const {num, bool, idOf} = require("./HudUtil.js");
 
+function isFn(v) {
+    return typeof v === "function";
+}
+
+function readPath(root, path) {
+    if (root == null) return undefined;
+    const p = String(path || "").trim();
+    if (!p) return undefined;
+
+    let v = root;
+    const parts = p.split(".");
+    for (let i = 0; i < parts.length; i++) {
+        const k = parts[i];
+        if (!k) continue;
+        if (v == null) return undefined;
+        v = v[k];
+    }
+    return v;
+}
+
 class Element {
     constructor(hud, handle, layer, parent) {
         this._hud = hud;
@@ -22,9 +42,14 @@ class Element {
         this._w = 0;
         this._h = 0;
 
-        // bind helpers for value()
+        // value() formatting helpers
         this._bindPrefix = null;
         this._bindFmt = null;
+
+        // view-model binding (optional)
+        this._bindModel = null;
+        this._bindPath = null;
+        this._bindRead = null; // custom getter fn(model)->value
     }
 
     // --------------------------------------------------------
@@ -37,7 +62,7 @@ class Element {
     }
 
     getText() {
-        if (typeof this._api.getText === "function") {
+        if (isFn(this._api.getText)) {
             return String(this._api.getText(this.handle) ?? "");
         }
         return "";
@@ -57,6 +82,7 @@ class Element {
         this._w = num(w, 0);
         this._h = num(h, 0);
         this._api.setSize(this.handle, this._w, this._h);
+        if (this.layer && isFn(this.layer._markDirty)) this.layer._markDirty();
         return this;
     }
 
@@ -71,8 +97,9 @@ class Element {
     }
 
     fontSize(px) {
-        if (typeof this._api.setFontSize === "function") {
+        if (isFn(this._api.setFontSize)) {
             this._api.setFontSize(this.handle, Math.max(6, num(px, 14)));
+            if (this.layer && isFn(this.layer._markDirty)) this.layer._markDirty();
         }
         return this;
     }
@@ -85,42 +112,9 @@ class Element {
     }
 
     // --------------------------------------------------------
-    // value() - smart for input/slider, default = text
+    // binding helpers
     // --------------------------------------------------------
 
-    value(v) {
-        if (this.kind === "slider") {
-            if (v === undefined) {
-                if (typeof this._api.getSliderValue === "function") return +this._api.getSliderValue(this.handle) || 0;
-                return 0;
-            }
-            if (typeof this._api.setSliderValue === "function") this._api.setSliderValue(this.handle, num(v, 0));
-            return this;
-        }
-
-        if (v === undefined) {
-            return this.getText();
-        }
-
-        let s;
-        if (this._bindFmt) s = this._bindFmt(v);
-        else s = (v == null) ? "" : String(v);
-
-        if (this._bindPrefix != null) s = this._bindPrefix + String(s ?? "");
-        this._api.setText(this.handle, String(s ?? ""));
-        return this;
-    }
-
-    checked(v) {
-        if (typeof this._api.setChecked !== "function" || typeof this._api.isChecked !== "function") {
-            return v === undefined ? false : this;
-        }
-        if (v === undefined) return !!this._api.isChecked(this.handle);
-        this._api.setChecked(this.handle, !!v);
-        return this;
-    }
-
-    // binding helpers
     bindPrefix(prefix) {
         this._bindPrefix = (prefix == null) ? null : String(prefix);
         return this;
@@ -128,6 +122,87 @@ class Element {
 
     bindFormat(fn) {
         this._bindFmt = (typeof fn === "function") ? fn : null;
+        return this;
+    }
+
+    /**
+     * Bind this element to a view-model path.
+     * Usage:
+     *  el.bind(model, "cam.yaw", v => "CAM(yaw): " + v)
+     * Then call el.pull() per tick, or layer.pullAll().
+     */
+    bind(model, path, fmtOrNull) {
+        this._bindModel = model || null;
+        this._bindPath = (path == null) ? null : String(path);
+        this._bindRead = null;
+        if (typeof fmtOrNull === "function") this._bindFmt = fmtOrNull;
+        return this;
+    }
+
+    /**
+     * Bind via custom getter: fn(model)->value
+     */
+    bindRead(model, fn, fmtOrNull) {
+        this._bindModel = model || null;
+        this._bindPath = null;
+        this._bindRead = (typeof fn === "function") ? fn : null;
+        if (typeof fmtOrNull === "function") this._bindFmt = fmtOrNull;
+        return this;
+    }
+
+    /**
+     * Pull value from bound model into this element.
+     */
+    pull() {
+        if (!this._bindModel) return this;
+
+        let v;
+        if (this._bindRead) v = this._bindRead(this._bindModel);
+        else if (this._bindPath) v = readPath(this._bindModel, this._bindPath);
+        else return this;
+
+        this.value(v);
+        return this;
+    }
+
+    _formatValue(v) {
+        let s;
+        if (this._bindFmt) s = this._bindFmt(v);
+        else s = (v == null) ? "" : String(v);
+
+        if (this._bindPrefix != null) s = this._bindPrefix + String(s ?? "");
+        return String(s ?? "");
+    }
+
+    // --------------------------------------------------------
+    // value() - smart for input/slider, default = text
+    // --------------------------------------------------------
+
+    value(v) {
+        if (this.kind === "slider") {
+            if (v === undefined) {
+                if (isFn(this._api.getSliderValue)) return +this._api.getSliderValue(this.handle) || 0;
+                return 0;
+            }
+            if (isFn(this._api.setSliderValue)) this._api.setSliderValue(this.handle, num(v, 0));
+            return this;
+        }
+
+        if (v === undefined) {
+            return this.getText();
+        }
+
+        const s = this._formatValue(v);
+        this._api.setText(this.handle, s);
+        return this;
+    }
+
+    checked(v) {
+        if (!isFn(this._api.setChecked) || !isFn(this._api.isChecked)) {
+            return v === undefined ? false : this;
+        }
+        if (v === undefined) return !!this._api.isChecked(this.handle);
+        this._api.setChecked(this.handle, !!v);
         return this;
     }
 
@@ -142,7 +217,6 @@ class Panel extends Element {
         super(hud, handle, layer, parent);
         this.kind = "panel";
 
-        // flow stack for text
         this._flow = {
             padX: 0,
             padY: 0,
@@ -150,8 +224,7 @@ class Panel extends Element {
             fontSize: null
         };
 
-        this._stackY = 0;
-        this._stack = []; // stack items for relayout (points)
+        this._stack = []; // stack items for relayout
     }
 
     flow(cfg = {}) {
@@ -160,11 +233,11 @@ class Panel extends Element {
         this._flow.padY = num(c.padY, this._flow.padY);
         this._flow.gap = num(c.gap, this._flow.gap);
         this._flow.fontSize = (c.fontSize != null) ? num(c.fontSize, 14) : this._flow.fontSize;
+        if (this.layer && isFn(this.layer._markDirty)) this.layer._markDirty();
         return this;
     }
 
     stack(id, text, cfg = {}) {
-        // Layer will provide stackText(), but keep legacy: if called on panel directly
         if (!this.layer || typeof this.layer.stackText !== "function") {
             throw new Error("[HUD] Panel.stack requires Layer.stackText");
         }

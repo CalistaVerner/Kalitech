@@ -1,6 +1,10 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/HudApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
+import org.foxesworld.kalitech.engine.api.contract.ApiCostHint;
+import org.foxesworld.kalitech.engine.api.contract.ApiFlag;
+import org.foxesworld.kalitech.engine.api.contract.ApiMethod;
+import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.graalvm.polyglot.HostAccess;
 
 public interface HudApi {
@@ -30,6 +34,15 @@ public interface HudApi {
     @HostAccess.Export HudLayerHandle createLayer(String name);
     @HostAccess.Export void destroyLayer(HudLayerHandle layer);
     @HostAccess.Export void clearLayer(HudLayerHandle layer);
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = true,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    String getText(HudElementHandle element);
 
     // elements (root)
     @HostAccess.Export HudElementHandle addContainer(HudLayerHandle layer, float x, float y);

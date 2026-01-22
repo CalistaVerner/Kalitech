@@ -5,6 +5,34 @@ const {isObj, num, bool, idOf} = require("./HudUtil.js");
 const {applyCoordY, parsePlace, placeRect, placePoint} = require("./HudPlacement.js");
 const {Element, Panel} = require("./HudElements.js");
 const {UIBuilder} = require("./UIBuilder.js");
+const {buildFromHtml} = require("./HudHtml.js");
+
+function isFn(v) {
+    return typeof v === "function";
+}
+
+
+class PanelBuilder {
+    constructor(layer, panel) {
+        this._layer = layer;
+        this._panel = panel;
+    }
+
+    flow(cfg) {
+        this._panel.flow(cfg || {});
+        return this;
+    }
+
+    stack(id, text, cfg) {
+        this._panel.stack(id, text, cfg || {});
+        return this;
+    }
+
+    done() {
+        if (this._layer) this._layer.flushLayout();
+        return this._panel;
+    }
+}
 
 class Layer {
     constructor(hud, handle) {
@@ -13,13 +41,14 @@ class Layer {
         this.handle = handle;
         this.id = idOf(handle);
 
-        this._reg = Object.create(null); // key -> Element
-        this._placed = [];               // for relayout
+        this._reg = Object.create(null);
+        this._placed = [];
 
         this._lastVp = {w: 0, h: 0};
-
-        // JS-only radio groups: groupName -> Set<key>
         this._radioGroups = Object.create(null);
+
+        this._dirtyLayout = false;
+        this._autoLayout = true;
     }
 
     destroy() {
@@ -27,15 +56,82 @@ class Layer {
     }
 
     clear() {
-        // clear registry + radio groups deterministically
         this._reg = Object.create(null);
         this._radioGroups = Object.create(null);
         this._placed.length = 0;
+        this._dirtyLayout = false;
         this._api.clearLayer(this.handle);
     }
 
     ui() {
         return new UIBuilder(this);
+    }
+
+    buildPanel(cfg = {}) {
+        const p = this.panel(cfg);
+        return new PanelBuilder(this, p);
+    }
+
+    ns(prefix) {
+        const p = String(prefix || "").trim();
+        if (!p) throw new Error("[HUD] layer.ns(prefix): prefix is required");
+        const layer = this;
+
+        function withId(cfg) {
+            const c = isObj(cfg) ? Object.assign({}, cfg) : {};
+            if (c.id == null) throw new Error("[HUD] ns(...): cfg.id is required");
+            c.id = p + "." + String(c.id);
+            return c;
+        }
+
+        return Object.freeze({
+            prefix: p,
+            get(id) {
+                return layer.get(p + "." + String(id));
+            },
+            has(id) {
+                return layer.has(p + "." + String(id));
+            },
+            drop(id, remove) {
+                return layer.drop(p + "." + String(id), !!remove);
+            },
+            setText(id, text) {
+                return layer.setText(p + "." + String(id), text);
+            },
+            setValue(id, v) {
+                return layer.setValue(p + "." + String(id), v);
+            },
+            setVisible(id, v) {
+                return layer.setVisible(p + "." + String(id), v);
+            },
+            text(cfg) {
+                return layer.text(withId(cfg));
+            },
+            label(cfg) {
+                return layer.text(withId(cfg));
+            },
+            panel(cfg) {
+                return layer.panel(withId(cfg));
+            },
+            buildPanel(cfg) {
+                return layer.buildPanel(withId(cfg));
+            },
+            container(cfg) {
+                return layer.container(withId(cfg));
+            },
+            input(cfg) {
+                return layer.input(withId(cfg));
+            },
+            checkbox(cfg) {
+                return layer.checkbox(withId(cfg));
+            },
+            slider(cfg) {
+                return layer.slider(withId(cfg));
+            },
+            radio(cfg) {
+                return layer.radio(withId(cfg));
+            }
+        });
     }
 
     // --------------------------------------------------------
@@ -91,6 +187,15 @@ class Layer {
         return el || null;
     }
 
+    pullAll() {
+        const keys = Object.keys(this._reg);
+        for (let i = 0; i < keys.length; i++) {
+            const el = this._reg[keys[i]];
+            if (el && isFn(el.pull)) el.pull();
+        }
+        return this;
+    }
+
     // --------------------------------------------------------
     // viewport / coord
     // --------------------------------------------------------
@@ -105,6 +210,26 @@ class Layer {
     _coord() {
         const c = this._hud && this._hud.META ? this._hud.META.coord : "topLeft";
         return String(c || "topLeft");
+    }
+
+    // --------------------------------------------------------
+    // layout batching
+    // --------------------------------------------------------
+
+    autoLayout(v = true) {
+        this._autoLayout = !!v;
+        return this;
+    }
+
+    _markDirty() {
+        this._dirtyLayout = true;
+        if (this._autoLayout) this.flushLayout();
+    }
+
+    flushLayout() {
+        if (!this._dirtyLayout) return this;
+        this._dirtyLayout = false;
+        return this.relayout();
     }
 
     // --------------------------------------------------------
@@ -151,11 +276,9 @@ class Layer {
         const parent = c.parent || null;
 
         const place = c.place ? parsePlace(c.place) : null;
-        const x0 = num(c.x, 0);
-        const y0 = num(c.y, 0);
 
-        let x = x0;
-        let y = y0;
+        let x = num(c.x, 0);
+        let y = num(c.y, 0);
 
         if (place) {
             const p = placeRect(vp.w, vp.h, 0, 0, place);
@@ -174,7 +297,11 @@ class Layer {
         el.kind = "container";
         el._setPlace(place);
 
-        if (place) this._trackPlaced(el);
+        if (place) {
+            this._trackPlaced(el);
+            this._markDirty();
+        }
+
         if (id != null) this._regPut(id, el);
         return el;
     }
@@ -192,7 +319,7 @@ class Layer {
         const parent = c.parent || null;
 
         const w = num(c.w, 0);
-        const h = num(c.h, 0);
+        let h = num(c.h, 0);
 
         const place = c.place ? parsePlace(c.place) : null;
 
@@ -216,13 +343,36 @@ class Layer {
         panel._w = w;
         panel._h = h;
 
-        // visual opts
+        // ------- NEW: autoHeight plumbing -------
+        panel._autoHeight = bool(c.autoHeight, false);
+        panel._autoMinH = num(c.minH, 0);
+
+        // ------- NEW: flow shortcuts in panel(cfg) -------
+        // Support both:
+        //  - panel.flow({padX,padY,gap,fontSize})
+        //  - panel({padX,padY, flow:{...}})
+        const flowCfg = isObj(c.flow) ? Object.assign({}, c.flow) : null;
+        if (flowCfg) {
+            if (c.padX != null && flowCfg.padX == null) flowCfg.padX = c.padX;
+            if (c.padY != null && flowCfg.padY == null) flowCfg.padY = c.padY;
+            panel.flow(flowCfg);
+        } else if (c.padX != null || c.padY != null || c.gap != null || c.fontSize != null) {
+            panel.flow({
+                padX: (c.padX != null) ? c.padX : undefined,
+                padY: (c.padY != null) ? c.padY : undefined,
+                gap: (c.gap != null) ? c.gap : undefined,
+                fontSize: (c.fontSize != null) ? c.fontSize : undefined
+            });
+        }
+
+        // visuals (legacy)
         if (c.bg) panel.bg(num(c.bg.r, 0), num(c.bg.g, 0), num(c.bg.b, 0), num(c.bg.a, 1));
         if (c.fontSize != null) panel.fontSize(c.fontSize);
 
         if (place) {
             panel._setPlace(place);
             this._trackPlaced(panel);
+            this._markDirty();
         }
 
         if (id != null) this._regPut(id, panel);
@@ -246,7 +396,6 @@ class Layer {
         const parent = c.parent || null;
 
         const text = String(c.text ?? "");
-
         const place = c.place ? parsePlace(c.place) : null;
 
         let x = num(c.x, 0);
@@ -274,6 +423,7 @@ class Layer {
         if (place) {
             el._setPlace(place);
             this._trackPlaced(el);
+            this._markDirty();
         }
 
         if (id != null) this._regPut(id, el);
@@ -296,57 +446,94 @@ class Layer {
         const id = c.id;
         const text = String((c.text != null) ? c.text : "");
 
-        // internal stack placement: top-left inside panel
         const m = p._flow || {padX: 0, padY: 0, gap: 0, fontSize: null};
 
-        const x = (num(p._place ? 0 : p._w, 0), 0); // unused; we compute relative via Lemur parent anyway
-        const y = 0;
-
-        // Create label as child of panel node:
         const hh = this._api.addLabel(this.handle, p.handle, text, 0, 0);
 
         const el = new Element(this._hud, hh, this, p);
         el.kind = "text";
 
-        if (m.fontSize != null) el.fontSize(m.fontSize);
+        const itemFont = (c.fontSize != null) ? (num(c.fontSize, 14) | 0) : ((m.fontSize != null) ? (num(m.fontSize, 14) | 0) : null);
+        if (itemFont != null) el.fontSize(itemFont);
 
-        // Store in panel stack list for relayout inside panel (point placement)
-        p._stack.push({el, padX: m.padX, padY: m.padY, gap: m.gap});
+        p._stack.push({
+            el,
+            padX: m.padX,
+            padY: m.padY,
+            gap: m.gap,
+            fontSize: itemFont
+        });
 
-        // Immediately layout this stack item (incremental deterministic)
         this._relayoutPanelStack(p);
 
         if (id != null) this._regPut(id, el);
         return el;
     }
 
+    _computeAutoPanelHeight(panel) {
+        const p = panel;
+
+        const padY = num(p._flow.padY, 0);
+        const gap = num(p._flow.gap, 0);
+
+        const defaultFont = (p._flow.fontSize != null) ? num(p._flow.fontSize, 14) : 14;
+
+        // Total content height:
+        // top padding + sum(lineHeights) + gaps + bottom padding
+        let contentH = padY;
+        for (let i = 0; i < p._stack.length; i++) {
+            const it = p._stack[i];
+            const fs = (it && it.fontSize != null) ? num(it.fontSize, defaultFont) : defaultFont;
+            const lineH = Math.max(10, (fs | 0) + 4);
+            contentH += lineH;
+            if (i !== p._stack.length - 1) contentH += gap;
+        }
+        contentH += padY;
+
+        const minH = num(p._autoMinH, 0);
+        if (minH > 0) contentH = Math.max(contentH, minH);
+
+        return contentH;
+    }
+
     _relayoutPanelStack(panel) {
         const p = panel;
-        const vp = this._vp();
         const coord = this._coord();
 
-        // Panel top-left in script space:
-        // - For children, Lemur uses local coords relative to parent, but our API takes x/y in screen space.
-        // We use panel current screen translation as baseline.
-        // NOTE: This stays stable because Java keeps TL contract.
-        const panelLoc = p.handle; // handle
-        // We cannot read actual position from Java API (no getter) — so we lay out using API calls with relative y stacking only.
-        // Strategy:
-        // - Place children using their current x/y already set by Lemur layout OR keep explicit positions relative to panel origin.
-        // - Simplest: stack by setting child positions at (padX, padY + idx*(line+gap)) with parent's coordinate transform handled in Java attachTo.
-        // In your Java attachTo(), children are attached to parent Node, so localTranslation becomes relative -> good.
+        const basePadX = num(p._flow.padX, 0);
         let y = num(p._flow.padY, 0);
+
+        const defaultFont = (p._flow.fontSize != null) ? num(p._flow.fontSize, 14) : 14;
+        const gap = num(p._flow.gap, 0);
+
         for (let i = 0; i < p._stack.length; i++) {
             const it = p._stack[i];
             const el = it.el;
             if (!el) continue;
-            const x = num(it.padX, 0);
-            // here y is top-left style; Java uses HudCoords conversion inside setPosition() (box contract)
-            // but for labels Java is point-placed baseline (your addLabel uses point TL conversion).
-            // So we treat y as point TL:
+
+            const fs = (it.fontSize != null) ? num(it.fontSize, defaultFont) : defaultFont;
+            const lineH = Math.max(10, (fs | 0) + 4);
+
+            const x = num(it.padX, basePadX);
             const yy = applyCoordY(coord, 0, y);
+
             this._api.setPosition(el.handle, x, yy);
-            y += (num(p._flow.gap, 0) + 18); // 18 default line height; fontSize affects it but we don't have measure; keep deterministic
+
+            y += lineH;
+            if (i !== p._stack.length - 1) y += gap;
+        }
+
+        // ------- NEW: correct panel auto-height -------
+        if (p._autoHeight) {
+            const newH = this._computeAutoPanelHeight(p);
+            if ((newH | 0) !== (p._h | 0)) {
+                p._h = newH;
+                this._api.setSize(p.handle, p._w, p._h);
+                // placed panels depend on _h for anchoring (br/bl/bc/etc)
+                this._markDirty();
+            }
+        } else {
+            this._markDirty();
         }
     }
 
@@ -394,6 +581,7 @@ class Layer {
         if (place) {
             el._setPlace(place);
             this._trackPlaced(el);
+            this._markDirty();
         }
 
         if (id != null) this._regPut(id, el);
@@ -409,7 +597,6 @@ class Layer {
         const parent = c.parent || null;
 
         const text = String(c.text ?? "");
-
         const place = c.place ? parsePlace(c.place) : null;
 
         let x = num(c.x, 0);
@@ -432,11 +619,12 @@ class Layer {
         el.kind = "checkbox";
 
         if (c.fontSize != null) el.fontSize(c.fontSize);
-        if (c.checked != null) this._api.setChecked(el.handle, !!c.checked);
+        if (c.checked != null && isFn(this._api.setChecked)) this._api.setChecked(el.handle, !!c.checked);
 
         if (place) {
             el._setPlace(place);
             this._trackPlaced(el);
+            this._markDirty();
         }
 
         if (id != null) this._regPut(id, el);
@@ -484,6 +672,7 @@ class Layer {
         if (place) {
             el._setPlace(place);
             this._trackPlaced(el);
+            this._markDirty();
         }
 
         if (id != null) this._regPut(id, el);
@@ -491,8 +680,7 @@ class Layer {
     }
 
     // --------------------------------------------------------
-    // JS-only Radio (Checkbox + exclusivity)
-    // cfg: {id,text,group,checked,parent,x,y,place,fontSize}
+    // JS-only Radio
     // --------------------------------------------------------
 
     radio(cfg = {}) {
@@ -502,7 +690,6 @@ class Layer {
         const group = String(c.group || "default");
         const id = String(c.id);
 
-        // create as checkbox, then upgrade semantics
         const el = this.checkbox(Object.assign({}, c, {id}));
         el.kind = "radio";
         el._radioGroup = group;
@@ -510,9 +697,8 @@ class Layer {
         this._radioRegister(group, id);
 
         if (c.checked) this._radioSelect(group, id);
-        else this._api.setChecked(el.handle, false);
+        else if (isFn(this._api.setChecked)) this._api.setChecked(el.handle, false);
 
-        // small sugar
         el.select = () => {
             this._radioSelect(group, id);
             return el;
@@ -538,11 +724,11 @@ class Layer {
         for (const it of s) {
             const el = this.get(it);
             if (!el) continue;
-            if (String(it) !== k) this._api.setChecked(el.handle, false);
+            if (String(it) !== k && isFn(this._api.setChecked)) this._api.setChecked(el.handle, false);
         }
 
         const chosen = this.get(k);
-        if (chosen) this._api.setChecked(chosen.handle, true);
+        if (chosen && isFn(this._api.setChecked)) this._api.setChecked(chosen.handle, true);
     }
 
     radioGroup(name) {
@@ -565,12 +751,14 @@ class Layer {
                 if (!s) return null;
                 for (const k of s) {
                     const el = self.get(k);
-                    if (el && self._api.isChecked(el.handle)) return el;
+                    if (el && isFn(self._api.isChecked) && self._api.isChecked(el.handle)) return el;
                 }
                 return null;
             },
             select(elOrId) {
-                const id = (typeof elOrId === "string" || typeof elOrId === "number") ? String(elOrId) : String(elOrId?.key ?? elOrId?.id ?? "");
+                const id = (typeof elOrId === "string" || typeof elOrId === "number")
+                    ? String(elOrId)
+                    : String(elOrId?.key ?? elOrId?.id ?? "");
                 if (!id) return null;
                 self._radioSelect(g, id);
                 return self.get(id);
@@ -580,7 +768,7 @@ class Layer {
                 if (!s) return;
                 for (const k of s) {
                     const el = self.get(k);
-                    if (el) self._api.setChecked(el.handle, false);
+                    if (el && isFn(self._api.setChecked)) self._api.setChecked(el.handle, false);
                 }
             }
         };

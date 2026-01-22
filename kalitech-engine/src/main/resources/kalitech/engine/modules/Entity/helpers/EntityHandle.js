@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/helpers/entity/EntityHandle.js
 "use strict";
 
 const {req, subsystem} = require("./EntUtil.js");
@@ -11,28 +10,81 @@ function pushErr(list, op, e) {
 
 class EntityHandle {
     constructor(engine, ctx) {
-        req(engine, "[ENT] engine is required");
         this._engine = engine;
 
-        this.uuid = (ctx && ctx.uuid != null) ? String(ctx.uuid) : "";
+        this.uuid = (ctx.uuid != null) ? String(ctx.uuid) : "";
+
+        this.surface = ctx.surface || null;
+        this.body = ctx.body || null;
+        this.surfaceId = (ctx.surfaceId | 0);
+        this.bodyId = (ctx.bodyId | 0);
+
+        this._destroyers = Array.isArray(ctx._destroyers) ? ctx._destroyers : [];
+
+        this._bodyAccess = null;
+        this._bodyAccessId = 0;
+
+        req(engine && engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
+        this._log = engine.log();
+        req(this._log && this._log.info && this._log.warn && this._log.error, "[ENT] engine.log() must provide info/warn/error");
+
         if (!this.uuid) throw new Error("[ENT] EntityHandle missing uuid (UUID-only)");
 
-        this.surfaceId = (ctx && ctx.surfaceId) ? (ctx.surfaceId | 0) : 0;
-        this.bodyId = (ctx && ctx.bodyId) ? (ctx.bodyId | 0) : 0;
+        this.core = null; // assigned by EntApi.create()
+    }
 
-        this._destroyers = (ctx && Array.isArray(ctx._destroyers)) ? ctx._destroyers : [];
-
-        this._bodyRef = null;
-        this._bodyRefId = 0;
-
-        req(engine.log && typeof engine.log === "function", "[ENT] engine.log() is required");
-        this._log = engine.log();
-
-        this.core = null;
+    id() {
+        throw new Error("[ENT] EntityHandle.id() removed (UUID-only)");
     }
 
     uuidString() {
         return this.uuid || "";
+    }
+
+    uuid() {
+        return this.uuidString();
+    }
+
+    surfaceHandleId() {
+        return (this.surfaceId | 0);
+    }
+
+    bodyHandleId() {
+        return (this.bodyId | 0);
+    }
+
+    valueOf() {
+        return this.uuidString();
+    }
+
+    toString() {
+        return this.uuidString();
+    }
+
+    [Symbol.toPrimitive](_hint) {
+        return this.uuidString();
+    }
+
+    setVisible(v) {
+        const sid = this.surfaceId | 0;
+        if (!sid) throw new Error("[ENT] setVisible: surfaceId=0 uuid=" + this.uuid);
+
+        const s = subsystem(this._engine, "surface");
+        req(typeof s.setVisible === "function", "[ENT] setVisible: engine.surface().setVisible(surfaceId,bool) missing");
+
+        s.setVisible(sid, !!v);
+        return this;
+    }
+
+    setCull(hint) {
+        const sid = this.surfaceId | 0;
+        if (!sid) throw new Error("[ENT] setCull: surfaceId=0 uuid=" + this.uuid);
+
+        const s = subsystem(this._engine, "surface");
+        req(typeof s.setCull === "function", "[ENT] setCull: engine.surface().setCull(surfaceId,string) missing");
+
+        s.setCull(sid, String(hint));
+        return this;
     }
 
     hasBody() {
@@ -40,33 +92,108 @@ class EntityHandle {
     }
 
     requireBodyId(opName) {
-        const id = this.bodyId | 0;
+        const id = (this.bodyId | 0);
         if (id <= 0) throw new Error("[ENT] " + opName + ": entity has no bodyId (uuid=" + this.uuid + ")");
         return id;
     }
 
-    phys() {
-        return subsystem(this._engine, "physics");
+    physApi() {
+        const p = subsystem(this._engine, "physics");
+        req(p, "[ENT] engine.physics() returned null");
+        return p;
+    }
+
+    bodyAccess() {
+        const id = this.requireBodyId("bodyAccess()");
+        if (this._bodyAccess && (this._bodyAccessId | 0) === id) return this._bodyAccess;
+
+        const phys = this.physApi();
+        const ba = resolveBodyAccess(phys, this.body, id);
+
+        this._bodyAccess = ba;
+        this._bodyAccessId = id;
+        return ba;
     }
 
     bodyRef() {
-        const id = this.requireBodyId("bodyRef()");
-        if (this._bodyRef && (this._bodyRefId | 0) === id) return this._bodyRef;
-
-        const ref = resolveBodyAccess(this.phys(), null, id);
-        this._bodyRef = ref;
-        this._bodyRefId = id;
-        return ref;
-    }
-
-    entityApi() {
-        return subsystem(this._engine, "entity");
+        return this.bodyAccess();
     }
 
     snapshot() {
-        const ent = this.entityApi();
+        const ent = subsystem(this._engine, "entity");
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] snapshot: uuid empty");
         req(typeof ent.snapshot === "function", "[ENT] engine.entity().snapshot(uuid) missing");
-        return ent.snapshot(this.uuid);
+        return ent.snapshot(uuid);
+    }
+
+    destroy() {
+        const errors = [];
+
+        const engine = this._engine;
+        const uuid = this.uuid;
+        const sid = (this.surfaceId | 0);
+        const bid = (this.bodyId | 0);
+
+        for (let i = 0; i < this._destroyers.length; i++) {
+            try {
+                this._destroyers[i]();
+            } catch (e) {
+                pushErr(errors, "destroyer[" + i + "]", e);
+            }
+        }
+        this._destroyers.length = 0;
+
+        if (bid > 0) {
+            try {
+                const phys = subsystem(engine, "physics");
+                if (typeof phys.remove !== "function") throw new Error("engine.physics().remove(bodyId) missing");
+                phys.remove(bid);
+            } catch (e) {
+                pushErr(errors, "physics.remove(" + bid + ")", e);
+            }
+        }
+
+        if (sid > 0) {
+            try {
+                const surf = subsystem(engine, "surface");
+                if (typeof surf.drop !== "function") throw new Error("engine.surface().drop(surfaceId,recursive) missing");
+                surf.drop(sid, true);
+            } catch (e) {
+                pushErr(errors, "surface.drop(" + sid + ")", e);
+            }
+        }
+
+        if (uuid) {
+            try {
+                const ent = subsystem(engine, "entity");
+                if (typeof ent.destroy !== "function") throw new Error("engine.entity().destroy(uuid) missing");
+                ent.destroy(uuid);
+            } catch (e) {
+                pushErr(errors, "entity.destroy(" + uuid + ")", e);
+            }
+        }
+
+        this.bodyId = 0;
+        this.surfaceId = 0;
+        this.body = null;
+        this.surface = null;
+        this._bodyAccess = null;
+        this._bodyAccessId = 0;
+        this.uuid = "";
+        this.core = null;
+
+        if (errors.length) {
+            const err = new Error("[ENT] destroy failed:\n- " + errors.join("\n- "));
+            throw err;
+        }
+    }
+
+    snapshot() {
+        const ent = this.engine && this.engine.entity ? this.engine.entity() : null;
+        const uuid = this.uuidString();
+        if (!ent || !uuid || typeof ent.snapshot !== "function") return null;
+        return ent.snapshot(uuid);
     }
 
     hydrateCore() {
@@ -83,55 +210,28 @@ class EntityHandle {
     }
 
     setComponent(type, value) {
-        const ent = this.entityApi();
-        req(typeof ent.setComponent === "function", "[ENT] engine.entity().setComponent(uuid,type,value) missing");
-        ent.setComponent(this.uuid, String(type), value);
+        const ent = subsystem(this._engine, "entity");
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] setComponent: uuid empty");
+        req(typeof ent.setComponent === "function", "[ENT] setComponent(uuid,type,value) missing");
+        ent.setComponent(uuid, String(type), value);
         return this;
     }
 
     getComponent(type) {
-        const ent = this.entityApi();
-        req(typeof ent.getComponent === "function", "[ENT] engine.entity().getComponent(uuid,type) missing");
-        return ent.getComponent(this.uuid, String(type));
+        const ent = subsystem(this._engine, "entity");
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] getComponent: uuid empty");
+        req(typeof ent.getComponent === "function", "[ENT] getComponent(uuid,type) missing");
+        return ent.getComponent(uuid, String(type));
     }
 
     hasComponent(type) {
-        const ent = this.entityApi();
-        req(typeof ent.hasComponent === "function", "[ENT] engine.entity().hasComponent(uuid,type) missing");
-        return !!ent.hasComponent(this.uuid, String(type));
-    }
-
-    destroy() {
-        const errors = [];
-
-        for (let i = 0; i < this._destroyers.length; i++) {
-            try {
-                this._destroyers[i]();
-            } catch (e) {
-                pushErr(errors, "destroyer[" + i + "]", e);
-            }
-        }
-        this._destroyers.length = 0;
-
-        // Single source of truth: Java performs cleanup (surface+physics) on entity destroy.
-        try {
-            const ent = this.entityApi();
-            req(typeof ent.destroy === "function", "[ENT] engine.entity().destroy(uuid) missing");
-            ent.destroy(this.uuid);
-        } catch (e) {
-            pushErr(errors, "entity.destroy(" + this.uuid + ")", e);
-        }
-
-        this.bodyId = 0;
-        this.surfaceId = 0;
-        this._bodyRef = null;
-        this._bodyRefId = 0;
-        this.uuid = "";
-        this.core = null;
-
-        if (errors.length) {
-            throw new Error("[ENT] destroy failed:\n- " + errors.join("\n- "));
-        }
+        const ent = subsystem(this._engine, "entity");
+        const uuid = this.uuid;
+        if (!uuid) throw new Error("[ENT] hasComponent: uuid empty");
+        req(typeof ent.hasComponent === "function", "[ENT] hasComponent(uuid,type) missing");
+        return !!ent.hasComponent(uuid, String(type));
     }
 
     logInfo(msg) {

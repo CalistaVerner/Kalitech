@@ -6,10 +6,7 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import com.simsilica.lemur.Container;
-import com.simsilica.lemur.GuiGlobals;
-import com.simsilica.lemur.Label;
-import com.simsilica.lemur.Panel;
+import com.simsilica.lemur.*;
 import com.simsilica.lemur.component.QuadBackgroundComponent;
 import com.simsilica.lemur.style.BaseStyles;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
@@ -256,6 +253,44 @@ public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
         rt(l.root::detachAllChildren);
     }
+
+    @HostAccess.Export
+    @ApiMethod(
+            thread = ApiThreadRule.ANY,
+            sync = true,
+            flags = {ApiFlag.SANDBOX_ALLOWED},
+            cost = ApiCostHint.NORMAL
+    )
+    @Override
+    public String getText(HudElementHandle element) {
+        final int id = (element == null) ? 0 : element.id;
+        if (id <= 0) return "";
+
+        try {
+            return app().enqueue(() -> {
+                final SpatialHolder sh = elements.get(id);
+                if (sh == null || sh.spatial == null) return "";
+
+                final Spatial s = sh.spatial;
+
+                if (s instanceof Label l) {
+                    final String t = l.getText();
+                    return (t != null) ? t : "";
+                }
+
+                if (s instanceof TextField tf) {
+                    final String t = tf.getText();
+                    return (t != null) ? t : "";
+                }
+
+                // Strictly: unknown element type => empty string
+                return "";
+            }).get();
+        } catch (Exception e) {
+            throw new RuntimeException("[HudApiImpl] getText failed id=" + id, e);
+        }
+    }
+
 
     @Override
     @HostAccess.Export
