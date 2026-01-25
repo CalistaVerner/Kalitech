@@ -4,6 +4,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.module.ApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
 
+import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,8 @@ import java.util.Objects;
 /**
  * Loads resolved modules: creates classloaders, instantiates ApiModule, registers into ApiRegistry,
  * mounts JS resources, and tracks loaded modules for deterministic shutdown.
+ *
+ * <p>Typing artifacts (*.d.ts / *.ts) are optional: if missing, the loader logs WARN and continues.
  */
 public final class ModuleLoader {
 
@@ -38,29 +41,20 @@ public final class ModuleLoader {
         }
     }
 
-    public void loadAll(List<ModuleJar> ordered) throws Throwable {
-        Objects.requireNonNull(ordered, "ordered");
+    private static boolean hasResource(ClassLoader cl, String path) {
+        final String p = String.valueOf(path).trim();
+        if (p.isEmpty()) return false;
 
-        for (ModuleJar mj : ordered) {
-            ModuleDescriptor d = mj.desc;
+        URL u = cl.getResource(p);
+        if (u != null) return true;
 
-            URLClassLoader cl = ModuleClassLoaders.newModuleClassLoader(mj.jarPath, parentLoader);
-            classLoaders.add(cl);
-
-            ApiModule module = instantiate(d, cl);
-            apiRegistry.register(module); // attach(ctx) happens inside ApiRegistry.register
-            loadedModules.add(module);
-
-            if (d.js != null) jsBridge.mountJs(d.id, cl, d.js);
-            if (d.types != null) jsBridge.mountTypes(d.id, cl, d.types);
-            if (d.docs != null) jsBridge.mountDocs(d.id, cl, d.docs);
-            if (d.globals.length != 0) jsBridge.exposeGlobals(d.id, d.globals);
-
-            if (log.isDebugEnabled()) {
-                log.debug("[modules] loaded id='{}' ver='{}' impl={} jar='{}'",
-                        d.id, d.version, module.getClass().getName(), mj.jarPath.getFileName().toString());
-            }
+        // Some build pipelines accidentally store resources without leading slash.
+        if (p.charAt(0) == '/') {
+            u = cl.getResource(p.substring(1));
+        } else {
+            u = cl.getResource('/' + p);
         }
+        return u != null;
     }
 
     /**
@@ -95,5 +89,47 @@ public final class ModuleLoader {
             throw new IllegalStateException("mainClass does not implement ApiModule: " + d.mainClass);
         }
         return m;
+    }
+
+    public void loadAll(List<ModuleJar> ordered) throws Throwable {
+        Objects.requireNonNull(ordered, "ordered");
+
+        for (ModuleJar mj : ordered) {
+            ModuleDescriptor d = mj.desc;
+
+            URLClassLoader cl = ModuleClassLoaders.newModuleClassLoader(mj.jarPath, parentLoader);
+            classLoaders.add(cl);
+
+            ApiModule module = instantiate(d, cl);
+            apiRegistry.register(module); // attach(ctx) happens inside ApiRegistry.register
+            loadedModules.add(module);
+
+            if (d.js != null) {
+                jsBridge.mountJs(d.id, cl, d.js);
+            }
+
+            // Typings are optional: warn only if missing.
+            if (d.types != null) {
+                if (hasResource(cl, d.types)) {
+                    jsBridge.mountTypes(d.id, cl, d.types);
+                } else {
+                    log.warn("[modules] typings not found (optional) id='{}' types='{}' jar='{}'",
+                            d.id, d.types, mj.jarPath.getFileName().toString());
+                }
+            }
+
+            if (d.docs != null) {
+                jsBridge.mountDocs(d.id, cl, d.docs);
+            }
+
+            if (d.globals.length != 0) {
+                jsBridge.exposeGlobals(d.id, d.globals);
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("[modules] loaded id='{}' ver='{}' impl={} jar='{}'",
+                        d.id, d.version, module.getClass().getName(), mj.jarPath.getFileName().toString());
+            }
+        }
     }
 }

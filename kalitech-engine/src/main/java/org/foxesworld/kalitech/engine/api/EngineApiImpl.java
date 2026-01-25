@@ -66,7 +66,7 @@ public final class EngineApiImpl implements EngineApi {
     private final ModulesApi modulesApi;
     private final MeshApi meshApi;
     private final LightApiImpl lightApi;
-    private final SoundApiImpl soundApi;
+    //private final SoundApiImpl soundApi;
     private final DebugDrawApiImpl debugApi;
     private final ParticlesApiImpl particles;
     private final ModuleManager moduleManager;
@@ -130,7 +130,7 @@ public final class EngineApiImpl implements EngineApi {
         this.materialApi = apiRegistry.register(new MaterialApiImpl());
         this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
-        this.cameraApi = apiRegistry.register(new CameraApiImpl());
+        //this.cameraApi = apiRegistry.register(new CameraApiImpl());
 
 
         this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
@@ -142,7 +142,7 @@ public final class EngineApiImpl implements EngineApi {
         this.meshApi = apiRegistry.register(new MeshApiImpl());
 
         this.lightApi = apiRegistry.register(new LightApiImpl());
-        this.soundApi = apiRegistry.register(new SoundApiImpl());
+        //this.soundApi = apiRegistry.register(new SoundApiImpl());
         this.debugApi = apiRegistry.register(new DebugDrawApiImpl());
         this.hudApi = apiRegistry.register(new HudApiImpl());
         this.worldApi = apiRegistry.register(new WorldApiImpl());
@@ -150,6 +150,7 @@ public final class EngineApiImpl implements EngineApi {
         this.particles = apiRegistry.register(new ParticlesApiImpl());
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
         this.moduleManager.loadFromDir(java.nio.file.Path.of("./modules"));
+        this.cameraApi = apiRegistry.api("camera", CameraApi.class);
     }
 
     private static boolean boolProp(String key, boolean def) {
@@ -172,17 +173,12 @@ public final class EngineApiImpl implements EngineApi {
         perf.end("time.update", t);
 
         t = perf.begin("camera.flush");
-        if (cameraApi instanceof CameraApiImpl c) c.__flush();
+        cameraApi.__flush();
         perf.end("camera.flush", t);
 
         t = perf.begin("debug.tick");
         debugApi.tick(tpf);
         perf.end("debug.tick", t);
-
-        //try {
-        //    var cam = app.getCamera();
-        //    KalitechAudioBridge.syncListener(cam.getLocation(), cam.getRotation());
-        //} catch (Throwable ignored) {}
 
         perf.endFrame(tpf);
     }
@@ -241,7 +237,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public SoundApi sound() {
-        return soundApi;
+        return apiRegistry.api("sound", SoundApi.class);
     }
 
     @HostAccess.Export
@@ -250,10 +246,10 @@ public final class EngineApiImpl implements EngineApi {
         return renderApi;
     }
 
-    @HostAccess.Export
     @Override
+    @HostAccess.Export
     public CameraApi camera() {
-        return cameraApi;
+        return apiRegistry.api("camera", CameraApi.class);
     }
 
     @HostAccess.Export
@@ -349,7 +345,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public String engineVersion() {
-        return app != null ? ((KalitechApplication) app).getVersion() : "unknown";
+        return app != null ? app.getVersion() : "unknown";
     }
 
     @HostAccess.Export

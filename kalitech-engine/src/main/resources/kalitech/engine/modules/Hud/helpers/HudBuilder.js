@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/helpers/hud/HudBuilder.js
 "use strict";
 
 const {isObj, num, bool} = require("./HudUtil.js");
@@ -35,11 +34,22 @@ function normalizeId(v) {
     return s ? s : null;
 }
 
-function resolveParent(layer, parent, created) {
+function shouldPrefix(prefix, id) {
+    if (!prefix || !id) return false;
+    return id.indexOf(prefix + ".") !== 0;
+}
+
+function prefixedId(prefix, id) {
+    if (!id) return null;
+    return shouldPrefix(prefix, id) ? (prefix + "." + id) : id;
+}
+
+function resolveParent(layer, parent, created, prefix) {
     if (!parent) return null;
 
     if (typeof parent === "string" || typeof parent === "number") {
-        const k = String(parent);
+        const raw = String(parent);
+        const k = prefixedId(prefix, raw);
         const c = created[k];
         if (c) return c;
         const r = layer.get(k);
@@ -71,16 +81,16 @@ function applyCommon(el, spec) {
         if (isObj(b)) el.bg(num(b.r, 0), num(b.g, 0), num(b.b, 0), num(b.a, 1));
     }
 
-    if (spec.w !== undefined || spec.h !== undefined) {
+    if ((spec.w !== undefined || spec.h !== undefined) && isFn(el.size)) {
         const w = (spec.w !== undefined) ? num(spec.w, el._w || 0) : (el._w || 0);
         const h = (spec.h !== undefined) ? num(spec.h, el._h || 0) : (el._h || 0);
-        if (isFn(el.size)) el.size(w, h);
+        el.size(w, h);
     }
 
-    if (spec.x !== undefined || spec.y !== undefined) {
+    if ((spec.x !== undefined || spec.y !== undefined) && isFn(el.pos)) {
         const x = (spec.x !== undefined) ? num(spec.x, 0) : 0;
         const y = (spec.y !== undefined) ? num(spec.y, 0) : 0;
-        if (isFn(el.pos)) el.pos(x, y);
+        el.pos(x, y);
     }
 
     if (spec.place !== undefined && isFn(el._setPlace)) {
@@ -112,12 +122,15 @@ function buildOne(layer, spec, created, used, opts, parentEl) {
     const type = normalizeType(spec.type);
     if (!type) return null;
 
-    const id = normalizeId(spec.id);
-    const reuse = bool(opts.reuse, true);
+    const prefix = opts.prefix || "";
+    const rawId = normalizeId(spec.id);
+    const id = prefixedId(prefix, rawId);
 
-    const resolvedParent = resolveParent(layer, spec.parent || parentEl, created);
+    const reuse = bool(opts.reuse, true);
+    const resolvedParent = resolveParent(layer, spec.parent || parentEl, created, prefix);
 
     const cfg = Object.create(null);
+
     if (id) cfg.id = id;
     if (resolvedParent) cfg.parent = resolvedParent;
 
@@ -171,7 +184,7 @@ function buildOne(layer, spec, created, used, opts, parentEl) {
         if (resolvedParent && el.parent && el.parent !== resolvedParent) {
             layer.drop(id, true);
             el = layer._hud.components.create(type, layer, cfg);
-            created[id] = el;
+            if (id) created[id] = el;
         } else {
             applyCommon(el, spec);
         }
@@ -196,7 +209,8 @@ function buildOne(layer, spec, created, used, opts, parentEl) {
                 if (!isObj(ch)) continue;
 
                 if (shouldStackIntoPanel(el, ch)) {
-                    const cid = normalizeId(ch.id) || ("__stack_" + (i | 0));
+                    const rawCid = normalizeId(ch.id) || ("__stack_" + (i | 0));
+                    const cid = prefixedId(prefix, rawCid);
                     const text = (ch.text !== undefined) ? String(ch.text ?? "") : "";
 
                     let stackCfg;
@@ -230,7 +244,8 @@ function buildOne(layer, spec, created, used, opts, parentEl) {
     if (isObj(kids)) {
         if (el.kind === "panel") {
             if (shouldStackIntoPanel(el, kids)) {
-                const cid = normalizeId(kids.id) || "__stack_0";
+                const rawCid = normalizeId(kids.id) || "__stack_0";
+                const cid = prefixedId(prefix, rawCid);
                 const text = (kids.text !== undefined) ? String(kids.text ?? "") : "";
 
                 let stackCfg;
@@ -273,7 +288,6 @@ function pruneLayer(layer, epoch, opts) {
             const k = keys[i];
             const el = reg[k];
             if (!el) continue;
-
             if ((el.__specEpoch | 0) === 0) continue;
 
             if ((el.__specEpoch | 0) !== (epoch | 0)) {
@@ -287,7 +301,6 @@ function pruneLayer(layer, epoch, opts) {
     for (const k in reg) {
         const el = reg[k];
         if (!el) continue;
-
         if ((el.__specEpoch | 0) === 0) continue;
 
         if ((el.__specEpoch | 0) !== (epoch | 0)) {
@@ -297,19 +310,6 @@ function pruneLayer(layer, epoch, opts) {
     }
 }
 
-/**
- * Build UI from declarative spec into an existing layer.
- *
- * Deterministic rules:
- * - id is identity; if id exists and reuse=true -> update in-place
- * - if type/kind mismatch or parent differs -> element is replaced
- * - panels with flow: Text children without explicit positioning are stacked by default
- *
- * @param {object} layer
- * @param {object|object[]} spec
- * @param {object} opts { relayout?:boolean, pull?:boolean, reuse?:boolean, prune?:boolean, pruneMode?:"hide"|"remove", model?:object }
- * @returns {{created: Object, used: Object}}
- */
 function buildFromSpec(layer, spec, opts = {}) {
     if (!layer) throw new Error("[HUD][SPEC] layer is required");
 

@@ -1,4 +1,3 @@
-// FILE: resources/kalitech/builtin/helpers/hud/Layer.js
 "use strict";
 
 const {isObj, num, bool, idOf} = require("./HudUtil.js");
@@ -8,6 +7,210 @@ const {buildFromSpec} = require("./HudBuilder.js");
 
 function isFn(v) {
     return typeof v === "function";
+}
+
+function q2(v) {
+    return Math.round(v * 100);
+}
+
+function fmtQ2(q) {
+    const neg = q < 0;
+    if (neg) q = -q;
+    const i = (q / 100) | 0;
+    const f = q - i * 100;
+    return (neg ? "-" : "") + i + "." + (f < 10 ? "0" : "") + f;
+}
+
+/**
+ * Prefix spec ids in-place (create-time only).
+ * Supports root object or array of root specs.
+ * Throws if spec objects are not extensible (frozen/sealed), because silent failure is worse.
+ *
+ * @param {object|object[]} spec
+ * @param {string} prefix
+ * @returns {*}
+ */
+function prefixSpecInPlace(spec, prefix) {
+    if (!spec || !prefix) return spec;
+
+    const p = String(prefix);
+    const dot = p + ".";
+
+    // Root can be array
+    const stack = [];
+
+    if (Array.isArray(spec)) {
+        for (let i = spec.length - 1; i >= 0; i--) stack.push(spec[i]);
+    } else {
+        stack.push(spec);
+    }
+
+    while (stack.length) {
+        const s = stack.pop();
+        if (!s || typeof s !== "object") continue;
+
+        // If someone frozen spec, we can't prefix ids deterministically.
+        if (!Object.isExtensible(s)) {
+            throw new Error("[HUD] ns.spec(): spec object is not extensible (frozen/sealed). Provide mutable spec or use builder-level prefixing.");
+        }
+
+        // id
+        if (s.id != null) {
+            const id = String(s.id);
+            if (id && id.indexOf(dot) !== 0) s.id = dot + id;
+        }
+
+        // parent (string id)
+        if (s.parent != null && (typeof s.parent === "string" || typeof s.parent === "number")) {
+            const pid = String(s.parent);
+            if (pid && pid.indexOf(dot) !== 0) s.parent = dot + pid;
+        }
+
+        const kids = s.children;
+        if (!kids) continue;
+
+        if (Array.isArray(kids)) {
+            for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
+        } else if (typeof kids === "object") {
+            stack.push(kids);
+        }
+    }
+
+    return spec;
+}
+
+class LayerBindings {
+    /**
+     * @param {object} ns namespace object
+     */
+    constructor(ns) {
+        this._ns = ns;
+
+        this._n = 0;
+
+        this._kind = [];
+        this._id = [];
+
+        this._read = [];
+        this._fmt = [];
+
+        this._lastN = [];
+        this._lastS = [];
+
+        // vec3q2 caches (3 ints per binding)
+        this._vx = [];
+        this._vy = [];
+        this._vz = [];
+    }
+
+    /**
+     * Bind text with primitive compare.
+     *
+     * @param {string} id local id (without prefix)
+     * @param {function(*): (string|number|boolean|null|undefined)} read
+     * @param {function(*): string} fmt
+     * @returns {LayerBindings}
+     */
+    text(id, read, fmt) {
+        const i = this._n++;
+        this._kind[i] = 0;
+        this._id[i] = String(id);
+        this._read[i] = read;
+        this._fmt[i] = fmt || null;
+        this._lastS[i] = "\u0000";
+        return this;
+    }
+
+    /**
+     * Bind integer text.
+     *
+     * @param {string} id
+     * @param {function(*): number} read
+     * @param {string} prefix
+     * @returns {LayerBindings}
+     */
+    int(id, read, prefix) {
+        const p = String(prefix || "");
+        return this.text(id, read, (v) => p + (v | 0));
+    }
+
+    /**
+     * Bind vec3 as q2 text: "LABEL: x | y | z".
+     * Reads existing pose object (no allocations).
+     *
+     * @param {string} id
+     * @param {function(*): {x:number,y:number,z:number}|null} readObj
+     * @param {string} label
+     * @returns {LayerBindings}
+     */
+    vec3q2(id, readObj, label) {
+        const i = this._n++;
+        this._kind[i] = 1;
+        this._id[i] = String(id);
+        this._read[i] = readObj;
+        this._fmt[i] = String(label || "");
+        this._vx[i] = 0x7fffffff;
+        this._vy[i] = 0x7fffffff;
+        this._vz[i] = 0x7fffffff;
+        return this;
+    }
+
+    /**
+     * Execute bindings (no allocations in hot path).
+     *
+     * @param {*} model
+     */
+    run(model) {
+        const ns = this._ns;
+
+        for (let i = 0; i < this._n; i++) {
+            const kind = this._kind[i];
+
+            if (kind === 0) {
+                const v = this._read[i](model);
+
+                // Fast path: number compare without converting to string.
+                if (typeof v === "number") {
+                    const last = this._lastN[i];
+
+                    // NaN !== NaN, so we need stable behavior: treat NaN as equal-to-NaN.
+                    if (v === last || (Number.isNaN(v) && Number.isNaN(last))) continue;
+
+                    this._lastN[i] = v;
+
+                    const s = this._fmt[i] ? this._fmt[i](v) : String(v);
+                    if (s !== this._lastS[i]) {
+                        this._lastS[i] = s;
+                        ns.setText(this._id[i], s);
+                    }
+                    continue;
+                }
+
+                const s = this._fmt[i] ? this._fmt[i](v) : String(v ?? "");
+                if (s === this._lastS[i]) continue;
+                this._lastS[i] = s;
+                ns.setText(this._id[i], s);
+                continue;
+            }
+
+            // vec3q2
+            const o = this._read[i](model);
+            if (!o) continue;
+
+            const xq = q2(o.x);
+            const yq = q2(o.y);
+            const zq = q2(o.z);
+
+            if (xq === this._vx[i] && yq === this._vy[i] && zq === this._vz[i]) continue;
+
+            this._vx[i] = xq;
+            this._vy[i] = yq;
+            this._vz[i] = zq;
+
+            const label = this._fmt[i];
+            ns.setText(this._id[i], label + fmtQ2(xq) + " | " + fmtQ2(yq) + " | " + fmtQ2(zq));
+        }
+    }
 }
 
 class PanelBuilder {
@@ -53,10 +256,6 @@ class Layer {
         this.__specEpochCounter = 0;
     }
 
-    /**
-     * Release JS-side references so GC can collect wrappers quickly.
-     * Does not call engine API.
-     */
     _disposeLocal() {
         this._reg = Object.create(null);
         this._regKeys.length = 0;
@@ -100,13 +299,6 @@ class Layer {
         return new PanelBuilder(this, p);
     }
 
-    /**
-     * Build UI from declarative spec into this layer.
-     *
-     * @param {object|object[]} spec
-     * @param {object} opts { relayout?:boolean, pull?:boolean, reuse?:boolean, prune?:boolean, pruneMode?:"hide"|"remove", model?:object }
-     * @returns {{created: Object, used: Object}}
-     */
     spec(spec, opts = {}) {
         return buildFromSpec(this, spec, opts || {});
     }
@@ -119,14 +311,6 @@ class Layer {
 
         function pid(id) {
             return p + "." + String(id);
-        }
-
-        function withId(cfg) {
-            const c = isObj(cfg) ? cfg : {};
-            if (c.id == null) throw new Error("[HUD] ns(...): cfg.id is required");
-            const out = Object.assign({}, c);
-            out.id = pid(c.id);
-            return out;
         }
 
         return {
@@ -153,42 +337,38 @@ class Layer {
             },
 
             text(cfg) {
-                return layer.text(withId(cfg));
-            },
-            label(cfg) {
-                return layer.text(withId(cfg));
-            },
-            panel(cfg) {
-                return layer.panel(withId(cfg));
-            },
-            buildPanel(cfg) {
-                return layer.buildPanel(withId(cfg));
-            },
-            container(cfg) {
-                return layer.container(withId(cfg));
-            },
-            input(cfg) {
-                return layer.input(withId(cfg));
-            },
-            checkbox(cfg) {
-                return layer.checkbox(withId(cfg));
-            },
-            slider(cfg) {
-                return layer.slider(withId(cfg));
-            },
-            radio(cfg) {
-                return layer.radio(withId(cfg));
+                const c = isObj(cfg) ? cfg : {};
+                if (c.id == null) throw new Error("[HUD] ns.text: cfg.id is required");
+                c.id = pid(c.id);
+                return layer.text(c);
             },
 
-            spec(spec, opts) {
-                return layer.spec(spec, opts || {});
+            panel(cfg) {
+                const c = isObj(cfg) ? cfg : {};
+                if (c.id == null) throw new Error("[HUD] ns.panel: cfg.id is required");
+                c.id = pid(c.id);
+                return layer.panel(c);
+            },
+
+            /**
+             * Spec in namespace.
+             * This MUST guarantee that created element ids match ns.setText/ns.get.
+             */
+            spec(spec0, opts0) {
+                const o = (opts0 && typeof opts0 === "object") ? opts0 : {};
+                prefixSpecInPlace(spec0, p);
+                return layer.spec(spec0, o);
+            },
+
+            /**
+             * Dirty-check bindings inside API.
+             * @returns {LayerBindings}
+             */
+            bind() {
+                return new LayerBindings(this);
             }
         };
     }
-
-    // --------------------------------------------------------
-    // registry
-    // --------------------------------------------------------
 
     _regPut(key, el) {
         const k = String(key);
@@ -261,10 +441,6 @@ class Layer {
         return this;
     }
 
-    // --------------------------------------------------------
-    // viewport / coord
-    // --------------------------------------------------------
-
     _vp() {
         const vp = this._hud.viewport();
         this._lastVp.w = vp.w | 0;
@@ -276,10 +452,6 @@ class Layer {
         const c = this._hud && this._hud.META ? this._hud.META.coord : "topLeft";
         return String(c || "topLeft");
     }
-
-    // --------------------------------------------------------
-    // layout batching
-    // --------------------------------------------------------
 
     autoLayout(v = true) {
         this._autoLayout = !!v;
@@ -296,10 +468,6 @@ class Layer {
         this._dirtyLayout = false;
         return this.relayout();
     }
-
-    // --------------------------------------------------------
-    // placement tracking & relayout
-    // --------------------------------------------------------
 
     _trackPlaced(el) {
         this._placed.push(el);
@@ -324,13 +492,10 @@ class Layer {
                 this._api.setPosition(el.handle, p.x, y);
             }
         }
-
         return this;
     }
 
-    // --------------------------------------------------------
-    // container
-    // --------------------------------------------------------
+    // ----- element factories -----
 
     container(cfg = {}) {
         const c = isObj(cfg) ? cfg : {};
@@ -354,9 +519,7 @@ class Layer {
         y = applyCoordY(coord, vp.h, y);
 
         const ph = parent ? parent.handle : null;
-        const h = ph
-            ? this._api.addContainer(this.handle, ph, x, y)
-            : this._api.addContainer(this.handle, x, y);
+        const h = ph ? this._api.addContainer(this.handle, ph, x, y) : this._api.addContainer(this.handle, x, y);
 
         const el = new Element(this._hud, h, this, parent);
         el.kind = "container";
@@ -370,10 +533,6 @@ class Layer {
         if (id != null) this._regPut(id, el);
         return el;
     }
-
-    // --------------------------------------------------------
-    // panel
-    // --------------------------------------------------------
 
     panel(cfg = {}) {
         const c = isObj(cfg) ? cfg : {};
@@ -411,12 +570,9 @@ class Layer {
         panel._autoHeight = bool(c.autoHeight, false);
         panel._autoMinH = num(c.minH, 0);
 
-        const flowCfg = isObj(c.flow) ? Object.assign({}, c.flow) : null;
-        if (flowCfg) {
-            if (c.padX != null && flowCfg.padX == null) flowCfg.padX = c.padX;
-            if (c.padY != null && flowCfg.padY == null) flowCfg.padY = c.padY;
-            panel.flow(flowCfg);
-        } else if (c.padX != null || c.padY != null || c.gap != null || c.fontSize != null) {
+        const flowCfg = isObj(c.flow) ? c.flow : null;
+        if (flowCfg) panel.flow(flowCfg);
+        else if (c.padX != null || c.padY != null || c.gap != null || c.fontSize != null) {
             panel.flow({
                 padX: (c.padX != null) ? c.padX : undefined,
                 padY: (c.padY != null) ? c.padY : undefined,
@@ -441,10 +597,6 @@ class Layer {
     rect(cfg = {}) {
         return this.panel(cfg);
     }
-
-    // --------------------------------------------------------
-    // text / label
-    // --------------------------------------------------------
 
     text(cfg = {}) {
         const c = isObj(cfg) ? cfg : {};
@@ -477,7 +629,10 @@ class Layer {
         el.kind = "text";
 
         if (c.fontSize != null) el.fontSize(c.fontSize);
-        if (c.color) el.color(num(c.color.r, 1), num(c.color.g, 1), num(c.color.b, 1), num(c.color.a, 1));
+        if (c.color) {
+            const col = c.color;
+            if (isObj(col)) el.color(num(col.r, 1), num(col.g, 1), num(col.b, 1), num(col.a, 1));
+        }
 
         if (place) {
             el._setPlace(place);
@@ -512,7 +667,10 @@ class Layer {
         const el = new Element(this._hud, hh, this, p);
         el.kind = "text";
 
-        const itemFont = (c.fontSize != null) ? (num(c.fontSize, 14) | 0) : ((m.fontSize != null) ? (num(m.fontSize, 14) | 0) : null);
+        const itemFont = (c.fontSize != null)
+            ? (num(c.fontSize, 14) | 0)
+            : ((m.fontSize != null) ? (num(m.fontSize, 14) | 0) : null);
+
         if (itemFont != null) el.fontSize(itemFont);
 
         p._stack.push({
@@ -813,7 +971,7 @@ class Layer {
             select(elOrId) {
                 const id = (typeof elOrId === "string" || typeof elOrId === "number")
                     ? String(elOrId)
-                    : String(elOrId?.key ?? elOrId?.id ?? "");
+                    : String(elOrId && (elOrId.key ?? elOrId.id ?? ""));
                 if (!id) return null;
                 self._radioSelect(g, id);
                 return self.get(id);

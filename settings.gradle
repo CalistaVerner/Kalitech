@@ -6,3 +6,4 @@ include(
         'kalitech-neural',
         'kalitech-demo'
 )
+include 'InputModule'

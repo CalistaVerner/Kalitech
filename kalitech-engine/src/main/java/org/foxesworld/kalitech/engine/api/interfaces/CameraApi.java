@@ -64,6 +64,9 @@ public interface CameraApi {
     @HostAccess.Export
     void setYawPitch(double yaw, double pitch);
 
+    @HostAccess.Export
+    void __flush();
+
     /** Current yaw (radians). */
     @HostAccess.Export
     double yaw();
