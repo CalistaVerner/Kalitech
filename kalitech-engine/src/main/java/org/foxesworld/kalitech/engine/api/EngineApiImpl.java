@@ -62,6 +62,7 @@ public final class EngineApiImpl implements EngineApi {
     private final EditorLinesApi editorLinesApi;
     private final PhysicsApiImpl physicsApi;
     private final HudApiImpl hudApi;
+    private final ModulesApi modulesApi;
     private final MeshApi meshApi;
     private final LightApiImpl lightApi;
     private final SoundApiImpl soundApi;
@@ -143,6 +144,7 @@ public final class EngineApiImpl implements EngineApi {
         this.worldApi = apiRegistry.register(new WorldApiImpl());
         this.editorApi = apiRegistry.register(new EditorApiImpl());
         this.particles = apiRegistry.register(new ParticlesApiImpl());
+        this.modulesApi = apiRegistry.register(new ModulesApiImpl());
     }
 
     private static boolean boolProp(String key, boolean def) {
@@ -297,6 +299,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export @Override public InputApi input() { return inputApi; }
     @HostAccess.Export @Override public WorldApi world() { return worldApi; }
     @HostAccess.Export @Override public EditorApi editor() { return editorApi; }
+    @HostAccess.Export @Override public ModulesApi modules() { return modulesApi; }
 
     @HostAccess.Export
     @Override
@@ -330,6 +333,10 @@ public final class EngineApiImpl implements EngineApi {
 
     public TaskRegistry getTaskRegistry() {
         return taskRegistry;
+    }
+
+    public ApiRegistry getApiRegistry() {
+        return apiRegistry;
     }
 
     public SurfaceRegistry getSurfaceRegistry() {

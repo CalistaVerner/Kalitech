@@ -28,6 +28,11 @@ public final class ComponentStore {
         if (entity <= 0) throw new IllegalArgumentException("entity must be > 0");
     }
 
+    private static <T> Class<T> requireType(Class<T> type, String op) {
+        if (type == null) throw new NullPointerException(op + ": type");
+        return type;
+    }
+
     private static String requireTypeName(String type) {
         if (type == null) throw new NullPointerException("type");
         String t = type.trim();
@@ -37,6 +42,7 @@ public final class ComponentStore {
 
     @SuppressWarnings("unchecked")
     public <T> T get(int entity, Class<T> type) {
+        requireType(type, "get");
         Pool p = typed.get(type);
         if (p == null) return null;
         return (T) p.get(entity);
@@ -44,6 +50,7 @@ public final class ComponentStore {
 
     public <T> void put(int entity, Class<T> type, T value) {
         requireEntity(entity);
+        requireType(type, "put");
         ensureEntityCapacity(entity);
         Pool p = typed.computeIfAbsent(type, k -> new Pool(entityCapacity));
         p.ensureSparse(entityCapacity);
@@ -51,11 +58,13 @@ public final class ComponentStore {
     }
 
     public <T> boolean has(int entity, Class<T> type) {
+        requireType(type, "has");
         Pool p = typed.get(type);
         return p != null && p.has(entity);
     }
 
     public <T> void remove(int entity, Class<T> type) {
+        requireType(type, "remove");
         Pool p = typed.get(type);
         if (p == null) return;
         p.remove(entity);
@@ -64,6 +73,7 @@ public final class ComponentStore {
     @SuppressWarnings("unchecked")
     public <T> void forEach(Class<T> type, BiConsumer<Integer, T> fn) {
         Objects.requireNonNull(fn, "fn");
+        requireType(type, "forEach");
         Pool p = typed.get(type);
         if (p == null) return;
         p.forEach((e, v) -> fn.accept(e, (T) v));
@@ -71,6 +81,7 @@ public final class ComponentStore {
 
     @SuppressWarnings("unchecked")
     public <T> Map<Integer, T> view(Class<T> type) {
+        requireType(type, "view");
         Pool p = typed.get(type);
         if (p == null) return Map.of();
         HashMap<Integer, T> out = new HashMap<>(Math.max(16, p.size()));

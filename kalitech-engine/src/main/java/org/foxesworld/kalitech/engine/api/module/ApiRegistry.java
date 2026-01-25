@@ -21,6 +21,13 @@ public final class ApiRegistry {
         }
     }
 
+    private static String requireId(String id) {
+        Objects.requireNonNull(id, "id");
+        String normalized = id.trim();
+        if (normalized.isEmpty()) throw new IllegalArgumentException("id is blank");
+        return normalized;
+    }
+
     private static String fmt(Entry e) {
         if (e == null) return "null";
         String impl = (e.api != null) ? e.api.getClass().getSimpleName() : "null";
@@ -29,17 +36,17 @@ public final class ApiRegistry {
 
     @Deprecated
     public <T> T registerLegacy(String id, T api) {
-        Objects.requireNonNull(id, "id");
+        String normalized = requireId(id);
         Objects.requireNonNull(api, "api");
 
-        Entry prev = map.put(id, new Entry(id, api, null, id, "legacy"));
+        Entry prev = map.put(normalized, new Entry(normalized, api, null, normalized, "legacy"));
 
         if (log.isDebugEnabled()) {
             if (prev == null) {
-                log.debug("[api] register legacy id='{}' impl={}", id, api.getClass().getName());
+                log.debug("[api] register legacy id='{}' impl={}", normalized, api.getClass().getName());
             } else {
                 log.debug("[api] replace legacy id='{}' prevImpl={} newImpl={}",
-                        id,
+                        normalized,
                         prev.api != null ? prev.api.getClass().getName() : "null",
                         api.getClass().getName());
             }
@@ -54,7 +61,7 @@ public final class ApiRegistry {
         // attach first (keeps current behavior: module is usable right after register)
         module.attach(ctx);
 
-        final String id = module.id();
+        final String id = requireId(module.id());
         final Entry next = new Entry(id, module, module, module.name(), module.version());
 
         Entry prev = map.put(id, next);
@@ -76,7 +83,8 @@ public final class ApiRegistry {
     }
 
     public Entry get(String id) {
-        return map.get(id);
+        if (id == null) return null;
+        return map.get(id.trim());
     }
 
     public String[] keys() {
@@ -88,6 +96,19 @@ public final class ApiRegistry {
     public List<Entry> entries() {
         ArrayList<Entry> out = new ArrayList<>(map.values());
         out.sort(Comparator.comparing(e -> e.id));
+        return out;
+    }
+
+    public ApiModuleInfo info(String id) {
+        Entry entry = get(id);
+        return ApiModuleInfo.from(entry);
+    }
+
+    public List<ApiModuleInfo> infos() {
+        ArrayList<ApiModuleInfo> out = new ArrayList<>();
+        for (Entry e : entries()) {
+            out.add(ApiModuleInfo.from(e));
+        }
         return out;
     }
 
