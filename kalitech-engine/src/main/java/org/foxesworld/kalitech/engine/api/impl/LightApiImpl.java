@@ -35,6 +35,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
  *   <li>All scenegraph light mutations (create/attach/detach/set/destroy) happen on the JME thread.</li>
  * </ul>
  */
+@Deprecated
 public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     private final AtomicInteger ids = new AtomicInteger(1);

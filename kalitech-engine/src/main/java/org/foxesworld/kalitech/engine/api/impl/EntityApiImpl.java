@@ -14,6 +14,7 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Objects;
 
+@Deprecated
 public final class EntityApiImpl extends AbstractApiModule implements EntityApi {
 
     private static final Logger log = LogManager.getLogger(EntityApiImpl.class);

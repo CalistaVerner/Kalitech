@@ -20,6 +20,7 @@ import org.graalvm.polyglot.Value;
 
 import java.util.Objects;
 
+@Deprecated
 public final class SoundApiImpl extends AbstractApiModule implements SoundApi {
 
     private EngineApiImpl engine;

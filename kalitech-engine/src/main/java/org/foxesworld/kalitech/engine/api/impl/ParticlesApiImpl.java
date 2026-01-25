@@ -26,6 +26,7 @@ import org.graalvm.polyglot.Value;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Deprecated
 public final class ParticlesApiImpl extends AbstractApiModule implements ParticlesApi {
 
     private static final Logger log = LogManager.getLogger(ParticlesApiImpl.class);

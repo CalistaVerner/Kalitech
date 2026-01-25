@@ -44,6 +44,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
  *   <li>Thread-safe API: exported methods only enqueue commands; actual mesh rebuild is on JME thread.</li>
  * </ul>
  */
+@Deprecated
 public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi {
 
     private final AtomicBoolean inited = new AtomicBoolean(false);

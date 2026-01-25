@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
+@Deprecated
 public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     private static final Logger log = LogManager.getLogger(MeshApiImpl.class);

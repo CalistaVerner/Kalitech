@@ -14,6 +14,7 @@ import java.util.List;
 /**
  * Script event bus facade.
  */
+@Deprecated
 public final class EventsApiImpl extends AbstractApiModule implements EventsApi {
 
     private static final Method M_EMIT_TOPIC =

@@ -41,6 +41,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.clamp01f;
  * Script coordinate contract:
  * - TOP-LEFT origin, y grows DOWN
  */
+@Deprecated
 public final class HudApiImpl extends AbstractApiModule implements HudApi {
 
     private static final AtomicInteger IDS = new AtomicInteger(1000);

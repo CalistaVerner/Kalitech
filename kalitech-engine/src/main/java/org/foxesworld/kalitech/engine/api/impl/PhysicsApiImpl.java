@@ -38,6 +38,7 @@ import java.lang.reflect.Method;
  * <p>This class must stay thin: all logic lives inside engine.modules.physics.* modules.
  * Exported methods are stable and only delegate to runtime services.</p>
  */
+@Deprecated
 public final class PhysicsApiImpl extends AbstractApiModule implements PhysicsApi {
 
     private static final Logger log = LogManager.getLogger(PhysicsApiImpl.class);

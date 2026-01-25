@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
  * <p>Threading:
  * - Mutations are batched and flushed once per frame on the JME thread.
  */
+@Deprecated
 public final class CameraApiImpl extends AbstractApiModule implements CameraApi {
 
     private static final Method M_LOCATION =

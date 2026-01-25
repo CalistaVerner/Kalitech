@@ -31,6 +31,7 @@ import org.graalvm.polyglot.Value;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
 
+@Deprecated
 public final class RenderApiImpl extends AbstractApiModule implements RenderApi {
 
     private static final Logger log = LogManager.getLogger(RenderApiImpl.class);

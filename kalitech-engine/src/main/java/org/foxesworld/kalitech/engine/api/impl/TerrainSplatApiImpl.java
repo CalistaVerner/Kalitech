@@ -25,6 +25,7 @@ import java.util.Objects;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
 
+@Deprecated
 public final class TerrainSplatApiImpl extends AbstractApiModule implements TerrainSplatApi {
 
     private static final Logger log = LogManager.getLogger(TerrainSplatApiImpl.class);

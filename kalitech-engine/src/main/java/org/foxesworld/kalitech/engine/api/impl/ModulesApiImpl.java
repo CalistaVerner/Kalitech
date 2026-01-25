@@ -14,6 +14,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
+@Deprecated
 public final class ModulesApiImpl extends AbstractApiModule implements ModulesApi {
 
     private static final Method M_LIST =

@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 
+@Deprecated
 public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi {
 
     private static final Logger L = LogManager.getLogger(AssetsApiImpl.class);

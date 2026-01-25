@@ -29,6 +29,7 @@ import static org.foxesworld.kalitech.engine.modules.material.MaterialUtils.appl
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
 import static org.foxesworld.kalitech.engine.script.util.JsCfg.str;
 
+@Deprecated
 public final class MaterialApiImpl extends AbstractApiModule implements MaterialApi {
 
     private static final Logger log = LogManager.getLogger(MaterialApiImpl.class);

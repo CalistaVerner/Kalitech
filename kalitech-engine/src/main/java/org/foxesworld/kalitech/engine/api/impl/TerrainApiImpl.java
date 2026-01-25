@@ -36,6 +36,7 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
  *   <li>No legacy constructors and no manual ApiContext wiring.</li>
  * </ul>
  */
+@Deprecated
 public final class TerrainApiImpl extends AbstractApiModule implements TerrainApi {
 
     private SurfaceRegistry registry;
