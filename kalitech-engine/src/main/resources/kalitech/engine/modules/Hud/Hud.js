@@ -1,10 +1,8 @@
 // FILE: resources/kalitech/builtin/Hud.js
-// Author: Calista Verner
 "use strict";
 
 const {isObj, num} = require("./helpers/HudUtil.js");
 const {Layer} = require("./helpers/Layer.js");
-const {buildFromHtml} = require("./helpers/HudHtml.js");
 
 class ComponentRegistry {
     constructor() {
@@ -39,13 +37,16 @@ function HudModule(engine, cfg) {
     const api = engine.hud();
     const c = isObj(cfg) ? cfg : {};
 
+    // Stable viewport cache to avoid per-call allocations.
+    const _vpCache = {w: 0, h: 0};
+
     const hud = {
         _api: api,
 
         META: {
             id: "kalitech.hud",
             globalName: "HUD",
-            version: "3.1.0",
+            version: "3.2.0",
             coord: String(c.coord || "topLeft")
         },
 
@@ -56,23 +57,26 @@ function HudModule(engine, cfg) {
             return new Layer(hud, h);
         },
 
-        /**
-         * Build UI from HTML string into a new layer.
-         *
-         * @param {string} layerName
-         * @param {string} html
-         * @param {object} opts { model?:object, relayout?:boolean, pull?:boolean }
-         * @returns {object} { layer, created, root }
-         */
-        html(layerName, html, opts) {
+        spec(layerName, spec, opts) {
             const layer = hud.layer(String(layerName ?? "hud"));
-            const res = buildFromHtml(layer, String(html ?? ""), opts || {});
-            return {layer, created: res.created, root: res.root};
+            const res = layer.spec(spec, opts || {});
+            return {layer, created: res.created, used: res.used};
         },
 
+        /**
+         * Returns a stable object reference {w,h} updated on each call.
+         * Do not store it if you need a snapshot; copy values if required.
+         */
         viewport() {
             const vp = api.viewport();
-            return vp ? {w: num(vp.w(), 0) | 0, h: num(vp.h(), 0) | 0} : {w: 0, h: 0};
+            if (!vp) {
+                _vpCache.w = 0;
+                _vpCache.h = 0;
+                return _vpCache;
+            }
+            _vpCache.w = num(vp.w(), 0) | 0;
+            _vpCache.h = num(vp.h(), 0) | 0;
+            return _vpCache;
         },
 
         cursor(enabled, force) {
@@ -103,4 +107,4 @@ function HudModule(engine, cfg) {
 }
 
 module.exports = HudModule;
-module.exports.META = {moduleId: "hud", globalName: "HUD", version: "3.1.0"};
+module.exports.META = {moduleId: "hud", globalName: "HUD", version: "3.2.0"};

@@ -4,13 +4,11 @@
 const {isObj, num, bool, idOf} = require("./HudUtil.js");
 const {applyCoordY, parsePlace, placeRect, placePoint} = require("./HudPlacement.js");
 const {Element, Panel} = require("./HudElements.js");
-const {UIBuilder} = require("./UIBuilder.js");
-const {buildFromHtml} = require("./HudHtml.js");
+const {buildFromSpec} = require("./HudBuilder.js");
 
 function isFn(v) {
     return typeof v === "function";
 }
-
 
 class PanelBuilder {
     constructor(layer, panel) {
@@ -42,6 +40,8 @@ class Layer {
         this.id = idOf(handle);
 
         this._reg = Object.create(null);
+        this._regKeys = [];
+
         this._placed = [];
 
         this._lastVp = {w: 0, h: 0};
@@ -49,22 +49,50 @@ class Layer {
 
         this._dirtyLayout = false;
         this._autoLayout = true;
+
+        this.__specEpochCounter = 0;
+    }
+
+    /**
+     * Release JS-side references so GC can collect wrappers quickly.
+     * Does not call engine API.
+     */
+    _disposeLocal() {
+        this._reg = Object.create(null);
+        this._regKeys.length = 0;
+
+        this._radioGroups = Object.create(null);
+        this._placed.length = 0;
+
+        this._dirtyLayout = false;
+        this._autoLayout = true;
+        this.__specEpochCounter = 0;
+
+        this._lastVp.w = 0;
+        this._lastVp.h = 0;
+
+        this._hud = null;
+        this._api = null;
+        this.handle = null;
     }
 
     destroy() {
-        this._api.destroyLayer(this.handle);
+        const api = this._api;
+        const h = this.handle;
+        this._disposeLocal();
+        if (api && h) api.destroyLayer(h);
     }
 
     clear() {
         this._reg = Object.create(null);
+        this._regKeys.length = 0;
+
         this._radioGroups = Object.create(null);
         this._placed.length = 0;
         this._dirtyLayout = false;
-        this._api.clearLayer(this.handle);
-    }
+        this.__specEpochCounter = 0;
 
-    ui() {
-        return new UIBuilder(this);
+        this._api.clearLayer(this.handle);
     }
 
     buildPanel(cfg = {}) {
@@ -72,38 +100,58 @@ class Layer {
         return new PanelBuilder(this, p);
     }
 
+    /**
+     * Build UI from declarative spec into this layer.
+     *
+     * @param {object|object[]} spec
+     * @param {object} opts { relayout?:boolean, pull?:boolean, reuse?:boolean, prune?:boolean, pruneMode?:"hide"|"remove", model?:object }
+     * @returns {{created: Object, used: Object}}
+     */
+    spec(spec, opts = {}) {
+        return buildFromSpec(this, spec, opts || {});
+    }
+
     ns(prefix) {
         const p = String(prefix || "").trim();
         if (!p) throw new Error("[HUD] layer.ns(prefix): prefix is required");
+
         const layer = this;
 
-        function withId(cfg) {
-            const c = isObj(cfg) ? Object.assign({}, cfg) : {};
-            if (c.id == null) throw new Error("[HUD] ns(...): cfg.id is required");
-            c.id = p + "." + String(c.id);
-            return c;
+        function pid(id) {
+            return p + "." + String(id);
         }
 
-        return Object.freeze({
+        function withId(cfg) {
+            const c = isObj(cfg) ? cfg : {};
+            if (c.id == null) throw new Error("[HUD] ns(...): cfg.id is required");
+            const out = Object.assign({}, c);
+            out.id = pid(c.id);
+            return out;
+        }
+
+        return {
             prefix: p,
+
             get(id) {
-                return layer.get(p + "." + String(id));
+                return layer.get(pid(id));
             },
             has(id) {
-                return layer.has(p + "." + String(id));
+                return layer.has(pid(id));
             },
             drop(id, remove) {
-                return layer.drop(p + "." + String(id), !!remove);
+                return layer.drop(pid(id), !!remove);
             },
+
             setText(id, text) {
-                return layer.setText(p + "." + String(id), text);
+                return layer.setText(pid(id), text);
             },
             setValue(id, v) {
-                return layer.setValue(p + "." + String(id), v);
+                return layer.setValue(pid(id), v);
             },
             setVisible(id, v) {
-                return layer.setVisible(p + "." + String(id), v);
+                return layer.setVisible(pid(id), v);
             },
+
             text(cfg) {
                 return layer.text(withId(cfg));
             },
@@ -130,8 +178,12 @@ class Layer {
             },
             radio(cfg) {
                 return layer.radio(withId(cfg));
+            },
+
+            spec(spec, opts) {
+                return layer.spec(spec, opts || {});
             }
-        });
+        };
     }
 
     // --------------------------------------------------------
@@ -141,8 +193,20 @@ class Layer {
     _regPut(key, el) {
         const k = String(key);
         el.key = k;
+        if (this._reg[k] == null) this._regKeys.push(k);
         this._reg[k] = el;
         return el;
+    }
+
+    _regRemoveKey(k) {
+        const keys = this._regKeys;
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i] === k) {
+                keys[i] = keys[keys.length - 1];
+                keys.pop();
+                return;
+            }
+        }
     }
 
     get(key) {
@@ -159,6 +223,7 @@ class Layer {
         if (!el) return null;
 
         delete this._reg[k];
+        this._regRemoveKey(k);
 
         if (el.kind === "radio" && el._radioGroup) {
             const s = this._radioGroups[el._radioGroup];
@@ -188,7 +253,7 @@ class Layer {
     }
 
     pullAll() {
-        const keys = Object.keys(this._reg);
+        const keys = this._regKeys;
         for (let i = 0; i < keys.length; i++) {
             const el = this._reg[keys[i]];
             if (el && isFn(el.pull)) el.pull();
@@ -343,14 +408,9 @@ class Layer {
         panel._w = w;
         panel._h = h;
 
-        // ------- NEW: autoHeight plumbing -------
         panel._autoHeight = bool(c.autoHeight, false);
         panel._autoMinH = num(c.minH, 0);
 
-        // ------- NEW: flow shortcuts in panel(cfg) -------
-        // Support both:
-        //  - panel.flow({padX,padY,gap,fontSize})
-        //  - panel({padX,padY, flow:{...}})
         const flowCfg = isObj(c.flow) ? Object.assign({}, c.flow) : null;
         if (flowCfg) {
             if (c.padX != null && flowCfg.padX == null) flowCfg.padX = c.padX;
@@ -365,7 +425,6 @@ class Layer {
             });
         }
 
-        // visuals (legacy)
         if (c.bg) panel.bg(num(c.bg.r, 0), num(c.bg.g, 0), num(c.bg.b, 0), num(c.bg.a, 1));
         if (c.fontSize != null) panel.fontSize(c.fontSize);
 
@@ -478,8 +537,6 @@ class Layer {
 
         const defaultFont = (p._flow.fontSize != null) ? num(p._flow.fontSize, 14) : 14;
 
-        // Total content height:
-        // top padding + sum(lineHeights) + gaps + bottom padding
         let contentH = padY;
         for (let i = 0; i < p._stack.length; i++) {
             const it = p._stack[i];
@@ -523,13 +580,11 @@ class Layer {
             if (i !== p._stack.length - 1) y += gap;
         }
 
-        // ------- NEW: correct panel auto-height -------
         if (p._autoHeight) {
             const newH = this._computeAutoPanelHeight(p);
             if ((newH | 0) !== (p._h | 0)) {
                 p._h = newH;
                 this._api.setSize(p.handle, p._w, p._h);
-                // placed panels depend on _h for anchoring (br/bl/bc/etc)
                 this._markDirty();
             }
         } else {
