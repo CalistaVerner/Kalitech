@@ -68,7 +68,6 @@ public final class EngineApiImpl implements EngineApi {
     private final LightApiImpl lightApi;
     //private final SoundApiImpl soundApi;
     private final DebugDrawApiImpl debugApi;
-    private final ParticlesApiImpl particles;
     private final ModuleManager moduleManager;
 
     private final SurfaceRegistry surfaceRegistry;
@@ -147,7 +146,6 @@ public final class EngineApiImpl implements EngineApi {
         this.hudApi = apiRegistry.register(new HudApiImpl());
         this.worldApi = apiRegistry.register(new WorldApiImpl());
         this.editorApi = apiRegistry.register(new EditorApiImpl());
-        this.particles = apiRegistry.register(new ParticlesApiImpl());
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
         this.moduleManager.loadFromDir(java.nio.file.Path.of("./modules"));
         this.cameraApi = apiRegistry.api("camera", CameraApi.class);
@@ -273,7 +271,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public ParticlesApi particles() {
-        return particles;
+        return apiRegistry.api("particles", ParticlesApi.class);
     }
 
     @HostAccess.Export
