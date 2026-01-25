@@ -156,18 +156,25 @@ public final class EcsWorld {
     }
 
     private int entityIdOrNull(String uuid) {
-        if (uuid == null || uuid.isBlank()) return EntityId.NULL;
-        return uuids.entityIdOf(uuid);
+        String normalized = normalizeUuid(uuid);
+        if (normalized == null || normalized.isBlank()) return EntityId.NULL;
+        return uuids.entityIdOf(normalized);
     }
 
     private int requireEntityId(String uuid, String op) {
         Objects.requireNonNull(uuid, op + ": uuid is null");
-        if (uuid.isBlank()) throw new IllegalArgumentException(op + ": uuid is blank");
+        String normalized = normalizeUuid(uuid);
+        if (normalized == null || normalized.isBlank()) throw new IllegalArgumentException(op + ": uuid is blank");
 
-        int id = uuids.entityIdOf(uuid);
+        int id = uuids.entityIdOf(normalized);
         if (id == EntityId.NULL) throw new IllegalArgumentException(op + ": unknown uuid=" + uuid);
         if (!entities.isAlive(id)) throw new IllegalStateException(op + ": entity is not alive uuid=" + uuid);
 
         return id;
+    }
+
+    private static String normalizeUuid(String uuid) {
+        if (uuid == null) return null;
+        return uuid.trim();
     }
 }

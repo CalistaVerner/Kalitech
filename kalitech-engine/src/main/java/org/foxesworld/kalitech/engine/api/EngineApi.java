@@ -85,6 +85,9 @@ public interface EngineApi {
     EditorApi editor();
 
     @HostAccess.Export
+    ModulesApi modules();
+
+    @HostAccess.Export
     double fps();
 
     /**

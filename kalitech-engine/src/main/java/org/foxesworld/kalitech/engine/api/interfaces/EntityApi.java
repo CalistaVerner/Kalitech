@@ -42,4 +42,20 @@ public interface EntityApi {
 
     @HostAccess.Export
     void removeComponent(String uuid, String type);
+
+    // -------------------------
+    // editor helpers
+    // -------------------------
+
+    /**
+     * Snapshot entity state for UI/editor tooling.
+     */
+    @HostAccess.Export
+    java.util.Map<String, Object> snapshot(String uuid);
+
+    /**
+     * List up to {@code limit} entity UUIDs.
+     */
+    @HostAccess.Export
+    String[] list(int limit);
 }
