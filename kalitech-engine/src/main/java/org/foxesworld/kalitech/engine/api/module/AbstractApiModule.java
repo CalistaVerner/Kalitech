@@ -135,7 +135,7 @@ public abstract class AbstractApiModule implements ApiModule {
     @Override
     public void attach(ApiContext ctx) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
-        this.engine = ctx.engine;
+        this.engine = (EngineApiImpl) ctx.engine;
         this.log = ctx.log;
         this.attached = true;
 

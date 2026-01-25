@@ -60,6 +60,7 @@ public final class RuntimeAppState extends BaseAppState {
         this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
         this.ecs = Objects.requireNonNull(ecs, "ecs");
         this.bus = Objects.requireNonNull(bus, "bus");
+        this.runtime = new ScriptRuntime();
     }
 
     private static Value resolveApp(Value module) {
@@ -131,7 +132,7 @@ public final class RuntimeAppState extends BaseAppState {
         engineApi.__setPhysicsSpace(physicsSpace);
 
         // --- Script runtime (shared base for app + potential worlds) ---
-        runtime = new ScriptRuntime();
+        //runtime = new ScriptRuntime();
 
         // CRITICAL: providers MUST be set BEFORE any require() or builtins init
         runtime.setModuleStreamProvider(this::openJsModuleStream);

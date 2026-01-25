@@ -17,6 +17,8 @@ import org.foxesworld.kalitech.engine.api.registry.TaskRegistry;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.modules.moduleLoader.ModuleManager;
+import org.foxesworld.kalitech.engine.modules.moduleLoader.RuntimeJsBridge;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -55,7 +57,6 @@ public final class EngineApiImpl implements EngineApi {
     private final RenderApi renderApi;
     private final CameraApi cameraApi;
     private final TimeApiImpl timeApi;
-    private final InputApiImpl inputApi;
     private final WorldApi worldApi;
     private final MaterialApi materialApi;
     private final EditorApi editorApi;
@@ -68,6 +69,7 @@ public final class EngineApiImpl implements EngineApi {
     private final SoundApiImpl soundApi;
     private final DebugDrawApiImpl debugApi;
     private final ParticlesApiImpl particles;
+    private final ModuleManager moduleManager;
 
     private final SurfaceRegistry surfaceRegistry;
     private final SurfaceApi surfaceApi;
@@ -114,6 +116,8 @@ public final class EngineApiImpl implements EngineApi {
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
+        this.moduleManager = new ModuleManager(LOG, this.apiRegistry, new RuntimeJsBridge(this.runtime), getClass().getClassLoader());
+
         // NO legacy ctor
         this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
 
@@ -121,7 +125,7 @@ public final class EngineApiImpl implements EngineApi {
         this.assetsApi = apiRegistry.register(new AssetsApiImpl());
         this.eventsApi = apiRegistry.register(new EventsApiImpl());
         this.timeApi = apiRegistry.register(new TimeApiImpl());
-        this.inputApi = apiRegistry.register(new InputApiImpl());
+        //this.inputApi = apiRegistry.register(new InputApiImpl());
 
         this.materialApi = apiRegistry.register(new MaterialApiImpl());
         this.renderApi = apiRegistry.register(new RenderApiImpl());
@@ -145,6 +149,7 @@ public final class EngineApiImpl implements EngineApi {
         this.editorApi = apiRegistry.register(new EditorApiImpl());
         this.particles = apiRegistry.register(new ParticlesApiImpl());
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
+        this.moduleManager.loadFromDir(java.nio.file.Path.of("./modules"));
     }
 
     private static boolean boolProp(String key, boolean def) {
@@ -274,9 +279,24 @@ public final class EngineApiImpl implements EngineApi {
     public ParticlesApi particles() {
         return particles;
     }
-    @HostAccess.Export @Override public SurfaceApi surface() { return surfaceApi; }
-    @HostAccess.Export @Override public TerrainApi terrain() { return terrainApi; }
-    @HostAccess.Export @Override public TerrainSplatApi terrainSplat() { return terrainSplatApi; }
+
+    @HostAccess.Export
+    @Override
+    public SurfaceApi surface() {
+        return surfaceApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public TerrainApi terrain() {
+        return terrainApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public TerrainSplatApi terrainSplat() {
+        return terrainSplatApi;
+    }
 
     @HostAccess.Export
     @Override
@@ -295,11 +315,36 @@ public final class EngineApiImpl implements EngineApi {
     public HudApi hud() {
         return hudApi;
     }
-    @HostAccess.Export @Override public TimeApi time() { return timeApi; }
-    @HostAccess.Export @Override public InputApi input() { return inputApi; }
-    @HostAccess.Export @Override public WorldApi world() { return worldApi; }
-    @HostAccess.Export @Override public EditorApi editor() { return editorApi; }
-    @HostAccess.Export @Override public ModulesApi modules() { return modulesApi; }
+
+    @HostAccess.Export
+    @Override
+    public TimeApi time() {
+        return timeApi;
+    }
+
+    @Override
+    @HostAccess.Export
+    public InputApi input() {
+        return apiRegistry.api("input", InputApi.class);
+    }
+
+    @HostAccess.Export
+    @Override
+    public WorldApi world() {
+        return worldApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public EditorApi editor() {
+        return editorApi;
+    }
+
+    @HostAccess.Export
+    @Override
+    public ModulesApi modules() {
+        return modulesApi;
+    }
 
     @HostAccess.Export
     @Override
@@ -410,8 +455,7 @@ public final class EngineApiImpl implements EngineApi {
             try {
                 physicsApi.__cleanupSurface(surfaceId);
             } catch (Throwable t) {
-                LOG.warn("__surfaceCleanupOnEntityDestroy: physics cleanup failed surfaceId={} entityUuid={}",
-                        surfaceId, uuid, t);
+                LOG.warn("__surfaceCleanupOnEntityDestroy: physics cleanup failed surfaceId={} entityUuid={}", surfaceId, uuid, t);
             }
 
             try {
@@ -426,8 +470,7 @@ public final class EngineApiImpl implements EngineApi {
                     f.get(2, TimeUnit.SECONDS);
                 }
             } catch (Throwable t) {
-                LOG.warn("__surfaceCleanupOnEntityDestroy: registry destroy failed surfaceId={} entityUuid={}",
-                        surfaceId, uuid, t);
+                LOG.warn("__surfaceCleanupOnEntityDestroy: registry destroy failed surfaceId={} entityUuid={}", surfaceId, uuid, t);
             }
         }
 
@@ -481,10 +524,20 @@ public final class EngineApiImpl implements EngineApi {
     public Logger getLog() {
         return LOG;
     }
+
     public SimpleApplication getApp() {
         return app;
     }
+
     public EcsWorld getEcs() {
         return ecs;
     }
+
+    @HostAccess.Export
+    public Object api(String id) {
+        if (id == null) return null;
+        ApiRegistry.Entry e = this.apiRegistry.get(id);
+        return (e != null) ? e.api : null;
+    }
+
 }

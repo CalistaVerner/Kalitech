@@ -9,11 +9,23 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Runtime registry of API modules.
+ *
+ * <p>Design goals:
+ * <ul>
+ *   <li>No engine hardcode: modules are discovered/loaded externally and registered here.</li>
+ *   <li>Deterministic lifecycle: {@link #register(ApiModule)} always attaches, and any replaced module is detached.</li>
+ *   <li>Low overhead: stable O(1) lookups and startup-only allocations.</li>
+ * </ul>
+ */
 public final class ApiRegistry {
 
     private static final Logger log = LogManager.getLogger(ApiRegistry.class);
+
     private final ApiContext ctx;
     private final ConcurrentHashMap<String, Entry> map = new ConcurrentHashMap<>();
+
     public ApiRegistry(ApiContext ctx) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         if (log.isDebugEnabled()) {
@@ -34,6 +46,9 @@ public final class ApiRegistry {
         return "{id=" + e.id + ",name=" + e.name + ",ver=" + e.version + ",impl=" + impl + "}";
     }
 
+    /**
+     * Legacy entry registration (non-module APIs). Prefer {@link #register(ApiModule)}.
+     */
     @Deprecated
     public <T> T registerLegacy(String id, T api) {
         String normalized = requireId(id);
@@ -55,10 +70,14 @@ public final class ApiRegistry {
         return api;
     }
 
+    /**
+     * Registers a module and attaches it immediately. If another entry with the same id exists,
+     * the previous module (if any) is detached deterministically after a successful replace.
+     */
     public <T extends ApiModule> T register(T module) {
         Objects.requireNonNull(module, "module");
 
-        // attach first (keeps current behavior: module is usable right after register)
+        // Attach first: keep contract "usable immediately after register".
         module.attach(ctx);
 
         final String id = requireId(module.id());
@@ -72,14 +91,47 @@ public final class ApiRegistry {
                         id, next.name, next.version, module.getClass().getName());
             } else {
                 log.debug("[api] replace id='{}' prev={} new={} (prevLegacy={})",
-                        id,
-                        fmt(prev),
-                        fmt(next),
-                        prev.isLegacy());
+                        id, fmt(prev), fmt(next), prev.isLegacy());
+            }
+        }
+
+        // Detach previous module after successful replace.
+        if (prev != null && prev.module != null) {
+            try {
+                prev.module.detach();
+                if (log.isDebugEnabled()) {
+                    log.debug("[api] detached(prev) id='{}' name='{}' ver='{}' impl={}",
+                            prev.id, prev.name, prev.version, prev.module.getClass().getName());
+                }
+            } catch (Throwable t) {
+                // Detach must never break startup; log and continue.
+                log.warn("[api] detach(prev) failed id='{}' impl={} err={}",
+                        prev.id,
+                        prev.module.getClass().getName(),
+                        t.toString());
             }
         }
 
         return module;
+    }
+
+    /**
+     * Returns the registered API object (module instance for modular entries).
+     */
+    public Object api(String id) {
+        Entry e = get(id);
+        return (e != null) ? e.api : null;
+    }
+
+    /**
+     * Returns the registered API object cast to the requested type, or null if missing/incompatible.
+     */
+    public <T> T api(String id, Class<T> type) {
+        Objects.requireNonNull(type, "type");
+        Entry e = get(id);
+        if (e == null) return null;
+        Object a = e.api;
+        return type.isInstance(a) ? type.cast(a) : null;
     }
 
     public Entry get(String id) {
@@ -112,6 +164,10 @@ public final class ApiRegistry {
         return out;
     }
 
+    /**
+     * Detaches all registered modules and clears the registry.
+     * Safe for shutdown: must not throw.
+     */
     public void detachAll() {
         if (log.isDebugEnabled()) {
             log.debug("[api] detachAll begin count={}", map.size());
