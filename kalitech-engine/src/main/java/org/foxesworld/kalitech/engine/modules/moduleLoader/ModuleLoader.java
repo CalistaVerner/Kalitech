@@ -4,7 +4,6 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.module.ApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
 
-import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,8 +12,6 @@ import java.util.Objects;
 /**
  * Loads resolved modules: creates classloaders, instantiates ApiModule, registers into ApiRegistry,
  * mounts JS resources, and tracks loaded modules for deterministic shutdown.
- *
- * <p>Typing artifacts (*.d.ts / *.ts) are optional: if missing, the loader logs WARN and continues.
  */
 public final class ModuleLoader {
 
@@ -41,56 +38,6 @@ public final class ModuleLoader {
         }
     }
 
-    private static boolean hasResource(ClassLoader cl, String path) {
-        final String p = String.valueOf(path).trim();
-        if (p.isEmpty()) return false;
-
-        URL u = cl.getResource(p);
-        if (u != null) return true;
-
-        // Some build pipelines accidentally store resources without leading slash.
-        if (p.charAt(0) == '/') {
-            u = cl.getResource(p.substring(1));
-        } else {
-            u = cl.getResource('/' + p);
-        }
-        return u != null;
-    }
-
-    /**
-     * Deterministic shutdown: detach modules in reverse order, then close classloaders in reverse order.
-     */
-    public void shutdown() {
-        for (int i = loadedModules.size() - 1; i >= 0; i--) {
-            ApiModule m = loadedModules.get(i);
-            try {
-                m.detach();
-            } catch (Throwable t) {
-                log.warn("[modules] detach failed id='{}' impl={} err={}",
-                        safeId(m), m.getClass().getName(), t.toString());
-            }
-        }
-        loadedModules.clear();
-
-        for (int i = classLoaders.size() - 1; i >= 0; i--) {
-            try {
-                classLoaders.get(i).close();
-            } catch (Throwable t) {
-                log.warn("[modules] classloader close failed err={}", t.toString());
-            }
-        }
-        classLoaders.clear();
-    }
-
-    private ApiModule instantiate(ModuleDescriptor d, ClassLoader cl) throws Exception {
-        Class<?> c = Class.forName(d.mainClass, true, cl);
-        Object o = c.getDeclaredConstructor().newInstance();
-        if (!(o instanceof ApiModule m)) {
-            throw new IllegalStateException("mainClass does not implement ApiModule: " + d.mainClass);
-        }
-        return m;
-    }
-
     public void loadAll(List<ModuleJar> ordered) throws Throwable {
         Objects.requireNonNull(ordered, "ordered");
 
@@ -100,36 +47,57 @@ public final class ModuleLoader {
             URLClassLoader cl = ModuleClassLoaders.newModuleClassLoader(mj.jarPath, parentLoader);
             classLoaders.add(cl);
 
-            ApiModule module = instantiate(d, cl);
-            apiRegistry.register(module); // attach(ctx) happens inside ApiRegistry.register
-            loadedModules.add(module);
+            // Mount JS/types/docs/globals once per JAR descriptor
+            if (d.js != null) jsBridge.mountJs(d.id, cl, d.js);
+            if (d.types != null) jsBridge.mountTypes(d.id, cl, d.types);
+            if (d.docs != null) jsBridge.mountDocs(d.id, cl, d.docs);
+            if (d.globals.length != 0) jsBridge.exposeGlobals(d.id, d.globals);
 
-            if (d.js != null) {
-                jsBridge.mountJs(d.id, cl, d.js);
-            }
+            // Instantiate and register multiple ApiModules from the same JAR
+            for (String mainClass : d.mainClass) {
+                ApiModule module = instantiate(mainClass, cl);
+                apiRegistry.register(module); // attach(ctx) happens inside ApiRegistry.register
+                loadedModules.add(module);
 
-            // Typings are optional: warn only if missing.
-            if (d.types != null) {
-                if (hasResource(cl, d.types)) {
-                    jsBridge.mountTypes(d.id, cl, d.types);
-                } else {
-                    log.warn("[modules] typings not found (optional) id='{}' types='{}' jar='{}'",
-                            d.id, d.types, mj.jarPath.getFileName().toString());
+                if (log.isDebugEnabled()) {
+                    log.debug("[modules] loaded id='{}' ver='{}' impl={} mainClass='{}' jar='{}'",
+                            d.id, d.version, module.getClass().getName(), mainClass, mj.jarPath.getFileName().toString());
                 }
             }
+        }
+    }
 
-            if (d.docs != null) {
-                jsBridge.mountDocs(d.id, cl, d.docs);
-            }
-
-            if (d.globals.length != 0) {
-                jsBridge.exposeGlobals(d.id, d.globals);
-            }
-
-            if (log.isDebugEnabled()) {
-                log.debug("[modules] loaded id='{}' ver='{}' impl={} jar='{}'",
-                        d.id, d.version, module.getClass().getName(), mj.jarPath.getFileName().toString());
+    /**
+     * Deterministic shutdown: detach modules in reverse order, then close classloaders in reverse order.
+     */
+    public void shutdown() {
+        for (int i = loadedModules.size() - 1; i >= 0; i--) {
+            ApiModule m = loadedModules.get(i);
+            try {
+                apiRegistry.detach(m);
+            } catch (Throwable t) {
+                log.error("[modules] detach failed id='{}' impl={}", safeId(m), m.getClass().getName(), t);
             }
         }
+        loadedModules.clear();
+
+        for (int i = classLoaders.size() - 1; i >= 0; i--) {
+            URLClassLoader cl = classLoaders.get(i);
+            try {
+                cl.close();
+            } catch (Throwable t) {
+                log.error("[modules] classloader close failed {}", cl, t);
+            }
+        }
+        classLoaders.clear();
+    }
+
+    private ApiModule instantiate(String mainClass, ClassLoader cl) throws Exception {
+        Class<?> c = Class.forName(mainClass, true, cl);
+        Object o = c.getDeclaredConstructor().newInstance();
+        if (!(o instanceof ApiModule m)) {
+            throw new IllegalStateException("mainClass does not implement ApiModule: " + mainClass);
+        }
+        return m;
     }
 }

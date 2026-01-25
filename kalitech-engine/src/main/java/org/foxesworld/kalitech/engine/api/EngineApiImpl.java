@@ -58,7 +58,7 @@ public final class EngineApiImpl implements EngineApi {
     private final CameraApi cameraApi;
     private final TimeApiImpl timeApi;
     private final WorldApi worldApi;
-    private final MaterialApi materialApi;
+    //private final MaterialApi materialApi;
     private final EditorApi editorApi;
     private final EditorLinesApi editorLinesApi;
     private final PhysicsApiImpl physicsApi;
@@ -72,8 +72,8 @@ public final class EngineApiImpl implements EngineApi {
 
     private final SurfaceRegistry surfaceRegistry;
     private final SurfaceApi surfaceApi;
-    private final TerrainApi terrainApi;
-    private final TerrainSplatApi terrainSplatApi;
+    //private final TerrainApi terrainApi;
+    //private final TerrainSplatApi terrainSplatApi;
 
     private volatile double fps = 0.0;
     private double fpsAcc = 0.0;
@@ -126,7 +126,7 @@ public final class EngineApiImpl implements EngineApi {
         this.timeApi = apiRegistry.register(new TimeApiImpl());
         //this.inputApi = apiRegistry.register(new InputApiImpl());
 
-        this.materialApi = apiRegistry.register(new MaterialApiImpl());
+        //this.materialApi = apiRegistry.register(new MaterialApiImpl());
         this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
         //this.cameraApi = apiRegistry.register(new CameraApiImpl());
@@ -135,8 +135,8 @@ public final class EngineApiImpl implements EngineApi {
         this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
         this.surfaceApi = apiRegistry.register(new SurfaceApiImpl());
 
-        this.terrainApi = apiRegistry.register(new TerrainApiImpl());
-        this.terrainSplatApi = apiRegistry.register(new TerrainSplatApiImpl());
+        //this.terrainApi = apiRegistry.register(new TerrainApiImpl());
+        //this.terrainSplatApi = apiRegistry.register(new TerrainSplatApiImpl());
         this.editorLinesApi = apiRegistry.register(new EditorLinesApiImpl());
         this.meshApi = apiRegistry.register(new MeshApiImpl());
 
@@ -223,7 +223,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public MaterialApi material() {
-        return materialApi;
+        return apiRegistry.api("material", MaterialApi.class);
     }
 
     @HostAccess.Export
@@ -283,13 +283,13 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public TerrainApi terrain() {
-        return terrainApi;
+        return apiRegistry.api("terrain", TerrainApi.class);
     }
 
     @HostAccess.Export
     @Override
     public TerrainSplatApi terrainSplat() {
-        return terrainSplatApi;
+        return apiRegistry.api("terrainSplat", TerrainSplatApi.class);
     }
 
     @HostAccess.Export

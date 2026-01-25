@@ -97,22 +97,51 @@ public final class ApiRegistry {
 
         // Detach previous module after successful replace.
         if (prev != null && prev.module != null) {
-            try {
-                prev.module.detach();
-                if (log.isDebugEnabled()) {
-                    log.debug("[api] detached(prev) id='{}' name='{}' ver='{}' impl={}",
-                            prev.id, prev.name, prev.version, prev.module.getClass().getName());
-                }
-            } catch (Throwable t) {
-                // Detach must never break startup; log and continue.
-                log.warn("[api] detach(prev) failed id='{}' impl={} err={}",
-                        prev.id,
-                        prev.module.getClass().getName(),
-                        t.toString());
-            }
+            detachEntry(prev, "prev");
         }
 
         return module;
+    }
+
+    /**
+     * Detaches a specific module instance if it is still the currently registered module for its id.
+     *
+     * <p>Semantics:
+     * <ul>
+     *   <li>Never throws (shutdown-safe).</li>
+     *   <li>CAS removal: will only remove if the map still points to the same module instance.</li>
+     *   <li>If the module was already replaced/unregistered, it becomes a no-op.</li>
+     * </ul>
+     */
+    public void detach(ApiModule module) {
+        if (module == null) return;
+
+        final String id;
+        try {
+            id = requireId(module.id());
+        } catch (Throwable t) {
+            // Invalid module id - cannot be in registry reliably. Best effort detach only.
+            try {
+                module.detach();
+            } catch (Throwable ignored) {
+                // never throw
+            }
+            return;
+        }
+
+        Entry current = map.get(id);
+        if (current == null || current.module == null) {
+            return;
+        }
+
+        // Only detach if this exact instance is still registered.
+        if (current.module != module) {
+            return;
+        }
+
+        if (map.remove(id, current)) {
+            detachEntry(current, "explicit");
+        }
     }
 
     /**
@@ -169,25 +198,14 @@ public final class ApiRegistry {
      * Safe for shutdown: must not throw.
      */
     public void detachAll() {
+        List<Entry> ordered = entries(); // sorted by id -> deterministic
         if (log.isDebugEnabled()) {
-            log.debug("[api] detachAll begin count={}", map.size());
+            log.debug("[api] detachAll begin count={}", ordered.size());
         }
 
-        for (Entry e : map.values()) {
+        for (Entry e : ordered) {
             if (e.module != null) {
-                try {
-                    e.module.detach();
-                    if (log.isDebugEnabled()) {
-                        log.debug("[api] detached id='{}' name='{}' ver='{}' impl={}",
-                                e.id, e.name, e.version, e.module.getClass().getName());
-                    }
-                } catch (Throwable t) {
-                    // detach must never fail shutdown path
-                    log.warn("[api] detach failed id='{}' impl={} err={}",
-                            e.id,
-                            e.module.getClass().getName(),
-                            t.toString());
-                }
+                detachEntry(e, "all");
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("[api] skip detach legacy id='{}' impl={}",
@@ -201,6 +219,23 @@ public final class ApiRegistry {
 
         if (log.isDebugEnabled()) {
             log.debug("[api] detachAll done");
+        }
+    }
+
+    private void detachEntry(Entry e, String reason) {
+        try {
+            e.module.detach();
+            if (log.isDebugEnabled()) {
+                log.debug("[api] detached({}) id='{}' name='{}' ver='{}' impl={}",
+                        reason, e.id, e.name, e.version, e.module.getClass().getName());
+            }
+        } catch (Throwable t) {
+            // Detach must never break startup/shutdown path; log and continue.
+            log.warn("[api] detach({}) failed id='{}' impl={} err={}",
+                    reason,
+                    e.id,
+                    e.module.getClass().getName(),
+                    t.toString());
         }
     }
 

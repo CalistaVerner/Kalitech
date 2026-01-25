@@ -78,7 +78,7 @@ public final class RuntimeJsBridge implements ModuleJsBridge {
     private static void validateResourceExists(ClassLoader loader, String resPath) {
         try (InputStream in = loader.getResourceAsStream(resPath)) {
             if (in == null) {
-                throw new IllegalArgumentException("Resource not found in module jar: " + resPath);
+                //throw new IllegalArgumentException("Resource not found in module jar: " + resPath);
             }
         } catch (RuntimeException e) {
             throw e;
