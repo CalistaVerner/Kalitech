@@ -1,6 +1,6 @@
 {
   "type": "meta",
-  "started": "2026-01-26T16:00:04.925737400Z",
+  "started": "2026-01-26T16:30:27.466040700Z",
   "windowFrames": 900,
   "summaryEveryFrames": 60,
   "spikeThresholdMs": 0,
@@ -10,7 +10,7 @@
   "type": "frame",
   "frame": 60,
   "dt_ms": 16,
-  585
+  975
 }
 {
   "type": "block",
@@ -18,36 +18,306 @@
   "avg_ms": 0,
   002,
   "p50_ms": 0,
-  002,
+  001,
   "p95_ms": 0,
   002,
   "max_ms": 0,
-  006,
+  005,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "camera.flush",
   "avg_ms": 0,
-  018,
+  019,
   "p50_ms": 0,
-  016,
+  017,
   "p95_ms": 0,
-  034,
+  033,
   "max_ms": 0,
-  067,
+  079,
   "spikes": 0
 }
 {
   "type": "block",
   "name": "debug.tick",
   "avg_ms": 0,
+  027,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  013,
+  "max_ms": 1,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 120,
+  "dt_ms": 16,
+  580
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  005,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  015,
+  "p50_ms": 0,
+  012,
+  "p95_ms": 0,
+  027,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  017,
+  "p50_ms": 0,
+  009,
+  "p95_ms": 0,
+  013,
+  "max_ms": 1,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 180,
+  "dt_ms": 17,
+  070
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  005,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  013,
+  "p50_ms": 0,
+  011,
+  "p95_ms": 0,
   026,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  014,
   "p50_ms": 0,
   008,
   "p95_ms": 0,
-  011,
+  012,
   "max_ms": 1,
-  083,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 240,
+  "dt_ms": 17,
+  366
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  005,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  013,
+  "p50_ms": 0,
+  011,
+  "p95_ms": 0,
+  023,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  008,
+  "p95_ms": 0,
+  012,
+  "max_ms": 1,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 300,
+  "dt_ms": 15,
+  685
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  005,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  023,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  012,
+  "p50_ms": 0,
+  008,
+  "p95_ms": 0,
+  012,
+  "max_ms": 1,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 360,
+  "dt_ms": 16,
+  756
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  005,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  011,
+  "p50_ms": 0,
+  010,
+  "p95_ms": 0,
+  022,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  011,
+  "p50_ms": 0,
+  008,
+  "p95_ms": 0,
+  012,
+  "max_ms": 1,
+  023,
+  "spikes": 1
+}
+{
+  "type": "frame",
+  "frame": 420,
+  "dt_ms": 17,
+  158
+}
+{
+  "type": "block",
+  "name": "time.update",
+  "avg_ms": 0,
+  001,
+  "p50_ms": 0,
+  001,
+  "p95_ms": 0,
+  002,
+  "max_ms": 0,
+  008,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "camera.flush",
+  "avg_ms": 0,
+  010,
+  "p50_ms": 0,
+  009,
+  "p95_ms": 0,
+  021,
+  "max_ms": 0,
+  079,
+  "spikes": 0
+}
+{
+  "type": "block",
+  "name": "debug.tick",
+  "avg_ms": 0,
+  010,
+  "p50_ms": 0,
+  007,
+  "p95_ms": 0,
+  012,
+  "max_ms": 1,
+  023,
   "spikes": 1
 }

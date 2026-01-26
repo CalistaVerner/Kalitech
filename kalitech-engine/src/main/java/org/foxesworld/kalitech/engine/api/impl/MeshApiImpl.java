@@ -20,6 +20,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
+import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
@@ -286,7 +287,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
             Object handleOrCfg = m;
 
             if (m.hasMembers() && m.hasMember("def")) {
-                MaterialApiImpl.MaterialHandle mh = engine.material().create(m);
+                MaterialHandle mh = engine.material().create(m);
                 handleOrCfg = mh;
             }
 

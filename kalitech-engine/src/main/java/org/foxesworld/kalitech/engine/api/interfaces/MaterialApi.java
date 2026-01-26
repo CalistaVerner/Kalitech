@@ -1,49 +1,39 @@
-// Author: KΛYLΛ
+// FILE: org/foxesworld/kalitech/engine/api/interfaces/MaterialApi.java
+// Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl;
+import com.jme3.material.Material;
+import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-/**
- * JS-first material factory.
- *
- * <pre>
- * engine.material().create({
- *   def: "Common/MatDefs/Misc/Unshaded.j3md",
- *   params: { Color:[1,0,0,1] }
- * })
- * </pre>
- *
- * The returned handle is a stable host object that can be reused across surfaces.
- */
 public interface MaterialApi {
 
-    /**
-     * Creates a new material handle from a config object.
-     */
+    // JS-visible
+
     @HostAccess.Export
-    org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl.MaterialHandle create(Value cfg);
+    MaterialHandle create(Value cfg);
 
     @HostAccess.Export
     int createId(Value cfg);
 
-    /**
-     * Destroys (releases) a previously created material handle.
-     * Implementations may treat this as a no-op if materials are GC-managed or cached.
-     */
     @HostAccess.Export
-    void destroy(MaterialApiImpl.MaterialHandle handle);
+    MaterialHandle getById(int id);
+
+    @HostAccess.Export
+    void destroy(MaterialHandle handle);
 
     @HostAccess.Export
     void destroyById(int id);
 
     @HostAccess.Export
-    MaterialApiImpl.MaterialHandle getById(int id);
-
-    @HostAccess.Export
-    void set(MaterialApiImpl.MaterialHandle handle, Value params);
+    void set(MaterialHandle handle, Value params);
 
     @HostAccess.Export
     void setById(int id, Value params);
+
+    // Java-only (engine-internal)
+    Material material(MaterialHandle handle);
+
+    Material materialById(int id);
 }

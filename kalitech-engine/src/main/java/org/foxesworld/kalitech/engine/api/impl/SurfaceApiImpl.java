@@ -1,5 +1,6 @@
+// FILE: org/foxesworld/kalitech/engine/api/impl/SurfaceApiImpl.java
+// Author: Calista Verner
 package org.foxesworld.kalitech.engine.api.impl;
-
 
 import com.jme3.asset.AssetManager;
 import com.jme3.bounding.BoundingBox;
@@ -26,8 +27,7 @@ import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
-import org.foxesworld.kalitech.engine.modules.material.MaterialTypes;
-import org.foxesworld.kalitech.engine.modules.material.MaterialUtils;
+import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
@@ -70,7 +70,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (x > hi) return hi;
         return x;
     }
-
 
     // ---------------------------------------------------------------------
     // Utilities
@@ -130,33 +129,99 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return (n == null) ? "" : n;
     }
 
+// ---------------------------------------------------------------------
+// TileWorld extraction (NO dependency on material module)
+// ---------------------------------------------------------------------
+
     private static TileWorld extractTileWorld(Value materialCfg) {
         if (materialCfg == null || materialCfg.isNull()) return null;
 
         Value params = member(materialCfg, "params");
         if (params == null || params.isNull() || !params.hasMembers()) return null;
 
-        MaterialTypes.TextureDesc td = tryTex(params, "BaseColorMap");
-        if (td == null) td = tryTex(params, "ColorMap");
+        // Prefer common slots first
+        TileWorld tw = tryTileWorld(params, "BaseColorMap");
+        if (tw == null) tw = tryTileWorld(params, "ColorMap");
 
-        if (td == null) {
+        // Fallback: scan all params for any texture desc that contains tileWorld
+        if (tw == null) {
             for (String k : params.getMemberKeys()) {
-                MaterialTypes.TextureDesc t = MaterialUtils.parseTextureDesc(params.getMember(k));
-                if (t != null && t.tileWorld() != null) {
-                    td = t;
-                    break;
-                }
+                Value v = params.getMember(k);
+                tw = parseTileWorldFromTextureDesc(v);
+                if (tw != null) break;
             }
         }
 
-        if (td == null || td.tileWorld() == null) return null;
-
-        float tx = td.tileWorld().x();
-        float tz = td.tileWorld().z();
-        if (!(tx > 0f) || !(tz > 0f)) return null;
-
-        return new TileWorld(tx, tz);
+        return tw;
     }
+
+    private static TileWorld tryTileWorld(Value params, String name) {
+        if (params == null || params.isNull() || !params.hasMember(name)) return null;
+        return parseTileWorldFromTextureDesc(params.getMember(name));
+    }
+
+    /**
+     * Accepts typical texture desc shapes:
+     * - string: "Textures/foo.png" -> no tileWorld (return null)
+     * - object: { texture: "...", tileWorld: {x: 2, z: 2} }
+     * - object: { texture: "...", tileWorld: [2,2] }
+     * - object: { tileWorld: {x:2, z:2} } (even without texture)
+     */
+    private static TileWorld parseTileWorldFromTextureDesc(Value v) {
+        if (v == null || v.isNull()) return null;
+
+        // Strings can't carry tileWorld (by your current schema)
+        if (v.isString()) return null;
+
+        // If it's an object, try tileWorld member
+        if (v.hasMembers()) {
+            Value tw = member(v, "tileWorld");
+            TileWorld out = parseTileWorldValue(tw);
+            if (out != null) return out;
+
+            // Some configs may nest tileWorld deeper; keep it cheap: common pattern only.
+            // (Intentionally no deep recursion to avoid surprises/GC)
+            return null;
+        }
+
+        return null;
+    }
+
+    private static TileWorld parseTileWorldValue(Value tw) {
+        if (tw == null || tw.isNull()) return null;
+
+        float x;
+        float z;
+
+        // {x, z}
+        if (tw.hasMembers()) {
+            Value vx = member(tw, "x");
+            Value vz = member(tw, "z");
+
+            if (vx == null || vx.isNull() || !vx.isNumber()) return null;
+            if (vz == null || vz.isNull() || !vz.isNumber()) return null;
+
+            x = (float) vx.asDouble();
+            z = (float) vz.asDouble();
+        }
+        // [x, z]
+        else if (tw.hasArrayElements() && tw.getArraySize() >= 2) {
+            Value vx = tw.getArrayElement(0);
+            Value vz = tw.getArrayElement(1);
+
+            if (vx == null || vx.isNull() || !vx.isNumber()) return null;
+            if (vz == null || vz.isNull() || !vz.isNumber()) return null;
+
+            x = (float) vx.asDouble();
+            z = (float) vz.asDouble();
+        } else {
+            return null;
+        }
+
+        if (!(x > 0f) || !(z > 0f)) return null;
+        return new TileWorld(x, z);
+    }
+
 
     private static String requireUuid(Object ref) {
         if (ref == null) throw new IllegalArgumentException("surface: uuid is required");
@@ -265,12 +330,6 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
                 for (Spatial child : n.getChildren()) if (child != null) stack.push(child);
             }
         }
-    }
-
-    private static MaterialTypes.TextureDesc tryTex(Value params, String name) {
-        if (params == null || params.isNull() || !params.hasMember(name)) return null;
-        MaterialTypes.TextureDesc td = MaterialUtils.parseTextureDesc(params.getMember(name));
-        return (td != null && td.tileWorld() != null) ? td : null;
     }
 
     private static Hit[] collide(Spatial root, Ray ray, boolean onlyClosest, int limit) {
@@ -414,39 +473,48 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }
     }
 
+    private Material resolveMaterialById(int id) {
+        try {
+            MaterialApi api = this.materialApi;
+            if (api == null) api = engine.material();
+            return (api != null) ? api.materialById(id) : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private Material unwrapMaterial(Object materialHandle) {
         if (materialHandle == null) return null;
 
+        MaterialApi api = this.materialApi;
+        if (api == null) api = engine.material();
+        if (api == null) return null;
+
         if (materialHandle instanceof Value v) {
+            if (v.isNull()) return null;
+
             if (v.isHostObject()) {
                 Object host = v.asHostObject();
-                if (host instanceof MaterialApiImpl.MaterialHandle mh) return mh.__material();
+                if (host instanceof MaterialHandle mh) {
+                    return api.material(mh);
+                }
             }
+
             if (v.isNumber() && v.fitsInInt()) {
-                return resolveMaterialById(v.asInt());
+                return api.materialById(v.asInt());
             }
+
             return null;
         }
 
-        if (materialHandle instanceof MaterialApiImpl.MaterialHandle mh) {
-            return mh.__material();
+        if (materialHandle instanceof MaterialHandle mh) {
+            return api.material(mh);
         }
 
         if (materialHandle instanceof Number n) {
-            return resolveMaterialById(n.intValue());
+            return api.materialById(n.intValue());
         }
 
-        return null;
-    }
-
-    private Material resolveMaterialById(int id) {
-        try {
-            if (engine.material() instanceof MaterialApiImpl impl) {
-                MaterialApiImpl.MaterialHandle h = impl.getById(id);
-                return h != null ? h.__material() : null;
-            }
-        } catch (Throwable ignored) {
-        }
         return null;
     }
 
@@ -708,22 +776,29 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     public void setMaterial(SurfaceHandle target, Object materialHandleOrCfg) {
         Objects.requireNonNull(target, "target");
 
+        final MaterialApi api = (this.materialApi != null) ? this.materialApi : engine.material();
+        if (api == null) throw new IllegalStateException("surface.setMaterial: material API is not available");
+
         final Material matDirect = unwrapMaterial(materialHandleOrCfg);
-        final MaterialApiImpl.MaterialHandle created;
+
+        final MaterialHandle createdHandle;
         final TileWorld tileWorld;
 
         if (matDirect != null) {
-            created = null;
+            createdHandle = null;
             tileWorld = null;
         } else if (materialHandleOrCfg instanceof Value v && v != null && !v.isNull() && v.hasMembers() && v.hasMember("def")) {
-            created = engine.material().create(v); // executed on caller thread (material API handles its own threading)
+            createdHandle = api.create(v); // impl in separate JAR is OK
             tileWorld = extractTileWorld(v);
         } else {
-            created = null;
+            createdHandle = null;
             tileWorld = null;
         }
 
-        final Material mat = (matDirect != null) ? matDirect : (created != null ? created.__material() : null);
+        final Material mat = (matDirect != null)
+                ? matDirect
+                : (createdHandle != null ? api.material(createdHandle) : null);
+
         if (mat == null) throw new IllegalArgumentException("surface.setMaterial: materialHandle is invalid");
 
         onJmeSyncVoid("surface.setMaterial", () -> {
@@ -744,9 +819,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
             if (s instanceof Node n) {
                 applyMaterialRecursive(n, mat);
-                if (tileWorld != null) {
-                    applyTileWorldRecursive(n, tileWorld);
-                }
+                if (tileWorld != null) applyTileWorldRecursive(n, tileWorld);
                 emit("engine.surface.material.set", "surfaceId", target.id(), "kind", target.kind(), "type", "node");
                 return;
             }
@@ -825,8 +898,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         final boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
 
         return onJmeSync("surface.pickUnderCursorCfg", () -> {
-            Spatial s = requireSpatial(target);
-            Camera cam = engine.getApp().getCamera();
+            Camera cam = engine.getApp().getCamera(); // NOTE: consider moving getApp() out of module later
             if (cam == null) return new Hit[0];
 
             float x = Double.isFinite(cx) ? (float) cx : cam.getWidth() * 0.5f;
@@ -840,7 +912,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
             Ray ray = new Ray(origin, dir);
             ray.setLimit(max);
-            return collide(s, ray, onlyClosest, limit);
+            return collide(requireSpatial(target), ray, onlyClosest, limit);
         }, new Hit[0]);
     }
 
@@ -884,7 +956,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         final boolean onlyClosest = (cfg != null && !cfg.isNull()) ? bool(cfg, "onlyClosest", true) : true;
 
         return onJmeSync("surface.pickUnderCursorCfg(world)", () -> {
-            Camera cam = engine.getApp().getCamera();
+            Camera cam = engine.getApp().getCamera(); // NOTE: consider moving getApp() out of module later
             if (cam == null) return new Hit[0];
 
             Spatial root = engine.getApp().getRootNode();
