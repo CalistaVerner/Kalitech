@@ -54,7 +54,7 @@ public final class EngineApiImpl implements EngineApi {
     private final AssetsApi assetsApi;
     private final EventsApi eventsApi;
     private final EntityApi entityApi;
-    private final RenderApi renderApi;
+    private RenderApi renderApi;
     private final CameraApi cameraApi;
     private final TimeApiImpl timeApi;
     private final WorldApi worldApi;
@@ -65,7 +65,6 @@ public final class EngineApiImpl implements EngineApi {
     private final HudApiImpl hudApi;
     private final ModulesApi modulesApi;
     private final MeshApi meshApi;
-    private final LightApiImpl lightApi;
     //private final SoundApiImpl soundApi;
     private final DebugDrawApiImpl debugApi;
     private final ModuleManager moduleManager;
@@ -127,7 +126,7 @@ public final class EngineApiImpl implements EngineApi {
         //this.inputApi = apiRegistry.register(new InputApiImpl());
 
         //this.materialApi = apiRegistry.register(new MaterialApiImpl());
-        this.renderApi = apiRegistry.register(new RenderApiImpl());
+        //this.renderApi = apiRegistry.register(new RenderApiImpl());
         this.entityApi = apiRegistry.register(new EntityApiImpl());
         //this.cameraApi = apiRegistry.register(new CameraApiImpl());
 
@@ -140,7 +139,7 @@ public final class EngineApiImpl implements EngineApi {
         this.editorLinesApi = apiRegistry.register(new EditorLinesApiImpl());
         this.meshApi = apiRegistry.register(new MeshApiImpl());
 
-        this.lightApi = apiRegistry.register(new LightApiImpl());
+        //this.lightApi = apiRegistry.register(new LightApiImpl());
         //this.soundApi = apiRegistry.register(new SoundApiImpl());
         this.debugApi = apiRegistry.register(new DebugDrawApiImpl());
         this.hudApi = apiRegistry.register(new HudApiImpl());
@@ -149,6 +148,7 @@ public final class EngineApiImpl implements EngineApi {
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
         this.moduleManager.loadFromDir(java.nio.file.Path.of("./modules"));
         this.cameraApi = apiRegistry.api("camera", CameraApi.class);
+        this.renderApi = apiRegistry.api("render", RenderApi.class);
     }
 
     private static boolean boolProp(String key, boolean def) {
@@ -241,7 +241,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public RenderApi render() {
-        return renderApi;
+        return apiRegistry.api("render", RenderApi.class);
     }
 
     @Override
@@ -259,7 +259,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public LightApi light() {
-        return lightApi;
+        return apiRegistry.api("light", LightApi.class);
     }
 
     @HostAccess.Export
@@ -420,9 +420,7 @@ public final class EngineApiImpl implements EngineApi {
         }
 
         try {
-            if (renderApi instanceof RenderApiImpl impl) {
-                impl.__resetWorldCache(why);
-            }
+            renderApi.__resetWorldCache(why);
         } catch (Throwable t) {
             LOG.warn("__resetWorldState: render cache reset failed reason={}", why, t);
         }

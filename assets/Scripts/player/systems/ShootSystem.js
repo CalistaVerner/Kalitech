@@ -198,7 +198,7 @@ class ShootSystem {
 
         this._shotsBySurface = Object.create(null);
 
-        this._P = (typeof PARTICLES !== "undefined" && PARTICLES) ? PARTICLES : null;
+        this._P = PARTICLES;
 
         // Deterministic RNG state
         this._rng = null;

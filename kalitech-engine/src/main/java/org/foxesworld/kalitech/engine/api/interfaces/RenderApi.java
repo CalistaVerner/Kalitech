@@ -21,6 +21,8 @@ public interface RenderApi {
     // Lighting (config style only)
     // ---------------------------
 
+    void __resetWorldCache(String reason);
+
     /**
      * Ambient light configuration.
      * Expected fields:
