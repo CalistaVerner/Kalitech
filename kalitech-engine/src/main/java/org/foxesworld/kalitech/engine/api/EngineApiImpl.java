@@ -62,7 +62,7 @@ public final class EngineApiImpl implements EngineApi {
     private final EditorApi editorApi;
     private final EditorLinesApi editorLinesApi;
     private final PhysicsApiImpl physicsApi;
-    private final HudApiImpl hudApi;
+    //private final HudApiImpl hudApi;
     private final ModulesApi modulesApi;
     private final MeshApi meshApi;
     //private final SoundApiImpl soundApi;
@@ -142,7 +142,7 @@ public final class EngineApiImpl implements EngineApi {
         //this.lightApi = apiRegistry.register(new LightApiImpl());
         //this.soundApi = apiRegistry.register(new SoundApiImpl());
         this.debugApi = apiRegistry.register(new DebugDrawApiImpl());
-        this.hudApi = apiRegistry.register(new HudApiImpl());
+        //this.hudApi = apiRegistry.register(new HudApiImpl());
         this.worldApi = apiRegistry.register(new WorldApiImpl());
         this.editorApi = apiRegistry.register(new EditorApiImpl());
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
@@ -307,7 +307,7 @@ public final class EngineApiImpl implements EngineApi {
     @HostAccess.Export
     @Override
     public HudApi hud() {
-        return hudApi;
+        return apiRegistry.api("hud", HudApi.class);
     }
 
     @HostAccess.Export
@@ -517,6 +517,7 @@ public final class EngineApiImpl implements EngineApi {
         return LOG;
     }
 
+    @HostAccess.Export
     public SimpleApplication getApp() {
         return app;
     }
