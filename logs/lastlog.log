@@ -1,409 +1,636 @@
-[19:30:25.095][INFO][KalitechApplication] NEOCORE 0.3.8
-[19:30:25.097][INFO][KalitechApplication] Java: 17.0.15
-[19:30:25.098][INFO][KalitechApplication] OS: Windows 10 10.0
-[19:30:25.109][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@22ee23b5
-[19:30:25.116][INFO][GuiGlobals] Lemur build date:20220405
-[19:30:25.117][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[19:30:26.074][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[19:30:26.683][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[19:30:27.471][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
-[19:30:27.476][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
-[19:30:27.477][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
-[19:30:27.478][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
-[19:30:27.478][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
-[19:30:27.479][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.1.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
-[19:30:27.491][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
-[19:30:27.493][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' ecsBound=true
-[19:30:27.493][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
-[19:30:27.493][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
-[19:30:27.495][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
-[19:30:27.497][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
-[19:30:27.498][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.4.1' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
-[19:30:27.498][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
-[19:30:27.498][DEBUG][ApiRegistry] [api] register id='modules' name='Modules' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ModulesApiImpl
-[19:30:27.624][DEBUG][EngineApiImpl] [modules] discovered id='camera' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.CameraApiImpl]' jar='CameraModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.625][DEBUG][EngineApiImpl] [modules] discovered id='hud' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.HudApiImpl]' jar='HudModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.626][DEBUG][EngineApiImpl] [modules] discovered id='input' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.InputApiImpl]' jar='InputModule-1.0-SNAPSHOT.jar'
-[19:30:27.626][DEBUG][EngineApiImpl] [modules] discovered id='material' ver='1.1.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl]' jar='MaterialModule-1.1.0-SNAPSHOT.jar'
-[19:30:27.627][DEBUG][EngineApiImpl] [modules] discovered id='particles' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl]' jar='ParticlesModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.627][DEBUG][EngineApiImpl] [modules] discovered id='render' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.RenderApiImpl, org.foxesworld.kalitech.engine.api.impl.LightApiImpl]' jar='RenderModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.628][DEBUG][EngineApiImpl] [modules] discovered id='sound' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.SoundApiImpl]' jar='SoundModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.628][DEBUG][EngineApiImpl] [modules] discovered id='terrain' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl, org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl]' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.632][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
-[19:30:27.633][DEBUG][EngineApiImpl] [modules] loaded id='camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.CameraApiImpl' jar='CameraModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.635][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
-[19:30:27.706][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
-[19:30:27.892][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
-[19:30:27.892][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
-[19:30:27.892][DEBUG][EngineApiImpl] [modules] loaded id='hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.HudApiImpl' jar='HudModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.899][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
-[19:30:27.899][DEBUG][EngineApiImpl] [modules] loaded id='input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.InputApiImpl' jar='InputModule-1.0-SNAPSHOT.jar'
-[19:30:27.905][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
-[19:30:27.905][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
-[19:30:27.906][DEBUG][EngineApiImpl] [modules] loaded id='material' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl' jar='MaterialModule-1.1.0-SNAPSHOT.jar'
-[19:30:27.908][DEBUG][ParticlesApiImpl] [particles] attach ok alive=0
-[19:30:27.908][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='3.2.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
-[19:30:27.908][DEBUG][EngineApiImpl] [modules] loaded id='particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl' jar='ParticlesModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.921][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
-[19:30:27.921][DEBUG][EngineApiImpl] [modules] loaded id='render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.RenderApiImpl' jar='RenderModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.922][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
-[19:30:27.922][DEBUG][EngineApiImpl] [modules] loaded id='render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.LightApiImpl' jar='RenderModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.926][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.2.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
-[19:30:27.926][DEBUG][EngineApiImpl] [modules] loaded id='sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.SoundApiImpl' jar='SoundModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.933][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
-[19:30:27.933][DEBUG][EngineApiImpl] [modules] loaded id='terrain' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.933][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
-[19:30:27.933][DEBUG][EngineApiImpl] [modules] loaded id='terrain' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
-[19:30:27.934][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
-[19:30:27.936][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
-[19:30:28.038][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
-[19:30:28.121][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
-[19:30:28.124][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
-[19:30:28.127][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
-[19:30:28.146][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
-[19:30:28.149][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
-[19:30:28.157][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
-[19:30:28.161][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
-[19:30:28.164][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
-[19:30:28.255][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
-[19:30:28.272][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Assets/Assets.js
-[19:30:28.276][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/helpers/ModuleCommon.js
-[19:30:28.406][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Render/Render.js
-[19:30:28.413][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Time/Time.js
-[19:30:28.420][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Light/Light.js
-[19:30:28.426][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Surface/Surface.js
-[19:30:28.433][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Editor/Editor.js
-[19:30:28.439][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Editor/EditorLines.js
-[19:30:28.443][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
-[19:30:28.460][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/World.js
-[19:30:28.462][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldUtil.js
-[19:30:28.467][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldApi.js
-[19:30:28.478][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldBuilder.js
-[19:30:28.482][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldSession.js
-[19:30:28.493][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
-[19:30:28.496][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
-[19:30:28.504][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
-[19:30:28.507][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
-[19:30:28.510][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
-[19:30:28.519][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
-[19:30:28.866][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
-[19:30:28.868][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
-[19:30:28.871][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
-[19:30:28.876][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
-[19:30:28.879][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
-[19:30:28.881][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
-[19:30:28.887][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
-[19:30:28.893][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
-[19:30:28.895][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
-[19:30:28.903][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
-[19:30:28.906][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
-[19:30:28.912][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
-[19:30:28.914][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
-[19:30:28.916][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
-[19:30:28.925][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
-[19:30:28.938][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.2.0' from='@module/Log/Log'
-[19:30:28.938][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
-[19:30:28.947][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
-[19:30:28.947][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
-[19:30:28.958][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='2.0.0' from='@module/Events/Events'
-[19:30:28.958][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
-[19:30:28.962][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
-[19:30:28.963][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
-[19:30:28.968][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
-[19:30:28.970][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
-[19:30:28.973][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
-[19:30:28.979][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
-[19:30:28.979][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
-[19:30:28.982][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
-[19:30:28.983][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
-[19:30:28.996][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
-[19:30:29.000][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
-[19:30:29.007][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudBuilder.js
-[19:30:29.017][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='3.2.0' from='@module/Hud/Hud'
-[19:30:29.018][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Profiler/Profiler.js
-[19:30:29.023][INFO][EngineApiImpl] [ENGINE] module registered: key='profiler' name='@module/Profiler/Profiler' ver='1.0.0' from='@module/Profiler/Profiler'
-[19:30:29.024][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
-[19:30:29.030][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
-[19:30:29.032][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
-[19:30:29.036][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
-[19:30:29.038][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
-[19:30:29.041][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.5' from='@module/Controllers/Controllers'
-[19:30:29.042][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
-[19:30:29.050][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
-[19:30:29.051][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
-[19:30:29.054][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
-[19:30:29.055][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
-[19:30:29.055][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Particles/Particles.js
-[19:30:29.084][INFO][EngineApiImpl] [ENGINE] module registered: key='particles' name='@module/Particles/Particles' ver='3.2.1' from='@module/Particles/Particles'
-[19:30:29.085][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (1151 ms)
-[19:30:29.086][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
-[19:30:29.090][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
-[19:30:29.091][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data
-[19:30:29.091][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\camera
-[19:30:29.091][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\input
-[19:30:29.092][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\player
-[19:30:29.092][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Models
-[19:30:29.092][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts
-[19:30:29.093][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment
-[19:30:29.093][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment\sky
-[19:30:29.094][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment\world
-[19:30:29.094][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player
-[19:30:29.094][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player\controllers
-[19:30:29.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player\systems
-[19:30:29.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds
-[19:30:29.095][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\DEBRIS
-[19:30:29.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\hit
-[19:30:29.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\spawn
-[19:30:29.096][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\throw
-[19:30:29.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures
-[19:30:29.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Particles
-[19:30:29.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\sharp-boulder-layered
-[19:30:29.097][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Sky
-[19:30:29.098][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain
-[19:30:29.098][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\Grass
-[19:30:29.098][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\Rock
-[19:30:29.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\rocky-dunes
-[19:30:29.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\wavy-sand
-[19:30:29.099][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\ui
-[19:30:29.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\ui
-[19:30:29.100][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\ui\icons
-[19:30:29.100][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
-[19:30:29.102][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
-[19:30:29.155][INFO][WorldApiImpl] [world] WorldAppState attached lazily
-[19:30:29.156][INFO][WorldAppState] [World] created 'main'
-[19:30:29.178][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
-[19:30:29.195][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
-[19:30:29.202][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
-[19:30:29.205][INFO][LightRigModule] RenderApi: ambient created
-[19:30:29.205][INFO][LightRigModule] RenderApi: sun created
-[19:30:29.205][INFO][LightRigModule] RenderApi: moon created
-[19:30:29.207][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
-[19:30:29.207][INFO][RenderApiImpl] RenderApi: scene ensured
-[19:30:29.208][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
-[19:30:29.218][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
-[19:30:29.247][INFO][Shadow] [shadow][cfg] reload=false type=PipelineDirectionalLightShadowRenderer map=4096 splits=4 lambda=0.72 intensity=0.75 snap=true snapCascades=2 pad=1.02 hyst=10.0 smooth=0.1 zExtend=1000.0 zFade=0.0 fixedSplits=null pipeline=splits=4|hysteresis(hysteresis=12,smoothing=0.12);basis(type=com.oracle.truffle.api.strings.TruffleString);onlySplit(split=0);onlySplit(maxSplit=7,minSplit=1);poissonPcf(baseRadiusTexels=1.35,camMoveEventThreshold=0.03,camRotateEventThresholdDeg=0.2,enabled=true,rotateEveryFrames=12,rotateKernel=true,rotateOnlyOnCameraEvent=true,samples=16,split0=0.95,split1=1.1,split2=1.35,split3=1.65);temporalGate(minMoveTexels=1.25,minRotateDeg=0.25,teleportMoveTexels=24);texelSnap(enabled=true,snapFirstCascades=2);
-[19:30:29.292][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
-[19:30:30.443][DEBUG][EngineApiImpl] [sky] EVENTS wired
-[19:30:30.446][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
-[19:30:30.446][INFO][EngineApiImpl] [scene] init
-[19:30:30.955][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
-[19:30:31.020][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
-[19:30:31.057][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.2811253, -300.0)
-[19:30:31.060][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 6.7345634, -300.0)
-[19:30:31.062][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 11.052824, -300.0)
-[19:30:31.063][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 15.143865, -300.0)
-[19:30:31.064][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 18.98824, -300.0)
-[19:30:31.066][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 22.501787, -300.0)
-[19:30:31.067][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 25.651052, -300.0)
-[19:30:31.068][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 28.666273, -300.0)
-[19:30:31.069][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 31.309053, -300.0)
-[19:30:31.070][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 33.457603, -300.0)
-[19:30:31.071][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 35.08001, -300.0)
-[19:30:31.073][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.341478, -300.0)
-[19:30:31.075][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 6.864221, -300.0)
-[19:30:31.076][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 11.154684, -300.0)
-[19:30:31.077][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 15.328131, -300.0)
-[19:30:31.078][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 19.16264, -300.0)
-[19:30:31.080][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 22.546339, -300.0)
-[19:30:31.081][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 25.628214, -300.0)
-[19:30:31.082][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 28.542044, -300.0)
-[19:30:31.083][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 31.300491, -300.0)
-[19:30:31.084][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 33.759693, -300.0)
-[19:30:31.085][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 35.684845, -300.0)
-[19:30:31.087][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 2.43334, -300.0)
-[19:30:31.088][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 7.242471, -300.0)
-[19:30:31.089][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 11.724817, -300.0)
-[19:30:31.090][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 15.360336, -300.0)
-[19:30:31.092][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 18.350191, -300.0)
-[19:30:31.093][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 21.116476, -300.0)
-[19:30:31.094][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 23.505987, -300.0)
-[19:30:31.095][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 25.669716, -300.0)
-[19:30:31.096][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 27.769382, -300.0)
-[19:30:31.097][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 29.473778, -300.0)
-[19:30:31.098][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 30.719614, -300.0)
-[19:30:31.099][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.3870766, -300.0)
-[19:30:31.100][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 6.928213, -300.0)
-[19:30:31.101][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 11.114506, -300.0)
-[19:30:31.102][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 14.970125, -300.0)
-[19:30:31.103][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 18.321749, -300.0)
-[19:30:31.104][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 21.361166, -300.0)
-[19:30:31.105][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 24.115698, -300.0)
-[19:30:31.106][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 26.34627, -300.0)
-[19:30:31.107][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 28.138096, -300.0)
-[19:30:31.108][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 29.661228, -300.0)
-[19:30:31.109][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 30.972813, -300.0)
-[19:30:31.111][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 2.0230048, -300.0)
-[19:30:31.112][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 6.0329704, -300.0)
-[19:30:31.113][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 9.974237, -300.0)
-[19:30:31.113][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 13.817346, -300.0)
-[19:30:31.115][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 17.09147, -300.0)
-[19:30:31.116][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 19.822111, -300.0)
-[19:30:31.117][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 22.04384, -300.0)
-[19:30:31.118][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 23.589188, -300.0)
-[19:30:31.119][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 24.842936, -300.0)
-[19:30:31.120][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 25.948433, -300.0)
-[19:30:31.121][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 26.972282, -300.0)
-[19:30:31.122][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.1276872, -300.0)
-[19:30:31.123][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 6.1178265, -300.0)
-[19:30:31.125][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 9.77331, -300.0)
-[19:30:31.126][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 13.294982, -300.0)
-[19:30:31.127][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 16.694746, -300.0)
-[19:30:31.128][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 19.94797, -300.0)
-[19:30:31.129][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 23.03655, -300.0)
-[19:30:31.130][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 25.900677, -300.0)
-[19:30:31.131][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 28.58298, -300.0)
-[19:30:31.132][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 31.190502, -300.0)
-[19:30:31.133][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 33.1666, -300.0)
-[19:30:31.175][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
-[19:30:31.201][DEBUG][EntityApiImpl] [entity] created uuid=7d2319f5-5ce7-f024-ed91-d3bdd9a4ff56 name='player'
-[19:30:31.204][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=capsule name=player.surface worldPos=(135.0, -10.0, -334.0)
-[19:30:31.217][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=7d2319f5-5ce7-f024-ed91-d3bdd9a4ff56
-[19:30:31.252][INFO][WorldApiImpl] [world.create] name=main systems=4 start=true
-[19:30:31.252][INFO][RuntimeAppState] [Runtime] app started
-[19:30:31.356][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2501
-[19:30:31.372][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
-[19:30:31.376][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
-[19:30:31.377][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
-[19:30:31.378][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
-[19:30:31.380][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
-[19:30:31.387][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
-[19:30:31.389][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
-[19:30:31.395][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
-[19:30:31.401][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
-[19:30:31.511][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
-[19:30:31.512][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.28112530708313z=-300)
-[19:30:31.512][DEBUG][EngineApiImpl] Spawned at (x=120,y=6.73456335067749z=-300)
-[19:30:31.512][DEBUG][EngineApiImpl] Spawned at (x=120,y=11.052824020385742z=-300)
-[19:30:31.513][DEBUG][EngineApiImpl] Spawned at (x=120,y=15.143864631652832z=-300)
-[19:30:31.513][DEBUG][EngineApiImpl] Spawned at (x=120,y=18.988239288330078z=-300)
-[19:30:31.513][DEBUG][EngineApiImpl] Spawned at (x=120,y=22.501787185668945z=-300)
-[19:30:31.513][DEBUG][EngineApiImpl] Spawned at (x=120,y=25.651052474975586z=-300)
-[19:30:31.514][DEBUG][EngineApiImpl] Spawned at (x=120,y=28.66627311706543z=-300)
-[19:30:31.514][DEBUG][EngineApiImpl] Spawned at (x=120,y=31.309053421020508z=-300)
-[19:30:31.514][DEBUG][EngineApiImpl] Spawned at (x=120,y=33.457603454589844z=-300)
-[19:30:31.514][DEBUG][EngineApiImpl] Spawned at (x=120,y=35.08000946044922z=-300)
-[19:30:31.515][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.341478109359741z=-300)
-[19:30:31.515][DEBUG][EngineApiImpl] Spawned at (x=128,y=6.864221096038818z=-300)
-[19:30:31.515][DEBUG][EngineApiImpl] Spawned at (x=128,y=11.154684066772461z=-300)
-[19:30:31.515][DEBUG][EngineApiImpl] Spawned at (x=128,y=15.328130722045898z=-300)
-[19:30:31.516][DEBUG][EngineApiImpl] Spawned at (x=128,y=19.162639617919922z=-300)
-[19:30:31.516][DEBUG][EngineApiImpl] Spawned at (x=128,y=22.54633903503418z=-300)
-[19:30:31.516][DEBUG][EngineApiImpl] Spawned at (x=128,y=25.62821388244629z=-300)
-[19:30:31.516][DEBUG][EngineApiImpl] Spawned at (x=128,y=28.542043685913086z=-300)
-[19:30:31.518][DEBUG][EngineApiImpl] Spawned at (x=128,y=31.300491333007812z=-300)
-[19:30:31.518][DEBUG][EngineApiImpl] Spawned at (x=128,y=33.75969314575195z=-300)
-[19:30:31.519][DEBUG][EngineApiImpl] Spawned at (x=128,y=35.684844970703125z=-300)
-[19:30:31.519][DEBUG][EngineApiImpl] Spawned at (x=136,y=2.433340072631836z=-300)
-[19:30:31.519][DEBUG][EngineApiImpl] Spawned at (x=136,y=7.242471218109131z=-300)
-[19:30:31.519][DEBUG][EngineApiImpl] Spawned at (x=136,y=11.724817276000977z=-300)
-[19:30:31.520][DEBUG][EngineApiImpl] Spawned at (x=136,y=15.360336303710938z=-300)
-[19:30:31.520][DEBUG][EngineApiImpl] Spawned at (x=136,y=18.350191116333008z=-300)
-[19:30:31.520][DEBUG][EngineApiImpl] Spawned at (x=136,y=21.11647605895996z=-300)
-[19:30:31.520][DEBUG][EngineApiImpl] Spawned at (x=136,y=23.5059871673584z=-300)
-[19:30:31.521][DEBUG][EngineApiImpl] Spawned at (x=136,y=25.669715881347656z=-300)
-[19:30:31.521][DEBUG][EngineApiImpl] Spawned at (x=136,y=27.76938247680664z=-300)
-[19:30:31.521][DEBUG][EngineApiImpl] Spawned at (x=136,y=29.473777770996094z=-300)
-[19:30:31.521][DEBUG][EngineApiImpl] Spawned at (x=136,y=30.719614028930664z=-300)
-[19:30:31.522][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.3870766162872314z=-300)
-[19:30:31.522][DEBUG][EngineApiImpl] Spawned at (x=144,y=6.928213119506836z=-300)
-[19:30:31.522][DEBUG][EngineApiImpl] Spawned at (x=144,y=11.114505767822266z=-300)
-[19:30:31.522][DEBUG][EngineApiImpl] Spawned at (x=144,y=14.970125198364258z=-300)
-[19:30:31.523][DEBUG][EngineApiImpl] Spawned at (x=144,y=18.321748733520508z=-300)
-[19:30:31.523][DEBUG][EngineApiImpl] Spawned at (x=144,y=21.36116600036621z=-300)
-[19:30:31.523][DEBUG][EngineApiImpl] Spawned at (x=144,y=24.115697860717773z=-300)
-[19:30:31.523][DEBUG][EngineApiImpl] Spawned at (x=144,y=26.346269607543945z=-300)
-[19:30:31.523][DEBUG][EngineApiImpl] Spawned at (x=144,y=28.13809585571289z=-300)
-[19:30:31.524][DEBUG][EngineApiImpl] Spawned at (x=144,y=29.66122817993164z=-300)
-[19:30:31.714][DEBUG][EngineApiImpl] Spawned at (x=144,y=30.97281265258789z=-300)
-[19:30:31.714][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.0230047702789307z=-300)
-[19:30:31.714][DEBUG][EngineApiImpl] Spawned at (x=152,y=6.032970428466797z=-300)
-[19:30:31.715][DEBUG][EngineApiImpl] Spawned at (x=152,y=9.974237442016602z=-300)
-[19:30:31.715][DEBUG][EngineApiImpl] Spawned at (x=152,y=13.81734561920166z=-300)
-[19:30:31.715][DEBUG][EngineApiImpl] Spawned at (x=152,y=17.09147071838379z=-300)
-[19:30:31.715][DEBUG][EngineApiImpl] Spawned at (x=152,y=19.822111129760742z=-300)
-[19:30:31.716][DEBUG][EngineApiImpl] Spawned at (x=152,y=22.043840408325195z=-300)
-[19:30:31.716][DEBUG][EngineApiImpl] Spawned at (x=152,y=23.589187622070312z=-300)
-[19:30:31.716][DEBUG][EngineApiImpl] Spawned at (x=152,y=24.84293556213379z=-300)
-[19:30:31.716][DEBUG][EngineApiImpl] Spawned at (x=152,y=25.94843292236328z=-300)
-[19:30:31.717][DEBUG][EngineApiImpl] Spawned at (x=152,y=26.97228240966797z=-300)
-[19:30:31.717][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.1276872158050537z=-300)
-[19:30:31.717][DEBUG][EngineApiImpl] Spawned at (x=160,y=6.117826461791992z=-300)
-[19:30:31.717][DEBUG][EngineApiImpl] Spawned at (x=160,y=9.773309707641602z=-300)
-[19:30:31.717][DEBUG][EngineApiImpl] Spawned at (x=160,y=13.294981956481934z=-300)
-[19:30:31.718][DEBUG][EngineApiImpl] Spawned at (x=160,y=16.694746017456055z=-300)
-[19:30:31.718][DEBUG][EngineApiImpl] Spawned at (x=160,y=19.947969436645508z=-300)
-[19:30:31.718][DEBUG][EngineApiImpl] Spawned at (x=160,y=23.036550521850586z=-300)
-[19:30:31.718][DEBUG][EngineApiImpl] Spawned at (x=160,y=25.900676727294922z=-300)
-[19:30:31.718][DEBUG][EngineApiImpl] Spawned at (x=160,y=28.582979202270508z=-300)
-[19:30:31.719][DEBUG][EngineApiImpl] Spawned at (x=160,y=31.190502166748047z=-300)
-[19:30:31.719][DEBUG][EngineApiImpl] Spawned at (x=160,y=33.16659927368164z=-300)
-[19:30:31.719][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
-[19:30:33.644][DEBUG][SurfaceRegistry] [surface] registered surfaceId=69 kind=sphere name=shot-1 worldPos=(129.26514, -9.273329, -339.0763)
-[19:30:33.652][DEBUG][EngineApiImpl] Spawned at (x=129.26513671875,y=-9.27332878112793z=-339.0762939453125)
-[19:30:33.841][DEBUG][ParticlesApiImpl] [particles] create ok id=1 name=impact alive=1
-[19:30:33.865][DEBUG][SurfaceRegistry] [surface] registered surfaceId=70 kind=sphere name=shot-2 worldPos=(128.58833, -9.281466, -339.36414)
-[19:30:33.872][DEBUG][EngineApiImpl] Spawned at (x=128.5883331298828,y=-9.281465530395508z=-339.3641357421875)
-[19:30:33.930][DEBUG][ParticlesApiImpl] [particles] create ok id=2 name=impact alive=2
-[19:30:34.069][DEBUG][SurfaceRegistry] [surface] registered surfaceId=71 kind=sphere name=shot-3 worldPos=(127.19762, -9.3399315, -339.40488)
-[19:30:34.074][DEBUG][EngineApiImpl] Spawned at (x=127.19761657714844,y=-9.33993148803711z=-339.4048767089844)
-[19:30:34.318][DEBUG][SurfaceRegistry] [surface] registered surfaceId=72 kind=sphere name=shot-4 worldPos=(126.00536, -9.424345, -338.87952)
-[19:30:34.323][DEBUG][EngineApiImpl] Spawned at (x=126.00536346435547,y=-9.424345016479492z=-338.8795166015625)
-[19:30:34.455][DEBUG][ParticlesApiImpl] [particles] create ok id=3 name=impact alive=3
-[19:30:34.519][DEBUG][SurfaceRegistry] [surface] registered surfaceId=73 kind=sphere name=shot-5 worldPos=(125.20733, -9.431718, -338.2557)
-[19:30:34.524][DEBUG][EngineApiImpl] Spawned at (x=125.20732879638672,y=-9.431717872619629z=-338.2557067871094)
-[19:30:34.735][DEBUG][SurfaceRegistry] [surface] registered surfaceId=74 kind=sphere name=shot-6 worldPos=(124.05373, -9.690986, -337.24445)
-[19:30:34.740][DEBUG][EngineApiImpl] Spawned at (x=124.05372619628906,y=-9.690985679626465z=-337.24444580078125)
-[19:30:34.968][DEBUG][SurfaceRegistry] [surface] registered surfaceId=75 kind=sphere name=shot-7 worldPos=(122.627884, -9.975171, -335.90024)
-[19:30:34.972][DEBUG][EngineApiImpl] Spawned at (x=122.62788391113281,y=-9.975171089172363z=-335.9002380371094)
-[19:30:35.171][DEBUG][SurfaceRegistry] [surface] registered surfaceId=76 kind=sphere name=shot-8 worldPos=(121.28519, -10.2057705, -334.5865)
-[19:30:35.178][DEBUG][EngineApiImpl] Spawned at (x=121.28518676757812,y=-10.205770492553711z=-334.58648681640625)
-[19:30:35.322][DEBUG][ParticlesApiImpl] [particles] create ok id=4 name=impact alive=4
-[19:30:35.385][DEBUG][SurfaceRegistry] [surface] registered surfaceId=77 kind=sphere name=shot-9 worldPos=(119.71518, -10.404413, -333.02927)
-[19:30:35.389][DEBUG][EngineApiImpl] Spawned at (x=119.71517944335938,y=-10.404413223266602z=-333.0292663574219)
-[19:30:35.537][DEBUG][ParticlesApiImpl] [particles] create ok id=5 name=impact alive=5
-[19:30:35.601][DEBUG][SurfaceRegistry] [surface] registered surfaceId=78 kind=sphere name=shot-10 worldPos=(117.85627, -10.920903, -331.1745)
-[19:30:35.604][DEBUG][EngineApiImpl] Spawned at (x=117.85626983642578,y=-10.920903205871582z=-331.17449951171875)
-[19:30:35.834][DEBUG][SurfaceRegistry] [surface] registered surfaceId=79 kind=sphere name=shot-11 worldPos=(115.78363, -11.353111, -329.13446)
-[19:30:35.839][DEBUG][EngineApiImpl] Spawned at (x=115.78363037109375,y=-11.353111267089844z=-329.13446044921875)
-[19:30:36.068][DEBUG][SurfaceRegistry] [surface] registered surfaceId=80 kind=sphere name=shot-12 worldPos=(113.91369, -11.298206, -327.37698)
-[19:30:36.072][DEBUG][EngineApiImpl] Spawned at (x=113.91368865966797,y=-11.298206329345703z=-327.3769836425781)
-[19:30:36.170][DEBUG][ParticlesApiImpl] [particles] create ok id=6 name=impact alive=6
-[19:30:36.301][DEBUG][SurfaceRegistry] [surface] registered surfaceId=81 kind=sphere name=shot-13 worldPos=(112.30727, -11.440902, -325.88516)
-[19:30:36.304][DEBUG][EngineApiImpl] Spawned at (x=112.30726623535156,y=-11.440901756286621z=-325.8851623535156)
-[19:30:36.405][DEBUG][ParticlesApiImpl] [particles] create ok id=7 name=impact alive=7
-[19:30:36.534][DEBUG][SurfaceRegistry] [surface] registered surfaceId=82 kind=sphere name=shot-14 worldPos=(111.009796, -11.669775, -324.70804)
-[19:30:36.537][DEBUG][EngineApiImpl] Spawned at (x=111.00979614257812,y=-11.669775009155273z=-324.7080383300781)
-[19:30:36.637][DEBUG][ParticlesApiImpl] [particles] create ok id=8 name=impact alive=8
-[19:30:36.751][DEBUG][SurfaceRegistry] [surface] registered surfaceId=83 kind=sphere name=shot-15 worldPos=(110.14377, -11.852512, -323.945)
-[19:30:36.754][DEBUG][EngineApiImpl] Spawned at (x=110.14376831054688,y=-11.85251235961914z=-323.94500732421875)
-[19:30:36.854][DEBUG][ParticlesApiImpl] [particles] create ok id=9 name=impact alive=9
-[19:30:36.967][DEBUG][SurfaceRegistry] [surface] registered surfaceId=84 kind=sphere name=shot-16 worldPos=(109.53444, -11.946772, -323.35648)
-[19:30:36.971][DEBUG][EngineApiImpl] Spawned at (x=109.53443908691406,y=-11.946771621704102z=-323.3564758300781)
-[19:30:37.201][DEBUG][SurfaceRegistry] [surface] registered surfaceId=85 kind=sphere name=shot-17 worldPos=(109.02112, -12.013266, -322.86267)
-[19:30:37.204][DEBUG][EngineApiImpl] Spawned at (x=109.0211181640625,y=-12.013265609741211z=-322.8626708984375)
-[19:30:37.303][DEBUG][ParticlesApiImpl] [particles] create ok id=10 name=impact alive=10
-[19:30:37.418][DEBUG][SurfaceRegistry] [surface] registered surfaceId=86 kind=sphere name=shot-18 worldPos=(108.65246, -12.058894, -322.511)
-[19:30:37.421][DEBUG][EngineApiImpl] Spawned at (x=108.65245819091797,y=-12.058894157409668z=-322.510986328125)
-[19:30:37.521][DEBUG][ParticlesApiImpl] [particles] create ok id=11 name=impact alive=11
-[19:30:37.651][DEBUG][SurfaceRegistry] [surface] registered surfaceId=87 kind=sphere name=shot-19 worldPos=(108.34722, -12.0884285, -322.2118)
-[19:30:37.654][DEBUG][EngineApiImpl] Spawned at (x=108.34722137451172,y=-12.088428497314453z=-322.2117919921875)
-[19:30:37.901][DEBUG][SurfaceRegistry] [surface] registered surfaceId=88 kind=sphere name=shot-20 worldPos=(108.092995, -12.110757, -321.96344)
-[19:30:37.904][DEBUG][EngineApiImpl] Spawned at (x=108.0929946899414,y=-12.110756874084473z=-321.96343994140625)
-[19:30:37.986][DEBUG][ParticlesApiImpl] [particles] create ok id=12 name=impact alive=12
-[19:30:38.117][DEBUG][SurfaceRegistry] [surface] registered surfaceId=89 kind=sphere name=shot-21 worldPos=(107.91847, -12.122241, -321.79388)
-[19:30:38.121][DEBUG][EngineApiImpl] Spawned at (x=107.91847229003906,y=-12.122241020202637z=-321.79388427734375)
-[19:30:38.351][DEBUG][SurfaceRegistry] [surface] registered surfaceId=90 kind=sphere name=shot-22 worldPos=(107.7694, -12.130302, -321.64948)
-[19:30:38.355][DEBUG][EngineApiImpl] Spawned at (x=107.76940155029297,y=-12.130302429199219z=-321.64947509765625)
-[19:30:38.436][DEBUG][ParticlesApiImpl] [particles] create ok id=13 name=impact alive=13
-[19:30:38.550][DEBUG][SurfaceRegistry] [surface] registered surfaceId=91 kind=sphere name=shot-23 worldPos=(107.66618, -12.13606, -321.54996)
-[19:30:38.554][DEBUG][EngineApiImpl] Spawned at (x=107.66618347167969,y=-12.136059761047363z=-321.5499572753906)
-[19:30:38.637][DEBUG][ParticlesApiImpl] [particles] create ok id=14 name=impact alive=14
-[19:30:38.768][DEBUG][SurfaceRegistry] [surface] registered surfaceId=92 kind=sphere name=shot-24 worldPos=(107.57383, -12.141223, -321.4612)
-[19:30:38.771][DEBUG][EngineApiImpl] Spawned at (x=107.5738296508789,y=-12.141222953796387z=-321.4612121582031)
-[19:30:38.805][DEBUG][ParticlesApiImpl] [particles] create ok id=15 name=impact alive=15
-[19:30:38.950][DEBUG][SurfaceRegistry] [surface] registered surfaceId=93 kind=sphere name=shot-25 worldPos=(108.343414, -11.318841, -317.4491)
-[19:30:38.954][DEBUG][EngineApiImpl] Spawned at (x=108.34341430664062,y=-11.318840980529785z=-317.4490966796875)
-[19:30:38.988][DEBUG][ParticlesApiImpl] [particles] create ok id=16 name=impact alive=16
-[19:30:39.368][INFO][ScriptRuntime] Closing ScriptRuntime
-[19:30:39.375][INFO][ScriptRuntime] [script] invalidateAll removed=30 reason=reset
-[19:30:39.383][INFO][RuntimeAppState] [Runtime] stopped
+[20:15:41.160][INFO][KalitechApplication] NEOCORE 0.3.8
+[20:15:41.163][INFO][KalitechApplication] Java: 17.0.15
+[20:15:41.163][INFO][KalitechApplication] OS: Windows 10 10.0
+[20:15:41.174][INFO][GuiGlobals] Initializing GuiGlobals with:com.simsilica.lemur.GuiGlobals@23146423
+[20:15:41.182][INFO][GuiGlobals] Lemur build date:20220405
+[20:15:41.183][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[20:15:42.125][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[20:15:42.728][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[20:15:43.549][DEBUG][ApiRegistry] [api] registry created ctx=ApiContext
+[20:15:43.554][DEBUG][ApiRegistry] [api] register id='log' name='Log' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.LogApiImpl
+[20:15:43.555][DEBUG][ApiRegistry] [api] register id='assets' name='Assets' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.AssetsApiImpl
+[20:15:43.556][DEBUG][ApiRegistry] [api] register id='bus' name='Events' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EventsApiImpl
+[20:15:43.557][DEBUG][ApiRegistry] [api] register id='time' name='Time' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TimeApiImpl
+[20:15:43.558][DEBUG][ApiRegistry] [api] register id='entity' name='Entity' ver='3.1.0' impl=org.foxesworld.kalitech.engine.api.impl.EntityApiImpl
+[20:15:43.560][DEBUG][SurfaceRegistry] [service] attached id='surfaceRegistry' ecsBound=true
+[20:15:43.560][DEBUG][ApiRegistry] [api] register id='surface' name='Surface' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SurfaceApiImpl
+[20:15:43.561][DEBUG][ApiRegistry] [api] register id='editorLines' name='EditorLines' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorLinesApiImpl
+[20:15:43.563][DEBUG][ApiRegistry] [api] register id='mesh' name='Mesh' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MeshApiImpl
+[20:15:43.564][DEBUG][ApiRegistry] [api] register id='debug' name='DebugDraw' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.DebugDrawApiImpl
+[20:15:43.565][DEBUG][ApiRegistry] [api] register id='world' name='World' ver='2.4.1' impl=org.foxesworld.kalitech.engine.api.impl.WorldApiImpl
+[20:15:43.566][DEBUG][ApiRegistry] [api] register id='editor' name='Editor' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.EditorApiImpl
+[20:15:43.566][DEBUG][ApiRegistry] [api] register id='modules' name='Modules' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ModulesApiImpl
+[20:15:43.694][DEBUG][EngineApiImpl] [modules] discovered id='camera' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.CameraApiImpl]' jar='CameraModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.695][DEBUG][EngineApiImpl] [modules] discovered id='hud' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.HudApiImpl]' jar='HudModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.695][DEBUG][EngineApiImpl] [modules] discovered id='input' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.InputApiImpl]' jar='InputModule-1.0-SNAPSHOT.jar'
+[20:15:43.696][DEBUG][EngineApiImpl] [modules] discovered id='material' ver='1.1.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl]' jar='MaterialModule-1.1.0-SNAPSHOT.jar'
+[20:15:43.696][DEBUG][EngineApiImpl] [modules] discovered id='particles' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl]' jar='ParticlesModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.697][DEBUG][EngineApiImpl] [modules] discovered id='physics' ver='1.2.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl]' jar='PhysicsModule-1.2.0-SNAPSHOT.jar'
+[20:15:43.697][DEBUG][EngineApiImpl] [modules] discovered id='render' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.RenderApiImpl, org.foxesworld.kalitech.engine.api.impl.LightApiImpl]' jar='RenderModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.698][DEBUG][EngineApiImpl] [modules] discovered id='sound' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.SoundApiImpl]' jar='SoundModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.698][DEBUG][EngineApiImpl] [modules] discovered id='terrain' ver='1.0.0' mainClass='[org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl, org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl]' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.703][DEBUG][ApiRegistry] [api] register id='camera' name='Camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl
+[20:15:43.703][DEBUG][EngineApiImpl] [modules] loaded id='camera' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.CameraApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.CameraApiImpl' jar='CameraModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.706][INFO][BaseStyles] loadStyleResource(com/simsilica/lemur/style/base/glass-styles.groovy)
+[20:15:43.770][INFO][BaseStyles] Loading base resource:jar:file:/C:/Users/Aiden/.gradle/caches/modules-2/files-2.1/com.simsilica/lemur/1.16.0/8e4af305c8c00dde11db8d76be8debd5ee751c09/lemur-1.16.0.jar!/com/simsilica/lemur/style/base/glass-styles.groovy
+[20:15:43.952][INFO][BaseStyles] Loading extension resources for:com/simsilica/lemur/style/base/glass-styles.groovy
+[20:15:43.952][DEBUG][ApiRegistry] [api] register id='hud' name='Hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl
+[20:15:43.952][DEBUG][EngineApiImpl] [modules] loaded id='hud' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.HudApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.HudApiImpl' jar='HudModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.963][DEBUG][ApiRegistry] [api] register id='input' name='Input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl
+[20:15:43.963][DEBUG][EngineApiImpl] [modules] loaded id='input' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.InputApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.InputApiImpl' jar='InputModule-1.0-SNAPSHOT.jar'
+[20:15:43.972][WARN][MaterialTextureLoader] [MAT] scheduler NOT found (runOnRenderThread/enqueue). Async texture swaps DISABLED -> SYNC load fallback.
+[20:15:43.972][DEBUG][ApiRegistry] [api] register id='material' name='Material' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl
+[20:15:43.972][DEBUG][EngineApiImpl] [modules] loaded id='material' ver='1.1.0' impl=org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.MaterialApiImpl' jar='MaterialModule-1.1.0-SNAPSHOT.jar'
+[20:15:43.974][DEBUG][ParticlesApiImpl] [particles] attach ok alive=0
+[20:15:43.974][DEBUG][ApiRegistry] [api] register id='particles' name='Particles' ver='3.2.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl
+[20:15:43.975][DEBUG][EngineApiImpl] [modules] loaded id='particles' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl' jar='ParticlesModule-1.0.0-SNAPSHOT.jar'
+[20:15:43.988][DEBUG][ApiRegistry] [api] register id='physics' name='Physics' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl
+[20:15:43.988][DEBUG][EngineApiImpl] [modules] loaded id='physics' ver='1.2.0' impl=org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.PhysicsApiImpl' jar='PhysicsModule-1.2.0-SNAPSHOT.jar'
+[20:15:44.004][DEBUG][ApiRegistry] [api] register id='render' name='Render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl
+[20:15:44.004][DEBUG][EngineApiImpl] [modules] loaded id='render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.RenderApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.RenderApiImpl' jar='RenderModule-1.0.0-SNAPSHOT.jar'
+[20:15:44.005][DEBUG][ApiRegistry] [api] register id='light' name='Light' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl
+[20:15:44.005][DEBUG][EngineApiImpl] [modules] loaded id='render' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.LightApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.LightApiImpl' jar='RenderModule-1.0.0-SNAPSHOT.jar'
+[20:15:44.008][DEBUG][ApiRegistry] [api] register id='sound' name='Sound' ver='1.2.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl
+[20:15:44.009][DEBUG][EngineApiImpl] [modules] loaded id='sound' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.SoundApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.SoundApiImpl' jar='SoundModule-1.0.0-SNAPSHOT.jar'
+[20:15:44.014][DEBUG][ApiRegistry] [api] register id='terrain' name='Terrain' ver='3.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl
+[20:15:44.014][DEBUG][EngineApiImpl] [modules] loaded id='terrain' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
+[20:15:44.015][DEBUG][ApiRegistry] [api] register id='terrainSplat' name='TerrainSplat' ver='2.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl
+[20:15:44.015][DEBUG][EngineApiImpl] [modules] loaded id='terrain' ver='1.0.0' impl=org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl mainClass='org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl' jar='TerrainModule-1.0.0-SNAPSHOT.jar'
+[20:15:44.015][DEBUG][ScriptRuntime] [script] builtins: loading @builtin/init
+[20:15:44.017][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/init.js
+[20:15:44.118][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Bootstrap.js
+[20:15:44.204][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Config.js
+[20:15:44.207][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Root.js
+[20:15:44.211][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Util.js
+[20:15:44.230][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Deferred.js
+[20:15:44.234][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/DataConfig.js
+[20:15:44.241][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Assets.js
+[20:15:44.245][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/Meta.js
+[20:15:44.248][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/bootstrap/EngineProxy.js
+[20:15:44.343][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/manifest.js
+[20:15:44.361][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Assets/Assets.js
+[20:15:44.364][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/helpers/ModuleCommon.js
+[20:15:44.497][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Render/Render.js
+[20:15:44.504][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Time/Time.js
+[20:15:44.512][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Light/Light.js
+[20:15:44.517][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Surface/Surface.js
+[20:15:44.525][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Editor/Editor.js
+[20:15:44.531][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Editor/EditorLines.js
+[20:15:44.536][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Material/Material.js
+[20:15:44.553][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/World.js
+[20:15:44.556][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldUtil.js
+[20:15:44.561][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldApi.js
+[20:15:44.570][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldBuilder.js
+[20:15:44.574][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/World/helpers/WorldSession.js
+[20:15:44.584][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/Mesh.js
+[20:15:44.586][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/MeshOrchestrator.js
+[20:15:44.596][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshMath.js
+[20:15:44.598][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshCfg.js
+[20:15:44.601][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Mesh/helpers/MeshIds.js
+[20:15:44.610][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Sound/Sound.js
+[20:15:44.952][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/Entity.js
+[20:15:44.954][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntUtil.js
+[20:15:44.957][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntApi.js
+[20:15:44.961][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/IdExtractor.js
+[20:15:44.964][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/PhysicsBinding.js
+[20:15:44.966][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityHandle.js
+[20:15:44.971][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/BodyAccessResolver.js
+[20:15:44.976][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntBuilder.js
+[20:15:44.978][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Entity/helpers/EntityCore.js
+[20:15:44.986][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/Physics.js
+[20:15:44.989][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/PhysicsOrchestrator.js
+[20:15:44.996][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsMath.js
+[20:15:44.998][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsIds.js
+[20:15:44.999][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Physics/helpers/PhysicsEvents.js
+[20:15:45.009][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Log/Log.js
+[20:15:45.021][INFO][EngineApiImpl] [ENGINE] module registered: key='log' name='@module/Log/Log' ver='1.2.0' from='@module/Log/Log'
+[20:15:45.021][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Input/Input.js
+[20:15:45.030][INFO][EngineApiImpl] [ENGINE] module registered: key='input' name='@module/Input/Input' ver='1.0.0' from='@module/Input/Input'
+[20:15:45.031][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Events/Events.js
+[20:15:45.041][INFO][EngineApiImpl] [ENGINE] module registered: key='events' name='@module/Events/Events' ver='2.0.0' from='@module/Events/Events'
+[20:15:45.041][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/Terrain.js
+[20:15:45.045][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainTypes.js
+[20:15:45.046][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainHeights.js
+[20:15:45.052][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainPhysics.js
+[20:15:45.054][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainCreateHelper.js
+[20:15:45.057][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Terrain/helpers/TerrainInstance.js
+[20:15:45.064][INFO][EngineApiImpl] [ENGINE] module registered: key='terrain' name='@module/Terrain/Terrain' ver='2.0.0' from='@module/Terrain/Terrain'
+[20:15:45.064][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/Hud.js
+[20:15:45.067][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudUtil.js
+[20:15:45.068][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/Layer.js
+[20:15:45.080][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudPlacement.js
+[20:15:45.084][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudElements.js
+[20:15:45.091][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Hud/helpers/HudBuilder.js
+[20:15:45.101][INFO][EngineApiImpl] [ENGINE] module registered: key='hud' name='@module/Hud/Hud' ver='3.2.0' from='@module/Hud/Hud'
+[20:15:45.101][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Profiler/Profiler.js
+[20:15:45.107][INFO][EngineApiImpl] [ENGINE] module registered: key='profiler' name='@module/Profiler/Profiler' ver='1.0.0' from='@module/Profiler/Profiler'
+[20:15:45.108][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/Controllers.js
+[20:15:45.113][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerStack.js
+[20:15:45.116][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/ControllerRegistry.js
+[20:15:45.120][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EngineControllers.js
+[20:15:45.122][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Controllers/helpers/EntityController.js
+[20:15:45.126][INFO][EngineApiImpl] [ENGINE] module registered: key='controllers' name='@module/Controllers/Controllers' ver='1.0.5' from='@module/Controllers/Controllers'
+[20:15:45.126][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Debug/Debug.js
+[20:15:45.136][INFO][EngineApiImpl] [ENGINE] module registered: key='debug' name='@module/Debug/Debug' ver='1.0.0' from='@module/Debug/Debug'
+[20:15:45.137][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/Camera.js
+[20:15:45.140][INFO][EngineApiImpl] [camera] module ready orchestrator=./CameraOrchestrator.js
+[20:15:45.141][INFO][EngineApiImpl] [ENGINE] module registered: key='camera' name='@module/Camera/Camera' ver='1.0.0' from='@module/Camera/Camera'
+[20:15:45.141][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Particles/Particles.js
+[20:15:45.174][INFO][EngineApiImpl] [ENGINE] module registered: key='particles' name='@module/Particles/Particles' ver='3.2.1' from='@module/Particles/Particles'
+[20:15:45.174][DEBUG][ScriptRuntime] [script] builtins: loaded @builtin/init (1158 ms)
+[20:15:45.175][DEBUG][ScriptRuntime] [script] builtins: aliases applied (3) [@core, @engine, @env]
+[20:15:45.179][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
+[20:15:45.180][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data
+[20:15:45.180][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\camera
+[20:15:45.180][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\input
+[20:15:45.181][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\data\player
+[20:15:45.181][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Models
+[20:15:45.182][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts
+[20:15:45.182][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment
+[20:15:45.183][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment\sky
+[20:15:45.183][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\environment\world
+[20:15:45.184][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player
+[20:15:45.184][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player\controllers
+[20:15:45.184][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Scripts\player\systems
+[20:15:45.185][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds
+[20:15:45.185][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\DEBRIS
+[20:15:45.185][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\hit
+[20:15:45.186][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\spawn
+[20:15:45.186][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Sounds\throw
+[20:15:45.186][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures
+[20:15:45.187][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Particles
+[20:15:45.187][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\sharp-boulder-layered
+[20:15:45.188][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Sky
+[20:15:45.188][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain
+[20:15:45.188][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\Grass
+[20:15:45.189][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\Rock
+[20:15:45.189][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\rocky-dunes
+[20:15:45.189][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\Terrain\wavy-sand
+[20:15:45.190][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\Textures\ui
+[20:15:45.190][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\ui
+[20:15:45.190][DEBUG][HotReloadWatcher] HotReloadWatcher registered: C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets\ui\icons
+[20:15:45.190][INFO][HotReloadWatcher] HotReloadWatcher watching (recursive): C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
+[20:15:45.193][INFO][RuntimeAppState] [Runtime] started entry=Scripts/main.js watchRoot=C:\Users\Aiden\Documents\GitHub\NEOCORE\Kalitech\assets
+[20:15:45.253][INFO][WorldApiImpl] [world] WorldAppState attached lazily
+[20:15:45.254][INFO][WorldAppState] [World] created 'main'
+[20:15:45.280][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[20:15:45.297][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[20:15:45.305][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[20:15:45.308][INFO][LightRigModule] RenderApi: ambient created
+[20:15:45.308][INFO][LightRigModule] RenderApi: sun created
+[20:15:45.308][INFO][LightRigModule] RenderApi: moon created
+[20:15:45.310][INFO][RenderApiImpl] RenderApi: ensureScene main FPP created
+[20:15:45.310][INFO][RenderApiImpl] RenderApi: scene ensured
+[20:15:45.311][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[20:15:45.323][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[20:15:45.352][INFO][Shadow] [shadow][cfg] reload=false type=PipelineDirectionalLightShadowRenderer map=4096 splits=4 lambda=0.72 intensity=0.75 snap=true snapCascades=2 pad=1.02 hyst=10.0 smooth=0.1 zExtend=1000.0 zFade=0.0 fixedSplits=null pipeline=splits=4|hysteresis(hysteresis=12,smoothing=0.12);basis(type=com.oracle.truffle.api.strings.TruffleString);onlySplit(split=0);onlySplit(maxSplit=7,minSplit=1);poissonPcf(baseRadiusTexels=1.35,camMoveEventThreshold=0.03,camRotateEventThresholdDeg=0.2,enabled=true,rotateEveryFrames=12,rotateKernel=true,rotateOnlyOnCameraEvent=true,samples=16,split0=0.95,split1=1.1,split2=1.35,split3=1.65);temporalGate(minMoveTexels=1.25,minRotateDeg=0.25,teleportMoveTexels=24);texelSnap(enabled=true,snapFirstCascades=2);
+[20:15:45.400][INFO][RenderApiImpl] RenderApi: skydome created model='Models/Sky/skydome.obj' geoms=1
+[20:15:46.618][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[20:15:46.621][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[20:15:46.622][INFO][EngineApiImpl] [scene] init
+[20:15:47.126][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[20:15:47.192][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[20:15:47.232][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.4384744, -300.0)
+[20:15:47.235][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 6.7967134, -300.0)
+[20:15:47.236][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 10.570776, -300.0)
+[20:15:47.238][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 13.985803, -300.0)
+[20:15:47.239][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 16.915718, -300.0)
+[20:15:47.240][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 19.632744, -300.0)
+[20:15:47.242][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 22.132328, -300.0)
+[20:15:47.243][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 24.399254, -300.0)
+[20:15:47.244][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 26.575605, -300.0)
+[20:15:47.245][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 28.326317, -300.0)
+[20:15:47.247][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 29.645523, -300.0)
+[20:15:47.249][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.4521081, -300.0)
+[20:15:47.250][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 7.191826, -300.0)
+[20:15:47.251][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 11.680347, -300.0)
+[20:15:47.252][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 15.9541025, -300.0)
+[20:15:47.254][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 19.393381, -300.0)
+[20:15:47.255][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 22.11132, -300.0)
+[20:15:47.256][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 24.670343, -300.0)
+[20:15:47.258][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 27.078232, -300.0)
+[20:15:47.259][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 29.210283, -300.0)
+[20:15:47.260][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 30.852453, -300.0)
+[20:15:47.261][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 32.25122, -300.0)
+[20:15:47.263][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 2.473273, -300.0)
+[20:15:47.264][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 7.091094, -300.0)
+[20:15:47.265][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 11.067384, -300.0)
+[20:15:47.266][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 14.717672, -300.0)
+[20:15:47.267][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 17.956003, -300.0)
+[20:15:47.268][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 20.72608, -300.0)
+[20:15:47.269][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 23.353537, -300.0)
+[20:15:47.271][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 25.839767, -300.0)
+[20:15:47.272][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 28.06853, -300.0)
+[20:15:47.273][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 30.07013, -300.0)
+[20:15:47.274][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 31.828405, -300.0)
+[20:15:47.276][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.4452477, -300.0)
+[20:15:47.277][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 7.246324, -300.0)
+[20:15:47.278][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 11.917321, -300.0)
+[20:15:47.279][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 16.38532, -300.0)
+[20:15:47.280][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 20.48561, -300.0)
+[20:15:47.281][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 24.34559, -300.0)
+[20:15:47.282][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 28.057022, -300.0)
+[20:15:47.283][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 31.271042, -300.0)
+[20:15:47.284][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 34.000076, -300.0)
+[20:15:47.285][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 36.42687, -300.0)
+[20:15:47.286][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 38.159447, -300.0)
+[20:15:47.288][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 2.364146, -300.0)
+[20:15:47.289][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 6.8780847, -300.0)
+[20:15:47.290][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 11.116836, -300.0)
+[20:15:47.291][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 14.605787, -300.0)
+[20:15:47.292][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 17.37865, -300.0)
+[20:15:47.293][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 20.076155, -300.0)
+[20:15:47.294][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 22.676947, -300.0)
+[20:15:47.295][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 25.136173, -300.0)
+[20:15:47.296][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 27.324747, -300.0)
+[20:15:47.297][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 28.896587, -300.0)
+[20:15:47.298][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 30.027212, -300.0)
+[20:15:47.300][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.444479, -300.0)
+[20:15:47.301][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 7.1177225, -300.0)
+[20:15:47.302][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 11.361257, -300.0)
+[20:15:47.303][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 15.386563, -300.0)
+[20:15:47.304][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 19.358538, -300.0)
+[20:15:47.305][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 23.243975, -300.0)
+[20:15:47.305][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 26.601404, -300.0)
+[20:15:47.307][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 29.432652, -300.0)
+[20:15:47.308][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 32.017796, -300.0)
+[20:15:47.309][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 34.33309, -300.0)
+[20:15:47.310][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 36.383583, -300.0)
+[20:15:47.351][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[20:15:47.378][DEBUG][EntityApiImpl] [entity] created uuid=4d6ce7ef-79af-b946-07d2-5b4e5e321eb6 name='player'
+[20:15:47.381][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=capsule name=player.surface worldPos=(135.0, -10.0, -334.0)
+[20:15:47.395][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=4d6ce7ef-79af-b946-07d2-5b4e5e321eb6
+[20:15:47.431][INFO][WorldApiImpl] [world.create] name=main systems=4 start=true
+[20:15:47.431][INFO][RuntimeAppState] [Runtime] app started
+[20:15:47.578][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2501
+[20:15:47.592][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraOrchestrator.js
+[20:15:47.596][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/camUtil.js
+[20:15:47.597][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraContract.js
+[20:15:47.598][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZoomController.js
+[20:15:47.600][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraCollisionSolver.js
+[20:15:47.606][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraVolumeZones.js
+[20:15:47.608][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/CameraZonesContract.js
+[20:15:47.614][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/first.js
+[20:15:47.619][DEBUG][ScriptRuntime] [script] builtins: stream=open resource kalitech/engine/modules/Camera/modes/third.js
+[20:15:47.733][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
+[20:15:47.734][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.438474416732788z=-300)
+[20:15:47.734][DEBUG][EngineApiImpl] Spawned at (x=120,y=6.796713352203369z=-300)
+[20:15:47.734][DEBUG][EngineApiImpl] Spawned at (x=120,y=10.570775985717773z=-300)
+[20:15:47.734][DEBUG][EngineApiImpl] Spawned at (x=120,y=13.98580265045166z=-300)
+[20:15:47.735][DEBUG][EngineApiImpl] Spawned at (x=120,y=16.91571807861328z=-300)
+[20:15:47.735][DEBUG][EngineApiImpl] Spawned at (x=120,y=19.63274383544922z=-300)
+[20:15:47.735][DEBUG][EngineApiImpl] Spawned at (x=120,y=22.132328033447266z=-300)
+[20:15:47.735][DEBUG][EngineApiImpl] Spawned at (x=120,y=24.399253845214844z=-300)
+[20:15:47.736][DEBUG][EngineApiImpl] Spawned at (x=120,y=26.575605392456055z=-300)
+[20:15:47.736][DEBUG][EngineApiImpl] Spawned at (x=120,y=28.326316833496094z=-300)
+[20:15:47.738][DEBUG][EngineApiImpl] Spawned at (x=120,y=29.645523071289062z=-300)
+[20:15:47.738][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.452108144760132z=-300)
+[20:15:47.738][DEBUG][EngineApiImpl] Spawned at (x=128,y=7.191825866699219z=-300)
+[20:15:47.738][DEBUG][EngineApiImpl] Spawned at (x=128,y=11.680347442626953z=-300)
+[20:15:47.739][DEBUG][EngineApiImpl] Spawned at (x=128,y=15.954102516174316z=-300)
+[20:15:47.739][DEBUG][EngineApiImpl] Spawned at (x=128,y=19.393381118774414z=-300)
+[20:15:47.739][DEBUG][EngineApiImpl] Spawned at (x=128,y=22.11132049560547z=-300)
+[20:15:47.739][DEBUG][EngineApiImpl] Spawned at (x=128,y=24.67034339904785z=-300)
+[20:15:47.740][DEBUG][EngineApiImpl] Spawned at (x=128,y=27.078231811523438z=-300)
+[20:15:47.740][DEBUG][EngineApiImpl] Spawned at (x=128,y=29.210283279418945z=-300)
+[20:15:47.740][DEBUG][EngineApiImpl] Spawned at (x=128,y=30.852453231811523z=-300)
+[20:15:47.740][DEBUG][EngineApiImpl] Spawned at (x=128,y=32.251220703125z=-300)
+[20:15:47.741][DEBUG][EngineApiImpl] Spawned at (x=136,y=2.4732730388641357z=-300)
+[20:15:47.741][DEBUG][EngineApiImpl] Spawned at (x=136,y=7.091094017028809z=-300)
+[20:15:47.741][DEBUG][EngineApiImpl] Spawned at (x=136,y=11.067383766174316z=-300)
+[20:15:47.741][DEBUG][EngineApiImpl] Spawned at (x=136,y=14.717672348022461z=-300)
+[20:15:47.742][DEBUG][EngineApiImpl] Spawned at (x=136,y=17.956003189086914z=-300)
+[20:15:47.742][DEBUG][EngineApiImpl] Spawned at (x=136,y=20.7260799407959z=-300)
+[20:15:47.742][DEBUG][EngineApiImpl] Spawned at (x=136,y=23.35353660583496z=-300)
+[20:15:47.742][DEBUG][EngineApiImpl] Spawned at (x=136,y=25.839767456054688z=-300)
+[20:15:47.743][DEBUG][EngineApiImpl] Spawned at (x=136,y=28.06852912902832z=-300)
+[20:15:47.743][DEBUG][EngineApiImpl] Spawned at (x=136,y=30.07012939453125z=-300)
+[20:15:47.743][DEBUG][EngineApiImpl] Spawned at (x=136,y=31.828405380249023z=-300)
+[20:15:47.743][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.4452476501464844z=-300)
+[20:15:47.744][DEBUG][EngineApiImpl] Spawned at (x=144,y=7.246324062347412z=-300)
+[20:15:47.744][DEBUG][EngineApiImpl] Spawned at (x=144,y=11.91732120513916z=-300)
+[20:15:47.744][DEBUG][EngineApiImpl] Spawned at (x=144,y=16.38532066345215z=-300)
+[20:15:47.744][DEBUG][EngineApiImpl] Spawned at (x=144,y=20.48560905456543z=-300)
+[20:15:47.744][DEBUG][EngineApiImpl] Spawned at (x=144,y=24.345590591430664z=-300)
+[20:15:47.745][DEBUG][EngineApiImpl] Spawned at (x=144,y=28.057022094726562z=-300)
+[20:15:47.745][DEBUG][EngineApiImpl] Spawned at (x=144,y=31.271041870117188z=-300)
+[20:15:47.745][DEBUG][EngineApiImpl] Spawned at (x=144,y=34.00007629394531z=-300)
+[20:15:47.745][DEBUG][EngineApiImpl] Spawned at (x=144,y=36.4268684387207z=-300)
+[20:15:47.959][DEBUG][EngineApiImpl] Spawned at (x=144,y=38.159446716308594z=-300)
+[20:15:47.959][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.3641459941864014z=-300)
+[20:15:47.959][DEBUG][EngineApiImpl] Spawned at (x=152,y=6.878084659576416z=-300)
+[20:15:47.959][DEBUG][EngineApiImpl] Spawned at (x=152,y=11.116835594177246z=-300)
+[20:15:47.960][DEBUG][EngineApiImpl] Spawned at (x=152,y=14.60578727722168z=-300)
+[20:15:47.960][DEBUG][EngineApiImpl] Spawned at (x=152,y=17.378650665283203z=-300)
+[20:15:47.960][DEBUG][EngineApiImpl] Spawned at (x=152,y=20.076154708862305z=-300)
+[20:15:47.960][DEBUG][EngineApiImpl] Spawned at (x=152,y=22.67694664001465z=-300)
+[20:15:47.960][DEBUG][EngineApiImpl] Spawned at (x=152,y=25.136173248291016z=-300)
+[20:15:47.961][DEBUG][EngineApiImpl] Spawned at (x=152,y=27.32474708557129z=-300)
+[20:15:47.961][DEBUG][EngineApiImpl] Spawned at (x=152,y=28.896587371826172z=-300)
+[20:15:47.961][DEBUG][EngineApiImpl] Spawned at (x=152,y=30.027212142944336z=-300)
+[20:15:47.961][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.444478988647461z=-300)
+[20:15:47.961][DEBUG][EngineApiImpl] Spawned at (x=160,y=7.117722511291504z=-300)
+[20:15:47.962][DEBUG][EngineApiImpl] Spawned at (x=160,y=11.36125659942627z=-300)
+[20:15:47.962][DEBUG][EngineApiImpl] Spawned at (x=160,y=15.386563301086426z=-300)
+[20:15:47.962][DEBUG][EngineApiImpl] Spawned at (x=160,y=19.358537673950195z=-300)
+[20:15:47.962][DEBUG][EngineApiImpl] Spawned at (x=160,y=23.243974685668945z=-300)
+[20:15:47.963][DEBUG][EngineApiImpl] Spawned at (x=160,y=26.601404190063477z=-300)
+[20:15:47.963][DEBUG][EngineApiImpl] Spawned at (x=160,y=29.43265151977539z=-300)
+[20:15:47.963][DEBUG][EngineApiImpl] Spawned at (x=160,y=32.01779556274414z=-300)
+[20:15:47.963][DEBUG][EngineApiImpl] Spawned at (x=160,y=34.333091735839844z=-300)
+[20:15:47.963][DEBUG][EngineApiImpl] Spawned at (x=160,y=36.383583068847656z=-300)
+[20:15:47.964][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
+[20:15:51.246][WARN][WorldAppState] [World] F5 hot reload
+[20:15:51.249][INFO][EngineApiImpl] [sky] destroy
+[20:15:51.259][INFO][ScriptRuntime] [script] invalidateAll removed=30 reason=F5
+[20:15:51.259][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/sky/index.js
+[20:15:51.260][DEBUG][ScriptRuntime] [script] invalidateAll removed=0 reason=F5
+[20:15:51.260][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/world/world.js
+[20:15:51.260][DEBUG][ScriptRuntime] [script] invalidateAll removed=0 reason=F5
+[20:15:51.260][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/environment/towers.js
+[20:15:51.260][DEBUG][ScriptRuntime] [script] invalidateAll removed=0 reason=F5
+[20:15:51.260][INFO][JsWorldSystem] [JsWorldSystem] HotReload(F5) module=Scripts/player/index.js
+[20:15:51.260][DEBUG][SurfaceRegistry] [surface] resetAll reason=F5 count=68
+[20:15:51.263][INFO][Shadow] [shadow][cfg] reload=true type=PipelineDirectionalLightShadowRenderer map=4096 splits=4 lambda=0.72 intensity=0.75 snap=true snapCascades=2 pad=1.02 hyst=10.0 smooth=0.1 zExtend=1000.0 zFade=0.0 fixedSplits=null pipeline=splits=4|hysteresis(hysteresis=12,smoothing=0.12);basis(type=com.oracle.truffle.api.strings.TruffleString);onlySplit(split=0);onlySplit(maxSplit=7,minSplit=1);poissonPcf(baseRadiusTexels=1.35,camMoveEventThreshold=0.03,camRotateEventThresholdDeg=0.2,enabled=true,rotateEveryFrames=12,rotateKernel=true,rotateOnlyOnCameraEvent=true,samples=16,split0=0.95,split1=1.1,split2=1.35,split3=1.65);temporalGate(minMoveTexels=1.25,minRotateDeg=0.25,teleportMoveTexels=24);texelSnap(enabled=true,snapFirstCascades=2);
+[20:15:51.269][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/sky/index.js exportsKeys=[init, update, destroy]
+[20:15:51.272][DEBUG][EngineApiImpl] [sky][clock] applyCfg enabled=true dayLengthSec=1200 startApplied=true
+[20:15:51.274][DEBUG][EngineApiImpl] [sky][cfg] applied path=domain:config
+[20:15:51.274][DEBUG][EngineApiImpl] [sky] render contract OK (AAA SkyDome + sun/moon + primary + shadows)
+[20:15:51.274][DEBUG][EngineApiImpl] [sky] PRIMARY -> sun time01=0.2500 dayFactor=1.0000
+[20:15:51.277][DEBUG][EngineApiImpl] [sky] EVENTS wired
+[20:15:51.278][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/world/world.js exportsKeys=[KEY_GROUND, KEY_GROUND_PHYS]
+[20:15:51.278][INFO][EngineApiImpl] [scene] init
+[20:15:51.424][DEBUG][SurfaceRegistry] [surface] registered surfaceId=1 kind=terrainHeights name=proc worldPos=(0.0, 0.0, 0.0)
+[20:15:51.442][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/environment/towers.js exportsKeys=[_state, init, update, destroy]
+[20:15:51.443][DEBUG][SurfaceRegistry] [surface] registered surfaceId=2 kind=box name=box-0 worldPos=(120.0, 2.024438, -300.0)
+[20:15:51.444][DEBUG][SurfaceRegistry] [surface] registered surfaceId=3 kind=box name=box-1 worldPos=(120.0, 5.9507966, -300.0)
+[20:15:51.444][DEBUG][SurfaceRegistry] [surface] registered surfaceId=4 kind=box name=box-2 worldPos=(120.0, 9.746886, -300.0)
+[20:15:51.445][DEBUG][SurfaceRegistry] [surface] registered surfaceId=5 kind=box name=box-3 worldPos=(120.0, 13.423854, -300.0)
+[20:15:51.445][DEBUG][SurfaceRegistry] [surface] registered surfaceId=6 kind=box name=box-4 worldPos=(120.0, 16.890574, -300.0)
+[20:15:51.446][DEBUG][SurfaceRegistry] [surface] registered surfaceId=7 kind=box name=box-5 worldPos=(120.0, 20.191954, -300.0)
+[20:15:51.446][DEBUG][SurfaceRegistry] [surface] registered surfaceId=8 kind=box name=box-6 worldPos=(120.0, 23.407204, -300.0)
+[20:15:51.447][DEBUG][SurfaceRegistry] [surface] registered surfaceId=9 kind=box name=box-7 worldPos=(120.0, 26.360262, -300.0)
+[20:15:51.447][DEBUG][SurfaceRegistry] [surface] registered surfaceId=10 kind=box name=box-8 worldPos=(120.0, 29.056925, -300.0)
+[20:15:51.448][DEBUG][SurfaceRegistry] [surface] registered surfaceId=11 kind=box name=box-9 worldPos=(120.0, 31.598932, -300.0)
+[20:15:51.448][DEBUG][SurfaceRegistry] [surface] registered surfaceId=12 kind=box name=box-10 worldPos=(120.0, 33.96771, -300.0)
+[20:15:51.449][DEBUG][SurfaceRegistry] [surface] registered surfaceId=13 kind=box name=box-11 worldPos=(128.0, 2.4323084, -300.0)
+[20:15:51.450][DEBUG][SurfaceRegistry] [surface] registered surfaceId=14 kind=box name=box-12 worldPos=(128.0, 7.2890987, -300.0)
+[20:15:51.450][DEBUG][SurfaceRegistry] [surface] registered surfaceId=15 kind=box name=box-13 worldPos=(128.0, 12.060514, -300.0)
+[20:15:51.451][DEBUG][SurfaceRegistry] [surface] registered surfaceId=16 kind=box name=box-14 worldPos=(128.0, 16.66923, -300.0)
+[20:15:51.451][DEBUG][SurfaceRegistry] [surface] registered surfaceId=17 kind=box name=box-15 worldPos=(128.0, 21.165531, -300.0)
+[20:15:51.452][DEBUG][SurfaceRegistry] [surface] registered surfaceId=18 kind=box name=box-16 worldPos=(128.0, 25.547735, -300.0)
+[20:15:51.452][DEBUG][SurfaceRegistry] [surface] registered surfaceId=19 kind=box name=box-17 worldPos=(128.0, 28.662405, -300.0)
+[20:15:51.453][DEBUG][SurfaceRegistry] [surface] registered surfaceId=20 kind=box name=box-18 worldPos=(128.0, 30.282938, -300.0)
+[20:15:51.453][DEBUG][SurfaceRegistry] [surface] registered surfaceId=21 kind=box name=box-19 worldPos=(128.0, 31.499378, -300.0)
+[20:15:51.454][DEBUG][SurfaceRegistry] [surface] registered surfaceId=22 kind=box name=box-20 worldPos=(128.0, 32.616436, -300.0)
+[20:15:51.454][DEBUG][SurfaceRegistry] [surface] registered surfaceId=23 kind=box name=box-21 worldPos=(128.0, 33.682266, -300.0)
+[20:15:51.455][DEBUG][SurfaceRegistry] [surface] registered surfaceId=24 kind=box name=box-22 worldPos=(136.0, 2.3316655, -300.0)
+[20:15:51.456][DEBUG][SurfaceRegistry] [surface] registered surfaceId=25 kind=box name=box-23 worldPos=(136.0, 6.980057, -300.0)
+[20:15:51.456][DEBUG][SurfaceRegistry] [surface] registered surfaceId=26 kind=box name=box-24 worldPos=(136.0, 11.570541, -300.0)
+[20:15:51.457][DEBUG][SurfaceRegistry] [surface] registered surfaceId=27 kind=box name=box-25 worldPos=(136.0, 15.973071, -300.0)
+[20:15:51.457][DEBUG][SurfaceRegistry] [surface] registered surfaceId=28 kind=box name=box-26 worldPos=(136.0, 19.522148, -300.0)
+[20:15:51.458][DEBUG][SurfaceRegistry] [surface] registered surfaceId=29 kind=box name=box-27 worldPos=(136.0, 22.185904, -300.0)
+[20:15:51.458][DEBUG][SurfaceRegistry] [surface] registered surfaceId=30 kind=box name=box-28 worldPos=(136.0, 24.551638, -300.0)
+[20:15:51.459][DEBUG][SurfaceRegistry] [surface] registered surfaceId=31 kind=box name=box-29 worldPos=(136.0, 26.720076, -300.0)
+[20:15:51.459][DEBUG][SurfaceRegistry] [surface] registered surfaceId=32 kind=box name=box-30 worldPos=(136.0, 28.5866, -300.0)
+[20:15:51.460][DEBUG][SurfaceRegistry] [surface] registered surfaceId=33 kind=box name=box-31 worldPos=(136.0, 30.122423, -300.0)
+[20:15:51.460][DEBUG][SurfaceRegistry] [surface] registered surfaceId=34 kind=box name=box-32 worldPos=(136.0, 31.483358, -300.0)
+[20:15:51.461][DEBUG][SurfaceRegistry] [surface] registered surfaceId=35 kind=box name=box-33 worldPos=(144.0, 2.459188, -300.0)
+[20:15:51.461][DEBUG][SurfaceRegistry] [surface] registered surfaceId=36 kind=box name=box-34 worldPos=(144.0, 7.361066, -300.0)
+[20:15:51.462][DEBUG][SurfaceRegistry] [surface] registered surfaceId=37 kind=box name=box-35 worldPos=(144.0, 12.209596, -300.0)
+[20:15:51.462][DEBUG][SurfaceRegistry] [surface] registered surfaceId=38 kind=box name=box-36 worldPos=(144.0, 16.977926, -300.0)
+[20:15:51.463][DEBUG][SurfaceRegistry] [surface] registered surfaceId=39 kind=box name=box-37 worldPos=(144.0, 21.595247, -300.0)
+[20:15:51.463][DEBUG][SurfaceRegistry] [surface] registered surfaceId=40 kind=box name=box-38 worldPos=(144.0, 25.993713, -300.0)
+[20:15:51.464][DEBUG][SurfaceRegistry] [surface] registered surfaceId=41 kind=box name=box-39 worldPos=(144.0, 30.137583, -300.0)
+[20:15:51.464][DEBUG][SurfaceRegistry] [surface] registered surfaceId=42 kind=box name=box-40 worldPos=(144.0, 34.089993, -300.0)
+[20:15:51.465][DEBUG][SurfaceRegistry] [surface] registered surfaceId=43 kind=box name=box-41 worldPos=(144.0, 37.229557, -300.0)
+[20:15:51.465][DEBUG][SurfaceRegistry] [surface] registered surfaceId=44 kind=box name=box-42 worldPos=(144.0, 39.2018, -300.0)
+[20:15:51.466][DEBUG][SurfaceRegistry] [surface] registered surfaceId=45 kind=box name=box-43 worldPos=(144.0, 40.53331, -300.0)
+[20:15:51.466][DEBUG][SurfaceRegistry] [surface] registered surfaceId=46 kind=box name=box-44 worldPos=(152.0, 2.4010854, -300.0)
+[20:15:51.467][DEBUG][SurfaceRegistry] [surface] registered surfaceId=47 kind=box name=box-45 worldPos=(152.0, 6.570088, -300.0)
+[20:15:51.467][DEBUG][SurfaceRegistry] [surface] registered surfaceId=48 kind=box name=box-46 worldPos=(152.0, 9.99752, -300.0)
+[20:15:51.468][DEBUG][SurfaceRegistry] [surface] registered surfaceId=49 kind=box name=box-47 worldPos=(152.0, 13.196444, -300.0)
+[20:15:51.468][DEBUG][SurfaceRegistry] [surface] registered surfaceId=50 kind=box name=box-48 worldPos=(152.0, 15.835473, -300.0)
+[20:15:51.469][DEBUG][SurfaceRegistry] [surface] registered surfaceId=51 kind=box name=box-49 worldPos=(152.0, 17.99491, -300.0)
+[20:15:51.469][DEBUG][SurfaceRegistry] [surface] registered surfaceId=52 kind=box name=box-50 worldPos=(152.0, 20.017498, -300.0)
+[20:15:51.470][DEBUG][SurfaceRegistry] [surface] registered surfaceId=53 kind=box name=box-51 worldPos=(152.0, 21.903698, -300.0)
+[20:15:51.470][DEBUG][SurfaceRegistry] [surface] registered surfaceId=54 kind=box name=box-52 worldPos=(152.0, 23.60377, -300.0)
+[20:15:51.471][DEBUG][SurfaceRegistry] [surface] registered surfaceId=55 kind=box name=box-53 worldPos=(152.0, 24.906532, -300.0)
+[20:15:51.471][DEBUG][SurfaceRegistry] [surface] registered surfaceId=56 kind=box name=box-54 worldPos=(152.0, 25.93818, -300.0)
+[20:15:51.472][DEBUG][SurfaceRegistry] [surface] registered surfaceId=57 kind=box name=box-55 worldPos=(160.0, 2.334845, -300.0)
+[20:15:51.472][DEBUG][SurfaceRegistry] [surface] registered surfaceId=58 kind=box name=box-56 worldPos=(160.0, 6.9280486, -300.0)
+[20:15:51.473][DEBUG][SurfaceRegistry] [surface] registered surfaceId=59 kind=box name=box-57 worldPos=(160.0, 11.374885, -300.0)
+[20:15:51.473][DEBUG][SurfaceRegistry] [surface] registered surfaceId=60 kind=box name=box-58 worldPos=(160.0, 15.533655, -300.0)
+[20:15:51.474][DEBUG][SurfaceRegistry] [surface] registered surfaceId=61 kind=box name=box-59 worldPos=(160.0, 19.31103, -300.0)
+[20:15:51.475][DEBUG][SurfaceRegistry] [surface] registered surfaceId=62 kind=box name=box-60 worldPos=(160.0, 22.690521, -300.0)
+[20:15:51.475][DEBUG][SurfaceRegistry] [surface] registered surfaceId=63 kind=box name=box-61 worldPos=(160.0, 25.818691, -300.0)
+[20:15:51.476][DEBUG][SurfaceRegistry] [surface] registered surfaceId=64 kind=box name=box-62 worldPos=(160.0, 28.895325, -300.0)
+[20:15:51.476][DEBUG][SurfaceRegistry] [surface] registered surfaceId=65 kind=box name=box-63 worldPos=(160.0, 31.307863, -300.0)
+[20:15:51.477][DEBUG][SurfaceRegistry] [surface] registered surfaceId=66 kind=box name=box-64 worldPos=(160.0, 32.74741, -300.0)
+[20:15:51.477][DEBUG][SurfaceRegistry] [surface] registered surfaceId=67 kind=box name=box-65 worldPos=(160.0, 33.80277, -300.0)
+[20:15:51.491][DEBUG][JsWorldSystem] [JsWorldSystem] loaded module=Scripts/player/index.js exportsKeys=[create, init, update, destroy, PlayerController]
+[20:15:51.500][DEBUG][EntityApiImpl] [entity] created uuid=a4d3784d-a9d6-37a1-b642-bf570ba62d1f name='player'
+[20:15:51.501][DEBUG][SurfaceRegistry] [surface] registered surfaceId=68 kind=capsule name=player.surface worldPos=(135.0, -10.0, -334.0)
+[20:15:51.501][DEBUG][SurfaceRegistry] [surface] attached surfaceId=68 entityUuid=a4d3784d-a9d6-37a1-b642-bf570ba62d1f
+[20:15:51.506][DEBUG][EngineApiImpl] [sky][clock] phase=2 time01=0.2500
+[20:15:51.530][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=0,y=0z=0)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.02443790435791z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=2.02443790435791z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=5.950796604156494z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=5.950796604156494z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=9.746886253356934z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=9.746886253356934z=-300)
+[20:15:51.531][DEBUG][EngineApiImpl] Spawned at (x=120,y=13.423853874206543z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=13.423853874206543z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=16.890573501586914z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=16.890573501586914z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=20.191953659057617z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=20.191953659057617z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=23.407203674316406z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=23.407203674316406z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=26.360261917114258z=-300)
+[20:15:51.532][DEBUG][EngineApiImpl] Spawned at (x=120,y=26.360261917114258z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=29.05692481994629z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=29.05692481994629z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=31.59893226623535z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=31.59893226623535z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=33.967708587646484z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=120,y=33.967708587646484z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.4323084354400635z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=128,y=2.4323084354400635z=-300)
+[20:15:51.533][DEBUG][EngineApiImpl] Spawned at (x=128,y=7.289098739624023z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=7.289098739624023z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=12.060514450073242z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=12.060514450073242z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=16.66922950744629z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=16.66922950744629z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=21.165531158447266z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=21.165531158447266z=-300)
+[20:15:51.534][DEBUG][EngineApiImpl] Spawned at (x=128,y=25.5477352142334z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=25.5477352142334z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=28.662405014038086z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=28.662405014038086z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=30.28293800354004z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=30.28293800354004z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=31.499378204345703z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=31.499378204345703z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=32.61643600463867z=-300)
+[20:15:51.535][DEBUG][EngineApiImpl] Spawned at (x=128,y=32.61643600463867z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=128,y=33.68226623535156z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=128,y=33.68226623535156z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=136,y=2.331665515899658z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=136,y=2.331665515899658z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=136,y=6.9800567626953125z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=136,y=6.9800567626953125z=-300)
+[20:15:51.536][DEBUG][EngineApiImpl] Spawned at (x=136,y=11.570541381835938z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=11.570541381835938z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=15.973071098327637z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=15.973071098327637z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=19.52214813232422z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=19.52214813232422z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=22.185903549194336z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=22.185903549194336z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=24.551637649536133z=-300)
+[20:15:51.537][DEBUG][EngineApiImpl] Spawned at (x=136,y=24.551637649536133z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=26.720075607299805z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=26.720075607299805z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=28.586599349975586z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=28.586599349975586z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=30.12242317199707z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=30.12242317199707z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=31.48335838317871z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=136,y=31.48335838317871z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.4591879844665527z=-300)
+[20:15:51.538][DEBUG][EngineApiImpl] Spawned at (x=144,y=2.4591879844665527z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=7.361065864562988z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=7.361065864562988z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=12.209595680236816z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=12.209595680236816z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=16.97792625427246z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=16.97792625427246z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=21.595247268676758z=-300)
+[20:15:51.539][DEBUG][EngineApiImpl] Spawned at (x=144,y=21.595247268676758z=-300)
+[20:15:51.540][DEBUG][EngineApiImpl] Spawned at (x=144,y=25.99371337890625z=-300)
+[20:15:51.540][DEBUG][EngineApiImpl] Spawned at (x=144,y=25.99371337890625z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=30.137582778930664z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=30.137582778930664z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=34.08999252319336z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=34.08999252319336z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=37.229557037353516z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=37.229557037353516z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=39.20180130004883z=-300)
+[20:15:51.599][DEBUG][EngineApiImpl] Spawned at (x=144,y=39.20180130004883z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=144,y=40.53330993652344z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=144,y=40.53330993652344z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.401085376739502z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=2.401085376739502z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=6.570087909698486z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=6.570087909698486z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=9.997520446777344z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=9.997520446777344z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=13.196443557739258z=-300)
+[20:15:51.600][DEBUG][EngineApiImpl] Spawned at (x=152,y=13.196443557739258z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=15.83547306060791z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=15.83547306060791z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=17.994909286499023z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=17.994909286499023z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=20.017498016357422z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=20.017498016357422z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=21.903697967529297z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=21.903697967529297z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=23.603769302368164z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=23.603769302368164z=-300)
+[20:15:51.601][DEBUG][EngineApiImpl] Spawned at (x=152,y=24.906532287597656z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=152,y=24.906532287597656z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=152,y=25.938180923461914z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=152,y=25.938180923461914z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.3348450660705566z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=2.3348450660705566z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=6.928048610687256z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=6.928048610687256z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=11.374884605407715z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=11.374884605407715z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=15.533655166625977z=-300)
+[20:15:51.602][DEBUG][EngineApiImpl] Spawned at (x=160,y=15.533655166625977z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=19.3110294342041z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=19.3110294342041z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=22.690521240234375z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=22.690521240234375z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=25.81869125366211z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=25.81869125366211z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=28.89532470703125z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=28.89532470703125z=-300)
+[20:15:51.603][DEBUG][EngineApiImpl] Spawned at (x=160,y=31.307863235473633z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=160,y=31.307863235473633z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=160,y=32.74740982055664z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=160,y=32.74740982055664z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=160,y=33.80276870727539z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=160,y=33.80276870727539z=-300)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
+[20:15:51.604][DEBUG][EngineApiImpl] Spawned at (x=135,y=-10z=-334)
+[20:15:54.306][DEBUG][SurfaceRegistry] [surface] registered surfaceId=69 kind=sphere name=shot-1 worldPos=(132.18689, -9.4246855, -334.78925)
+[20:15:54.323][ERROR][EngineApiImpl] [world:main] system onUpdate failed: org.foxesworld.kalitech.engine.world.systems.JsWorldSystem@49db9183
+java.lang.RuntimeException: [JsWorldSystem] js threw in update module=Scripts/player/index.js err=Error: [MSH] surface has no physics body (bodyId=0)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.invokeIfPresent(JsWorldSystem.java:226)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.lambda$onUpdate$1(JsWorldSystem.java:82)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.withScopedSystem(JsWorldSystem.java:166)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.onUpdate(JsWorldSystem.java:69)
+	at org.foxesworld.kalitech.engine.world.KWorld.updateSystems(KWorld.java:180)
+	at org.foxesworld.kalitech.engine.world.KWorld.update(KWorld.java:136)
+	at org.foxesworld.kalitech.engine.world.WorldAppState.update(WorldAppState.java:140)
+	at com.jme3.app.state.AppStateManager.update(AppStateManager.java:371)
+	at com.jme3.app.SimpleApplication.update(SimpleApplication.java:260)
+	at com.jme3.system.lwjgl.LwjglWindow.runLoop(LwjglWindow.java:707)
+	at com.jme3.system.lwjgl.LwjglWindow.run(LwjglWindow.java:797)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: org.graalvm.polyglot.PolyglotException: Error: [MSH] surface has no physics body (bodyId=0)
+	at <js>.resolveBodyId(@builtin/modules/Mesh/helpers/MeshIds.js:34)
+	at <js>.bodyId(@builtin/modules/Mesh/MeshOrchestrator.js:69)
+	at <js>.:=>(@builtin/modules/Mesh/MeshOrchestrator.js:101)
+	at <js>._fire(Scripts/player/systems/ShootSystem.js:460)
+	at <js>.update(Scripts/player/systems/ShootSystem.js:471)
+	at <js>.onUpdate(Scripts/player/controllers/PlayerGameplayController.js:56)
+	at <js>._tick(@builtin/modules/Controllers/helpers/ControllerStack:60)
+	at <js>.update(@builtin/modules/Controllers/helpers/EntityController:23)
+	at <js>.update(Scripts/player/PlayerController.js:29)
+	at <js>.update(Scripts/player/index.js:91)
+	at org.graalvm.polyglot.Value.execute(Value.java:1049)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.invokeIfPresent(JsWorldSystem.java:222)
+	... 11 more
+[20:15:54.334][DEBUG][EngineApiImpl] Spawned at (x=132.1868896484375,y=-9.42468547821045z=-334.78924560546875)
+[20:15:54.334][DEBUG][EngineApiImpl] Spawned at (x=132.1868896484375,y=-9.42468547821045z=-334.78924560546875)
+[20:15:55.649][DEBUG][SurfaceRegistry] [surface] registered surfaceId=70 kind=sphere name=shot-2 worldPos=(127.02938, -9.288288, -340.11456)
+[20:15:55.650][ERROR][EngineApiImpl] [world:main] system onUpdate failed: org.foxesworld.kalitech.engine.world.systems.JsWorldSystem@49db9183
+java.lang.RuntimeException: [JsWorldSystem] js threw in update module=Scripts/player/index.js err=Error: [MSH] surface has no physics body (bodyId=0)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.invokeIfPresent(JsWorldSystem.java:226)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.lambda$onUpdate$1(JsWorldSystem.java:82)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.withScopedSystem(JsWorldSystem.java:166)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.onUpdate(JsWorldSystem.java:69)
+	at org.foxesworld.kalitech.engine.world.KWorld.updateSystems(KWorld.java:180)
+	at org.foxesworld.kalitech.engine.world.KWorld.update(KWorld.java:136)
+	at org.foxesworld.kalitech.engine.world.WorldAppState.update(WorldAppState.java:140)
+	at com.jme3.app.state.AppStateManager.update(AppStateManager.java:371)
+	at com.jme3.app.SimpleApplication.update(SimpleApplication.java:260)
+	at com.jme3.system.lwjgl.LwjglWindow.runLoop(LwjglWindow.java:707)
+	at com.jme3.system.lwjgl.LwjglWindow.run(LwjglWindow.java:797)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: org.graalvm.polyglot.PolyglotException: Error: [MSH] surface has no physics body (bodyId=0)
+	at <js>.resolveBodyId(@builtin/modules/Mesh/helpers/MeshIds.js:34)
+	at <js>.bodyId(@builtin/modules/Mesh/MeshOrchestrator.js:69)
+	at <js>.:=>(@builtin/modules/Mesh/MeshOrchestrator.js:101)
+	at <js>._fire(Scripts/player/systems/ShootSystem.js:460)
+	at <js>.update(Scripts/player/systems/ShootSystem.js:471)
+	at <js>.onUpdate(Scripts/player/controllers/PlayerGameplayController.js:56)
+	at <js>._tick(@builtin/modules/Controllers/helpers/ControllerStack:60)
+	at <js>.update(@builtin/modules/Controllers/helpers/EntityController:23)
+	at <js>.update(Scripts/player/PlayerController.js:29)
+	at <js>.update(Scripts/player/index.js:91)
+	at org.graalvm.polyglot.Value.execute(Value.java:1049)
+	at org.foxesworld.kalitech.engine.world.systems.JsWorldSystem.invokeIfPresent(JsWorldSystem.java:222)
+	... 11 more
+[20:15:55.667][DEBUG][EngineApiImpl] Spawned at (x=127.02938079833984,y=-9.288288116455078z=-340.11456298828125)
+[20:15:55.667][DEBUG][EngineApiImpl] Spawned at (x=127.02938079833984,y=-9.288288116455078z=-340.11456298828125)
+[20:16:02.964][INFO][ScriptRuntime] Closing ScriptRuntime
+[20:16:02.966][INFO][ScriptRuntime] [script] invalidateAll removed=28 reason=reset
+[20:16:02.973][INFO][RuntimeAppState] [Runtime] stopped

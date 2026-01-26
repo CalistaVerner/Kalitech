@@ -30,7 +30,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-@Deprecated
 public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
     private static final Logger log = LogManager.getLogger(WorldApiImpl.class);

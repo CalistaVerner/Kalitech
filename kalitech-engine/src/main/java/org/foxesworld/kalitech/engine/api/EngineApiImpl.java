@@ -61,7 +61,7 @@ public final class EngineApiImpl implements EngineApi {
     //private final MaterialApi materialApi;
     private final EditorApi editorApi;
     private final EditorLinesApi editorLinesApi;
-    private final PhysicsApiImpl physicsApi;
+    private final PhysicsApi physicsApi;
     //private final HudApiImpl hudApi;
     private final ModulesApi modulesApi;
     private final MeshApi meshApi;
@@ -131,7 +131,7 @@ public final class EngineApiImpl implements EngineApi {
         //this.cameraApi = apiRegistry.register(new CameraApiImpl());
 
 
-        this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
+        //this.physicsApi = apiRegistry.register(new PhysicsApiImpl());
         this.surfaceApi = apiRegistry.register(new SurfaceApiImpl());
 
         //this.terrainApi = apiRegistry.register(new TerrainApiImpl());
@@ -147,6 +147,7 @@ public final class EngineApiImpl implements EngineApi {
         this.editorApi = apiRegistry.register(new EditorApiImpl());
         this.modulesApi = apiRegistry.register(new ModulesApiImpl());
         this.moduleManager.loadFromDir(java.nio.file.Path.of("./modules"));
+        this.physicsApi = apiRegistry.api("physics", PhysicsApi.class);
         this.cameraApi = apiRegistry.api("camera", CameraApi.class);
         this.renderApi = apiRegistry.api("render", RenderApi.class);
     }

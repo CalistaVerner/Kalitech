@@ -19,7 +19,6 @@ import java.util.Objects;
  * Provides stable overloads for both one-arg and two-arg calls:
  * LOG.error("msg") and LOG.error("msg", err).
  */
-@Deprecated
 public final class LogApiImpl extends AbstractApiModule implements LogApi {
 
     private Logger sink;

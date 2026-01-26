@@ -994,10 +994,9 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!registry.exists(surfaceId)) return 0;
 
         PhysicsApi p = this.physicsApi;
-        if (!(p instanceof PhysicsApiImpl impl)) return 0;
 
         try {
-            return impl.bodyOfSurface(surfaceId);
+            return p.bodyOfSurface(surfaceId);
         } catch (RuntimeException ignored) {
             return 0;
         }
@@ -1020,7 +1019,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         onJmeSyncVoid("surface.destroy", () -> {
             PhysicsApi p = this.physicsApi;
-            if (p instanceof PhysicsApiImpl impl) impl.__cleanupSurface(target.id());
+            p.__cleanupSurface(target.id());
 
             registry.detachFromParent(target.id());
 
