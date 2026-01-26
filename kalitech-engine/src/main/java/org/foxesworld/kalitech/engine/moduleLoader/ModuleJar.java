@@ -1,4 +1,4 @@
-package org.foxesworld.kalitech.engine.modules.moduleLoader;
+package org.foxesworld.kalitech.engine.moduleLoader;
 
 import java.net.MalformedURLException;
 import java.net.URL;

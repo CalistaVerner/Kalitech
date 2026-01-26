@@ -1,4 +1,4 @@
-package org.foxesworld.kalitech.engine.modules.moduleLoader;
+package org.foxesworld.kalitech.engine.moduleLoader;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;

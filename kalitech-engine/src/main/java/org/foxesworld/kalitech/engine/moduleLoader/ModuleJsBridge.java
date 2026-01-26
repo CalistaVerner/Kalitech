@@ -1,4 +1,4 @@
-package org.foxesworld.kalitech.engine.modules.moduleLoader;
+package org.foxesworld.kalitech.engine.moduleLoader;
 
 /**
  * Bridge for mounting JS/TS/docs resources from module JARs into the scripting runtime.
