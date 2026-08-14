@@ -1,13 +1,12 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Arrays = luaRuntime.array
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -16,26 +15,26 @@ end
 function reqFn(self, fn, msg)
     if KTypeOf(fn) ~= "function" then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
     return fn
 end
-ControllerStack = LuaClass()
+ControllerStack = Classes:create()
 ControllerStack.name = "ControllerStack"
 function ControllerStack.prototype.lua_constructor(self, modules, ids)
     self.ctx = nil
     self.entity = nil
     local lua_Array_isArray_result_0
-    if LuaArrayIsArray(modules) then
+    if Arrays:isArray(modules) then
         lua_Array_isArray_result_0 = modules
     else
         lua_Array_isArray_result_0 = {}
     end
     self.modules = lua_Array_isArray_result_0
     local lua_Array_isArray_result_1
-    if LuaArrayIsArray(ids) then
+    if Arrays:isArray(ids) then
         lua_Array_isArray_result_1 = ids
     else
         lua_Array_isArray_result_1 = KArray(_G, #self.modules)
@@ -46,7 +45,7 @@ function ControllerStack.prototype.lua_constructor(self, modules, ids)
 end
 function ControllerStack.fromRegistry(self, registry, ctx, entity, cfg)
     local built = registry:build(ctx, entity, cfg)
-    local stack = LuaConstruct(ControllerStack, built.list, built.ids)
+    local stack = Classes:construct(ControllerStack, built.list, built.ids)
     return stack:bind(ctx, entity)
 end
 function ControllerStack.prototype.bind(self, ctx, entity)
@@ -130,7 +129,7 @@ function ControllerStack.prototype.rebuildFromRegistry(self, registry, cfg)
     registry = req(_G, registry, "[Stack] registry is required")
     if not self.ctx or not self.entity then
         error(
-            LuaConstruct(Error, "[Stack] rebuild requires bound stack"),
+            Classes:construct(Error, "[Stack] rebuild requires bound stack"),
             0
         )
     end

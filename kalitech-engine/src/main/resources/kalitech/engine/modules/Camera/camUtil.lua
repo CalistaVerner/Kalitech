@@ -1,11 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
+local Numbers = luaRuntime.number
 function num(self, v, fb)
-    v = LuaNumber(v)
+    v = Numbers:coerce(v)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(v) then
+    if Numbers:isFinite(v) then
         lua_Number_isFinite_result_0 = v
     else
         lua_Number_isFinite_result_0 = fb
@@ -26,7 +25,7 @@ function vget(self, v, k, fb)
     end
     local n = lua_temp_1
     local lua_Number_isFinite_result_2
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_2 = n
     else
         lua_Number_isFinite_result_2 = fb
@@ -77,7 +76,7 @@ function expSmooth(self, cur, target, smooth, dt)
     if s == 0 then
         return target
     end
-    local a = 1 - math.exp(LuaNumber(-s) * dt)
+    local a = 1 - math.exp(Numbers:coerce(-s) * dt)
     return cur + (target - cur) * a
 end
 M = {

@@ -180,8 +180,8 @@ public final class HotReloadWatcher implements Closeable {
      * then clears internal buffer.
      * <p>
      * Example returned ids:
-     * - "Scripts/systems/scene.lua"
-     * - "Scripts/entities/player.lua"
+     * - "lua/systems/scene.lua"
+     * - "lua/entities/player.lua"
      */
     public Set<String> pollChanged() {
         WatchKey key;

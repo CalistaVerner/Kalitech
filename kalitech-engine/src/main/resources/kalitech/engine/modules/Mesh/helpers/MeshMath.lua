@@ -1,12 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
 function num(self, v, fb)
-    local n = LuaNumber(v)
+    local n = Numbers:coerce(v)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_0 = n
     else
         lua_Number_isFinite_result_0 = fb or 0
@@ -14,10 +13,10 @@ function num(self, v, fb)
     return lua_Number_isFinite_result_0
 end
 function isObj(self, v)
-    return v ~= nil and KTypeOf(v) == "table" and not LuaArrayIsArray(v)
+    return v ~= nil and KTypeOf(v) == "table" and not Arrays:isArray(v)
 end
 function normalizePos(self, p)
-    if LuaArrayIsArray(p) then
+    if Arrays:isArray(p) then
         return {
             num(_G, p[1], 0),
             num(_G, p[2], 0),

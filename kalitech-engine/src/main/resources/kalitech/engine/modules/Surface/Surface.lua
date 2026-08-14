@@ -1,13 +1,13 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("../helpers/ModuleCommon.lua")
 requireEngineApi = lua_require_result_0.requireEngineApi
 function requireHandle(self, handle, method)
     if not handle then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ("[SURFACE] " .. tostring(method)) .. " requires a SurfaceHandle"
             ),

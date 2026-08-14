@@ -1,17 +1,18 @@
 // FILE: ScriptComponent.java
 package org.foxesworld.kalitech.engine.ecs.components;
 
+import org.foxesworld.kalitech.engine.script.ScriptEntryPoint;
 import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
+import org.foxesworld.kalitech.engine.script.resolve.PathNorm;
 
 /**
- * Script component per entity.
+ * Per-entity Lua component addressed by a canonical application module id.
  *
- * <p>assetPath example: {@code "Scripts/entities/player.lua"}.</p>
+ * <p>Example: {@code "@app/game/entities/player.lua"}.</p>
  */
 public final class ScriptComponent {
 
-    public final String assetPath;
-    public final transient String moduleId;
+    public final String moduleId;
     public final transient long moduleHash;
 
     public transient LuaValueRef instance;
@@ -23,17 +24,15 @@ public final class ScriptComponent {
     public transient long quarantineVersion;
     public transient String quarantineReason;
 
-    public ScriptComponent(String assetPath) {
-        this.assetPath = assetPath;
-        this.moduleId = normalize(assetPath);
-        this.moduleHash = hash64(this.moduleId);
-    }
-
-    private static String normalize(String id) {
-        if (id == null) return "";
-        String s = id.trim().replace('\\', '/');
-        while (s.startsWith("./")) s = s.substring(2);
-        return s;
+    public ScriptComponent(String moduleId) {
+        String normalized = PathNorm.normalizeId(moduleId);
+        if (!normalized.startsWith(ScriptEntryPoint.APP_PREFIX) || !normalized.endsWith(".lua")) {
+            throw new IllegalArgumentException(
+                    "Entity script must be a canonical Lua module id: @app/<namespace>/.../*.lua"
+            );
+        }
+        this.moduleId = normalized;
+        this.moduleHash = hash64(normalized);
     }
 
     private static long hash64(String s) {

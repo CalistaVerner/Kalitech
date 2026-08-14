@@ -1,22 +1,21 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("./PhysicsOrchestrator.lua")
 PhysicsOrchestrator = lua_require_result_0.PhysicsOrchestrator
 local lua_require_result_1 = require("./helpers/PhysicsEvents.lua")
 createPhysicsEvents = lua_require_result_1.createPhysicsEvents
-EnginePhysics = LuaClass()
+EnginePhysics = Classes:create()
 EnginePhysics.name = "EnginePhysics"
 function EnginePhysics.prototype.lua_constructor(self, ENGINE)
     if not ENGINE then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] ENGINE is required"),
+            Classes:construct(Error, "[ENGINE.physics] ENGINE is required"),
             0
         )
     end
-    self._orch = LuaConstruct(PhysicsOrchestrator, ENGINE)
+    self._orch = Classes:construct(PhysicsOrchestrator, ENGINE)
     self.events = createPhysicsEvents(_G, ENGINE, self)
     KObject:freeze(self.events)
     KObject:freeze(self)
@@ -120,11 +119,11 @@ end
 function create(self, ENGINE)
     if not ENGINE then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] ENGINE is required"),
+            Classes:construct(Error, "[ENGINE.physics] ENGINE is required"),
             0
         )
     end
-    return LuaConstruct(EnginePhysics, ENGINE)
+    return Classes:construct(EnginePhysics, ENGINE)
 end
 M = setmetatable({
     EnginePhysics = EnginePhysics,

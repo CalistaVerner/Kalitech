@@ -1,8 +1,8 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaTableRemove = luaRuntime.LuaTableRemove
+local Classes = luaRuntime.class
+local Tables = luaRuntime.table
 local lua_require_result_0 = require("./Util.lua")
 isPlainObj = lua_require_result_0.isPlainObj
 local lua_require_result_1 = require("./Assets.lua")
@@ -18,7 +18,7 @@ function buildDataConfigApi(self, engine, cfgSection)
     local cacheText = KObject:create(nil)
     local cacheJson = KObject:create(nil)
     local function list(self)
-        return LuaTableKeys(cfg)
+        return Tables:keys(cfg)
     end
     local function pathOf(self, name)
         local k = tostring(name or "")
@@ -88,8 +88,8 @@ function buildDataConfigApi(self, engine, cfgSection)
         if not p then
             return false
         end
-        LuaTableRemove(cacheText, p)
-        LuaTableRemove(cacheJson, p)
+        Tables:remove(cacheText, p)
+        Tables:remove(cacheJson, p)
         return true
     end
     local function reloadAll(self)
@@ -131,7 +131,7 @@ function buildDataConfigApi(self, engine, cfgSection)
         reload = reload,
         reloadAll = reloadAll
     }
-    local keys = LuaTableKeys(cfg)
+    local keys = Tables:keys(cfg)
     do
         local i = 0
         while i < #keys do
@@ -142,6 +142,7 @@ function buildDataConfigApi(self, engine, cfgSection)
     end
     return api
 end
-M = {buildDataConfigApi = buildDataConfigApi}
-
-return M
+local BootstrapDataConfigApi = Classes:create()
+BootstrapDataConfigApi.name = "BootstrapDataConfigApi"
+BootstrapDataConfigApi.prototype.buildDataConfigApi = buildDataConfigApi
+return Classes:construct(BootstrapDataConfigApi)

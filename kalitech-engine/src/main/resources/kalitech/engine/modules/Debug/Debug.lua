@@ -1,15 +1,13 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaSparseArrayNew = luaRuntime.LuaSparseArrayNew
-local LuaSparseArrayPush = luaRuntime.LuaSparseArrayPush
-local LuaSparseArraySpread = luaRuntime.LuaSparseArraySpread
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaTableRemove = luaRuntime.LuaTableRemove
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
+local SparseArrays = luaRuntime.sparseArray
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function safeJson(self, v)
     do
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
@@ -33,7 +31,7 @@ function isObj(self, v)
     return not not v and KTypeOf(v) == "table"
 end
 function clamp01(self, x)
-    x = LuaNumber(x)
+    x = Numbers:coerce(x)
     if not (x == x) then
         return 0
     end
@@ -49,17 +47,17 @@ function v3(self, x, y, z, dx, dy, dz)
     if x == nil then
         return {dx or 0, dy or 0, dz or 0}
     end
-    if LuaArrayIsArray(x) then
+    if Arrays:isArray(x) then
         local lua_x__1_0 = x[1]
         if lua_x__1_0 == nil then
             lua_x__1_0 = dx or 0
         end
-        local lua_temp_3 = LuaNumber(lua_x__1_0) or 0
+        local lua_temp_3 = Numbers:coerce(lua_x__1_0) or 0
         local lua_x__2_1 = x[2]
         if lua_x__2_1 == nil then
             lua_x__2_1 = dy or 0
         end
-        local lua_temp_4 = LuaNumber(lua_x__2_1) or 0
+        local lua_temp_4 = Numbers:coerce(lua_x__2_1) or 0
         local lua_x__3_2 = x[3]
         if lua_x__3_2 == nil then
             lua_x__3_2 = dz or 0
@@ -67,26 +65,26 @@ function v3(self, x, y, z, dx, dy, dz)
         return {
             lua_temp_3,
             lua_temp_4,
-            LuaNumber(lua_x__3_2) or 0
+            Numbers:coerce(lua_x__3_2) or 0
         }
     end
     if isObj(_G, x) and KTypeOf(x.x) == "number" then
         return {
-            LuaNumber(x.x) or 0,
-            LuaNumber(x.y) or 0,
-            LuaNumber(x.z) or 0
+            Numbers:coerce(x.x) or 0,
+            Numbers:coerce(x.y) or 0,
+            Numbers:coerce(x.z) or 0
         }
     end
     local lua_x_5 = x
     if lua_x_5 == nil then
         lua_x_5 = dx or 0
     end
-    local lua_temp_8 = LuaNumber(lua_x_5) or 0
+    local lua_temp_8 = Numbers:coerce(lua_x_5) or 0
     local lua_y_6 = y
     if lua_y_6 == nil then
         lua_y_6 = dy or 0
     end
-    local lua_temp_9 = LuaNumber(lua_y_6) or 0
+    local lua_temp_9 = Numbers:coerce(lua_y_6) or 0
     local lua_z_7 = z
     if lua_z_7 == nil then
         lua_z_7 = dz or 0
@@ -94,7 +92,7 @@ function v3(self, x, y, z, dx, dy, dz)
     return {
         lua_temp_8,
         lua_temp_9,
-        LuaNumber(lua_z_7) or 0
+        Numbers:coerce(lua_z_7) or 0
     }
 end
 function rgba(self, r, g, b, a, dr, dg, db, da)
@@ -117,7 +115,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
         end
         return {lua_dr_10, lua_dg_11, lua_db_12, lua_da_13}
     end
-    if LuaArrayIsArray(r) then
+    if Arrays:isArray(r) then
         local lua_clamp01_17 = clamp01
         local lua_G_16 = _G
         local lua_r__1_15 = r[1]
@@ -128,7 +126,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r__1_15 = lua_dr_14
         end
-        local lua_array_30 = LuaSparseArrayNew(lua_clamp01_17(lua_G_16, lua_r__1_15))
+        local lua_array_30 = SparseArrays:new(lua_clamp01_17(lua_G_16, lua_r__1_15))
         local lua_clamp01_21 = clamp01
         local lua_G_20 = _G
         local lua_r__2_19 = r[2]
@@ -139,7 +137,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r__2_19 = lua_dg_18
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_30,
             lua_clamp01_21(lua_G_20, lua_r__2_19)
         )
@@ -153,7 +151,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r__3_23 = lua_db_22
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_30,
             lua_clamp01_25(lua_G_24, lua_r__3_23)
         )
@@ -167,11 +165,11 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r__4_27 = lua_da_26
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_30,
             lua_clamp01_29(lua_G_28, lua_r__4_27)
         )
-        return {LuaSparseArraySpread(lua_array_30)}
+        return {SparseArrays:spread(lua_array_30)}
     end
     if isObj(_G, r) and (KTypeOf(r.r) == "number" or KTypeOf(r.g) == "number" or KTypeOf(r.b) == "number") then
         local lua_clamp01_34 = clamp01
@@ -184,7 +182,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r_r_32 = lua_dr_31
         end
-        local lua_array_47 = LuaSparseArrayNew(lua_clamp01_34(lua_G_33, lua_r_r_32))
+        local lua_array_47 = SparseArrays:new(lua_clamp01_34(lua_G_33, lua_r_r_32))
         local lua_clamp01_38 = clamp01
         local lua_G_37 = _G
         local lua_r_g_36 = r.g
@@ -195,7 +193,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r_g_36 = lua_dg_35
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_47,
             lua_clamp01_38(lua_G_37, lua_r_g_36)
         )
@@ -209,7 +207,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r_b_40 = lua_db_39
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_47,
             lua_clamp01_42(lua_G_41, lua_r_b_40)
         )
@@ -223,11 +221,11 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
             end
             lua_r_a_44 = lua_da_43
         end
-        LuaSparseArrayPush(
+        SparseArrays:push(
             lua_array_47,
             lua_clamp01_46(lua_G_45, lua_r_a_44)
         )
-        return {LuaSparseArraySpread(lua_array_47)}
+        return {SparseArrays:spread(lua_array_47)}
     end
     local lua_clamp01_51 = clamp01
     local lua_G_50 = _G
@@ -239,7 +237,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
         end
         lua_r_49 = lua_dr_48
     end
-    local lua_array_64 = LuaSparseArrayNew(lua_clamp01_51(lua_G_50, lua_r_49))
+    local lua_array_64 = SparseArrays:new(lua_clamp01_51(lua_G_50, lua_r_49))
     local lua_clamp01_55 = clamp01
     local lua_G_54 = _G
     local lua_g_53 = g
@@ -250,7 +248,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
         end
         lua_g_53 = lua_dg_52
     end
-    LuaSparseArrayPush(
+    SparseArrays:push(
         lua_array_64,
         lua_clamp01_55(lua_G_54, lua_g_53)
     )
@@ -264,7 +262,7 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
         end
         lua_b_57 = lua_db_56
     end
-    LuaSparseArrayPush(
+    SparseArrays:push(
         lua_array_64,
         lua_clamp01_59(lua_G_58, lua_b_57)
     )
@@ -278,14 +276,14 @@ function rgba(self, r, g, b, a, dr, dg, db, da)
         end
         lua_a_61 = lua_da_60
     end
-    LuaSparseArrayPush(
+    SparseArrays:push(
         lua_array_64,
         lua_clamp01_63(lua_G_62, lua_a_61)
     )
-    return {LuaSparseArraySpread(lua_array_64)}
+    return {SparseArrays:spread(lua_array_64)}
 end
 function makePrefix(self, scope)
-    local s = LuaStringTrim(tostring(scope or ""))
+    local s = Strings:trim(tostring(scope or ""))
     local lua_s_65
     if s then
         lua_s_65 = ("[" .. s) .. "] "
@@ -374,7 +372,7 @@ function makeApi(self, engine)
     end
     local function makeState(self, scopeName, parentState)
         local api
-        local scope = LuaStringTrim(tostring(scopeName or ""))
+        local scope = Strings:trim(tostring(scopeName or ""))
         local prefix = makePrefix(_G, scope)
         local lua_temp_67
         if parentState and parentState.ttl ~= nil then
@@ -405,9 +403,9 @@ function makeApi(self, engine)
             local out = cfg or ({})
             local lua_temp_71
             if ttl ~= nil then
-                lua_temp_71 = LuaNumber(ttl)
+                lua_temp_71 = Numbers:coerce(ttl)
             else
-                lua_temp_71 = LuaNumber(S.ttl)
+                lua_temp_71 = Numbers:coerce(S.ttl)
             end
             local t = lua_temp_71
             local lua_temp_72
@@ -426,9 +424,9 @@ function makeApi(self, engine)
             out.depthTest = lua_temp_73
             local lua_temp_74
             if alpha ~= nil then
-                lua_temp_74 = LuaNumber(alpha)
+                lua_temp_74 = Numbers:coerce(alpha)
             else
-                lua_temp_74 = LuaNumber(S.alpha)
+                lua_temp_74 = Numbers:coerce(S.alpha)
             end
             local a = lua_temp_74
             if a == a then
@@ -455,11 +453,11 @@ function makeApi(self, engine)
             callN(
                 _G,
                 "tick",
-                LuaNumber(tpf) or 0
+                Numbers:coerce(tpf) or 0
             )
         end
         local function setTTL(self, sec)
-            S.ttl = LuaNumber(sec)
+            S.ttl = Numbers:coerce(sec)
             if not (S.ttl == S.ttl) then
                 S.ttl = 0
             end
@@ -470,7 +468,7 @@ function makeApi(self, engine)
             return api
         end
         local function setAlpha(self, a)
-            S.alpha = LuaNumber(a)
+            S.alpha = Numbers:coerce(a)
             if not (S.alpha == S.alpha) then
                 S.alpha = 1
             end
@@ -553,7 +551,7 @@ function makeApi(self, engine)
                     lua_clamp01_79(lua_G_78, lua_cfg__alpha_77)
                 }
             end
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "line", cfg)
             return api
         end
@@ -582,7 +580,7 @@ function makeApi(self, engine)
             )
             local lua_temp_80
             if len ~= nil then
-                lua_temp_80 = LuaNumber(len)
+                lua_temp_80 = Numbers:coerce(len)
             else
                 lua_temp_80 = 1
             end
@@ -600,7 +598,7 @@ function makeApi(self, engine)
                 alpha
             )
             if arrowSize ~= nil then
-                cfg.arrowSize = LuaNumber(arrowSize)
+                cfg.arrowSize = Numbers:coerce(arrowSize)
             end
             local c = rgba(
                 _G,
@@ -626,7 +624,7 @@ function makeApi(self, engine)
                 c[3],
                 clamp01(_G, aa)
             }
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "ray", cfg)
             return api
         end
@@ -645,7 +643,7 @@ function makeApi(self, engine)
             )
             local lua_temp_87
             if size ~= nil then
-                lua_temp_87 = LuaNumber(size)
+                lua_temp_87 = Numbers:coerce(size)
             else
                 lua_temp_87 = 1
             end
@@ -656,7 +654,7 @@ function makeApi(self, engine)
                 depthTest,
                 nil
             )
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "axes", cfg)
             return api
         end
@@ -688,7 +686,7 @@ function makeApi(self, engine)
                 1
             )
             if rotOrEulerDeg ~= nil then
-                if LuaArrayIsArray(rotOrEulerDeg) and #rotOrEulerDeg >= 4 then
+                if Arrays:isArray(rotOrEulerDeg) and #rotOrEulerDeg >= 4 then
                     cfg.rot = rotOrEulerDeg
                 else
                     cfg.eulerDeg = v3(
@@ -727,7 +725,7 @@ function makeApi(self, engine)
                 c[3],
                 clamp01(_G, aa)
             }
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "box", cfg)
             return api
         end
@@ -746,14 +744,14 @@ function makeApi(self, engine)
             )
             local lua_temp_92
             if radius ~= nil then
-                lua_temp_92 = LuaNumber(radius)
+                lua_temp_92 = Numbers:coerce(radius)
             else
                 lua_temp_92 = 1
             end
             local lua_temp_93
             if segments ~= nil then
                 lua_temp_93 = bit32.bor(
-                    LuaNumber(segments),
+                    Numbers:coerce(segments),
                     0
                 )
             else
@@ -790,7 +788,7 @@ function makeApi(self, engine)
                 c[3],
                 clamp01(_G, aa)
             }
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "sphere", cfg)
             return api
         end
@@ -819,14 +817,14 @@ function makeApi(self, engine)
             )
             local lua_temp_98
             if radius ~= nil then
-                lua_temp_98 = LuaNumber(radius)
+                lua_temp_98 = Numbers:coerce(radius)
             else
                 lua_temp_98 = 1
             end
             local lua_temp_99
             if segments ~= nil then
                 lua_temp_99 = bit32.bor(
-                    LuaNumber(segments),
+                    Numbers:coerce(segments),
                     0
                 )
             else
@@ -863,7 +861,7 @@ function makeApi(self, engine)
                 c[3],
                 clamp01(_G, aa)
             }
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "circle", cfg)
             return api
         end
@@ -899,7 +897,7 @@ function makeApi(self, engine)
                 c[3],
                 clamp01(_G, aa)
             }
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "polyline", cfg)
             return api
         end
@@ -918,20 +916,20 @@ function makeApi(self, engine)
             )
             local lua_temp_106
             if halfSize ~= nil then
-                lua_temp_106 = LuaNumber(halfSize)
+                lua_temp_106 = Numbers:coerce(halfSize)
             else
                 lua_temp_106 = 10
             end
             local lua_temp_107
             if step ~= nil then
-                lua_temp_107 = LuaNumber(step)
+                lua_temp_107 = Numbers:coerce(step)
             else
                 lua_temp_107 = 1
             end
             local lua_temp_108
             if majorEvery ~= nil then
                 lua_temp_108 = bit32.bor(
-                    LuaNumber(majorEvery),
+                    Numbers:coerce(majorEvery),
                     0
                 )
             else
@@ -970,14 +968,14 @@ function makeApi(self, engine)
                     0.85
                 )
             end
-            LuaTableRemove(cfg, "_alpha")
+            Tables:remove(cfg, "_alpha")
             call(_G, "grid", cfg)
             return api
         end
         local function child(self, childScope)
             return makeState(
                 _G,
-                prefix .. LuaStringTrim(tostring(childScope or "")),
+                prefix .. Strings:trim(tostring(childScope or "")),
                 S
             ).api
         end
@@ -1065,7 +1063,7 @@ create = setmetatable(
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[DEBUG] engine is required"),
+                Classes:construct(Error, "[DEBUG] engine is required"),
                 0
             )
         end

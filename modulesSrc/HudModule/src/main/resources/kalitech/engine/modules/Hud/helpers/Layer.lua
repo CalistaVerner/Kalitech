@@ -1,17 +1,13 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Collections = luaRuntime.collection
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
+local Iterators = luaRuntime.iterator
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
-local LuaNumberIsNaN = luaRuntime.LuaNumberIsNaN
-local LuaArraySetLength = luaRuntime.LuaArraySetLength
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaTableRemove = luaRuntime.LuaTableRemove
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaSet = luaRuntime.LuaSet
-local LuaIterator = luaRuntime.LuaIterator
 local lua_require_result_0 = require("./HudUtil.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
@@ -36,7 +32,7 @@ end
 function fmtQ2(self, q)
     local neg = q < 0
     if neg then
-        q = LuaNumber(-q)
+        q = Numbers:coerce(-q)
     end
     local i = bit32.bor(q / 100, 0)
     local f = q - i * 100
@@ -49,7 +45,7 @@ function prefixSpecInPlace(self, spec, prefix)
     local p = tostring(prefix)
     local dot = p .. "."
     local stack = {}
-    if LuaArrayIsArray(spec) then
+    if Arrays:isArray(spec) then
         do
             local i = #spec - 1
             while i >= 0 do
@@ -68,7 +64,7 @@ function prefixSpecInPlace(self, spec, prefix)
             end
             if not KObject:isExtensible(s) then
                 error(
-                    LuaConstruct(Error, "[HUD] ns.spec(): spec object is not extensible (frozen/sealed). Provide mutable spec or use builder-level prefixing."),
+                    Classes:construct(Error, "[HUD] ns.spec(): spec object is not extensible (frozen/sealed). Provide mutable spec or use builder-level prefixing."),
                     0
                 )
             end
@@ -88,7 +84,7 @@ function prefixSpecInPlace(self, spec, prefix)
             if not kids then
                 goto lua_continue12
             end
-            if LuaArrayIsArray(kids) then
+            if Arrays:isArray(kids) then
                 do
                     local i = #kids - 1
                     while i >= 0 do
@@ -104,7 +100,7 @@ function prefixSpecInPlace(self, spec, prefix)
     end
     return spec
 end
-LayerBindings = LuaClass()
+LayerBindings = Classes:create()
 LayerBindings.name = "LayerBindings"
 function LayerBindings.prototype.lua_constructor(self, ns)
     self._ns = ns
@@ -165,7 +161,7 @@ function LayerBindings.prototype.run(self, model)
                     local v = lua_self_10[i + 1](lua_self_10, model)
                     if KTypeOf(v) == "number" then
                         local last = self._lastN[i + 1]
-                        if v == last or LuaNumberIsNaN(v) and LuaNumberIsNaN(last) then
+                        if v == last or Numbers:isNaN(v) and Numbers:isNaN(last) then
                             goto lua_continue31
                         end
                         self._lastN[i + 1] = v
@@ -227,7 +223,7 @@ function LayerBindings.prototype.run(self, model)
         end
     end
 end
-PanelBuilder = LuaClass()
+PanelBuilder = Classes:create()
 PanelBuilder.name = "PanelBuilder"
 function PanelBuilder.prototype.lua_constructor(self, layer, panel)
     self._layer = layer
@@ -247,7 +243,7 @@ function PanelBuilder.prototype.done(self)
     end
     return self._panel
 end
-Layer = LuaClass()
+Layer = Classes:create()
 Layer.name = "Layer"
 function Layer.prototype.lua_constructor(self, hud, handle)
     self._hud = hud
@@ -265,9 +261,9 @@ function Layer.prototype.lua_constructor(self, hud, handle)
 end
 function Layer.prototype._disposeLocal(self)
     self._reg = KObject:create(nil)
-    LuaArraySetLength(self._regKeys, 0)
+    Arrays:setLength(self._regKeys, 0)
     self._radioGroups = KObject:create(nil)
-    LuaArraySetLength(self._placed, 0)
+    Arrays:setLength(self._placed, 0)
     self._dirtyLayout = false
     self._autoLayout = true
     self.__specEpochCounter = 0
@@ -287,9 +283,9 @@ function Layer.prototype.destroy(self)
 end
 function Layer.prototype.clear(self)
     self._reg = KObject:create(nil)
-    LuaArraySetLength(self._regKeys, 0)
+    Arrays:setLength(self._regKeys, 0)
     self._radioGroups = KObject:create(nil)
-    LuaArraySetLength(self._placed, 0)
+    Arrays:setLength(self._placed, 0)
     self._dirtyLayout = false
     self.__specEpochCounter = 0
     self._api:clearLayer(self.handle)
@@ -299,7 +295,7 @@ function Layer.prototype.buildPanel(self, cfg)
         cfg = {}
     end
     local p = self:panel(cfg)
-    return LuaConstruct(PanelBuilder, self, p)
+    return Classes:construct(PanelBuilder, self, p)
 end
 function Layer.prototype.spec(self, spec, opts)
     if opts == nil then
@@ -308,10 +304,10 @@ function Layer.prototype.spec(self, spec, opts)
     return buildFromSpec(_G, self, spec, opts or ({}))
 end
 function Layer.prototype.ns(self, prefix)
-    local p = LuaStringTrim(tostring(prefix or ""))
+    local p = Strings:trim(tostring(prefix or ""))
     if not p then
         error(
-            LuaConstruct(Error, "[HUD] layer.ns(prefix): prefix is required"),
+            Classes:construct(Error, "[HUD] layer.ns(prefix): prefix is required"),
             0
         )
     end
@@ -361,7 +357,7 @@ function Layer.prototype.ns(self, prefix)
             local c = lua_isObj_result_17
             if c.id == nil then
                 error(
-                    LuaConstruct(Error, "[HUD] ns.text: cfg.id is required"),
+                    Classes:construct(Error, "[HUD] ns.text: cfg.id is required"),
                     0
                 )
             end
@@ -378,7 +374,7 @@ function Layer.prototype.ns(self, prefix)
             local c = lua_isObj_result_18
             if c.id == nil then
                 error(
-                    LuaConstruct(Error, "[HUD] ns.panel: cfg.id is required"),
+                    Classes:construct(Error, "[HUD] ns.panel: cfg.id is required"),
                     0
                 )
             end
@@ -397,7 +393,7 @@ function Layer.prototype.ns(self, prefix)
             return layer:spec(spec0, o)
         end,
         bind = function(self)
-            return LuaConstruct(LayerBindings, self)
+            return Classes:construct(LayerBindings, self)
         end
     }
 end
@@ -440,7 +436,7 @@ function Layer.prototype.drop(self, key, remove)
     if not el then
         return nil
     end
-    LuaTableRemove(self._reg, k)
+    Tables:remove(self._reg, k)
     self:_regRemoveKey(k)
     if el.kind == "radio" and el._radioGroup then
         local s = self._radioGroups[el._radioGroup]
@@ -614,7 +610,7 @@ function Layer.prototype.container(self, cfg)
         lua_ph_26 = self._api:addContainer(self.handle, x, y)
     end
     local h = lua_ph_26
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         h,
@@ -698,7 +694,7 @@ function Layer.prototype.panel(self, cfg)
         )
     end
     local hh = lua_ph_30
-    local panel = LuaConstruct(
+    local panel = Classes:construct(
         Panel,
         self._hud,
         hh,
@@ -828,7 +824,7 @@ function Layer.prototype.text(self, cfg)
         lua_ph_41 = self._api:addLabel(self.handle, text, x, y)
     end
     local hh = lua_ph_41
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         hh,
@@ -873,7 +869,7 @@ function Layer.prototype.stackText(self, panel, cfg)
     local p = panel
     if not p or p.kind ~= "panel" then
         error(
-            LuaConstruct(Error, "[HUD] stackText requires panel"),
+            Classes:construct(Error, "[HUD] stackText requires panel"),
             0
         )
     end
@@ -900,7 +896,7 @@ function Layer.prototype.stackText(self, panel, cfg)
         0,
         0
     )
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         hh,
@@ -1113,7 +1109,7 @@ function Layer.prototype.input(self, cfg)
         )
     end
     local hh = lua_ph_54
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         hh,
@@ -1198,7 +1194,7 @@ function Layer.prototype.checkbox(self, cfg)
         lua_ph_59 = self._api:addCheckbox(self.handle, text, x, y)
     end
     local hh = lua_ph_59
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         hh,
@@ -1297,7 +1293,7 @@ function Layer.prototype.slider(self, cfg)
         )
     end
     local hh = lua_ph_63
-    local el = LuaConstruct(
+    local el = Classes:construct(
         Element,
         self._hud,
         hh,
@@ -1330,13 +1326,13 @@ function Layer.prototype.radio(self, cfg)
     local c = lua_isObj_result_64
     if c.id == nil then
         error(
-            LuaConstruct(Error, "[HUD] radio requires {id}"),
+            Classes:construct(Error, "[HUD] radio requires {id}"),
             0
         )
     end
     local group = tostring(c.group or "default")
     local id = tostring(c.id)
-    local el = self:checkbox(LuaTableMerge({}, c, {id = id}))
+    local el = self:checkbox(Tables:merge({}, c, {id = id}))
     el.kind = "radio"
     el._radioGroup = group
     self:_radioRegister(group, id)
@@ -1356,7 +1352,7 @@ function Layer.prototype._radioRegister(self, groupName, key)
     local g = tostring(groupName or "default")
     local s = self._radioGroups[g]
     if not s then
-        local lua_construct_result_65 = LuaConstruct(LuaSet)
+        local lua_construct_result_65 = Collections:newSet()
         self._radioGroups[g] = lua_construct_result_65
         s = lua_construct_result_65
     end
@@ -1369,7 +1365,7 @@ function Layer.prototype._radioSelect(self, groupName, key)
     if not s then
         return
     end
-    for lua_, it in LuaIterator(s) do
+    for lua_, it in Iterators:iterate(s) do
         do
             local el = self:get(it)
             if not el then
@@ -1397,7 +1393,7 @@ function Layer.prototype.radioGroup(self, name)
                 return {}
             end
             local out = {}
-            for lua_, k in LuaIterator(s) do
+            for lua_, k in Iterators:iterate(s) do
                 local el = lua_self:get(k)
                 if el then
                     out[#out + 1] = el
@@ -1410,7 +1406,7 @@ function Layer.prototype.radioGroup(self, name)
             if not s then
                 return nil
             end
-            for lua_, k in LuaIterator(s) do
+            for lua_, k in Iterators:iterate(s) do
                 local el = lua_self:get(k)
                 if el and isFn(_G, lua_self._api.isChecked) and lua_self._api:isChecked(el.handle) then
                     return el
@@ -1449,7 +1445,7 @@ function Layer.prototype.radioGroup(self, name)
             if not s then
                 return
             end
-            for lua_, k in LuaIterator(s) do
+            for lua_, k in Iterators:iterate(s) do
                 local el = lua_self:get(k)
                 if el and isFn(_G, lua_self._api.setChecked) then
                     lua_self._api:setChecked(el.handle, false)

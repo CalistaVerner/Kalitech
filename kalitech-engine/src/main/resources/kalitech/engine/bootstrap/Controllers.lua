@@ -1,13 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaArrayMap = luaRuntime.LuaArrayMap
-local LuaArraySort = luaRuntime.LuaArraySort
-local LuaArrayJoin = luaRuntime.LuaArrayJoin
 local lua_require_result_0 = require("./Util.lua")
 isPlainObj = lua_require_result_0.isPlainObj
 isObj = lua_require_result_0.isObj
@@ -16,7 +13,7 @@ function createControllersApi(self, K)
         local k = tostring(name or "")
         if not k then
             error(
-                LuaConstruct(Error, "[CONTROLLERS] registry name is required"),
+                Classes:construct(Error, "[CONTROLLERS] registry name is required"),
                 0
             )
         end
@@ -40,13 +37,13 @@ function createControllersApi(self, K)
         id = tostring(id or "")
         if not id then
             error(
-                LuaConstruct(Error, "[CONTROLLERS] id is required"),
+                Classes:construct(Error, "[CONTROLLERS] id is required"),
                 0
             )
         end
         if R.defs[id] then
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     (("[CONTROLLERS] duplicate id: " .. tostring(registryName)) .. "::") .. tostring(id)
                 ),
@@ -62,13 +59,13 @@ function createControllersApi(self, K)
         spec = lua_isObj_result_1
         local lua_id_9 = id
         local lua_Number_isFinite_result_2
-        if LuaNumberIsFinite(spec.order) then
+        if Numbers:isFinite(spec.order) then
             lua_Number_isFinite_result_2 = spec.order
         else
             lua_Number_isFinite_result_2 = 0
         end
         local lua_Array_isArray_result_3
-        if LuaArrayIsArray(spec.deps) then
+        if Arrays:isArray(spec.deps) then
             lua_Array_isArray_result_3 = KArrayOps.slice(spec.deps)
         else
             lua_Array_isArray_result_3 = {}
@@ -122,7 +119,7 @@ function createControllersApi(self, K)
         end
         if not def.moduleId then
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     "[CONTROLLERS] no Ctor/moduleId for: " .. tostring(def.id)
                 ),
@@ -139,7 +136,7 @@ function createControllersApi(self, K)
         local ctor = lua_def_exportName_10
         if KTypeOf(ctor) ~= "function" then
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     (((("[CONTROLLERS] resolved ctor is not a function for: " .. tostring(def.id)) .. " moduleId=") .. tostring(def.moduleId)) .. " export=") .. tostring(def.exportName)
                 ),
@@ -151,8 +148,8 @@ function createControllersApi(self, K)
     end
     local function build(self, registryName, ctx, entity, cfg)
         local R = ensureRegistry(_G, registryName)
-        local defsArr = LuaArrayMap(
-            LuaTableKeys(R.defs),
+        local defsArr = Arrays:map(
+            Tables:keys(R.defs),
             function(lua_, k) return R.defs[k] end
         )
         local active = {}
@@ -185,7 +182,7 @@ function createControllersApi(self, K)
                         local dep = KIndex(d.deps, j)
                         if not R.defs[dep] then
                             error(
-                                LuaConstruct(
+                                Classes:construct(
                                     Error,
                                     (("[CONTROLLERS] unknown dep: " .. tostring(d.id)) .. " -> ") .. tostring(dep)
                                 ),
@@ -194,7 +191,7 @@ function createControllersApi(self, K)
                         end
                         if not activeSet[dep] then
                             error(
-                                LuaConstruct(
+                                Classes:construct(
                                     Error,
                                     (("[CONTROLLERS] dep disabled: " .. tostring(d.id)) .. " -> ") .. tostring(dep)
                                 ),
@@ -244,7 +241,7 @@ function createControllersApi(self, K)
                 i = i + 1
             end
         end
-        LuaArraySort(
+        Arrays:sort(
             q,
             function(lua_, a, b) return a.order - b.order or (a.id < b.id and -1 or (a.id > b.id and 1 or 0)) end
         )
@@ -260,7 +257,7 @@ function createControllersApi(self, K)
                     indeg[to] = indeg[to] - 1
                     if indeg[to] == 0 then
                         q[#q + 1] = activeSet[to]
-                        LuaArraySort(
+                        Arrays:sort(
                             q,
                             function(lua_, a, b) return a.order - b.order or (a.id < b.id and -1 or (a.id > b.id and 1 or 0)) end
                         )
@@ -281,9 +278,9 @@ function createControllersApi(self, K)
                 end
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
-                    "[CONTROLLERS] dependency cycle: " .. LuaArrayJoin(stuck, " -> ")
+                    "[CONTROLLERS] dependency cycle: " .. Arrays:join(stuck, " -> ")
                 ),
                 0
             )
@@ -296,7 +293,7 @@ function createControllersApi(self, K)
                 local d = ordered[i + 1]
                 local Ctor = _resolveCtor(_G, d)
                 KSetIndex(ids, i, d.id)
-                KSetIndex(list, i, LuaConstruct(Ctor, cfg or nil))
+                KSetIndex(list, i, Classes:construct(Ctor, cfg or nil))
                 i = i + 1
             end
         end
@@ -313,7 +310,7 @@ function loadRegistrators(self, engine, K, controllersCfg, CONTROLLERS)
     end
     local cfg = lua_isPlainObj_result_11
     local lua_Array_isArray_result_12
-    if LuaArrayIsArray(cfg.registrators) then
+    if Arrays:isArray(cfg.registrators) then
         lua_Array_isArray_result_12 = cfg.registrators
     else
         lua_Array_isArray_result_12 = {}
@@ -333,7 +330,7 @@ function loadRegistrators(self, engine, K, controllersCfg, CONTROLLERS)
                 local regExp = require(mid)
                 if KTypeOf(regExp) ~= "function" then
                     error(
-                        LuaConstruct(Error, "[CONTROLLERS] registrator must export function(engine,K,CONTROLLERS,cfg): " .. mid),
+                        Classes:construct(Error, "[CONTROLLERS] registrator must export function(engine,K,CONTROLLERS,cfg): " .. mid),
                         0
                     )
                 end
@@ -351,6 +348,8 @@ function loadRegistrators(self, engine, K, controllersCfg, CONTROLLERS)
         end
     end
 end
-M = {createControllersApi = createControllersApi, loadRegistrators = loadRegistrators}
-
-return M
+local BootstrapControllersApi = Classes:create()
+BootstrapControllersApi.name = "BootstrapControllersApi"
+BootstrapControllersApi.prototype.createControllersApi = createControllersApi
+BootstrapControllersApi.prototype.loadRegistrators = loadRegistrators
+return Classes:construct(BootstrapControllersApi)

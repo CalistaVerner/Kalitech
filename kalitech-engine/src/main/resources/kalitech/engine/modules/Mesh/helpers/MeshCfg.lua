@@ -1,7 +1,7 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Tables = luaRuntime.table
 local lua_require_result_0 = require("./MeshMath.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
@@ -14,7 +14,7 @@ function normalizeCfg(self, cfg)
         lua_isObj_result_1 = {}
     end
     cfg = lua_isObj_result_1
-    local out = LuaTableMerge({}, cfg)
+    local out = Tables:merge({}, cfg)
     if out.type ~= nil then
         out.type = tostring(out.type)
     end
@@ -86,7 +86,7 @@ function withType(self, lua_type, cfg)
 end
 function unshadedColor(self, rgba)
     local lua_Array_isArray_result_6
-    if LuaArrayIsArray(rgba) then
+    if Arrays:isArray(rgba) then
         lua_Array_isArray_result_6 = rgba
     else
         lua_Array_isArray_result_6 = {1, 1, 1, 1}

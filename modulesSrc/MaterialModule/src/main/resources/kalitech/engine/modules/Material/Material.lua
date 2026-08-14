@@ -1,15 +1,10 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaArraySort = luaRuntime.LuaArraySort
-local LuaClass = luaRuntime.LuaClass
+local Arrays = luaRuntime.array
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArraySlice = luaRuntime.LuaArraySlice
-local LuaTableRemove = luaRuntime.LuaTableRemove
-local LuaArraySetLength = luaRuntime.LuaArraySetLength
 function isPlainLuaTable(self, x)
     if not x or KTypeOf(x) ~= "table" then
         return false
@@ -20,7 +15,7 @@ end
 function shallowClone(self, obj)
     local lua_obj_0
     if obj then
-        lua_obj_0 = LuaTableMerge({}, obj)
+        lua_obj_0 = Tables:merge({}, obj)
     else
         lua_obj_0 = KObject:create(nil)
     end
@@ -30,7 +25,7 @@ function stableStringify(self, obj)
     if not obj or KTypeOf(obj) ~= "table" then
         return tostring(obj)
     end
-    local keys = LuaArraySort(LuaTableKeys(obj))
+    local keys = Arrays:sort(Tables:keys(obj))
     local out = "{"
     do
         local i = 0
@@ -44,7 +39,7 @@ function stableStringify(self, obj)
     out = out .. "}"
     return out
 end
-MaterialsRegistry = LuaClass()
+MaterialsRegistry = Classes:create()
 MaterialsRegistry.name = "MaterialsRegistry"
 function MaterialsRegistry.prototype.lua_constructor(self, engine, K)
     self.engineRef = engine
@@ -60,7 +55,7 @@ function MaterialsRegistry.prototype.engine(self)
     local e = self.engineRef
     if not e then
         error(
-            LuaConstruct(Error, "[MAT] engine not attached"),
+            Classes:construct(Error, "[MAT] engine not attached"),
             0
         )
     end
@@ -93,7 +88,7 @@ function MaterialsRegistry.prototype.loadDefs(self)
                 lua_temp_2 = e
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     lua_Error_4,
                     lua_temp_3 .. tostring(lua_temp_2)
                 ),
@@ -104,7 +99,7 @@ function MaterialsRegistry.prototype.loadDefs(self)
             local assets = self:engine().assets and self:engine():assets()
             if not assets or KTypeOf(assets.readText) ~= "function" then
                 error(
-                    LuaConstruct(Error, "engine.assets().readText missing"),
+                    Classes:construct(Error, "engine.assets().readText missing"),
                     0
                 )
             end
@@ -125,7 +120,7 @@ function MaterialsRegistry.prototype.loadDefs(self)
                 lua_temp_5 = e
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     lua_Error_7,
                     lua_temp_6 .. tostring(lua_temp_5)
                 ),
@@ -141,7 +136,7 @@ function MaterialsRegistry.prototype.loadDefs(self)
     end
     if not self.defs or KTypeOf(self.defs) ~= "table" then
         error(
-            LuaConstruct(Error, ("[MAT] defs must be an object map in '" .. path) .. "'"),
+            Classes:construct(Error, ("[MAT] defs must be an object map in '" .. path) .. "'"),
             0
         )
     end
@@ -153,7 +148,7 @@ function MaterialsRegistry.prototype.keys(self)
             return true, {}
         end
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
-            return true, LuaTableKeys(self:loadDefs())
+            return true, Tables:keys(self:loadDefs())
         end)
         if not lua_try then
             lua_hasReturned, lua_returnValue = lua_catch(lua_hasReturned)
@@ -169,7 +164,7 @@ function MaterialsRegistry.prototype.base(self, name)
     local b = all[n]
     if not b then
         local sample = table.concat(
-            LuaArraySlice(
+            Arrays:slice(
                 self:keys(),
                 0,
                 12
@@ -177,7 +172,7 @@ function MaterialsRegistry.prototype.base(self, name)
             ", "
         )
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 (((((("[MAT] unknown material: " .. n) .. " (db=") .. self:dbPath()) .. ", known=") .. sample) .. (#self:keys() > 12 and ", ..." or "")) .. ")"
             ),
@@ -229,10 +224,10 @@ function MaterialsRegistry.prototype.applyOverrides(self, cfg, normalized)
         return
     end
     if normalized.params then
-        LuaTableMerge(cfg.params, normalized.params)
+        Tables:merge(cfg.params, normalized.params)
     end
     if normalized.scales then
-        cfg.scales = LuaTableMerge(cfg.scales or ({}), normalized.scales)
+        cfg.scales = Tables:merge(cfg.scales or ({}), normalized.scales)
     end
 end
 function MaterialsRegistry.prototype._ovKey(self, name, normalized)
@@ -266,13 +261,13 @@ function MaterialsRegistry.prototype._ovCachePut(self, map, key, value)
     while #self._overrideCacheOrder > max do
         local old = table.remove(self._overrideCacheOrder, 1)
         if old and map[old] then
-            LuaTableRemove(map, old)
+            Tables:remove(map, old)
         end
         if old and self.cacheMatOv[old] then
-            LuaTableRemove(self.cacheMatOv, old)
+            Tables:remove(self.cacheMatOv, old)
         end
         if old and self.cacheHandleOv[old] then
-            LuaTableRemove(self.cacheHandleOv, old)
+            Tables:remove(self.cacheHandleOv, old)
         end
     end
 end
@@ -291,7 +286,7 @@ function MaterialsRegistry.prototype.getHandle(self, name, overrides)
     local matApi = self:engine().material and self:engine():material()
     if not matApi or KTypeOf(matApi.createId) ~= "function" then
         error(
-            LuaConstruct(Error, "[MAT] engine.material().createId(cfg) is required"),
+            Classes:construct(Error, "[MAT] engine.material().createId(cfg) is required"),
             0
         )
     end
@@ -324,10 +319,10 @@ function MaterialsRegistry.prototype.preset(self, name, overrides)
                 local b = lua_self:normalizeOverrides(moreOverrides) or ({params = nil, scales = nil})
                 local merged = {params = nil, scales = nil}
                 if a.params or b.params then
-                    merged.params = LuaTableMerge({}, a.params or nil, b.params or nil)
+                    merged.params = Tables:merge({}, a.params or nil, b.params or nil)
                 end
                 if a.scales or b.scales then
-                    merged.scales = LuaTableMerge({}, a.scales or nil, b.scales or nil)
+                    merged.scales = Tables:merge({}, a.scales or nil, b.scales or nil)
                 end
                 return lua_self:getMaterial(n, merged)
             end
@@ -340,10 +335,10 @@ function MaterialsRegistry.prototype.preset(self, name, overrides)
             local b = lua_self:normalizeOverrides(moreOverrides) or ({params = nil, scales = nil})
             local merged = {params = nil, scales = nil}
             if a.params or b.params then
-                merged.params = LuaTableMerge({}, a.params or nil, b.params or nil)
+                merged.params = Tables:merge({}, a.params or nil, b.params or nil)
             end
             if a.scales or b.scales then
-                merged.scales = LuaTableMerge({}, a.scales or nil, b.scales or nil)
+                merged.scales = Tables:merge({}, a.scales or nil, b.scales or nil)
             end
             return lua_self:getHandle(n, merged)
         end
@@ -378,12 +373,12 @@ end
 function MaterialsRegistry.prototype.reload(self)
     self.defs = nil
     for k in pairs(self.cacheHandle) do
-        LuaTableRemove(self.cacheHandle, k)
+        Tables:remove(self.cacheHandle, k)
     end
     for k in pairs(self.cacheHandleOv) do
-        LuaTableRemove(self.cacheHandleOv, k)
+        Tables:remove(self.cacheHandleOv, k)
     end
-    LuaArraySetLength(self._overrideCacheOrder, 0)
+    Arrays:setLength(self._overrideCacheOrder, 0)
     return true
 end
 create = setmetatable(
@@ -391,11 +386,11 @@ create = setmetatable(
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[MAT] engine is required"),
+                Classes:construct(Error, "[MAT] engine is required"),
                 0
             )
         end
-        return LuaConstruct(MaterialsRegistry, engine, K)
+        return Classes:construct(MaterialsRegistry, engine, K)
     end}
 )
 create.META = {

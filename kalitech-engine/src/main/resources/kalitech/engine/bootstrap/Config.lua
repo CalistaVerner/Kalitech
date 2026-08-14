@@ -1,4 +1,6 @@
 local M = {}
+local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 DEFAULT_CONFIG = {
     dataConfig = {
         materials = {path = "data/materials.json"},
@@ -8,6 +10,7 @@ DEFAULT_CONFIG = {
         sounds = {path = "data/sounds.json"}
     }
 }
-M = {DEFAULT_CONFIG = DEFAULT_CONFIG}
-
-return M
+local BootstrapConfigApi = Classes:create()
+BootstrapConfigApi.name = "BootstrapConfigApi"
+BootstrapConfigApi.prototype.DEFAULT_CONFIG = DEFAULT_CONFIG
+return Classes:construct(BootstrapConfigApi)

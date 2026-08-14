@@ -1,19 +1,13 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaArraySlice = luaRuntime.LuaArraySlice
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaTableRemove = luaRuntime.LuaTableRemove
-local LuaMap = luaRuntime.LuaMap
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaArrayConcat = luaRuntime.LuaArrayConcat
+local Collections = luaRuntime.collection
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaNumber = luaRuntime.LuaNumber
-local LuaArrayReduce = luaRuntime.LuaArrayReduce
 local lua_require_result_0 = require("@builtin/modules/Entity/helpers/EntUtil.lua")
 req = lua_require_result_0.req
 function isObj(self, v)
@@ -25,7 +19,7 @@ end
 function safeInt(self, v, fb)
     v = bit32.bor(v, 0)
     local lua_Number_isFinite_result_1
-    if LuaNumberIsFinite(v) then
+    if Numbers:isFinite(v) then
         lua_Number_isFinite_result_1 = v
     else
         lua_Number_isFinite_result_1 = bit32.bor(fb, 0)
@@ -94,24 +88,24 @@ function deepMerge(self, base, over)
     if not isObj(_G, over) then
         return base
     end
-    if not isObj(_G, base) or LuaArrayIsArray(base) then
-        if LuaArrayIsArray(over) then
-            return LuaArraySlice(over)
+    if not isObj(_G, base) or Arrays:isArray(base) then
+        if Arrays:isArray(over) then
+            return Arrays:slice(over)
         end
         local out0 = KObject:create(nil)
-        local ks0 = LuaTableKeys(over)
+        local ks0 = Tables:keys(over)
         do
             local i = 0
             while i < #ks0 do
                 local k = ks0[i + 1]
                 local v = over[k]
                 local lua_temp_6
-                if isObj(_G, v) and not LuaArrayIsArray(v) then
+                if isObj(_G, v) and not Arrays:isArray(v) then
                     lua_temp_6 = deepMerge(_G, nil, v)
                 else
                     local lua_Array_isArray_result_5
-                    if LuaArrayIsArray(v) then
-                        lua_Array_isArray_result_5 = LuaArraySlice(v)
+                    if Arrays:isArray(v) then
+                        lua_Array_isArray_result_5 = Arrays:slice(v)
                     else
                         lua_Array_isArray_result_5 = v
                     end
@@ -123,8 +117,8 @@ function deepMerge(self, base, over)
         end
         return out0
     end
-    local out = LuaTableMerge({}, base)
-    local ks = LuaTableKeys(over)
+    local out = Tables:merge({}, base)
+    local ks = Tables:keys(over)
     do
         local i = 0
         while i < #ks do
@@ -132,8 +126,8 @@ function deepMerge(self, base, over)
                 local k = ks[i + 1]
                 local ov = over[k]
                 local bv = out[k]
-                if LuaArrayIsArray(ov) then
-                    out[k] = LuaArraySlice(ov)
+                if Arrays:isArray(ov) then
+                    out[k] = Arrays:slice(ov)
                     goto lua_continue22
                 end
                 if isObj(_G, ov) then
@@ -152,12 +146,12 @@ function stripMax(self, cfg)
     if not cfg or not hasOwn(_G, cfg, "max") then
         return cfg
     end
-    local out = LuaTableMerge({}, cfg)
-    LuaTableRemove(out, "max")
+    local out = Tables:merge({}, cfg)
+    Tables:remove(out, "max")
     return out
 end
 function isPlainObject(self, v)
-    return not not v and KTypeOf(v) == "table" and not LuaArrayIsArray(v)
+    return not not v and KTypeOf(v) == "table" and not Arrays:isArray(v)
 end
 function isSpawnOptsLike(self, v)
     if not isPlainObject(_G, v) then
@@ -199,7 +193,7 @@ create = setmetatable(
         function loadBank(self, bankObj)
             if not isObj(_G, bankObj) then
                 error(
-                    LuaConstruct(Error, "[PARTICLES] loadBank(bankObj): object is required"),
+                    Classes:construct(Error, "[PARTICLES] loadBank(bankObj): object is required"),
                     0
                 )
             end
@@ -210,21 +204,21 @@ create = setmetatable(
                 lua_temp_11 = bankObj
             end
             local src = lua_temp_11
-            if LuaArrayIsArray(src) then
+            if Arrays:isArray(src) then
                 do
                     local i = 0
                     while i < #src do
                         local e = src[i + 1]
                         if not isObj(_G, e) then
                             error(
-                                LuaConstruct(Error, "[PARTICLES] templates[] entry must be object"),
+                                Classes:construct(Error, "[PARTICLES] templates[] entry must be object"),
                                 0
                             )
                         end
-                        local name = LuaStringTrim(tostring(e.name or ""))
+                        local name = Strings:trim(tostring(e.name or ""))
                         if not name then
                             error(
-                                LuaConstruct(Error, "[PARTICLES] templates[] entry must have name"),
+                                Classes:construct(Error, "[PARTICLES] templates[] entry must have name"),
                                 0
                             )
                         end
@@ -233,7 +227,7 @@ create = setmetatable(
                     end
                 end
             elseif isObj(_G, src) then
-                local ks = LuaTableKeys(src)
+                local ks = Tables:keys(src)
                 do
                     local i = 0
                     while i < #ks do
@@ -244,7 +238,7 @@ create = setmetatable(
                 end
             else
                 error(
-                    LuaConstruct(Error, "[PARTICLES] bank.templates must be object-map or array"),
+                    Classes:construct(Error, "[PARTICLES] bank.templates must be object-map or array"),
                     0
                 )
             end
@@ -252,20 +246,20 @@ create = setmetatable(
             return true
         end
         function define(self, name, cfg)
-            name = LuaStringTrim(tostring(name or ""))
+            name = Strings:trim(tostring(name or ""))
             if not name then
                 error(
-                    LuaConstruct(Error, "[PARTICLES] define(name,cfg): name is required"),
+                    Classes:construct(Error, "[PARTICLES] define(name,cfg): name is required"),
                     0
                 )
             end
             if not isObj(_G, cfg) then
                 error(
-                    LuaConstruct(Error, "[PARTICLES] define(name,cfg): cfg object is required"),
+                    Classes:construct(Error, "[PARTICLES] define(name,cfg): cfg object is required"),
                     0
                 )
             end
-            templates[name] = KObject:freeze(LuaTableMerge({}, cfg))
+            templates[name] = KObject:freeze(Tables:merge({}, cfg))
             if not pools[name] then
                 pools[name] = {}
             end
@@ -283,8 +277,8 @@ create = setmetatable(
         local timeApi = engine:time()
         templates = KObject:create(nil)
         pools = KObject:create(nil)
-        local inUse = LuaConstruct(LuaMap)
-        local leaseGen = LuaConstruct(LuaMap)
+        local inUse = Collections:newMap()
+        local leaseGen = Collections:newMap()
         local leaseSeq = 1
         local stats = {created = 0, reused = 0, destroyed = 0, released = 0}
         bank = {
@@ -296,7 +290,7 @@ create = setmetatable(
             logThrottleMs = 2000
         }
         local function setBankPath(self, path)
-            bank.path = LuaStringTrim(tostring(path or "")) or bank.path
+            bank.path = Strings:trim(tostring(path or "")) or bank.path
             bank.loaded = false
             bank.lastError = ""
             return bank.path
@@ -313,14 +307,14 @@ create = setmetatable(
             if bank.loaded then
                 return true
             end
-            local cands = LuaArrayConcat({bank.path}, bank.candidates)
+            local cands = Arrays:concat({bank.path}, bank.candidates)
             local uniq = {}
             local seen = KObject:create(nil)
             do
                 local i = 0
                 while i < #cands do
                     do
-                        local p = LuaStringTrim(tostring(cands[i + 1] or ""))
+                        local p = Strings:trim(tostring(cands[i + 1] or ""))
                         if not p then
                             goto lua_continue41
                         end
@@ -519,11 +513,11 @@ create = setmetatable(
         end
         local function getTemplate(self, name)
             ensureBankLoaded(_G)
-            name = LuaStringTrim(tostring(name or ""))
+            name = Strings:trim(tostring(name or ""))
             local t = templates[name]
             if not t then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         ("[PARTICLES] unknown template '" .. tostring(name)) .. "'"
                     ),
@@ -537,7 +531,7 @@ create = setmetatable(
             local n = normalizeSpawnArgs(_G, overCfg, opts)
             local over = n.over
             local o = n.opts
-            local hasOver = isObj(_G, over) and #LuaTableKeys(over) > 0
+            local hasOver = isObj(_G, over) and #Tables:keys(over) > 0
             local hasOpts = isObj(_G, o)
             local cfg = baseCfg
             if hasOver then
@@ -546,21 +540,21 @@ create = setmetatable(
             if hasOpts then
                 if o.pos ~= nil then
                     if cfg == baseCfg then
-                        cfg = LuaTableMerge({}, cfg)
+                        cfg = Tables:merge({}, cfg)
                     end
                     cfg.pos = o.pos
                 end
                 if o.rot ~= nil then
                     if cfg == baseCfg then
-                        cfg = LuaTableMerge({}, cfg)
+                        cfg = Tables:merge({}, cfg)
                     end
                     cfg.rot = o.rot
                 end
                 if o.scale ~= nil then
                     if cfg == baseCfg then
-                        cfg = LuaTableMerge({}, cfg)
+                        cfg = Tables:merge({}, cfg)
                     end
-                    cfg.scale = LuaNumber(o.scale)
+                    cfg.scale = Numbers:coerce(o.scale)
                 end
                 if o.dir ~= nil or o.velocity ~= nil then
                     local lua_isObj_result_17
@@ -593,13 +587,13 @@ create = setmetatable(
                         mergedV.dir = vDir.dir
                     end
                     if cfg == baseCfg then
-                        cfg = LuaTableMerge({}, cfg)
+                        cfg = Tables:merge({}, cfg)
                     end
                     cfg.velocity = mergedV
                 end
                 if o.seed ~= nil then
                     if cfg == baseCfg then
-                        cfg = LuaTableMerge({}, cfg)
+                        cfg = Tables:merge({}, cfg)
                     end
                     cfg.seed = bit32.bor(o.seed, 0)
                 end
@@ -692,7 +686,7 @@ create = setmetatable(
         end
         local function flush(self, name)
             if name == nil then
-                local keys = LuaTableKeys(pools)
+                local keys = Tables:keys(pools)
                 do
                     local i = 0
                     while i < #keys do
@@ -702,7 +696,7 @@ create = setmetatable(
                 end
                 return true
             end
-            name = LuaStringTrim(tostring(name or ""))
+            name = Strings:trim(tostring(name or ""))
             local pool = pools[name]
             if not pool then
                 return false
@@ -728,9 +722,9 @@ create = setmetatable(
                 lua_KObject_26,
                 {
                     alive = lua_temp_23,
-                    templates = #LuaTableKeys(templates),
-                    pooled = LuaArrayReduce(
-                        LuaTableKeys(pools),
+                    templates = #Tables:keys(templates),
+                    pooled = Arrays:reduce(
+                        Tables:keys(pools),
                         function(lua_, acc, k)
                             local lua_acc_25 = acc
                             local lua_pools_k_24
@@ -744,7 +738,7 @@ create = setmetatable(
                         0
                     ),
                     inUse = inUse.size,
-                    stats = LuaTableMerge({}, stats),
+                    stats = Tables:merge({}, stats),
                     bank = KObject:freeze({loaded = bank.loaded, path = bank.path, lastError = bank.lastError})
                 }
             )
@@ -788,11 +782,11 @@ create = setmetatable(
             loadBank = loadBank,
             getTemplate = getTemplate,
             clearBank = function()
-                for lua_, k in ipairs(LuaTableKeys(pools)) do
+                for lua_, k in ipairs(Tables:keys(pools)) do
                     flush(_G, k)
                 end
-                for lua_, k in ipairs(LuaTableKeys(templates)) do
-                    LuaTableRemove(templates, k)
+                for lua_, k in ipairs(Tables:keys(templates)) do
+                    Tables:remove(templates, k)
                 end
                 bank.loaded = false
                 bank.lastError = ""

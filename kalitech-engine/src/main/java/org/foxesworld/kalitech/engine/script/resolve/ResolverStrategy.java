@@ -24,7 +24,7 @@ public interface ResolverStrategy {
     /**
      * @param parentModuleId current module (who calls require), may be "" for root
      * @param request        raw require("...") string
-     * @return resolved moduleId (e.g. "Scripts/core/math.lua") or Optional.empty() if not applicable
+     * @return resolved moduleId (e.g. "@app/game/core/math.lua") or Optional.empty() if not applicable
      */
     Optional<String> resolve(String parentModuleId, String request);
 }

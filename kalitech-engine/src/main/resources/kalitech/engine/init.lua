@@ -1,12 +1,5 @@
-local M = {}
-Boot = require("@builtin/bootstrap/Bootstrap")
-boot = Boot:createDefault():init()
-M = {
-    config = boot.config,
-    attachEngine = KFunction:bind(boot.attachEngine, boot),
-    whenEngine = KFunction:bind(boot.whenEngine, boot),
-    whenEngineOnce = KFunction:bind(boot.whenEngineOnce, boot),
-    safeJson = Boot.safeJson
-}
+local Boot = require("@builtin/bootstrap/Bootstrap")
 
-return M
+-- @builtin/init is the live bootstrap object.  Java and Lua callers invoke
+-- methods on the instance directly; no bound procedural facade is exported.
+return Boot:createDefault():init()

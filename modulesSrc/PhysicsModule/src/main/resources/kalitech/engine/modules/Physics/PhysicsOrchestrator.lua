@@ -1,9 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableMerge = luaRuntime.LuaTableMerge
 local lua_require_result_0 = require("./helpers/PhysicsMath.lua")
 vec3Obj = lua_require_result_0.vec3Obj
 vec3Arr = lua_require_result_0.vec3Arr
@@ -12,12 +11,12 @@ warn = lua_require_result_0.warn
 local lua_require_result_1 = require("./helpers/PhysicsIds.lua")
 bodyIdOf = lua_require_result_1.bodyIdOf
 surfaceIdOf = lua_require_result_1.surfaceIdOf
-PhysicsOrchestrator = LuaClass()
+PhysicsOrchestrator = Classes:create()
 PhysicsOrchestrator.name = "PhysicsOrchestrator"
 function PhysicsOrchestrator.prototype.lua_constructor(self, backend)
     if not backend then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend is required"),
+            Classes:construct(Error, "[ENGINE.physics] backend is required"),
             0
         )
     end
@@ -32,7 +31,7 @@ function PhysicsOrchestrator.prototype.lua_constructor(self, backend)
     local hasTeleport = KTypeOf(phys.teleport) == "function"
     if not hasWarp and not hasTeleport then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.warp(handleOrId,vec3) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.warp(handleOrId,vec3) missing"),
             0
         )
     end
@@ -47,7 +46,7 @@ function PhysicsOrchestrator.prototype.lua_constructor(self, backend)
     local hasGetSetVelocity = KTypeOf(phys.getVelocity) == "function" and KTypeOf(phys.setVelocity) == "function"
     if not hasVelocity and not hasGetSetVelocity then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.velocity(handleOrId[,vec3]) or getVelocity/setVelocity missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.velocity(handleOrId[,vec3]) or getVelocity/setVelocity missing"),
             0
         )
     end
@@ -99,7 +98,7 @@ function PhysicsOrchestrator.prototype._resolveBackend(self, backend)
         local p = backend:physics()
         if not p or KTypeOf(p) ~= "table" then
             error(
-                LuaConstruct(Error, "[ENGINE.physics] backend.physics() returned invalid object"),
+                Classes:construct(Error, "[ENGINE.physics] backend.physics() returned invalid object"),
                 0
             )
         end
@@ -111,7 +110,7 @@ function PhysicsOrchestrator.prototype._resolveBackend(self, backend)
             local p = api:physics()
             if not p or KTypeOf(p) ~= "table" then
                 error(
-                    LuaConstruct(Error, "[ENGINE.physics] backend.api().physics() returned invalid object"),
+                    Classes:construct(Error, "[ENGINE.physics] backend.api().physics() returned invalid object"),
                     0
                 )
             end
@@ -122,14 +121,14 @@ function PhysicsOrchestrator.prototype._resolveBackend(self, backend)
         return backend
     end
     error(
-        LuaConstruct(Error, "[ENGINE.physics] invalid backend"),
+        Classes:construct(Error, "[ENGINE.physics] invalid backend"),
         0
     )
 end
 function PhysicsOrchestrator.prototype._reqFn(self, obj, name, msg)
     if KTypeOf(obj[name]) ~= "function" then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -144,7 +143,7 @@ function PhysicsOrchestrator.prototype.remove(self, h)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] remove(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] remove(): invalid body id"),
             0
         )
     end
@@ -154,7 +153,7 @@ function PhysicsOrchestrator.prototype.removeById(self, id)
     id = bit32.bor(id, 0)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] removeById(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] removeById(): invalid body id"),
             0
         )
     end
@@ -197,7 +196,7 @@ function PhysicsOrchestrator.prototype.position(self, h)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] position(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] position(): invalid body id"),
             0
         )
     end
@@ -207,7 +206,7 @@ function PhysicsOrchestrator.prototype.teleport(self, h, v)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] teleport(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] teleport(): invalid body id"),
             0
         )
     end
@@ -226,7 +225,7 @@ function PhysicsOrchestrator.prototype.warp(self, h, v)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] warp(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] warp(): invalid body id"),
             0
         )
     end
@@ -257,7 +256,7 @@ function PhysicsOrchestrator.prototype.velocity(self, h, v)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] velocity(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] velocity(): invalid body id"),
             0
         )
     end
@@ -279,13 +278,13 @@ function PhysicsOrchestrator.prototype.angularVelocity(self, h, v)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] angularVelocity(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] angularVelocity(): invalid body id"),
             0
         )
     end
     if not self._angGetImpl or not self._angSetImpl then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.angularVelocity(handleOrId[,vec3]) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.angularVelocity(handleOrId[,vec3]) missing"),
             0
         )
     end
@@ -307,13 +306,13 @@ function PhysicsOrchestrator.prototype.yaw(self, h, yawRad)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] yaw(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] yaw(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.yaw) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.yaw(handleOrId,yawRad) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.yaw(handleOrId,yawRad) missing"),
             0
         )
     end
@@ -326,7 +325,7 @@ function PhysicsOrchestrator.prototype.applyImpulse(self, h, impulse)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] applyImpulse(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] applyImpulse(): invalid body id"),
             0
         )
     end
@@ -345,13 +344,13 @@ function PhysicsOrchestrator.prototype.applyCentralForce(self, h, force)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] applyCentralForce(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] applyCentralForce(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.applyCentralForce) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.applyCentralForce(handleOrId,vec3) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.applyCentralForce(handleOrId,vec3) missing"),
             0
         )
     end
@@ -370,13 +369,13 @@ function PhysicsOrchestrator.prototype.applyTorque(self, h, torque)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] applyTorque(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] applyTorque(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.applyTorque) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.applyTorque(handleOrId,vec3) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.applyTorque(handleOrId,vec3) missing"),
             0
         )
     end
@@ -395,13 +394,13 @@ function PhysicsOrchestrator.prototype.clearForces(self, h)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] clearForces(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] clearForces(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.clearForces) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.clearForces(handleOrId) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.clearForces(handleOrId) missing"),
             0
         )
     end
@@ -411,7 +410,7 @@ function PhysicsOrchestrator.prototype.lockRotation(self, h, lock)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] lockRotation(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] lockRotation(): invalid body id"),
             0
         )
     end
@@ -421,13 +420,13 @@ function PhysicsOrchestrator.prototype.setKinematic(self, h, kinematic)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] setKinematic(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] setKinematic(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.setKinematic) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.setKinematic(handleOrId,bool) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.setKinematic(handleOrId,bool) missing"),
             0
         )
     end
@@ -437,13 +436,13 @@ function PhysicsOrchestrator.prototype.collisionGroups(self, h, group, mask)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] collisionGroups(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] collisionGroups(): invalid body id"),
             0
         )
     end
     if KTypeOf(self._phys.collisionGroups) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.collisionGroups(handleOrId,group,mask) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.collisionGroups(handleOrId,group,mask) missing"),
             0
         )
     end
@@ -454,7 +453,7 @@ function PhysicsOrchestrator.prototype.collisionGroups(self, h, group, mask)
     )
 end
 function PhysicsOrchestrator.prototype._ray(self, cfg)
-    local c = LuaTableMerge({}, cfg)
+    local c = Tables:merge({}, cfg)
     c.from = vec3Arr(
         _G,
         c.from,
@@ -472,7 +471,7 @@ function PhysicsOrchestrator.prototype._ray(self, cfg)
     return c
 end
 function PhysicsOrchestrator.prototype._sweep(self, cfg)
-    local c = LuaTableMerge({}, cfg)
+    local c = Tables:merge({}, cfg)
     c.from = vec3Arr(
         _G,
         c.from,
@@ -504,7 +503,7 @@ end
 function PhysicsOrchestrator.prototype.raycast(self, cfg)
     if KTypeOf(self._phys.raycast) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.raycast(cfg) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.raycast(cfg) missing"),
             0
         )
     end
@@ -513,7 +512,7 @@ end
 function PhysicsOrchestrator.prototype.raycastEx(self, cfg)
     if KTypeOf(self._phys.raycastEx) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.raycastEx(cfg) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.raycastEx(cfg) missing"),
             0
         )
     end
@@ -522,7 +521,7 @@ end
 function PhysicsOrchestrator.prototype.raycastAll(self, cfg)
     if KTypeOf(self._phys.raycastAll) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.raycastAll(cfg) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.raycastAll(cfg) missing"),
             0
         )
     end
@@ -531,7 +530,7 @@ end
 function PhysicsOrchestrator.prototype.sweepSphere(self, cfg)
     if KTypeOf(self._phys.sweepSphere) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.sweepSphere(cfg) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.sweepSphere(cfg) missing"),
             0
         )
     end
@@ -539,7 +538,7 @@ function PhysicsOrchestrator.prototype.sweepSphere(self, cfg)
     c.radius = num(_G, c.radius, 0)
     if not (c.radius > 0) then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] sweepSphere: cfg.radius must be > 0"),
+            Classes:construct(Error, "[ENGINE.physics] sweepSphere: cfg.radius must be > 0"),
             0
         )
     end
@@ -548,7 +547,7 @@ end
 function PhysicsOrchestrator.prototype.sweepCapsule(self, cfg)
     if KTypeOf(self._phys.sweepCapsule) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.sweepCapsule(cfg) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.sweepCapsule(cfg) missing"),
             0
         )
     end
@@ -557,13 +556,13 @@ function PhysicsOrchestrator.prototype.sweepCapsule(self, cfg)
     c.height = num(_G, c.height, 0)
     if not (c.radius > 0) then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] sweepCapsule: cfg.radius must be > 0"),
+            Classes:construct(Error, "[ENGINE.physics] sweepCapsule: cfg.radius must be > 0"),
             0
         )
     end
     if not (c.height >= 0) then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] sweepCapsule: cfg.height must be >= 0"),
+            Classes:construct(Error, "[ENGINE.physics] sweepCapsule: cfg.height must be >= 0"),
             0
         )
     end
@@ -624,16 +623,16 @@ function PhysicsOrchestrator.prototype.ensureBodyForSurface(self, surfaceHandleO
     local sid = surfaceIdOf(_G, surfaceHandleOrId)
     if sid <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] ensureBodyForSurface(): invalid surface id"),
+            Classes:construct(Error, "[ENGINE.physics] ensureBodyForSurface(): invalid surface id"),
             0
         )
     end
-    return self:body(LuaTableMerge({}, cfg, {surface = sid}))
+    return self:body(Tables:merge({}, cfg, {surface = sid}))
 end
 function PhysicsOrchestrator.prototype.on(self, topic, fn)
     if KTypeOf(self._phys.on) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] backend.on(topic,fn) missing"),
+            Classes:construct(Error, "[ENGINE.physics] backend.on(topic,fn) missing"),
             0
         )
     end
@@ -643,7 +642,7 @@ function PhysicsOrchestrator.prototype.ref(self, h)
     local id = bodyIdOf(_G, h)
     if id <= 0 then
         error(
-            LuaConstruct(Error, "[ENGINE.physics] ref(): invalid body id"),
+            Classes:construct(Error, "[ENGINE.physics] ref(): invalid body id"),
             0
         )
     end

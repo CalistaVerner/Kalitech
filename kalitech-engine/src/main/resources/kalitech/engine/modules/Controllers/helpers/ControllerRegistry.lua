@@ -1,18 +1,15 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Collections = luaRuntime.collection
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
+local Iterators = luaRuntime.iterator
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaClass = luaRuntime.LuaClass
-local LuaMap = luaRuntime.LuaMap
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaIterator = luaRuntime.LuaIterator
-local LuaArraySort = luaRuntime.LuaArraySort
-local LuaArrayJoin = luaRuntime.LuaArrayJoin
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -21,7 +18,7 @@ end
 function reqStr(self, s, msg)
     if KTypeOf(s) ~= "string" or not s then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -30,7 +27,7 @@ end
 function reqFn(self, fn, msg)
     if KTypeOf(fn) ~= "function" then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -53,18 +50,18 @@ function safeBool(self, v, fb)
 end
 function safeNum(self, v, fb)
     local lua_Number_isFinite_result_2
-    if LuaNumberIsFinite(v) then
+    if Numbers:isFinite(v) then
         lua_Number_isFinite_result_2 = v
     else
         lua_Number_isFinite_result_2 = fb
     end
     return lua_Number_isFinite_result_2
 end
-ControllerRegistry = LuaClass()
+ControllerRegistry = Classes:create()
 ControllerRegistry.name = "ControllerRegistry"
 function ControllerRegistry.prototype.lua_constructor(self, name)
     self.name = name or "registry"
-    self._defs = LuaConstruct(LuaMap)
+    self._defs = Collections:newMap()
 end
 function ControllerRegistry.prototype.clear(self)
     self._defs:clear()
@@ -88,7 +85,7 @@ function ControllerRegistry.prototype.register(self, id, Ctor, opts)
     local lua_Ctor_6 = Ctor
     local lua_safeNum_result_7 = safeNum(_G, opts.order, 0)
     local lua_Array_isArray_result_3
-    if LuaArrayIsArray(opts.deps) then
+    if Arrays:isArray(opts.deps) then
         lua_Array_isArray_result_3 = KArrayOps.slice(opts.deps)
     else
         lua_Array_isArray_result_3 = {}
@@ -132,7 +129,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
         ("[Registry:" .. tostring(self.name)) .. "] entity is required"
     )
     local active = {}
-    for lua_, def in LuaIterator(self._defs:values()) do
+    for lua_, def in Iterators:iterate(self._defs:values()) do
         do
             if not def.enabled then
                 goto lua_continue15
@@ -144,7 +141,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
         end
         ::lua_continue15::
     end
-    local activeSet = LuaConstruct(LuaMap)
+    local activeSet = Collections:newMap()
     do
         local i = 0
         while i < #active do
@@ -159,7 +156,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
                 local dep = KIndex(def.deps, i)
                 if not self._defs:has(dep) then
                     error(
-                        LuaConstruct(
+                        Classes:construct(
                             Error,
                             ((((("[Registry:" .. tostring(self.name)) .. "] '") .. tostring(def.id)) .. "' depends on unknown '") .. tostring(dep)) .. "'"
                         ),
@@ -168,7 +165,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
                 end
                 if not activeSet:has(dep) then
                     error(
-                        LuaConstruct(
+                        Classes:construct(
                             Error,
                             ((((("[Registry:" .. tostring(self.name)) .. "] '") .. tostring(def.id)) .. "' depends on disabled '") .. tostring(dep)) .. "'"
                         ),
@@ -179,8 +176,8 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
             end
         end
     end
-    local indeg = LuaConstruct(LuaMap)
-    local edges = LuaConstruct(LuaMap)
+    local indeg = Collections:newMap()
+    local edges = Collections:newMap()
     for lua_, def in ipairs(active) do
         indeg:set(def.id, 0)
         edges:set(def.id, {})
@@ -205,7 +202,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
             queue[#queue + 1] = def
         end
     end
-    LuaArraySort(
+    Arrays:sort(
         queue,
         function(lua_, a, b) return a.order - b.order or (a.id < b.id and -1 or (a.id > b.id and 1 or 0)) end
     )
@@ -224,7 +221,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
                 )
                 if indeg:get(to) == 0 then
                     queue[#queue + 1] = activeSet:get(to)
-                    LuaArraySort(
+                    Arrays:sort(
                         queue,
                         function(lua_, a, b) return a.order - b.order or (a.id < b.id and -1 or (a.id > b.id and 1 or 0)) end
                     )
@@ -241,9 +238,9 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
             end
         end
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
-                (("[Registry:" .. tostring(self.name)) .. "] dependency cycle: ") .. LuaArrayJoin(stuck, " -> ")
+                (("[Registry:" .. tostring(self.name)) .. "] dependency cycle: ") .. Arrays:join(stuck, " -> ")
             ),
             0
         )
@@ -255,7 +252,7 @@ function ControllerRegistry.prototype.build(self, ctx, entity, cfg)
         while i < #orderedDefs do
             local def = orderedDefs[i + 1]
             KSetIndex(ids, i, def.id)
-            KSetIndex(list, i, LuaConstruct(def.Ctor, cfg or nil))
+            KSetIndex(list, i, Classes:construct(def.Ctor, cfg or nil))
             i = i + 1
         end
     end

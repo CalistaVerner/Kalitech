@@ -1,13 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArraySetLength = luaRuntime.LuaArraySetLength
-local LuaStringTrim = luaRuntime.LuaStringTrim
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
 U = require("./camUtil.lua")
 C = require("./CameraContract.lua")
 CameraZoomController = require("./CameraZoomController.lua")
@@ -30,7 +27,7 @@ function smoothstep01(self, t)
     t = t < 0 and 0 or (t > 1 and 1 or t)
     return t * t * (3 - 2 * t)
 end
-CameraOrchestrator = LuaClass()
+CameraOrchestrator = Classes:create()
 CameraOrchestrator.name = "CameraOrchestrator"
 function CameraOrchestrator.prototype.lua_constructor(self, player)
     C:validatePlayer(player)
@@ -62,7 +59,7 @@ function CameraOrchestrator.prototype.lua_constructor(self, player)
         invertX = false,
         invertY = false
     }
-    self.zoom = LuaConstruct(CameraZoomController, {
+    self.zoom = Classes:construct(CameraZoomController, {
         steps = {
             2,
             4,
@@ -78,8 +75,8 @@ function CameraOrchestrator.prototype.lua_constructor(self, player)
     })
     self._zoomBaseMin = self.zoom.min
     self._zoomBaseMax = self.zoom.max
-    self.collision = LuaConstruct(CameraCollisionSolver)
-    self.zones = LuaConstruct(CameraVolumeZones, player)
+    self.collision = Classes:construct(CameraCollisionSolver)
+    self.zones = Classes:construct(CameraVolumeZones, player)
     self._lastZonesCfgRef = nil
     self.postSmooth = 22
     self._sm = {x = 0, y = 0, z = 0}
@@ -118,7 +115,7 @@ function CameraOrchestrator.prototype.lua_constructor(self, player)
 end
 function CameraOrchestrator.prototype.destroy(self)
     self._active = nil
-    LuaArraySetLength(self._modes, 0)
+    Arrays:setLength(self._modes, 0)
     self._byId = KObject:create(nil)
     self._ctx.mode = nil
     self._ctx.snap = nil
@@ -136,16 +133,16 @@ end
 function CameraOrchestrator.prototype.register(self, modeOrCtor)
     local lua_temp_1
     if KTypeOf(modeOrCtor) == "function" then
-        lua_temp_1 = LuaConstruct(modeOrCtor, self)
+        lua_temp_1 = Classes:construct(modeOrCtor, self)
     else
         lua_temp_1 = modeOrCtor
     end
     local m = lua_temp_1
     local mode = C:validateMode(m)
-    local id = string.lower(LuaStringTrim(tostring(mode.id)))
+    local id = string.lower(Strings:trim(tostring(mode.id)))
     if self._byId[id] then
         error(
-            LuaConstruct(Error, "[camera] duplicate mode id: " .. id),
+            Classes:construct(Error, "[camera] duplicate mode id: " .. id),
             0
         )
     end
@@ -161,18 +158,18 @@ function CameraOrchestrator.prototype.getType(self)
     local m = self._active
     if not m or not m.id then
         error(
-            LuaConstruct(Error, "[camera] active mode is not set"),
+            Classes:construct(Error, "[camera] active mode is not set"),
             0
         )
     end
     return m.id
 end
 function CameraOrchestrator.prototype.setType(self, lua_type, instant)
-    local id = string.lower(LuaStringTrim(tostring(lua_type or "")))
+    local id = string.lower(Strings:trim(tostring(lua_type or "")))
     local next = self._byId[id]
     if not next then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[camera] unknown mode: " .. tostring(lua_type)
             ),
@@ -241,13 +238,13 @@ function CameraOrchestrator.prototype.setTerrainSource(self, src)
     end
     if KTypeOf(src.heightAt) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera] terrain source must provide heightAt(x,z)"),
+            Classes:construct(Error, "[camera] terrain source must provide heightAt(x,z)"),
             0
         )
     end
     if KTypeOf(src.normalAt) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera] terrain source must provide normalAt(x,z)"),
+            Classes:construct(Error, "[camera] terrain source must provide normalAt(x,z)"),
             0
         )
     end
@@ -256,19 +253,19 @@ end
 function CameraOrchestrator.prototype.setTerrainHandle(self, terrainApi, terrainHandle, world)
     if not terrainApi or KTypeOf(terrainApi.heightAt) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera] setTerrainHandle: terrainApi.heightAt(handle,x,z,world) is required"),
+            Classes:construct(Error, "[camera] setTerrainHandle: terrainApi.heightAt(handle,x,z,world) is required"),
             0
         )
     end
     if KTypeOf(terrainApi.normalAt) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera] setTerrainHandle: terrainApi.normalAt(handle,x,z,world) is required"),
+            Classes:construct(Error, "[camera] setTerrainHandle: terrainApi.normalAt(handle,x,z,world) is required"),
             0
         )
     end
     if not terrainHandle then
         error(
-            LuaConstruct(Error, "[camera] setTerrainHandle: terrainHandle is required"),
+            Classes:construct(Error, "[camera] setTerrainHandle: terrainHandle is required"),
             0
         )
     end
@@ -278,9 +275,9 @@ function CameraOrchestrator.prototype.setTerrainHandle(self, terrainApi, terrain
         normalAt = function(lua_, x, z)
             local m = terrainApi:normalAt(terrainHandle, x, z, useWorld)
             return {
-                x = LuaNumber(m.x),
-                y = LuaNumber(m.y),
-                z = LuaNumber(m.z)
+                x = Numbers:coerce(m.x),
+                y = Numbers:coerce(m.y),
+                z = Numbers:coerce(m.z)
             }
         end
     })
@@ -313,10 +310,10 @@ function CameraOrchestrator.prototype._applyLook(self, snap)
     local dx = U:num(snap.dx, 0)
     local dy = U:num(snap.dy, 0)
     if self.look.invertX then
-        dx = LuaNumber(-dx)
+        dx = Numbers:coerce(-dx)
     end
     if self.look.invertY then
-        dy = LuaNumber(-dy)
+        dy = Numbers:coerce(-dy)
     end
     local lua_self_look_7, lua_yaw_8 = self.look, "yaw"
     lua_self_look_7[lua_yaw_8] = lua_self_look_7[lua_yaw_8] - dx * self.look.sensitivity
@@ -326,7 +323,7 @@ end
 function CameraOrchestrator.prototype._smoothOutPos(self, out, dt, enabled, minY)
     if not enabled or not (self.postSmooth > 0) then
         self._smInit = false
-        if LuaNumberIsFinite(minY) then
+        if Numbers:isFinite(minY) then
             out.y = math.max(out.y, minY)
         end
         return out
@@ -341,7 +338,7 @@ function CameraOrchestrator.prototype._smoothOutPos(self, out, dt, enabled, minY
         self._sm.y = U:expSmooth(self._sm.y, out.y, self.postSmooth, dt)
         self._sm.z = U:expSmooth(self._sm.z, out.z, self.postSmooth, dt)
     end
-    if LuaNumberIsFinite(minY) then
+    if Numbers:isFinite(minY) then
         self._sm.y = math.max(self._sm.y, minY)
     end
     return self._sm
@@ -377,14 +374,14 @@ function CameraOrchestrator.prototype._applyPitchLimits(self, zoneOverrides)
     local baseMax = self.look.pitchLimit
     local lua_temp_14
     if zoneOverrides and zoneOverrides.minPitch ~= nil then
-        lua_temp_14 = LuaNumber(zoneOverrides.minPitch)
+        lua_temp_14 = Numbers:coerce(zoneOverrides.minPitch)
     else
         lua_temp_14 = baseMin
     end
     local minPitch = lua_temp_14
     local lua_temp_15
     if zoneOverrides and zoneOverrides.maxPitch ~= nil then
-        lua_temp_15 = LuaNumber(zoneOverrides.maxPitch)
+        lua_temp_15 = Numbers:coerce(zoneOverrides.maxPitch)
     else
         lua_temp_15 = baseMax
     end
@@ -406,14 +403,14 @@ function CameraOrchestrator.prototype._applyZoomLimits(self, zoneOverrides)
     end
     local lua_hasMin_16
     if hasMin then
-        lua_hasMin_16 = LuaNumber(zoneOverrides.zoomMin)
+        lua_hasMin_16 = Numbers:coerce(zoneOverrides.zoomMin)
     else
         lua_hasMin_16 = self.zoom.min
     end
     local zmin = lua_hasMin_16
     local lua_hasMax_17
     if hasMax then
-        lua_hasMax_17 = LuaNumber(zoneOverrides.zoomMax)
+        lua_hasMax_17 = Numbers:coerce(zoneOverrides.zoomMax)
     else
         lua_hasMax_17 = self.zoom.max
     end
@@ -424,7 +421,7 @@ end
 function CameraOrchestrator.prototype._handleModeSwitch(self, dt, snap)
     self._switchCd = math.max(0, self._switchCd - dt)
     local lua_temp_18
-    if snap and LuaArrayIsArray(snap.keysDown) then
+    if snap and Arrays:isArray(snap.keysDown) then
         lua_temp_18 = snap.keysDown
     else
         lua_temp_18 = nil
@@ -461,7 +458,7 @@ function CameraOrchestrator.prototype.update(self, dt, frame)
     local bodyPos = phys:position(bodyId)
     if not bodyPos then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[camera] physics.position(bodyId) returned null bodyId=" .. tostring(bodyId)
             ),

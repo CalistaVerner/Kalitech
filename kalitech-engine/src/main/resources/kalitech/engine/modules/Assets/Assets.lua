@@ -1,16 +1,16 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaStringTrim = luaRuntime.LuaStringTrim
+local Strings = luaRuntime.string
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("../helpers/ModuleCommon.lua")
 requireEngineApi = lua_require_result_0.requireEngineApi
 normalizeNullableObject = lua_require_result_0.normalizeNullableObject
 function normalizePath(self, path, label)
-    local p = LuaStringTrim(tostring(path or ""))
+    local p = Strings:trim(tostring(path or ""))
     if not p then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ("[ASSETS] " .. tostring(label)) .. " is required"
             ),
@@ -27,20 +27,20 @@ create = setmetatable(
     {__call = function(lua_, self, engine)
         if not engine then
             error(
-                LuaConstruct(Error, "[ASSETS] engine is required"),
+                Classes:construct(Error, "[ASSETS] engine is required"),
                 0
             )
         end
         local api = requireEngineApi(_G, engine, "assets", "ASSETS")
         if KTypeOf(api.readText) ~= "function" then
             error(
-                LuaConstruct(Error, "[ASSETS] engine.assets() must provide readText(path)"),
+                Classes:construct(Error, "[ASSETS] engine.assets() must provide readText(path)"),
                 0
             )
         end
         if KTypeOf(api.loadModel) ~= "function" then
             error(
-                LuaConstruct(Error, "[ASSETS] engine.assets() must provide loadModel(path, cfg)"),
+                Classes:construct(Error, "[ASSETS] engine.assets() must provide loadModel(path, cfg)"),
                 0
             )
         end

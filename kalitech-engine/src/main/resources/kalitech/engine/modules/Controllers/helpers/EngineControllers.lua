@@ -1,15 +1,14 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
-local LuaTableKeys = luaRuntime.LuaTableKeys
 local lua_require_result_0 = require("./ControllerRegistry")
 ControllerRegistry = lua_require_result_0.ControllerRegistry
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -18,13 +17,13 @@ end
 function reqStr(self, s, msg)
     if KTypeOf(s) ~= "string" or not s then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
     return s
 end
-EngineControllers = LuaClass()
+EngineControllers = Classes:create()
 EngineControllers.name = "EngineControllers"
 function EngineControllers.prototype.lua_constructor(self)
     self._registries = KObject:create(nil)
@@ -48,7 +47,7 @@ function EngineControllers.prototype.controllers(self, name)
     name = reqStr(_G, name, "[EngineControllers] name is required")
     local r = self._registries[name]
     if not r then
-        r = LuaConstruct(ControllerRegistry, name)
+        r = Classes:construct(ControllerRegistry, name)
         self._registries[name] = r
     end
     return r
@@ -67,12 +66,12 @@ function EngineControllers.prototype.reset(self, name)
         end
         return r
     end
-    local nr = LuaConstruct(ControllerRegistry, name)
+    local nr = Classes:construct(ControllerRegistry, name)
     self._registries[name] = nr
     return nr
 end
 function EngineControllers.prototype.resetAll(self)
-    local keys = LuaTableKeys(self._registries)
+    local keys = Tables:keys(self._registries)
     do
         local i = 0
         while i < #keys do
@@ -89,7 +88,7 @@ function EngineControllers.prototype.resetAll(self)
                         end)
                     end
                 else
-                    self._registries[k] = LuaConstruct(ControllerRegistry, k)
+                    self._registries[k] = Classes:construct(ControllerRegistry, k)
                 end
             end
             ::lua_continue18::
@@ -105,7 +104,7 @@ function ensureControllersHub(self, engine, K)
         K.services = KObject:create(nil)
     end
     if not K.services.controllersHub then
-        K.services.controllersHub = LuaConstruct(EngineControllers)
+        K.services.controllersHub = Classes:construct(EngineControllers)
     end
     return K.services.controllersHub
 end

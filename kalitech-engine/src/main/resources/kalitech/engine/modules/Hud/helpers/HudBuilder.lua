@@ -1,10 +1,9 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaStringAccess = luaRuntime.LuaStringAccess
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("./HudUtil.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
@@ -24,11 +23,11 @@ KindByType = KObject:freeze({
     Radio = "radio"
 })
 function normalizeType(self, lua_type)
-    local t = LuaStringTrim(tostring(lua_type or ""))
+    local t = Strings:trim(tostring(lua_type or ""))
     if not t then
         return ""
     end
-    return string.upper(LuaStringAccess(t, 0)) .. string.sub(t, 2)
+    return string.upper(Strings:access(t, 0)) .. string.sub(t, 2)
 end
 function expectedKind(self, lua_type)
     return KindByType[lua_type] or "element"
@@ -37,7 +36,7 @@ function normalizeId(self, v)
     if v == nil or v == nil then
         return nil
     end
-    local s = LuaStringTrim(tostring(v))
+    local s = Strings:trim(tostring(v))
     local lua_s_1
     if s then
         lua_s_1 = s
@@ -326,7 +325,7 @@ function buildOne(self, layer, spec, created, used, opts, parentEl)
     if not kids then
         return el
     end
-    if LuaArrayIsArray(kids) then
+    if Arrays:isArray(kids) then
         if #kids == 0 then
             return el
         end
@@ -505,7 +504,7 @@ function pruneLayer(self, layer, epoch, opts)
         return
     end
     local keys = layer._regKeys
-    if LuaArrayIsArray(keys) then
+    if Arrays:isArray(keys) then
         do
             local i = 0
             while i < #keys do
@@ -558,7 +557,7 @@ function buildFromSpec(self, layer, spec, opts)
     end
     if not layer then
         error(
-            LuaConstruct(Error, "[HUD][SPEC] layer is required"),
+            Classes:construct(Error, "[HUD][SPEC] layer is required"),
             0
         )
     end
@@ -577,7 +576,7 @@ function buildFromSpec(self, layer, spec, opts)
     )
     layer.__specEpochCounter = epoch
     o.__epoch = epoch
-    if LuaArrayIsArray(spec) then
+    if Arrays:isArray(spec) then
         do
             local i = 0
             while i < #spec do

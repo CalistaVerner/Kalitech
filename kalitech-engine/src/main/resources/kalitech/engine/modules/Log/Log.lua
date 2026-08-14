@@ -1,11 +1,10 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
+local Strings = luaRuntime.string
+local Classes = luaRuntime.class
+local Types = luaRuntime.type
 local Error = luaRuntime.Error
-local LuaInstanceOf = luaRuntime.LuaInstanceOf
-local LuaTypeOf = luaRuntime.LuaTypeOf
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaConstruct = luaRuntime.LuaConstruct
 function safeJson(self, v)
     do
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
@@ -31,7 +30,7 @@ function isThrowableLike(self, v)
     end
     do
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
-            if LuaInstanceOf(v, Error) then
+            if Classes:isInstance(v, Error) then
                 return true, true
             end
         end)
@@ -39,7 +38,7 @@ function isThrowableLike(self, v)
             return lua_returnValue
         end
     end
-    local t = LuaTypeOf(v)
+    local t = Types:of(v)
     if t ~= "object" and t ~= "function" then
         return false
     end
@@ -84,7 +83,7 @@ function throwableToText(self, e)
     end
     do
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
-            if LuaInstanceOf(e, Error) then
+            if Classes:isInstance(e, Error) then
                 return true, e.stack or e.message or tostring(e)
             end
         end)
@@ -126,7 +125,7 @@ function valueToText(self, v)
     if v == nil then
         return "null"
     end
-    local t = LuaTypeOf(v)
+    local t = Types:of(v)
     if t == "string" then
         return v
     end
@@ -161,7 +160,7 @@ function joinArgs(self, args, from, toExclusive)
     return out
 end
 function makePrefix(self, scope)
-    local s = LuaStringTrim(tostring(scope or ""))
+    local s = Strings:trim(tostring(scope or ""))
     local lua_s_0
     if s then
         lua_s_0 = ("[" .. s) .. "] "
@@ -246,7 +245,7 @@ function makeApi(self, engine)
         return write(_G, "fatal", "", args)
     end
     local function scoped(self, scopeName)
-        local scope = LuaStringTrim(tostring(scopeName or ""))
+        local scope = Strings:trim(tostring(scopeName or ""))
         return KObject:freeze({
             trace = function(self, ...)
                 local args = {...}
@@ -296,7 +295,7 @@ create = setmetatable(
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[LOG] engine is required"),
+                Classes:construct(Error, "[LOG] engine is required"),
                 0
             )
         end

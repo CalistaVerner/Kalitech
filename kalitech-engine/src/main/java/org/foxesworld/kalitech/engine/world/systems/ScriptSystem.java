@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
+import org.foxesworld.kalitech.engine.script.ScriptEntryPoint;
 import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
@@ -15,6 +16,7 @@ import org.foxesworld.kalitech.engine.script.util.StateCapsule;
 import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -43,7 +45,8 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
     private final EcsWorld ecs;
     private final boolean hotReload;
     private final float cooldownSec;
-    private final Path watchRoot;
+    private final Path projectOwnedRoot;
+    private final ScriptEntryPoint entryPoint;
 
     private SimpleApplication app;
     private ScriptEventBus bus;   // optional
@@ -52,11 +55,18 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
     private HotReloadWatcher watcher;
     private float cooldown = 0f;
 
-    public ScriptSystem(EcsWorld ecs, boolean hotReload, float cooldownSec, Path watchRoot) {
+    public ScriptSystem(
+            EcsWorld ecs,
+            boolean hotReload,
+            float cooldownSec,
+            Path projectOwnedRoot,
+            ScriptEntryPoint entryPoint
+    ) {
         this.ecs = Objects.requireNonNull(ecs, "ecs");
         this.hotReload = hotReload;
         this.cooldownSec = (cooldownSec <= 0f) ? 0.25f : cooldownSec;
-        this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
+        this.projectOwnedRoot = Objects.requireNonNull(projectOwnedRoot, "projectOwnedRoot");
+        this.entryPoint = Objects.requireNonNull(entryPoint, "entryPoint");
     }
 
     private static LuaValueRef createInstance(LuaValueRef moduleValue) {
@@ -126,14 +136,6 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         }
     }
 
-    private static String normalize(String id) {
-        if (id == null) return "";
-        String s = id.trim().replace('\\', '/');
-        while (s.startsWith("./")) s = s.substring(2);
-        while (s.startsWith("/")) s = s.substring(1);
-        return s;
-    }
-
     @Override
     public void onStart(SystemContext ctx) {
         this.app = Objects.requireNonNull(ctx.app(), "ctx.app");
@@ -146,11 +148,11 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
         if (hotReload) {
             try {
-                this.watcher = new HotReloadWatcher(watchRoot);
-                log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)", watchRoot.toAbsolutePath(), cooldownSec);
+                this.watcher = new HotReloadWatcher(projectOwnedRoot);
+                log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)", projectOwnedRoot.toAbsolutePath(), cooldownSec);
             } catch (Throwable t) {
             ScriptFailureBoundary.rethrowIfFatal(t);
-                log.warn("ScriptSystem hotReload failed to start watcher at {}", watchRoot.toAbsolutePath(), t);
+                log.warn("ScriptSystem hotReload failed to start watcher at {}", projectOwnedRoot.toAbsolutePath(), t);
                 this.watcher = null;
             }
         } else {
@@ -174,7 +176,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         for (var e : scripts.entrySet()) {
             int entityId = e.getKey();
             ScriptComponent sc = e.getValue();
-            if (sc == null || sc.assetPath == null) continue;
+            if (sc == null || sc.moduleId == null || sc.moduleId.isBlank()) continue;
 
             String uuid = ecs.uuids().uuidStringOf(entityId);
             if (uuid == null || uuid.isBlank()) {
@@ -184,9 +186,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 continue;
             }
 
-            String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
-                    ? sc.moduleId
-                    : normalize(sc.assetPath);
+            String moduleId = sc.moduleId;
 
             long version;
             try {
@@ -277,9 +277,9 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         cooldown -= tpf;
         if (cooldown > 0f) return;
 
-        Set<String> changed;
+        Set<String> changedProjectPaths;
         try {
-            changed = watcher.pollChanged();
+            changedProjectPaths = watcher.pollChanged();
         } catch (Throwable t) {
             ScriptFailureBoundary.rethrowIfFatal(t);
             log.error("HotReload watcher.pollChanged failed", t);
@@ -287,30 +287,37 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
             return;
         }
 
-        if (changed == null || changed.isEmpty()) {
+        if (changedProjectPaths == null || changedProjectPaths.isEmpty()) {
             cooldown = 0f;
             return;
         }
 
         cooldown = cooldownSec;
 
+        Set<String> changedModules = new HashSet<>();
+        for (String projectPath : changedProjectPaths) {
+            String moduleId = entryPoint.moduleIdForProjectPath(projectPath);
+            if (moduleId != null) changedModules.add(moduleId);
+        }
+        if (changedModules.isEmpty()) return;
+
         int removed = 0;
         try {
-            removed = rt.invalidateManyWithReason(changed, "hotReload");
+            removed = rt.invalidateManyWithReason(changedModules, "hotReload");
         } catch (Throwable t) {
             ScriptFailureBoundary.rethrowIfFatal(t);
-            log.error("HotReload invalidateManyWithReason failed changed={}", changed.size(), t);
+            log.error("HotReload invalidateManyWithReason failed changed={}", changedModules.size(), t);
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("HotReload: changed={}, removedFromCache={}", changed.size(), removed);
+            log.debug("HotReload: changed={}, removedFromCache={}", changedModules.size(), removed);
         }
 
         if (bus != null) {
             try {
-                bus.emit("hotreload:changed", changed);
+                bus.emit("hotreload:changed", Set.copyOf(changedModules));
             } catch (Throwable t) {
-            ScriptFailureBoundary.rethrowIfFatal(t);
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("HotReload bus emit failed", t);
             }
         }

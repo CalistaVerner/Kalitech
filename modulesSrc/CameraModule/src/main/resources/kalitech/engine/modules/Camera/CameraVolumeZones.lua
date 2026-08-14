@@ -1,9 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Arrays = luaRuntime.array
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArraySetLength = luaRuntime.LuaArraySetLength
 U = require("./camUtil.lua")
 ZC = require("./CameraZonesContract.lua")
 function clamp01(self, v)
@@ -40,12 +39,12 @@ function aabbWeight(self, px, py, pz, a, blend)
         math.min(dx, dy, dz) / blend
     )
 end
-CameraVolumeZones = LuaClass()
+CameraVolumeZones = Classes:create()
 CameraVolumeZones.name = "CameraVolumeZones"
 function CameraVolumeZones.prototype.lua_constructor(self, player)
     if not player then
         error(
-            LuaConstruct(Error, "[camera][zones] player is required"),
+            Classes:construct(Error, "[camera][zones] player is required"),
             0
         )
     end
@@ -71,7 +70,7 @@ function CameraVolumeZones.prototype.configureFromPlayerCfg(self)
     local vz = lua_cam_1
     if vz == nil then
         self.enabled = false
-        LuaArraySetLength(self._zones, 0)
+        Arrays:setLength(self._zones, 0)
         resetState(_G, self.state)
         return
     end

@@ -21,7 +21,6 @@ import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.SystemScheduler;
 import org.foxesworld.kalitech.engine.world.systems.WorkerSystemStats;
 
-import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,16 +69,6 @@ public final class WorldAppState extends BaseAppState {
     public WorldAppState(RuntimeAppState runtimeAppState) {
         this.host = Objects.requireNonNull(runtimeAppState, "runtimeAppState");
         this.engine = Objects.requireNonNull(runtimeAppState.getEngineApi(), "engineApi");
-    }
-
-    private static String normalizeLuaModuleId(String moduleId) {
-        String id = (moduleId == null) ? "" : moduleId.trim();
-        if (id.isEmpty()) return "";
-        id = id.replace('\\', '/');
-        while (id.startsWith("./")) id = id.substring(2);
-        while (id.startsWith("/")) id = id.substring(1);
-        if (!id.endsWith(".lua") && !id.endsWith(".json")) id += ".lua";
-        return id;
     }
 
     private static String safeWorldName(KWorld w) {
@@ -376,7 +365,7 @@ public final class WorldAppState extends BaseAppState {
         return runtimeProfiles.computeIfAbsent(p, k -> {
             ScriptRuntime rt = new ScriptRuntime();
             try {
-                rt.setModuleStreamProvider(this::openLuaModuleStream);
+                rt.setModuleStreamProvider(host::openProjectModule);
             } catch (Throwable t) {
                 log.warn("[World] setModuleStreamProvider failed for profile '{}': {}", k, t.toString(), t);
             }
@@ -416,12 +405,8 @@ public final class WorldAppState extends BaseAppState {
             return;
         }
 
-        try {
-            this.baseRuntime.setModuleStreamProvider(this::openLuaModuleStream);
-        } catch (Throwable t) {
-            log.warn("[World] failed to set module stream provider for base runtime: {}", t.toString(), t);
-        }
-
+        // The host owns the base runtime provider chain. Replacing it here would
+        // discard external module JAR mounts and the @app namespace mapping.
         try {
             this.baseRuntime.initBuiltIns(engine);
         } catch (Throwable t) {
@@ -429,22 +414,6 @@ public final class WorldAppState extends BaseAppState {
         }
 
         baseRuntimeInitialized = true;
-    }
-
-    private InputStream openLuaModuleStream(String moduleId) {
-        try {
-            String id = normalizeLuaModuleId(moduleId);
-            if (id.isEmpty()) return null;
-
-            AssetManager am = (engine.getApp() != null) ? engine.getApp().getAssetManager() : null;
-            if (am == null) return null;
-
-            var ai = am.locateAsset(new AssetKey<>(id));
-            return (ai != null) ? ai.openStream() : null;
-        } catch (Throwable t) {
-            log.warn("[World] openLuaModuleStream failed (moduleId='{}'): {}", moduleId, t.toString(), t);
-            return null;
-        }
     }
 
     @SuppressWarnings("unused")

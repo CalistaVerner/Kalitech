@@ -27,7 +27,7 @@ final class LuaScriptIsolationTest {
     @Test
     void failingLuaSystemIsQuarantinedWhileWorldKeepsUpdatingAndReloadRecovers() {
         AtomicReference<Map<String, String>> sources = new AtomicReference<>(Map.of(
-                "Scripts/broken.lua", """
+                "@app/test/broken.lua", """
                         local M = { starts = 0, updates = 0 }
                         function M:init(_)
                             self.starts = self.starts + 1
@@ -38,7 +38,7 @@ final class LuaScriptIsolationTest {
                         end
                         return M
                         """,
-                "Scripts/healthy.lua", """
+                "@app/test/healthy.lua", """
                         local M = { starts = 0, updates = 0 }
                         function M:init(_)
                             self.starts = self.starts + 1
@@ -81,8 +81,8 @@ final class LuaScriptIsolationTest {
                     null
             );
 
-            LuaWorldSystem broken = new LuaWorldSystem("Scripts/broken.lua", Map.of(), Map.of(), "world");
-            LuaWorldSystem healthy = new LuaWorldSystem("Scripts/healthy.lua", Map.of(), Map.of(), "world");
+            LuaWorldSystem broken = new LuaWorldSystem("@app/test/broken.lua", Map.of(), Map.of(), "world");
+            LuaWorldSystem healthy = new LuaWorldSystem("@app/test/healthy.lua", Map.of(), Map.of(), "world");
             world.addSystem(broken, 0);
             world.addSystem(healthy, 1);
 
@@ -92,15 +92,15 @@ final class LuaScriptIsolationTest {
             assertTrue(broken.isQuarantined());
             assertTrue(broken.quarantineReason().contains("intentional test failure"));
 
-            LuaValueRef brokenValue = runtime.require("Scripts/broken.lua");
-            LuaValueRef healthyValue = runtime.require("Scripts/healthy.lua");
+            LuaValueRef brokenValue = runtime.require("@app/test/broken.lua");
+            LuaValueRef healthyValue = runtime.require("@app/test/healthy.lua");
             assertEquals(1, brokenValue.getMember("starts").asInt());
             assertEquals(0, brokenValue.getMember("updates").asInt());
             assertEquals(1, healthyValue.getMember("starts").asInt());
             assertEquals(1, healthyValue.getMember("updates").asInt());
 
             sources.set(Map.of(
-                    "Scripts/broken.lua", """
+                    "@app/test/broken.lua", """
                             local M = { starts = 0, updates = 0 }
                             function M:init(_)
                                 self.starts = self.starts + 1
@@ -110,7 +110,7 @@ final class LuaScriptIsolationTest {
                             end
                             return M
                             """,
-                    "Scripts/healthy.lua", sources.get().get("Scripts/healthy.lua")
+                    "@app/test/healthy.lua", sources.get().get("@app/test/healthy.lua")
             ));
 
             assertDoesNotThrow(() -> broken.onHotReload(context, "test-fix"));
@@ -118,7 +118,7 @@ final class LuaScriptIsolationTest {
             assertDoesNotThrow(() -> broken.onUpdate(context, 1f / 60f));
             assertFalse(broken.isQuarantined());
 
-            LuaValueRef recovered = runtime.require("Scripts/broken.lua");
+            LuaValueRef recovered = runtime.require("@app/test/broken.lua");
             assertEquals(1, recovered.getMember("starts").asInt());
             assertEquals(1, recovered.getMember("updates").asInt());
 

@@ -1,15 +1,14 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
 function num(self, x, def)
     if def == nil then
         def = 0
     end
-    x = LuaNumber(x)
+    x = Numbers:coerce(x)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(x) then
+    if Numbers:isFinite(x) then
         lua_Number_isFinite_result_0 = x
     else
         lua_Number_isFinite_result_0 = def
@@ -20,7 +19,7 @@ function isObj(self, x)
     return x and KTypeOf(x) == "table"
 end
 function vec3Obj(self, v, dx, dy, dz)
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         return {
             x = num(_G, v[1], dx),
             y = num(_G, v[2], dy),
@@ -37,7 +36,7 @@ function vec3Obj(self, v, dx, dy, dz)
     return {x = dx, y = dy, z = dz}
 end
 function vec3Arr(self, v, dx, dy, dz)
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         return {
             num(_G, v[1], dx),
             num(_G, v[2], dy),

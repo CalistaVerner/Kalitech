@@ -9,6 +9,10 @@ application {
     mainClass = 'org.foxesworld.kalitech.engine.KalitechLauncher'
 }
 
+def activeProjectDescriptor = rootProject.file(
+        providers.gradleProperty('kalitechProject').orElse('project/testGame/project.json').get()
+)
+
 repositories {
     mavenCentral()
 }
@@ -28,7 +32,6 @@ dependencies {
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-jogg:${rootProject.ext.jmeVersion}"
 
-    api "org.jmonkeyengine:jme3-awt-dialogs:${rootProject.ext.jmeVersion}"
     api 'com.github.stephengold:Minie:9.0.3'
 
     api "org.luaj:luaj-jse:${rootProject.ext.luaJVersion}"
@@ -64,10 +67,13 @@ tasks.assemble {
 tasks.named('run', JavaExec) {
     dependsOn rootProject.tasks.named('syncModuleJars')
     workingDir rootProject.projectDir
+    systemProperty "kalitech.project", activeProjectDescriptor.absolutePath
+    systemProperty "kalitech.projectsRoot", rootProject.file("project").absolutePath
 }
 
 tasks.test {
     dependsOn rootProject.tasks.named("syncModuleJars")
     systemProperty "kalitech.repoRoot", rootProject.projectDir.absolutePath
+    systemProperty "kalitech.project", activeProjectDescriptor.absolutePath
     systemProperty "log.dir", layout.buildDirectory.dir("test-logs").get().asFile.absolutePath
 }

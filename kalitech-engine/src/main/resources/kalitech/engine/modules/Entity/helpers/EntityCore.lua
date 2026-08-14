@@ -1,14 +1,13 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
-local LuaNumber = luaRuntime.LuaNumber
-local LuaTableKeys = luaRuntime.LuaTableKeys
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -17,7 +16,7 @@ end
 function isObj(self, x)
     return x ~= nil and KTypeOf(x) == "table"
 end
-EntityCore = LuaClass()
+EntityCore = Classes:create()
 EntityCore.name = "EntityCore"
 function EntityCore.prototype.lua_constructor(self)
     self.handle = nil
@@ -58,15 +57,15 @@ function EntityCore.prototype.lua_constructor(self)
     }
 end
 function EntityCore.prototype.configureShape(self, mass, radius, height)
-    self.state.mass = LuaNumber(mass) or 0
-    self.state.radius = LuaNumber(radius) or 0
-    self.state.height = LuaNumber(height) or 0
+    self.state.mass = Numbers:coerce(mass) or 0
+    self.state.radius = Numbers:coerce(radius) or 0
+    self.state.height = Numbers:coerce(height) or 0
     return self
 end
 function EntityCore.prototype.setGroundProbe(self, fn)
     if fn ~= nil and KTypeOf(fn) ~= "function" then
         error(
-            LuaConstruct(Error, "[EntityCore] groundProbe must be a function or null"),
+            Classes:construct(Error, "[EntityCore] groundProbe must be a function or null"),
             0
         )
     end
@@ -80,7 +79,7 @@ function EntityCore.prototype.hydrate(self, snapshot)
     self.snapshot = snapshot
     if isObj(_G, snapshot.components) then
         local c = snapshot.components
-        for lua_, k in ipairs(LuaTableKeys(c)) do
+        for lua_, k in ipairs(Tables:keys(c)) do
             self.components[k] = c[k]
         end
     end
@@ -102,25 +101,25 @@ function EntityCore.prototype.attach(self, handle, body, bodyAccess)
     local ba = req(_G, bodyAccess, "[EntityCore] bodyAccess is required")
     if KTypeOf(ba.position) ~= "function" then
         error(
-            LuaConstruct(Error, "[EntityCore] bodyAccess.position() is required"),
+            Classes:construct(Error, "[EntityCore] bodyAccess.position() is required"),
             0
         )
     end
     if KTypeOf(ba.getVel) ~= "function" then
         error(
-            LuaConstruct(Error, "[EntityCore] bodyAccess.getVel() is required"),
+            Classes:construct(Error, "[EntityCore] bodyAccess.getVel() is required"),
             0
         )
     end
     if KTypeOf(ba.rotation) ~= "function" then
         error(
-            LuaConstruct(Error, "[EntityCore] bodyAccess.rotation() is required"),
+            Classes:construct(Error, "[EntityCore] bodyAccess.rotation() is required"),
             0
         )
     end
     if KTypeOf(ba.getAngVel) ~= "function" then
         error(
-            LuaConstruct(Error, "[EntityCore] bodyAccess.getAngVel() is required"),
+            Classes:construct(Error, "[EntityCore] bodyAccess.getAngVel() is required"),
             0
         )
     end
@@ -135,7 +134,7 @@ function EntityCore.prototype.attach(self, handle, body, bodyAccess)
     self.uuid = tostring(u or "")
     if not self.uuid then
         error(
-            LuaConstruct(Error, "[EntityCore] missing uuid (UUID-only)"),
+            Classes:construct(Error, "[EntityCore] missing uuid (UUID-only)"),
             0
         )
     end
@@ -143,7 +142,7 @@ function EntityCore.prototype.attach(self, handle, body, bodyAccess)
     self.bodyId = bit32.bor(handle.bodyId, 0) or 0
     if self.bodyId <= 0 then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[EntityCore] invalid bodyId=" .. tostring(self.bodyId)
             ),
@@ -161,7 +160,7 @@ end
 function EntityCore.prototype.syncPhysics(self)
     if not self.state.alive then
         error(
-            LuaConstruct(Error, "[EntityCore] syncPhysics on dead entity"),
+            Classes:construct(Error, "[EntityCore] syncPhysics on dead entity"),
             0
         )
     end
@@ -230,9 +229,9 @@ end
 function EntityCore.prototype._num(self, v)
     local lua_temp_2
     if KTypeOf(v) == "function" then
-        lua_temp_2 = LuaNumber(v())
+        lua_temp_2 = Numbers:coerce(v())
     else
-        lua_temp_2 = LuaNumber(v)
+        lua_temp_2 = Numbers:coerce(v)
     end
     return lua_temp_2
 end
@@ -246,9 +245,9 @@ function EntityCore.prototype._comp(self, o, k)
     local v = lua_o_3
     local lua_temp_4
     if KTypeOf(v) == "function" then
-        lua_temp_4 = LuaNumber(KFunction:call(v, o))
+        lua_temp_4 = Numbers:coerce(KFunction:call(v, o))
     else
-        lua_temp_4 = LuaNumber(v)
+        lua_temp_4 = Numbers:coerce(v)
     end
     return lua_temp_4
 end

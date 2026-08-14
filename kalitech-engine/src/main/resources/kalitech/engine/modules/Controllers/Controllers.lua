@@ -1,13 +1,13 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Arrays = luaRuntime.array
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaTableKeys = luaRuntime.LuaTableKeys
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -16,7 +16,7 @@ end
 function reqStr(self, s, msg)
     if KTypeOf(s) ~= "string" or not s then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -55,7 +55,7 @@ create = setmetatable(
                 end
                 local r = lua_temp_5
                 if not r then
-                    r = LuaConstruct(ControllerRegistry, name)
+                    r = Classes:construct(ControllerRegistry, name)
                     if hub and KTypeOf(hub.set) == "function" then
                         hub:set(r)
                     end
@@ -70,12 +70,12 @@ create = setmetatable(
             entity = req(_G, entity, "[Controllers] entity is required")
             if KTypeOf(registry.build) ~= "function" then
                 error(
-                    LuaConstruct(Error, "[Controllers] registry.build(ctx,entity,cfg) is required"),
+                    Classes:construct(Error, "[Controllers] registry.build(ctx,entity,cfg) is required"),
                     0
                 )
             end
             local built = registry:build(ctx, entity, cfg or nil)
-            local stack = LuaConstruct(ControllerStack, built.list, built.ids)
+            local stack = Classes:construct(ControllerStack, built.list, built.ids)
             if KTypeOf(stack.bind) == "function" then
                 stack:bind(ctx, entity)
             end
@@ -86,7 +86,7 @@ create = setmetatable(
                 exp(_G, hub, engine, K)
                 return
             end
-            if exp and LuaArrayIsArray(exp.registries) then
+            if exp and Arrays:isArray(exp.registries) then
                 do
                     local i = 0
                     while i < KLength(exp.registries) do
@@ -98,7 +98,7 @@ create = setmetatable(
             end
             local ok = false
             if exp and KTypeOf(exp) == "table" then
-                for lua_, k in ipairs(LuaTableKeys(exp)) do
+                for lua_, k in ipairs(Tables:keys(exp)) do
                     do
                         if (string.find(k, "create", nil, true) or 0) - 1 ~= 0 or KString:lastIndexOf(k, "Registry") ~= #k - #"Registry" then
                             goto lua_continue21
@@ -116,7 +116,7 @@ create = setmetatable(
             end
             if not ok then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         "[Controllers] invalid registrator export: " .. reqStr(_G, id, "id")
                     ),
@@ -214,7 +214,7 @@ create = setmetatable(
         local api = KObject:freeze({
             Registry = ControllerRegistry,
             loadRegistrators = function(self, list)
-                if not LuaArrayIsArray(list) then
+                if not Arrays:isArray(list) then
                     return false
                 end
                 do
@@ -244,7 +244,7 @@ create = setmetatable(
                 registry = req(_G, registry, "[Controllers] registry is required")
                 if not hub or KTypeOf(hub.set) ~= "function" then
                     error(
-                        LuaConstruct(Error, "[Controllers] controllers hub has no set(registry)"),
+                        Classes:construct(Error, "[Controllers] controllers hub has no set(registry)"),
                         0
                     )
                 end
@@ -256,7 +256,7 @@ create = setmetatable(
                 fn = req(_G, fn, "[Controllers] fn is required")
                 if KTypeOf(fn) ~= "function" then
                     error(
-                        LuaConstruct(Error, "[Controllers] register(name, fn): fn must be function"),
+                        Classes:construct(Error, "[Controllers] register(name, fn): fn must be function"),
                         0
                     )
                 end
@@ -301,7 +301,7 @@ create = setmetatable(
                     entity,
                     cfg
                 )
-                return LuaConstruct(EntityController, ctx, entity, stack)
+                return Classes:construct(EntityController, ctx, entity, stack)
             end
         })
         tryInstallHotReload(_G, api)

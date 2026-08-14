@@ -316,7 +316,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             throw new IllegalArgumentException("world.spawn(args): args object is required");
         }
 
-        final String prefab = requireStr(args, "prefab", "world.spawn: args.prefab is required");
+        final String moduleId = requireStr(args, "module", "world.spawn: args.module is required");
         final String name = readStr(args, "name", null, "world.spawn args.");
 
         final String uuid = ecs.createEntity();
@@ -326,10 +326,16 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             if (!n.isEmpty()) ecs.putComponentByName(uuid, "Name", n);
         }
 
-        ecs.putComponent(uuid, ScriptComponent.class, new ScriptComponent(prefab));
+        ecs.putComponent(uuid, ScriptComponent.class, new ScriptComponent(moduleId));
 
-        emit("entity.spawned", Map.of("uuid", uuid, "name", name, "prefab", prefab));
-        if (log.isDebugEnabled()) log.debug("[world.spawn] uuid={} name='{}' prefab={}", uuid, name, prefab);
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("uuid", uuid);
+        event.put("name", name);
+        event.put("module", moduleId);
+        emit("entity.spawned", event);
+        if (log.isDebugEnabled()) {
+            log.debug("[world.spawn] uuid={} name='{}' module={}", uuid, name, moduleId);
+        }
 
         return uuid;
     }

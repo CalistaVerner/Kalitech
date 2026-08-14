@@ -1,12 +1,12 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaStringTrim = luaRuntime.LuaStringTrim
 function fail(self, msg)
     error(
-        LuaConstruct(Error, msg),
+        Classes:construct(Error, msg),
         0
     )
 end
@@ -32,7 +32,7 @@ function asBool(self, v, name)
     return v
 end
 function asInt(self, v, name)
-    if not LuaNumberIsFinite(v) or bit32.bor(v, 0) ~= v then
+    if not Numbers:isFinite(v) or bit32.bor(v, 0) ~= v then
         fail(
             _G,
             ("[camera] " .. tostring(name)) .. " must be int"
@@ -41,7 +41,7 @@ function asInt(self, v, name)
     return bit32.bor(v, 0)
 end
 function asStr(self, v, name)
-    if KTypeOf(v) ~= "string" or not LuaStringTrim(v) then
+    if KTypeOf(v) ~= "string" or not Strings:trim(v) then
         fail(
             _G,
             ("[camera] " .. tostring(name)) .. " must be non-empty string"

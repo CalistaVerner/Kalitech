@@ -12,15 +12,21 @@ import org.foxesworld.kalitech.core.KalitechPlatform;
 import org.foxesworld.kalitech.core.KalitechVersion;
 import org.foxesworld.kalitech.engine.asset.InputTextLoader;
 import org.foxesworld.kalitech.engine.asset.LuaTextLoader;
+import org.foxesworld.kalitech.engine.project.ProjectDescriptor;
 
-import java.nio.file.Path;
+import java.util.Objects;
 
 public class KalitechApplication extends SimpleApplication {
 
     private static final Logger log = LogManager.getLogger(KalitechApplication.class);
-    private String version, os, java, assetsDir;
+    private final ProjectDescriptor project;
+    private String version, os, java;
     private final float smokeExitAfterSeconds = positiveFloatProperty("kalitech.smokeExitAfterSeconds");
     private float runtimeSeconds;
+
+    public KalitechApplication(ProjectDescriptor project) {
+        this.project = Objects.requireNonNull(project, "project");
+    }
 
     @Override
     public void simpleInitApp() {
@@ -30,9 +36,16 @@ public class KalitechApplication extends SimpleApplication {
         this.version = KalitechVersion.VERSION;
         this.os = KalitechPlatform.os();
         this.java = KalitechPlatform.java();
-        this.assetsDir = KalitechVersion.ASSETSDIR;
+        log.info("[Project] id={} namespace={} projectOwned={} descriptor={}",
+                project.id(),
+                project.scripts().namespace(),
+                project.projectOwnedRoot(),
+                project.descriptorFile());
 
-        assetManager.registerLocator(assetsDir, com.jme3.asset.plugins.FileLocator.class);
+        assetManager.registerLocator(
+                project.projectOwnedRoot().toString(),
+                com.jme3.asset.plugins.FileLocator.class
+        );
         assetManager.registerLoader(InputTextLoader.class, "json", "html", "css");
         assetManager.registerLoader(LuaTextLoader.class, "lua");
         GuiGlobals.initialize(this);
@@ -48,8 +61,8 @@ public class KalitechApplication extends SimpleApplication {
         stateManager.detach(stateManager.getState(FlyCamAppState.class));
 
         stateManager.attach(new org.foxesworld.kalitech.engine.app.RuntimeAppState(
-                "Scripts/main.lua",
-                Path.of(assetsDir),
+                project.scripts(),
+                project.projectOwnedRoot(),
                 ecs,
                 bus
         ));
@@ -73,6 +86,10 @@ public class KalitechApplication extends SimpleApplication {
         } catch (RuntimeException ignored) {
             return 0f;
         }
+    }
+
+    public ProjectDescriptor getProject() {
+        return project;
     }
 
     public String getVersion() {

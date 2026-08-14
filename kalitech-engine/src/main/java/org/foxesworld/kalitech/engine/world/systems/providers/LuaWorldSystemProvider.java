@@ -126,7 +126,7 @@ public final class LuaWorldSystemProvider extends AbstractSystemProvider {
 
         final String module = str(config, "module", null);
         if (module == null || module.isBlank()) {
-            throw new IllegalArgumentException("luaSystem requires config.module = 'Scripts/.../file.lua'");
+            throw new IllegalArgumentException("luaSystem requires config.module = '@app/<namespace>/.../file.lua'");
         }
 
         final String stableId = str(config, "stableId", null);

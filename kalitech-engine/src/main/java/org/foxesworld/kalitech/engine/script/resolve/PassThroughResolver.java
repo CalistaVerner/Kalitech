@@ -12,8 +12,10 @@ public final class PassThroughResolver implements ResolverStrategy {
         String req = PathNorm.normalizeId(request.trim());
         if (req.isEmpty()) return Optional.empty();
 
-        // policy: only allow specific roots (security)
-        if (req.startsWith("Scripts/") || req.startsWith("Mods/")) {
+        // Direct application asset paths are intentionally forbidden.
+        // Application code must use @app/<namespace>/... so cache and dependency
+        // identities cannot collide across projects.
+        if (req.startsWith("Mods/")) {
             return Optional.of(req);
         }
         return Optional.empty();

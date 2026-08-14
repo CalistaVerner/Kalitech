@@ -1,4 +1,6 @@
 local M = {}
+local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 
 local function readTextAsset(_, engine, path)
     if not engine or KTypeOf(engine.assets) ~= "function" then
@@ -11,5 +13,7 @@ local function readTextAsset(_, engine, path)
     return assets:readText(path)
 end
 
-M.readTextAsset = readTextAsset
-return M
+local BootstrapAssetsApi = Classes:create()
+BootstrapAssetsApi.name = "BootstrapAssetsApi"
+BootstrapAssetsApi.prototype.readTextAsset = readTextAsset
+return Classes:construct(BootstrapAssetsApi)

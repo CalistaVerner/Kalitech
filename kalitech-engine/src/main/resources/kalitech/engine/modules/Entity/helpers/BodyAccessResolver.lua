@@ -1,8 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function pickFn(self, obj, names)
     if not obj then
         return nil
@@ -32,28 +32,28 @@ function toXYZ(self, a, b, c)
         local z = a.z
         local lua_temp_0
         if KTypeOf(x) == "function" then
-            lua_temp_0 = LuaNumber(x(_G))
+            lua_temp_0 = Numbers:coerce(x(_G))
         else
-            lua_temp_0 = LuaNumber(x)
+            lua_temp_0 = Numbers:coerce(x)
         end
         local lua_temp_1
         if KTypeOf(y) == "function" then
-            lua_temp_1 = LuaNumber(y(_G))
+            lua_temp_1 = Numbers:coerce(y(_G))
         else
-            lua_temp_1 = LuaNumber(y)
+            lua_temp_1 = Numbers:coerce(y)
         end
         local lua_temp_2
         if KTypeOf(z) == "function" then
-            lua_temp_2 = LuaNumber(z(_G))
+            lua_temp_2 = Numbers:coerce(z(_G))
         else
-            lua_temp_2 = LuaNumber(z)
+            lua_temp_2 = Numbers:coerce(z)
         end
         return {x = lua_temp_0, y = lua_temp_1, z = lua_temp_2}
     end
     return {
-        x = LuaNumber(a) or 0,
-        y = LuaNumber(b) or 0,
-        z = LuaNumber(c) or 0
+        x = Numbers:coerce(a) or 0,
+        y = Numbers:coerce(b) or 0,
+        z = Numbers:coerce(c) or 0
     }
 end
 function makeAdapter(self, raw, physicsApi, bodyId)
@@ -319,7 +319,7 @@ function makeAdapter(self, raw, physicsApi, bodyId)
                 return
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     ("[BodyAccess] applyImpulse not supported by raw body nor physics api (bodyId=" .. tostring(pid)) .. ")"
                 ),
@@ -355,7 +355,7 @@ function makeAdapter(self, raw, physicsApi, bodyId)
                 return
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     ("[BodyAccess] setVel not supported by raw body nor physics api (bodyId=" .. tostring(pid)) .. ")"
                 ),
@@ -391,7 +391,7 @@ function makeAdapter(self, raw, physicsApi, bodyId)
                 return
             end
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     ("[BodyAccess] setPos not supported by raw body nor physics api (bodyId=" .. tostring(pid)) .. ")"
                 ),
@@ -403,7 +403,7 @@ end
 function resolveBodyAccess(self, physicsApi, bodyObj, bodyId)
     if not physicsApi then
         error(
-            LuaConstruct(Error, "[BodyAccessResolver] physics api is required"),
+            Classes:construct(Error, "[BodyAccessResolver] physics api is required"),
             0
         )
     end
@@ -411,7 +411,7 @@ function resolveBodyAccess(self, physicsApi, bodyObj, bodyId)
         local adapted = makeAdapter(_G, bodyObj, physicsApi, bodyId)
         if not adapted then
             error(
-                LuaConstruct(Error, "[BodyAccessResolver] failed to adapt body object"),
+                Classes:construct(Error, "[BodyAccessResolver] failed to adapt body object"),
                 0
             )
         end
@@ -431,7 +431,7 @@ function resolveBodyAccess(self, physicsApi, bodyObj, bodyId)
     end
     if not raw then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[BodyAccessResolver] physics body accessor missing or returned null for id=" .. tostring(id)
             ),
@@ -441,7 +441,7 @@ function resolveBodyAccess(self, physicsApi, bodyObj, bodyId)
     local adapted = makeAdapter(_G, raw, physicsApi, id)
     if not adapted then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[BodyAccessResolver] failed to adapt body for id=" .. tostring(id)
             ),

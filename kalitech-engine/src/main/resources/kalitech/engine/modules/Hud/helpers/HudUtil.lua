@@ -1,7 +1,6 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
+local Numbers = luaRuntime.number
 function isObj(self, o)
     return not not o and KTypeOf(o) == "table" and (KObject:getPrototypeOf(o) == KObject.prototype or KObject:getPrototypeOf(o) == nil)
 end
@@ -9,9 +8,9 @@ function num(self, v, fb)
     if fb == nil then
         fb = 0
     end
-    v = LuaNumber(v)
+    v = Numbers:coerce(v)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(v) then
+    if Numbers:isFinite(v) then
         lua_Number_isFinite_result_0 = v
     else
         lua_Number_isFinite_result_0 = fb

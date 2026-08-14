@@ -1,13 +1,12 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumber = luaRuntime.LuaNumber
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
 local lua_require_result_0 = require("./TerrainTypes.lua")
 isObj = lua_require_result_0.isObj
 i32 = lua_require_result_0.i32
-TerrainHeights = LuaClass()
+TerrainHeights = Classes:create()
 TerrainHeights.name = "TerrainHeights"
 function TerrainHeights.prototype.lua_constructor(self, terrNative)
     self.terr = terrNative
@@ -36,7 +35,7 @@ function TerrainHeights.toFloatArray(self, raw)
         if not ok then
             return raw
         end
-        KSetIndex(out, i, LuaNumber(value) or 0)
+        KSetIndex(out, i, Numbers:coerce(value) or 0)
         i = i + 1
     end
     return out
@@ -76,7 +75,7 @@ function TerrainHeights.validateTerrainDims(self, size, patchSize)
     local p = bit32.bor(patchSize, 0)
     if s > 0 and not TerrainHeights:isJmeTerrainSize(s) then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[TERR] size must be (2^k + 1). Got size=" .. tostring(s)
             ),
@@ -85,7 +84,7 @@ function TerrainHeights.validateTerrainDims(self, size, patchSize)
     end
     if p > 0 and not TerrainHeights:isJmeTerrainSize(p) then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[TERR] patchSize must be (2^k + 1). Got patchSize=" .. tostring(p)
             ),
@@ -94,7 +93,7 @@ function TerrainHeights.validateTerrainDims(self, size, patchSize)
     end
     if s > 0 and p > 0 and p > s then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 (("[TERR] patchSize must be <= size. Got patchSize=" .. tostring(p)) .. " size=") .. tostring(s)
             ),
@@ -117,7 +116,7 @@ function TerrainHeights.assertHeightsMatchSize(self, heights, size, where)
     local got = lua_temp_5
     if got and got ~= need then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ((((((("[TERR] " .. tostring(where)) .. ": heights length must be size*size (") .. tostring(need)) .. "), got ") .. tostring(got)) .. " (size=") .. tostring(s)) .. ")"
             ),
@@ -128,7 +127,7 @@ end
 function TerrainHeights.prototype.perlin(self, cfg)
     if not self.terr or KTypeOf(self.terr.perlinHeights) ~= "function" then
         error(
-            LuaConstruct(Error, "[TERR] perlinHeights: native generator not available in this build"),
+            Classes:construct(Error, "[TERR] perlinHeights: native generator not available in this build"),
             0
         )
     end
@@ -150,7 +149,7 @@ end
 function TerrainHeights.prototype.ridged(self, cfg)
     if not self.terr or KTypeOf(self.terr.ridgedHeights) ~= "function" then
         error(
-            LuaConstruct(Error, "[TERR] ridgedHeights: native generator not available in this build"),
+            Classes:construct(Error, "[TERR] ridgedHeights: native generator not available in this build"),
             0
         )
     end

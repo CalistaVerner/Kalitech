@@ -1,11 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function surfaceId(self, handle)
     if not handle or KTypeOf(handle.id) ~= "function" then
         error(
-            LuaConstruct(Error, "[MSH] SurfaceHandle must provide id()"),
+            Classes:construct(Error, "[MSH] SurfaceHandle must provide id()"),
             0
         )
     end
@@ -15,7 +15,7 @@ function surfaceId(self, handle)
     )
     if sid <= 0 then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[MSH] invalid surfaceId=" .. tostring(sid)
             ),
@@ -28,7 +28,7 @@ function requireSurface(self, engine)
     local s = engine:surface()
     if not s or KTypeOf(s.attachedBody) ~= "function" then
         error(
-            LuaConstruct(Error, "[MSH] ENGINE.surface().attachedBody(surfaceId) is required"),
+            Classes:construct(Error, "[MSH] ENGINE.surface().attachedBody(surfaceId) is required"),
             0
         )
     end
@@ -38,7 +38,7 @@ function requirePhysics(self, engine)
     local p = engine:physics()
     if not p then
         error(
-            LuaConstruct(Error, "[MSH] ENGINE.physics() is required"),
+            Classes:construct(Error, "[MSH] ENGINE.physics() is required"),
             0
         )
     end
@@ -52,7 +52,7 @@ function resolveBodyId(self, engine, sid)
     )
     if bid <= 0 then
         error(
-            LuaConstruct(Error, "[MSH] surface has no physics body (bodyId=0)"),
+            Classes:construct(Error, "[MSH] surface has no physics body (bodyId=0)"),
             0
         )
     end

@@ -1,18 +1,17 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
     return v
 end
-EntityControllerLink = LuaClass()
+EntityControllerLink = Classes:create()
 EntityControllerLink.name = "EntityControllerLink"
 function EntityControllerLink.prototype.lua_constructor(self, id, entity, controller)
     self.id = tostring(id or "")
@@ -23,7 +22,7 @@ end
 function EntityControllerLink.prototype.setController(self, controller)
     if not self._alive then
         error(
-            LuaConstruct(Error, "[EntityControllerLink] setController on disposed"),
+            Classes:construct(Error, "[EntityControllerLink] setController on disposed"),
             0
         )
     end
@@ -33,7 +32,7 @@ end
 function EntityControllerLink.prototype.update(self, dt)
     if not self._alive then
         error(
-            LuaConstruct(Error, "[EntityControllerLink] update on disposed"),
+            Classes:construct(Error, "[EntityControllerLink] update on disposed"),
             0
         )
     end

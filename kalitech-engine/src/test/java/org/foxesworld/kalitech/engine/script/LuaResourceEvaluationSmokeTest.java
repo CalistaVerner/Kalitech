@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.script;
 
+import org.foxesworld.kalitech.engine.project.ProjectDescriptor;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -19,7 +20,12 @@ final class LuaResourceEvaluationSmokeTest {
         Path repo = Path.of(System.getProperty("kalitech.repoRoot"))
                 .toAbsolutePath()
                 .normalize();
-        Path assets = repo.resolve("assets");
+        ProjectDescriptor project = ProjectDescriptor.load(
+                Path.of(System.getProperty("kalitech.project"))
+        );
+        Path projectOwned = project.projectOwnedRoot();
+        ScriptEntryPoint entryPoint = project.scripts();
+        Path applicationScripts = projectOwned.resolve(entryPoint.scriptRoot());
         Path builtins = repo.resolve("kalitech-engine/src/main/resources/kalitech/engine");
 
         try (ScriptRuntime runtime = new ScriptRuntime()) {
@@ -28,15 +34,17 @@ final class LuaResourceEvaluationSmokeTest {
             initialized.setBoolean(runtime, true);
 
             runtime.setModuleStreamProvider(moduleId -> {
-                Path file = assets.resolve(moduleId).normalize();
-                if (!file.startsWith(assets) || !Files.isRegularFile(file)) return null;
+                String projectPath = entryPoint.projectOwnedPath(moduleId);
+                if (projectPath == null) return null;
+                Path file = projectOwned.resolve(projectPath).normalize();
+                if (!file.startsWith(projectOwned) || !Files.isRegularFile(file)) return null;
                 return Files.newInputStream(file);
             });
 
             for (String moduleId : luaModuleIds(builtins, "@builtin/")) {
                 assertNotNull(runtime.require(moduleId), "builtin returned null: " + moduleId);
             }
-            for (String moduleId : luaModuleIds(assets, "")) {
+            for (String moduleId : luaModuleIds(applicationScripts, entryPoint.moduleRoot() + "/")) {
                 assertNotNull(runtime.require(moduleId), "application module returned null: " + moduleId);
             }
         }

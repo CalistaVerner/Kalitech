@@ -1,13 +1,11 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaClass = luaRuntime.LuaClass
-local LuaTableMerge = luaRuntime.LuaTableMerge
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function s(self, v)
     return tostring(v == nil and "" or v)
 end
@@ -30,9 +28,9 @@ function toNumOpt(self, v, defVal)
     if v == nil then
         return defVal
     end
-    local n = LuaNumber(v)
+    local n = Numbers:coerce(v)
     local lua_Number_isFinite_result_1
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_1 = n
     else
         lua_Number_isFinite_result_1 = defVal
@@ -104,24 +102,24 @@ function getLog(self, engine)
     }
 end
 function v3(self, v, a, b)
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         return {
-            LuaNumber(v[1]) or 0,
-            LuaNumber(v[2]) or 0,
-            LuaNumber(v[3]) or 0
+            Numbers:coerce(v[1]) or 0,
+            Numbers:coerce(v[2]) or 0,
+            Numbers:coerce(v[3]) or 0
         }
     end
     if isObj(_G, v) then
         return {
-            LuaNumber(v.x) or 0,
-            LuaNumber(v.y) or 0,
-            LuaNumber(v.z) or 0
+            Numbers:coerce(v.x) or 0,
+            Numbers:coerce(v.y) or 0,
+            Numbers:coerce(v.z) or 0
         }
     end
     return {
-        LuaNumber(v) or 0,
-        LuaNumber(a) or 0,
-        LuaNumber(b) or 0
+        Numbers:coerce(v) or 0,
+        Numbers:coerce(a) or 0,
+        Numbers:coerce(b) or 0
     }
 end
 function safeExec(self, log, label, fn)
@@ -194,10 +192,10 @@ function normalizeSrcList(self, cfg)
     if not cfg then
         return {}
     end
-    if LuaArrayIsArray(cfg.src) then
+    if Arrays:isArray(cfg.src) then
         return KArrayOps.filter(KArrayOps.map(cfg.src, s), function(lua_, v) return KLength(v) > 0 end)
     end
-    if LuaArrayIsArray(cfg.srcs) then
+    if Arrays:isArray(cfg.srcs) then
         return KArrayOps.filter(KArrayOps.map(cfg.srcs, s), function(lua_, v) return KLength(v) > 0 end)
     end
     if KTypeOf(cfg.src) == "string" then
@@ -229,7 +227,7 @@ function deriveChoiceSeed(self, cfg)
     end
     local lua_temp_8
     if cfg.seed ~= nil then
-        lua_temp_8 = LuaNumber(cfg.seed) or 0
+        lua_temp_8 = Numbers:coerce(cfg.seed) or 0
     else
         lua_temp_8 = nil
     end
@@ -247,10 +245,10 @@ function deriveChoiceSeed(self, cfg)
     local packed = table.concat(
         {
             s(_G, c.entityUuid),
-            tostring(LuaNumber(c.surfaceId) or 0),
-            tostring(LuaNumber(c.seq) or 0),
-            tostring(LuaNumber(c.tick) or 0),
-            tostring(LuaNumber(c.slot) or 0)
+            tostring(Numbers:coerce(c.surfaceId) or 0),
+            tostring(Numbers:coerce(c.seq) or 0),
+            tostring(Numbers:coerce(c.tick) or 0),
+            tostring(Numbers:coerce(c.slot) or 0)
         },
         "|"
     )
@@ -277,10 +275,10 @@ function chooseIndex(self, count, cfg)
         0
     )
 end
-SoundInstance = LuaClass()
+SoundInstance = Classes:create()
 SoundInstance.name = "SoundInstance"
 function SoundInstance.prototype.lua_constructor(self, engine, id, api, log)
-    self._id = LuaNumber(id) or 0
+    self._id = Numbers:coerce(id) or 0
     self._api = api
     self._log = log
 end
@@ -325,7 +323,7 @@ function SoundInstance.prototype.volume(self, v)
             self._id,
             math.max(
                 0,
-                LuaNumber(v)
+                Numbers:coerce(v)
             )
         ) end
     )
@@ -334,7 +332,7 @@ end
 function SoundInstance.prototype.pitch(self, v)
     local pv = math.min(
         math.max(
-            LuaNumber(v),
+            Numbers:coerce(v),
             0.5
         ),
         2
@@ -391,7 +389,7 @@ function SoundInstance.prototype.maxDistance(self, v)
             "maxDistance",
             function() return self._api:setMaxDistanceId(
                 self._id,
-                LuaNumber(v)
+                Numbers:coerce(v)
             ) end
         )
     end
@@ -405,7 +403,7 @@ function SoundInstance.prototype.refDistance(self, v)
             "refDistance",
             function() return self._api:setRefDistanceId(
                 self._id,
-                LuaNumber(v)
+                Numbers:coerce(v)
             ) end
         )
     end
@@ -443,7 +441,7 @@ function SoundInstance.prototype.innerAngle(self, v)
             "innerAngle",
             function() return self._api:setInnerAngleId(
                 self._id,
-                LuaNumber(v)
+                Numbers:coerce(v)
             ) end
         )
     end
@@ -457,7 +455,7 @@ function SoundInstance.prototype.outerAngle(self, v)
             "outerAngle",
             function() return self._api:setOuterAngleId(
                 self._id,
-                LuaNumber(v)
+                Numbers:coerce(v)
             ) end
         )
     end
@@ -503,7 +501,7 @@ function SoundInstance.prototype.velocityFromTranslation(self, v)
     end
     return self
 end
-SoundObject = LuaClass()
+SoundObject = Classes:create()
 SoundObject.name = "SoundObject"
 function SoundObject.prototype.lua_constructor(self, registry, mode, base)
     self._r = registry
@@ -546,7 +544,7 @@ function SoundObject.prototype.setDeterministic(self, v)
     return self
 end
 function SoundObject.prototype.setSeed(self, seed)
-    self._seed = LuaNumber(seed) or 0
+    self._seed = Numbers:coerce(seed) or 0
     return self
 end
 function SoundObject.prototype.setPositional(self, v)
@@ -573,16 +571,16 @@ function SoundObject.prototype.setContext(self, ctx)
             self._context.entityUuid = s(_G, ctx.entityUuid)
         end
         if ctx.surfaceId ~= nil then
-            self._context.surfaceId = LuaNumber(ctx.surfaceId) or 0
+            self._context.surfaceId = Numbers:coerce(ctx.surfaceId) or 0
         end
         if ctx.seq ~= nil then
-            self._context.seq = LuaNumber(ctx.seq) or 0
+            self._context.seq = Numbers:coerce(ctx.seq) or 0
         end
         if ctx.tick ~= nil then
-            self._context.tick = LuaNumber(ctx.tick) or 0
+            self._context.tick = Numbers:coerce(ctx.tick) or 0
         end
         if ctx.slot ~= nil then
-            self._context.slot = LuaNumber(ctx.slot) or 0
+            self._context.slot = Numbers:coerce(ctx.slot) or 0
         end
     end
     return self
@@ -592,15 +590,15 @@ function SoundObject.prototype.setEntityUuid(self, uuid)
     return self
 end
 function SoundObject.prototype.setSurfaceId(self, id)
-    self._context.surfaceId = LuaNumber(id) or 0
+    self._context.surfaceId = Numbers:coerce(id) or 0
     return self
 end
 function SoundObject.prototype.setTick(self, tick)
-    self._context.tick = LuaNumber(tick) or 0
+    self._context.tick = Numbers:coerce(tick) or 0
     return self
 end
 function SoundObject.prototype.setSlot(self, slot)
-    self._context.slot = LuaNumber(slot) or 0
+    self._context.slot = Numbers:coerce(slot) or 0
     return self
 end
 function SoundObject.prototype.enableAutoSeq(self, v)
@@ -616,7 +614,7 @@ function SoundObject.prototype.setSeqMode(self, mode)
     return self
 end
 function SoundObject.prototype.setSeq(self, seq)
-    self._context.seq = LuaNumber(seq) or 0
+    self._context.seq = Numbers:coerce(seq) or 0
     return self
 end
 function SoundObject.prototype.nextSeq(self)
@@ -631,7 +629,7 @@ function SoundObject.prototype._buildCfgForPlay(self)
             cfg.deterministic = not not self._deterministic
         end
         if self._seed ~= nil then
-            cfg.seed = LuaNumber(self._seed) or 0
+            cfg.seed = Numbers:coerce(self._seed) or 0
         end
         if self._random ~= nil then
             cfg.random = not not self._random
@@ -645,7 +643,7 @@ function SoundObject.prototype._buildCfgForPlay(self)
         }
         local ov = nil
         if self._overrides and KTypeOf(self._overrides) == "table" then
-            ov = LuaTableMerge({}, self._overrides)
+            ov = Tables:merge({}, self._overrides)
         end
         if self._positional ~= nil then
             ov = ov or ({})
@@ -656,7 +654,7 @@ function SoundObject.prototype._buildCfgForPlay(self)
         end
         return cfg
     end
-    local cfg = LuaTableMerge({}, self._fileCfg)
+    local cfg = Tables:merge({}, self._fileCfg)
     if self._positional ~= nil then
         cfg.is3D = not not self._positional
     end
@@ -664,7 +662,7 @@ function SoundObject.prototype._buildCfgForPlay(self)
         cfg.random = not not self._random
     end
     if self._overrides and KTypeOf(self._overrides) == "table" then
-        LuaTableMerge(cfg, self._overrides)
+        Tables:merge(cfg, self._overrides)
     end
     return cfg
 end
@@ -680,7 +678,7 @@ function SoundObject.prototype.play(self)
     end
     return self._r:playSound(self:_buildCfgForPlay())
 end
-SoundRegistry = LuaClass()
+SoundRegistry = Classes:create()
 SoundRegistry.name = "SoundRegistry"
 function SoundRegistry.prototype.lua_constructor(self, engine, K)
     self.engine = engine
@@ -695,7 +693,7 @@ function SoundRegistry.prototype.api(self)
     local soundApi = self.engine.sound and self.engine:sound()
     if not soundApi or not isFn(_G, soundApi.createId) then
         error(
-            LuaConstruct(Error, "[SND] engine.sound().createId(cfg) is required"),
+            Classes:construct(Error, "[SND] engine.sound().createId(cfg) is required"),
             0
         )
     end
@@ -722,7 +720,7 @@ function SoundRegistry.prototype._tryAutoLoadBank(self)
             local assets = self.engine.assets and self.engine:assets()
             if not assets or not isFn(_G, assets.readText) then
                 error(
-                    LuaConstruct(Error, "[SND] engine.assets().readText(path) is required for bank autoload"),
+                    Classes:construct(Error, "[SND] engine.assets().readText(path) is required for bank autoload"),
                     0
                 )
             end
@@ -751,7 +749,7 @@ function SoundRegistry.prototype.setSeed(self, seed)
     local api = self:api()
     if not api.setSeed then
         error(
-            LuaConstruct(Error, "[SND] engine.sound().setSeed(seed) is required"),
+            Classes:construct(Error, "[SND] engine.sound().setSeed(seed) is required"),
             0
         )
     end
@@ -759,7 +757,7 @@ function SoundRegistry.prototype.setSeed(self, seed)
         _G,
         self._log,
         "setSeed",
-        function() return api:setSeed(LuaNumber(seed) or 0) end
+        function() return api:setSeed(Numbers:coerce(seed) or 0) end
     )
     return self
 end
@@ -770,7 +768,7 @@ function SoundRegistry.prototype.setDeterministic(self, v)
     local api = self:api()
     if not api.setDeterministic then
         error(
-            LuaConstruct(Error, "[SND] engine.sound().setDeterministic(bool) is required"),
+            Classes:construct(Error, "[SND] engine.sound().setDeterministic(bool) is required"),
             0
         )
     end
@@ -790,7 +788,7 @@ function SoundRegistry.prototype.create(self, cfg)
         "createId",
         function() return api:createId(cfg) end
     )
-    return LuaConstruct(
+    return Classes:construct(
         SoundInstance,
         self.engine,
         id,
@@ -812,7 +810,7 @@ function SoundRegistry.prototype.createAndPlay(self, cfg)
         "play",
         function() return api:playId(id) end
     )
-    return LuaConstruct(
+    return Classes:construct(
         SoundInstance,
         self.engine,
         id,
@@ -824,7 +822,7 @@ function SoundRegistry.prototype.loadBank(self, bankObj)
     local api = self:api()
     if not isFn(_G, api.loadBank) then
         error(
-            LuaConstruct(Error, "[SND] engine.sound().loadBank(bankObj) is required for event sound bank"),
+            Classes:construct(Error, "[SND] engine.sound().loadBank(bankObj) is required for event sound bank"),
             0
         )
     end
@@ -867,7 +865,7 @@ function SoundRegistry.prototype.listEvents(self)
 end
 function SoundRegistry.prototype.getSound(self, eventKey)
     self:_ensureBankLoaded()
-    return LuaConstruct(SoundObject, self, "event", eventKey)
+    return Classes:construct(SoundObject, self, "event", eventKey)
 end
 function SoundRegistry.prototype.getSoundFile(self, srcOrCfg)
     local lua_temp_12
@@ -877,13 +875,13 @@ function SoundRegistry.prototype.getSoundFile(self, srcOrCfg)
         lua_temp_12 = srcOrCfg or ({})
     end
     local cfg = lua_temp_12
-    return LuaConstruct(SoundObject, self, "file", cfg)
+    return Classes:construct(SoundObject, self, "file", cfg)
 end
 function SoundRegistry.prototype.playSound(self, cfg)
     local api = self:api()
     if not cfg or KTypeOf(cfg) ~= "table" then
         error(
-            LuaConstruct(Error, "[SND] playSound(cfg): cfg object is required"),
+            Classes:construct(Error, "[SND] playSound(cfg): cfg object is required"),
             0
         )
     end
@@ -892,7 +890,7 @@ function SoundRegistry.prototype.playSound(self, cfg)
     local hasSrc = KLength(srcList) > 0
     if not hasEvent and not hasSrc then
         error(
-            LuaConstruct(Error, "[SND] playSound(cfg): 'event' or 'src' (string/array) is required"),
+            Classes:construct(Error, "[SND] playSound(cfg): 'event' or 'src' (string/array) is required"),
             0
         )
     end
@@ -900,7 +898,7 @@ function SoundRegistry.prototype.playSound(self, cfg)
         self:_ensureBankLoaded()
         if not isFn(_G, api.playEventCfgId) then
             error(
-                LuaConstruct(Error, "[SND] engine.sound().playEventCfgId(cfg) is required for event sounds"),
+                Classes:construct(Error, "[SND] engine.sound().playEventCfgId(cfg) is required for event sounds"),
                 0
             )
         end
@@ -911,7 +909,7 @@ function SoundRegistry.prototype.playSound(self, cfg)
             "playEventCfgId",
             function() return api:playEventCfgId(ecfg) end
         )
-        return LuaConstruct(
+        return Classes:construct(
             SoundInstance,
             self.engine,
             id,
@@ -933,7 +931,7 @@ function SoundRegistry.prototype.playSound(self, cfg)
         "play",
         function() return api:playId(id) end
     )
-    return LuaConstruct(
+    return Classes:construct(
         SoundInstance,
         self.engine,
         id,
@@ -950,21 +948,21 @@ function SoundRegistry.prototype._normalizeEventCfg(self, cfg)
         out.deterministic = not not cfg.deterministic
     end
     if cfg.seed ~= nil then
-        out.seed = LuaNumber(cfg.seed) or 0
+        out.seed = Numbers:coerce(cfg.seed) or 0
     end
     if cfg.context and KTypeOf(cfg.context) == "table" then
         local c = cfg.context
         out.context = {
             entityUuid = s(_G, c.entityUuid),
-            surfaceId = LuaNumber(c.surfaceId) or 0,
-            seq = LuaNumber(c.seq) or 0,
-            tick = LuaNumber(c.tick) or 0,
-            slot = LuaNumber(c.slot) or 0
+            surfaceId = Numbers:coerce(c.surfaceId) or 0,
+            seq = Numbers:coerce(c.seq) or 0,
+            tick = Numbers:coerce(c.tick) or 0,
+            slot = Numbers:coerce(c.slot) or 0
         }
     end
     local ov = nil
     if cfg.overrides and KTypeOf(cfg.overrides) == "table" then
-        ov = LuaTableMerge({}, cfg.overrides)
+        ov = Tables:merge({}, cfg.overrides)
     end
     if cfg.is3D ~= nil then
         ov = ov or ({})
@@ -1032,10 +1030,10 @@ function SoundRegistry.prototype._normalizeSrcCfg(self, cfg, srcList)
         local c = cfg.context
         out.context = {
             entityUuid = s(_G, c.entityUuid),
-            surfaceId = LuaNumber(c.surfaceId) or 0,
-            seq = LuaNumber(c.seq) or 0,
-            tick = LuaNumber(c.tick) or 0,
-            slot = LuaNumber(c.slot) or 0
+            surfaceId = Numbers:coerce(c.surfaceId) or 0,
+            seq = Numbers:coerce(c.seq) or 0,
+            tick = Numbers:coerce(c.tick) or 0,
+            slot = Numbers:coerce(c.slot) or 0
         }
     end
     local idx = chooseIndex(_G, KLength(srcList), {deterministic = not not det, seed = seed, random = not not rnd, context = out.context})
@@ -1078,11 +1076,11 @@ create = setmetatable(
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[SND] engine is required"),
+                Classes:construct(Error, "[SND] engine is required"),
                 0
             )
         end
-        return LuaConstruct(SoundRegistry, engine, K)
+        return Classes:construct(SoundRegistry, engine, K)
     end}
 )
 create.META = {

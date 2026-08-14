@@ -6,8 +6,8 @@ import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 public interface WorldApi {
 
     /**
-     * Spawn entity from prefab.
-     * args: { name?: string, prefab: string }
+     * Spawn an entity backed by a canonical application Lua module.
+     * args: { name?: string, module: "@app/<namespace>/.../*.lua" }
      * returns entity UUID (string)
      */
     @LuaExport

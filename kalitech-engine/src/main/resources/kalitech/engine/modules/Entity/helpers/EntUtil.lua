@@ -1,18 +1,17 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaTableKeys = luaRuntime.LuaTableKeys
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function isObj(self, v)
-    return not not v and KTypeOf(v) == "table" and not LuaArrayIsArray(v)
+    return not not v and KTypeOf(v) == "table" and not Arrays:isArray(v)
 end
 function num(self, v, fb)
-    local n = LuaNumber(v)
+    local n = Numbers:coerce(v)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_0 = n
     else
         lua_Number_isFinite_result_0 = fb or 0
@@ -29,7 +28,7 @@ function bool(self, v, fb)
     return lua_temp_1
 end
 function vec3(self, v, fbX, fbY, fbZ)
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         return {
             num(_G, v[1], fbX),
             num(_G, v[2], fbY),
@@ -77,10 +76,10 @@ function deepMerge(self, dst, src)
     if not src or KTypeOf(src) ~= "table" then
         return dst
     end
-    for lua_, k in ipairs(LuaTableKeys(src)) do
+    for lua_, k in ipairs(Tables:keys(src)) do
         local sv = src[k]
         local dv = dst[k]
-        if sv and KTypeOf(sv) == "table" and not LuaArrayIsArray(sv) then
+        if sv and KTypeOf(sv) == "table" and not Arrays:isArray(sv) then
             dst[k] = deepMerge(_G, dv, sv)
         else
             dst[k] = sv
@@ -91,7 +90,7 @@ end
 function req(self, cond, msg)
     if not cond then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -115,7 +114,7 @@ function subsystem(self, engine, name)
         return v
     end
     error(
-        LuaConstruct(
+        Classes:construct(
             Error,
             ("[ENT] engine." .. tostring(name)) .. " missing"
         ),

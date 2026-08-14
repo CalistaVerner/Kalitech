@@ -1,8 +1,7 @@
 local luaRuntime = require("@builtin/lua_runtime")
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaTableRemove = luaRuntime.LuaTableRemove
 META = KObject:freeze({
     moduleId = "terrain",
     version = "2.0.0",
@@ -22,7 +21,7 @@ TerrainCreateHelper = lua_require_result_3.TerrainCreateHelper
 function makeApi(self, engine)
     if not engine then
         error(
-            LuaConstruct(Error, "[TERR] engine is required"),
+            Classes:construct(Error, "[TERR] engine is required"),
             0
         )
     end
@@ -35,23 +34,23 @@ function makeApi(self, engine)
     local terr = lua_temp_4
     if not terr then
         error(
-            LuaConstruct(Error, "[TERR] engine.terrain() is not available"),
+            Classes:construct(Error, "[TERR] engine.terrain() is not available"),
             0
         )
     end
-    local heightsApi = LuaConstruct(TerrainHeights, terr)
-    local physicsApi = LuaConstruct(TerrainPhysics, engine)
+    local heightsApi = Classes:construct(TerrainHeights, terr)
+    local physicsApi = Classes:construct(TerrainPhysics, engine)
     local function terrain(self, cfg)
         local lua_isObj_result_5
         if isObj(_G, cfg) then
-            lua_isObj_result_5 = LuaTableMerge({}, cfg)
+            lua_isObj_result_5 = Tables:merge({}, cfg)
         else
             lua_isObj_result_5 = {}
         end
         local c = lua_isObj_result_5
         local physCfg = c.physics
         if physCfg ~= nil then
-            LuaTableRemove(c, "physics")
+            Tables:remove(c, "physics")
         end
         if c.size or c.patchSize then
             TerrainHeights:validateTerrainDims(
@@ -65,14 +64,14 @@ function makeApi(self, engine)
     local function terrainHeights(self, cfg)
         local lua_isObj_result_6
         if isObj(_G, cfg) then
-            lua_isObj_result_6 = LuaTableMerge({}, cfg)
+            lua_isObj_result_6 = Tables:merge({}, cfg)
         else
             lua_isObj_result_6 = {}
         end
         local c = lua_isObj_result_6
         local physCfg = c.physics
         if physCfg ~= nil then
-            LuaTableRemove(c, "physics")
+            Tables:remove(c, "physics")
         end
         local heights = c.heights
         if heights ~= nil then
@@ -95,14 +94,14 @@ function makeApi(self, engine)
     local function quad(self, cfg)
         local lua_isObj_result_7
         if isObj(_G, cfg) then
-            lua_isObj_result_7 = LuaTableMerge({}, cfg)
+            lua_isObj_result_7 = Tables:merge({}, cfg)
         else
             lua_isObj_result_7 = {}
         end
         local c = lua_isObj_result_7
         local physCfg = c.physics
         if physCfg ~= nil then
-            LuaTableRemove(c, "physics")
+            Tables:remove(c, "physics")
         end
         local surface = terr:quad(c)
         return physicsApi:withBody(terr, surface, physCfg, "mesh")
@@ -110,14 +109,14 @@ function makeApi(self, engine)
     local function plane(self, cfg)
         local lua_isObj_result_8
         if isObj(_G, cfg) then
-            lua_isObj_result_8 = LuaTableMerge({}, cfg)
+            lua_isObj_result_8 = Tables:merge({}, cfg)
         else
             lua_isObj_result_8 = {}
         end
         local c = lua_isObj_result_8
         local physCfg = c.physics
         if physCfg ~= nil then
-            LuaTableRemove(c, "physics")
+            Tables:remove(c, "physics")
         end
         local surface = terr:plane(c)
         return physicsApi:withBody(terr, surface, physCfg, "mesh")
@@ -125,7 +124,7 @@ function makeApi(self, engine)
     local function physics(self, surfaceHandleOrId, cfg)
         if not surfaceHandleOrId then
             error(
-                LuaConstruct(Error, "TERR.physics(surface,cfg): surface handle/id required"),
+                Classes:construct(Error, "TERR.physics(surface,cfg): surface handle/id required"),
                 0
             )
         end
@@ -252,7 +251,7 @@ function makeApi(self, engine)
         sizeOf = TerrainHeights.inferSizeFromHeights,
         toArray = TerrainHeights.toFloatArray
     })
-    local createHelper = LuaConstruct(
+    local createHelper = Classes:construct(
         TerrainCreateHelper,
         engine,
         terr,

@@ -1,9 +1,10 @@
 local M = {}
 local json = require("@builtin/json")
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaStringTrim = luaRuntime.LuaStringTrim
+local Classes = luaRuntime.class
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Tables = luaRuntime.table
 function safeJson(self, v)
     do
         local function lua_catch(_)
@@ -27,10 +28,10 @@ function deepMergePlain(self, dst, src)
     if not dst or KTypeOf(dst) ~= "table" then
         dst = {}
     end
-    for lua_, k in ipairs(LuaTableKeys(src)) do
+    for lua_, k in ipairs(Tables:keys(src)) do
         local sv = src[k]
         local dv = dst[k]
-        if sv and KTypeOf(sv) == "table" and not LuaArrayIsArray(sv) then
+        if sv and KTypeOf(sv) == "table" and not Arrays:isArray(sv) then
             dst[k] = deepMergePlain(_G, dv, sv)
         else
             dst[k] = sv
@@ -42,7 +43,7 @@ function parseSemver(self, v)
     if not v or KTypeOf(v) ~= "string" then
         return nil
     end
-    local m = KString:parseSemver(LuaStringTrim(v))
+    local m = KString:parseSemver(Strings:trim(v))
     if not m then
         return nil
     end
@@ -132,16 +133,15 @@ function dirOf(self, p)
     end
     return lua_temp_0
 end
-M = {
-    safeJson = safeJson,
-    deepMergePlain = deepMergePlain,
-    parseSemver = parseSemver,
-    semverGte = semverGte,
-    readEngineVersion = readEngineVersion,
-    isPlainObj = isPlainObj,
-    isObj = isObj,
-    readJsonSafe = readJsonSafe,
-    dirOf = dirOf
-}
-
-return M
+local BootstrapUtilApi = Classes:create()
+BootstrapUtilApi.name = "BootstrapUtilApi"
+BootstrapUtilApi.prototype.safeJson = safeJson
+BootstrapUtilApi.prototype.deepMergePlain = deepMergePlain
+BootstrapUtilApi.prototype.parseSemver = parseSemver
+BootstrapUtilApi.prototype.semverGte = semverGte
+BootstrapUtilApi.prototype.readEngineVersion = readEngineVersion
+BootstrapUtilApi.prototype.isPlainObj = isPlainObj
+BootstrapUtilApi.prototype.isObj = isObj
+BootstrapUtilApi.prototype.readJsonSafe = readJsonSafe
+BootstrapUtilApi.prototype.dirOf = dirOf
+return Classes:construct(BootstrapUtilApi)

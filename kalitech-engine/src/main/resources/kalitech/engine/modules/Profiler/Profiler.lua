@@ -1,24 +1,23 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberToFixed = luaRuntime.LuaNumberToFixed
 function ms(self, nanos)
-    return (LuaNumber(nanos) or 0) / 1000000
+    return (Numbers:coerce(nanos) or 0) / 1000000
 end
 create = setmetatable(
     {},
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[PROFILER] engine is required"),
+                Classes:construct(Error, "[PROFILER] engine is required"),
                 0
             )
         end
         if KTypeOf(engine.hud) ~= "function" then
             error(
-                LuaConstruct(Error, "[PROFILER] engine.hud() is required"),
+                Classes:construct(Error, "[PROFILER] engine.hud() is required"),
                 0
             )
         end
@@ -34,17 +33,17 @@ create = setmetatable(
             if lua_opts_x_0 == nil then
                 lua_opts_x_0 = 12
             end
-            local x = LuaNumber(lua_opts_x_0)
+            local x = Numbers:coerce(lua_opts_x_0)
             local lua_opts_y_1 = opts.y
             if lua_opts_y_1 == nil then
                 lua_opts_y_1 = 12
             end
-            local y = LuaNumber(lua_opts_y_1)
+            local y = Numbers:coerce(lua_opts_y_1)
             local lua_opts_font_2 = opts.font
             if lua_opts_font_2 == nil then
                 lua_opts_font_2 = 14
             end
-            local font = LuaNumber(lua_opts_font_2)
+            local font = Numbers:coerce(lua_opts_font_2)
             local layer = hud:createLayer(layerName)
             local root = hud:addContainer(layer, x, y)
             local title = hud:addLabel(
@@ -97,7 +96,7 @@ create = setmetatable(
                     local await = ms(_G, frame.awaitWorkersNanos)
                     hud:setText(
                         frameLine,
-                        ((((("frame=" .. LuaNumberToFixed(total, 2)) .. "ms world=") .. LuaNumberToFixed(world, 2)) .. "ms await=") .. LuaNumberToFixed(await, 2)) .. "ms"
+                        ((((("frame=" .. Numbers:toFixed(total, 2)) .. "ms world=") .. Numbers:toFixed(world, 2)) .. "ms await=") .. Numbers:toFixed(await, 2)) .. "ms"
                     )
                 end
                 local lua_temp_4
@@ -110,7 +109,7 @@ create = setmetatable(
                 if evtStats then
                     hud:setText(
                         eventsLine,
-                        (("events/sec=" .. tostring(LuaNumberToFixed(evtStats.eventsPerSec, 1))) .. " queued=") .. tostring(evtStats.queued)
+                        (("events/sec=" .. tostring(Numbers:toFixed(evtStats.eventsPerSec, 1))) .. " queued=") .. tostring(evtStats.queued)
                     )
                 end
                 local lua_perf_5
@@ -121,7 +120,7 @@ create = setmetatable(
                 end
                 local workers = lua_perf_5
                 if workers and KLength(workers) > 0 then
-                    local top = KArrayOps.join(KArrayOps.map(KArrayOps.slice(workers, 0, 3), function(lua_, w) return ((tostring(w.systemName) .. ":") .. LuaNumberToFixed(
+                    local top = KArrayOps.join(KArrayOps.map(KArrayOps.slice(workers, 0, 3), function(lua_, w) return ((tostring(w.systemName) .. ":") .. Numbers:toFixed(
                         ms(_G, w.lastTickNanos),
                         2
                     )) .. "ms" end), " | ")

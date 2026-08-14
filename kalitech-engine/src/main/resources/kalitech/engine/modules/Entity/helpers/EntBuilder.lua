@@ -1,11 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("./EntUtil.lua")
 deepMerge = lua_require_result_0.deepMerge
-EntBuilder = LuaClass()
+EntBuilder = Classes:create()
 EntBuilder.name = "EntBuilder"
 function EntBuilder.prototype.lua_constructor(self, entApi, presetName)
     self._ent = entApi
@@ -46,7 +45,7 @@ function EntBuilder.prototype.component(self, name, dataOrFn)
     local n = tostring(name or "")
     if not n then
         error(
-            LuaConstruct(Error, "[ENT] builder.component(name,data): name required"),
+            Classes:construct(Error, "[ENT] builder.component(name,data): name required"),
             0
         )
     end

@@ -1,30 +1,29 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaStringTrim = luaRuntime.LuaStringTrim
+local Strings = luaRuntime.string
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("./helpers/HudUtil.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
 local lua_require_result_1 = require("./helpers/Layer.lua")
 Layer = lua_require_result_1.Layer
-ComponentRegistry = LuaClass()
+ComponentRegistry = Classes:create()
 ComponentRegistry.name = "ComponentRegistry"
 function ComponentRegistry.prototype.lua_constructor(self)
     self._reg = KObject:create(nil)
 end
 function ComponentRegistry.prototype.register(self, lua_type, factory)
-    local t = LuaStringTrim(tostring(lua_type or ""))
+    local t = Strings:trim(tostring(lua_type or ""))
     if not t then
         error(
-            LuaConstruct(Error, "[HUD] components.register: empty type"),
+            Classes:construct(Error, "[HUD] components.register: empty type"),
             0
         )
     end
     if KTypeOf(factory) ~= "function" then
         error(
-            LuaConstruct(Error, "[HUD] components.register: factory must be function"),
+            Classes:construct(Error, "[HUD] components.register: factory must be function"),
             0
         )
     end
@@ -32,14 +31,14 @@ function ComponentRegistry.prototype.register(self, lua_type, factory)
     return self
 end
 function ComponentRegistry.prototype.has(self, lua_type)
-    return not not self._reg[LuaStringTrim(tostring(lua_type or ""))]
+    return not not self._reg[Strings:trim(tostring(lua_type or ""))]
 end
 function ComponentRegistry.prototype.create(self, lua_type, layer, cfg)
-    local t = LuaStringTrim(tostring(lua_type or ""))
+    local t = Strings:trim(tostring(lua_type or ""))
     local fn = self._reg[t]
     if not fn then
         error(
-            LuaConstruct(Error, "[HUD] Unknown component type: " .. t),
+            Classes:construct(Error, "[HUD] Unknown component type: " .. t),
             0
         )
     end
@@ -56,7 +55,7 @@ end
 function HudModule(self, engine, cfg)
     if not engine or KTypeOf(engine.hud) ~= "function" then
         error(
-            LuaConstruct(Error, "[HUD] ENGINE.hud() missing"),
+            Classes:construct(Error, "[HUD] ENGINE.hud() missing"),
             0
         )
     end
@@ -77,7 +76,7 @@ function HudModule(self, engine, cfg)
             version = "3.2.0",
             coord = tostring(c.coord or "topLeft")
         },
-        components = LuaConstruct(ComponentRegistry),
+        components = Classes:construct(ComponentRegistry),
         layer = function(self, name)
             local lua_api_createLayer_7 = api.createLayer
             local lua_name_6 = name
@@ -88,7 +87,7 @@ function HudModule(self, engine, cfg)
                 api,
                 tostring(lua_name_6)
             )
-            return LuaConstruct(Layer, hud, h)
+            return Classes:construct(Layer, hud, h)
         end,
         spec = function(self, layerName, spec, opts)
             local lua_hud_layer_9 = hud.layer

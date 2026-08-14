@@ -1,11 +1,9 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaStringSplit = luaRuntime.LuaStringSplit
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaClass = luaRuntime.LuaClass
 local lua_require_result_0 = require("./Config.lua")
 DEFAULT_CONFIG = lua_require_result_0.DEFAULT_CONFIG
 local lua_require_result_1 = require("./Root.lua")
@@ -27,7 +25,7 @@ K = ensureRootState(
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -37,7 +35,7 @@ function str(self, v)
     return tostring(v == nil and "" or v)
 end
 function sOrUnknown(self, v)
-    local s = LuaStringTrim(str(_G, v))
+    local s = Strings:trim(str(_G, v))
     local lua_s_6
     if s then
         lua_s_6 = s
@@ -50,7 +48,7 @@ function requireModule(self, moduleId)
     do
         local function lua_catch(e)
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     (("[bootstrap] require failed: " .. sOrUnknown(_G, moduleId)) .. " :: ") .. sOrUnknown(_G, KTypeOf(e) == "table" and e.message or e)
                 ),
@@ -72,14 +70,14 @@ function instantiateModule(self, exp, engine, meta)
     local name = sOrUnknown(_G, meta and meta.name)
     if KTypeOf(exp) ~= "function" then
         error(
-            LuaConstruct(Error, "[bootstrap] Module export must be a function (engine,K)=>api for: " .. name),
+            Classes:construct(Error, "[bootstrap] Module export must be a function (engine,K)=>api for: " .. name),
             0
         )
     end
     local api = exp(_G, engine, K)
     if not api or KTypeOf(api) ~= "table" then
         error(
-            LuaConstruct(Error, "[bootstrap] Module factory returned invalid api for: " .. name),
+            Classes:construct(Error, "[bootstrap] Module factory returned invalid api for: " .. name),
             0
         )
     end
@@ -94,7 +92,7 @@ end
 function pickEngineKey(self, meta, fallbackId)
     local lua_temp_7
     if meta and meta.key then
-        lua_temp_7 = LuaStringTrim(str(_G, meta.key))
+        lua_temp_7 = Strings:trim(str(_G, meta.key))
     else
         lua_temp_7 = ""
     end
@@ -104,7 +102,7 @@ function pickEngineKey(self, meta, fallbackId)
     end
     local lua_temp_8
     if meta and meta.moduleId then
-        lua_temp_8 = LuaStringTrim(str(_G, meta.moduleId))
+        lua_temp_8 = Strings:trim(str(_G, meta.moduleId))
     else
         lua_temp_8 = ""
     end
@@ -114,20 +112,20 @@ function pickEngineKey(self, meta, fallbackId)
     end
     local lua_temp_9
     if meta and meta.name then
-        lua_temp_9 = LuaStringTrim(str(_G, meta.name))
+        lua_temp_9 = Strings:trim(str(_G, meta.name))
     else
         lua_temp_9 = ""
     end
     local n = lua_temp_9
     if n ~= "" then
         if (string.find(n, "@module/", nil, true) or 0) - 1 == 0 or (string.find(n, "@builtin/", nil, true) or 0) - 1 == 0 then
-            local tail = table.remove(LuaStringSplit(n, "/")) or "module"
+            local tail = table.remove(Strings:split(n, "/")) or "module"
             return string.lower(tail)
         end
         return string.lower(n)
     end
     local fb = str(_G, fallbackId)
-    local tail = table.remove(LuaStringSplit(fb, "/")) or "module"
+    local tail = table.remove(Strings:split(fb, "/")) or "module"
     return KString.lower(KString:stripModuleExtension(tail))
 end
 function logEngineModule(self, ENGINE, key, meta, moduleId)
@@ -155,9 +153,9 @@ end
 function loadEngineModulesFromManifest(self)
     local man = require("@module/manifest")
     local list = man and man.modules
-    if not LuaArrayIsArray(list) or not #list then
+    if not Arrays:isArray(list) or not #list then
         error(
-            LuaConstruct(Error, "[bootstrap] Missing or invalid engine modules manifest: @module/manifest"),
+            Classes:construct(Error, "[bootstrap] Missing or invalid engine modules manifest: @module/manifest"),
             0
         )
     end
@@ -166,7 +164,7 @@ function loadEngineModulesFromManifest(self)
         local i = 0
         while i < #list do
             do
-                local id = LuaStringTrim(str(_G, list[i + 1]))
+                local id = Strings:trim(str(_G, list[i + 1]))
                 if not id then
                     goto lua_continue28
                 end
@@ -178,13 +176,13 @@ function loadEngineModulesFromManifest(self)
     end
     if not #out then
         error(
-            LuaConstruct(Error, "[bootstrap] Engine modules manifest is empty: @module/manifest"),
+            Classes:construct(Error, "[bootstrap] Engine modules manifest is empty: @module/manifest"),
             0
         )
     end
     return out
 end
-KalitechBootstrap = LuaClass()
+KalitechBootstrap = Classes:create()
 KalitechBootstrap.name = "KalitechBootstrap"
 function KalitechBootstrap.prototype.lua_constructor(self, defaults)
     self.defaults = defaults
@@ -200,7 +198,7 @@ function KalitechBootstrap.prototype.lua_constructor(self, defaults)
     ensureENGINE(_G)
 end
 function KalitechBootstrap.createDefault(self)
-    return LuaConstruct(KalitechBootstrap, DEFAULT_CONFIG)
+    return Classes:construct(KalitechBootstrap, DEFAULT_CONFIG)
 end
 function KalitechBootstrap.prototype.init(self)
     _G.ENGINE = createDeferredProxy(
@@ -248,7 +246,7 @@ function KalitechBootstrap.prototype.attachEngine(self, engine)
             local mid = sOrUnknown(_G, meta and meta.moduleId)
             if meta and meta.engineMin and engVer and not U:semverGte(engVer, meta.engineMin) then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         (((("[bootstrap] Engine version " .. sOrUnknown(_G, engVer)) .. " is below minimum ") .. sOrUnknown(_G, meta.engineMin)) .. " for module ") .. mid
                     ),
@@ -257,15 +255,15 @@ function KalitechBootstrap.prototype.attachEngine(self, engine)
             end
             local api = instantiateModule(_G, exp, engine, meta)
             local lua_temp_13
-            if meta and meta.moduleId and LuaStringTrim(str(_G, meta.moduleId)) then
-                lua_temp_13 = LuaStringTrim(str(_G, meta.moduleId))
+            if meta and meta.moduleId and Strings:trim(str(_G, meta.moduleId)) then
+                lua_temp_13 = Strings:trim(str(_G, meta.moduleId))
             else
                 lua_temp_13 = pickEngineKey(_G, meta, moduleId)
             end
             local key = lua_temp_13
             if ENGINE:hasModule(key) then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         (("[ENGINE] duplicate module key '" .. tostring(key)) .. "' while registering: ") .. moduleId
                     ),
@@ -279,8 +277,8 @@ function KalitechBootstrap.prototype.attachEngine(self, engine)
             K.instances[key] = api
             K.instancesMeta[key] = meta
             local lua_temp_14
-            if meta and meta.moduleId and LuaStringTrim(str(_G, meta.moduleId)) then
-                lua_temp_14 = LuaStringTrim(str(_G, meta.moduleId))
+            if meta and meta.moduleId and Strings:trim(str(_G, meta.moduleId)) then
+                lua_temp_14 = Strings:trim(str(_G, meta.moduleId))
             else
                 lua_temp_14 = sOrUnknown(_G, meta and meta.name)
             end
@@ -316,7 +314,7 @@ function KalitechBootstrap.prototype.attachEngine(self, engine)
             end
             local ccfg = lua_temp_15
             local lua_Array_isArray_result_16
-            if LuaArrayIsArray(ccfg.registrators) then
+            if Arrays:isArray(ccfg.registrators) then
                 lua_Array_isArray_result_16 = ccfg.registrators
             else
                 lua_Array_isArray_result_16 = {}
@@ -368,8 +366,8 @@ function KalitechBootstrap.prototype.whenEngineOnce(self, key, fn)
     K._once[k] = true
     return self:whenEngine(fn)
 end
+KalitechBootstrap.prototype.safeJson = U.safeJson
 M = KalitechBootstrap
 M.createDefault = KalitechBootstrap.createDefault
-M.safeJson = U.safeJson
 
 return M

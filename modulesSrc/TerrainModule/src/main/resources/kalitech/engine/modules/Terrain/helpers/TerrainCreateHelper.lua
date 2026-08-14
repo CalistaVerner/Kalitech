@@ -1,10 +1,9 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaTableMerge = luaRuntime.LuaTableMerge
 local lua_require_result_0 = require("./TerrainTypes.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
@@ -13,7 +12,7 @@ local lua_require_result_1 = require("./TerrainHeights.lua")
 TerrainHeights = lua_require_result_1.TerrainHeights
 local lua_require_result_2 = require("./TerrainInstance.lua")
 TerrainInstance = lua_require_result_2.TerrainInstance
-TerrainCreateHelper = LuaClass()
+TerrainCreateHelper = Classes:create()
 TerrainCreateHelper.name = "TerrainCreateHelper"
 function TerrainCreateHelper.prototype.lua_constructor(self, engine, terrNative, heightsApi, physicsApi, proxies)
     self.engine = engine
@@ -89,7 +88,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         local surface = lua_temp_8
         if not surface then
             error(
-                LuaConstruct(Error, "[TERR] create(): native returned null surface"),
+                Classes:construct(Error, "[TERR] create(): native returned null surface"),
                 0
             )
         end
@@ -103,13 +102,13 @@ function TerrainCreateHelper.prototype.create(self, cfg)
             self.p:lod(surface, lodCfg)
         end
         if kind ~= "plane" and kind ~= "quad" then
-            if LuaNumberIsFinite(xz) and xz ~= 1 then
+            if Numbers:isFinite(xz) and xz ~= 1 then
                 self.p:scale(surface, xz, {yScale = y})
-            elseif LuaNumberIsFinite(y) and y ~= 1 then
+            elseif Numbers:isFinite(y) and y ~= 1 then
                 self.p:scale(surface, 1, {yScale = y})
             end
         end
-        return LuaConstruct(TerrainInstance, self.p, surface)
+        return Classes:construct(TerrainInstance, self.p, surface)
     end
     if kind == "plane" then
         local lua_temp_10 = {}
@@ -119,7 +118,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         else
             lua_isObj_result_9 = {}
         end
-        local planeCfg = LuaTableMerge(lua_temp_10, lua_isObj_result_9, {name = c.name, attach = attachFlag, physics = physCfg})
+        local planeCfg = Tables:merge(lua_temp_10, lua_isObj_result_9, {name = c.name, attach = attachFlag, physics = physCfg})
         return post(
             _G,
             self.p:plane(planeCfg)
@@ -133,7 +132,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         else
             lua_isObj_result_11 = {}
         end
-        local quadCfg = LuaTableMerge(lua_temp_12, lua_isObj_result_11, {name = c.name, attach = attachFlag, physics = physCfg})
+        local quadCfg = Tables:merge(lua_temp_12, lua_isObj_result_11, {name = c.name, attach = attachFlag, physics = physCfg})
         return post(
             _G,
             self.p:quad(quadCfg)
@@ -147,14 +146,14 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         else
             lua_isObj_result_13 = {}
         end
-        local tcfg = LuaTableMerge(lua_temp_14, lua_isObj_result_13, {name = c.name, attach = attachFlag, physics = physCfg})
+        local tcfg = Tables:merge(lua_temp_14, lua_isObj_result_13, {name = c.name, attach = attachFlag, physics = physCfg})
         if c.heightmap and not tcfg.heightmap then
             tcfg.heightmap = c.heightmap
         end
-        if tcfg.heightScale == nil and LuaNumberIsFinite(y) then
+        if tcfg.heightScale == nil and Numbers:isFinite(y) then
             tcfg.heightScale = y
         end
-        if tcfg.xzScale == nil and LuaNumberIsFinite(xz) then
+        if tcfg.xzScale == nil and Numbers:isFinite(xz) then
             tcfg.xzScale = xz
         end
         return post(
@@ -196,9 +195,9 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         TerrainHeights:validateTerrainDims(size, patchSize)
         local lua_temp_22
         if lua_type == "ridged" then
-            lua_temp_22 = self.heights:ridged(LuaTableMerge({}, noise, {size = size}))
+            lua_temp_22 = self.heights:ridged(Tables:merge({}, noise, {size = size}))
         else
-            lua_temp_22 = self.heights:perlin(LuaTableMerge({}, noise, {size = size}))
+            lua_temp_22 = self.heights:perlin(Tables:merge({}, noise, {size = size}))
         end
         local raw = lua_temp_22
         local lua_temp_23
@@ -233,7 +232,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
             lua_isObj_result_24 = {}
         end
         local tcfg0 = lua_isObj_result_24
-        local tcfgNoPhys = LuaTableMerge({}, tcfg0, {
+        local tcfgNoPhys = Tables:merge({}, tcfg0, {
             name = c.name,
             size = size,
             patchSize = patchSize,
@@ -251,7 +250,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         local heightsIn = c.heights
         if not heightsIn then
             error(
-                LuaConstruct(Error, "[TERR] create(kind='heights'): cfg.heights is required"),
+                Classes:construct(Error, "[TERR] create(kind='heights'): cfg.heights is required"),
                 0
             )
         end
@@ -277,7 +276,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
             TerrainHeights:validateTerrainDims(size, patchSize or 0)
             TerrainHeights:assertHeightsMatchSize(heights, size, "create(kind='heights')")
         end
-        local tcfgNoPhys = LuaTableMerge({}, tcfg0, {
+        local tcfgNoPhys = Tables:merge({}, tcfg0, {
             name = c.name,
             heights = heights,
             size = size or nil,
@@ -305,7 +304,7 @@ function TerrainCreateHelper.prototype.create(self, cfg)
         lua_G_30,
         lua_self_28_terrain_29(
             lua_self_28,
-            LuaTableMerge(lua_temp_27, lua_isObj_result_26)
+            Tables:merge(lua_temp_27, lua_isObj_result_26)
         )
     )
 end

@@ -1,20 +1,19 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-TerrainInstance = LuaClass()
+TerrainInstance = Classes:create()
 TerrainInstance.name = "TerrainInstance"
 function TerrainInstance.prototype.lua_constructor(self, api, surface)
     if not api then
         error(
-            LuaConstruct(Error, "[TERR] api is required"),
+            Classes:construct(Error, "[TERR] api is required"),
             0
         )
     end
     if not surface then
         error(
-            LuaConstruct(Error, "[TERR] surface handle is required"),
+            Classes:construct(Error, "[TERR] surface handle is required"),
             0
         )
     end

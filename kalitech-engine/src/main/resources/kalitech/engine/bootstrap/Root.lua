@@ -1,4 +1,6 @@
 local M = {}
+local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 ROOT_KEY = "__kalitech"
 function getRoot(self)
     if not _G[ROOT_KEY] then
@@ -54,6 +56,8 @@ function ensureRootState(self, K)
     end
     return K
 end
-M = {getRoot = getRoot, ensureRootState = ensureRootState}
-
-return M
+local BootstrapRootApi = Classes:create()
+BootstrapRootApi.name = "BootstrapRootApi"
+BootstrapRootApi.prototype.getRoot = getRoot
+BootstrapRootApi.prototype.ensureRootState = ensureRootState
+return Classes:construct(BootstrapRootApi)

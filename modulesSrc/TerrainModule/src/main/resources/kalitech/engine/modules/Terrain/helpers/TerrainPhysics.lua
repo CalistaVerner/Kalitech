@@ -1,9 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaTableMerge = luaRuntime.LuaTableMerge
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 local lua_require_result_0 = require("./TerrainTypes.lua")
 isObj = lua_require_result_0.isObj
 function surfaceIdOf(self, h)
@@ -48,7 +47,7 @@ function bodyIdOf(self, h)
     end
     return 0
 end
-TerrainPhysics = LuaClass()
+TerrainPhysics = Classes:create()
 TerrainPhysics.name = "TerrainPhysics"
 function TerrainPhysics.prototype.lua_constructor(self, engine)
     self.engine = engine
@@ -104,7 +103,7 @@ function TerrainPhysics.prototype.ensureStaticBody(self, surfaceHandleOrId, phys
     local base = {surface = sid, mass = 0, kinematic = true, collider = {type = defaultColliderType or "mesh"}}
     local lua_isObj_result_2
     if isObj(_G, physCfg) then
-        lua_isObj_result_2 = LuaTableMerge(base, physCfg)
+        lua_isObj_result_2 = Tables:merge(base, physCfg)
     else
         lua_isObj_result_2 = base
     end
@@ -123,7 +122,7 @@ function TerrainPhysics.prototype.ensureStaticBody(self, surfaceHandleOrId, phys
         local p = lua_temp_3
         if not p or KTypeOf(p.body) ~= "function" then
             error(
-                LuaConstruct(Error, "[TERR] physics.body(cfg) is required"),
+                Classes:construct(Error, "[TERR] physics.body(cfg) is required"),
                 0
             )
         end

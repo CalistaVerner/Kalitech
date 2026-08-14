@@ -1,11 +1,9 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaClass = luaRuntime.LuaClass
-local LuaConstruct = luaRuntime.LuaConstruct
+local Strings = luaRuntime.string
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaTableRemove = luaRuntime.LuaTableRemove
 local lua_require_result_0 = require("./EntUtil.lua")
 req = lua_require_result_0.req
 vec3 = lua_require_result_0.vec3
@@ -27,7 +25,7 @@ function isUuidString(self, s)
     if KTypeOf(s) ~= "string" then
         return false
     end
-    local x = LuaStringTrim(s)
+    local x = Strings:trim(s)
     return #x >= 32 and (string.find(x, "-", nil, true) or 0) - 1 > 0
 end
 function safeCall(self, fn)
@@ -37,7 +35,7 @@ function safeCall(self, fn)
         end)
     end
 end
-EntApi = LuaClass()
+EntApi = Classes:create()
 EntApi.name = "EntApi"
 function EntApi.prototype.lua_constructor(self, engine, K)
     self.engine = engine
@@ -54,7 +52,7 @@ function EntApi.prototype.lua_constructor(self, engine, K)
     )
     self._log = engine:log()
     req(_G, self._log and self._log.info and self._log.warn and self._log.error, "[ENT] engine.log() must provide info/warn/error")
-    self._physBind = LuaConstruct(PhysicsBinding, engine)
+    self._physBind = Classes:construct(PhysicsBinding, engine)
     self._presets = KObject:create(nil)
     self._presets.capsule = {name = "entity", surface = {
         type = "capsule",
@@ -90,13 +88,13 @@ function EntApi.prototype.preset(self, name, cfg)
     local n = tostring(name or "")
     if not n then
         error(
-            LuaConstruct(Error, "[ENT] preset(name,cfg): name is required"),
+            Classes:construct(Error, "[ENT] preset(name,cfg): name is required"),
             0
         )
     end
     if not cfg or KTypeOf(cfg) ~= "table" then
         error(
-            LuaConstruct(Error, "[ENT] preset(name,cfg): cfg object is required"),
+            Classes:construct(Error, "[ENT] preset(name,cfg): cfg object is required"),
             0
         )
     end
@@ -116,7 +114,7 @@ function EntApi.prototype.bodyDefaults(self, cfg)
     return self
 end
 function EntApi.prototype.presets(self)
-    return LuaTableKeys(self._presets)
+    return Tables:keys(self._presets)
 end
 EntApi.prototype["$"] = function(self, presetName)
     local lua_EntBuilder_8 = EntBuilder
@@ -126,7 +124,7 @@ EntApi.prototype["$"] = function(self, presetName)
     else
         lua_presetName_7 = ""
     end
-    return LuaConstruct(lua_EntBuilder_8, self, lua_presetName_7)
+    return Classes:construct(lua_EntBuilder_8, self, lua_presetName_7)
 end
 EntApi.prototype["player$"] = function(self, cfg)
     return self["$"](self, "player"):merge(cfg)
@@ -201,14 +199,14 @@ function EntApi.prototype.create(self, cfg)
             local created = ent:create(name)
             if KTypeOf(created) ~= "string" or not isUuidString(_G, created) then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         "[ENT] engine.entity().create() must return UUID string, got: " .. tostring(created)
                     ),
                     0
                 )
             end
-            createdUuid = LuaStringTrim(created)
+            createdUuid = Strings:trim(created)
             ctx.uuid = createdUuid
             local surfCfg = cfg.surface or nil
             local bodyCfg = cfg.body or nil
@@ -227,7 +225,7 @@ function EntApi.prototype.create(self, cfg)
                 if sCfg.physics ~= nil then
                     surfaceHadPhysics = true
                     if bodyCfg then
-                        LuaTableRemove(sCfg, "physics")
+                        Tables:remove(sCfg, "physics")
                         surfaceHadPhysics = false
                     end
                 end
@@ -247,7 +245,7 @@ function EntApi.prototype.create(self, cfg)
                 if attachSurface then
                     if KTypeOf(surfApi.attachEntity) ~= "function" then
                         error(
-                            LuaConstruct(Error, "[ENT] surface attach missing: engine.surface().attachEntity(surfaceHandle, uuid)"),
+                            Classes:construct(Error, "[ENT] surface attach missing: engine.surface().attachEntity(surfaceHandle, uuid)"),
                             0
                         )
                     end
@@ -271,7 +269,7 @@ function EntApi.prototype.create(self, cfg)
             if requireCore and bit32.bor(ctx.bodyId, 0) <= 0 then
                 if not ctx.surface then
                     error(
-                        LuaConstruct(Error, "[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider. uuid=" .. ctx.uuid),
+                        Classes:construct(Error, "[ENT] core requires bodyId>0. Provide cfg.body or cfg.surface with collider. uuid=" .. ctx.uuid),
                         0
                     )
                 end
@@ -281,7 +279,7 @@ function EntApi.prototype.create(self, cfg)
                 createdBodyId = bit32.bor(ctx.bodyId, 0)
                 if bit32.bor(ctx.bodyId, 0) <= 0 then
                     error(
-                        LuaConstruct(Error, "[ENT] core auto-body failed (physics.body returned invalid id). uuid=" .. ctx.uuid),
+                        Classes:construct(Error, "[ENT] core auto-body failed (physics.body returned invalid id). uuid=" .. ctx.uuid),
                         0
                     )
                 end
@@ -290,11 +288,11 @@ function EntApi.prototype.create(self, cfg)
             if comps and KTypeOf(comps) == "table" then
                 if KTypeOf(ent.setComponent) ~= "function" then
                     error(
-                        LuaConstruct(Error, "[ENT] engine.entity().setComponent(uuid,type,value) missing"),
+                        Classes:construct(Error, "[ENT] engine.entity().setComponent(uuid,type,value) missing"),
                         0
                     )
                 end
-                for lua_, key in ipairs(LuaTableKeys(comps)) do
+                for lua_, key in ipairs(Tables:keys(comps)) do
                     local v = comps[key]
                     local lua_temp_11
                     if KTypeOf(v) == "function" then
@@ -317,7 +315,7 @@ function EntApi.prototype.create(self, cfg)
                     )
                 end
             end
-            local handle = LuaConstruct(EntityHandle, engine, ctx)
+            local handle = Classes:construct(EntityHandle, engine, ctx)
             local core = nil
             if requireCore then
                 local bodyAccess = resolveBodyAccess(
@@ -326,7 +324,7 @@ function EntApi.prototype.create(self, cfg)
                     ctx.body,
                     bit32.bor(ctx.bodyId, 0)
                 )
-                core = LuaConstruct(EntityCore):attach(handle, ctx.body, bodyAccess)
+                core = Classes:construct(EntityCore):attach(handle, ctx.body, bodyAccess)
                 core.uuid = ctx.uuid
                 core.bodyId = bit32.bor(ctx.bodyId, 0)
                 core.surfaceId = bit32.bor(ctx.surfaceId, 0)
@@ -375,7 +373,7 @@ function EntApi.prototype.uuidOf(self, ref)
     if KTypeOf(ref) == "string" then
         local lua_isUuidString_result_12
         if isUuidString(_G, ref) then
-            lua_isUuidString_result_12 = LuaStringTrim(ref)
+            lua_isUuidString_result_12 = Strings:trim(ref)
         else
             lua_isUuidString_result_12 = ""
         end

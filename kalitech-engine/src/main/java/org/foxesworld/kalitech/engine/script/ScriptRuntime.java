@@ -8,6 +8,7 @@ import org.foxesworld.kalitech.engine.script.cache.ScriptCaches;
 import org.foxesworld.kalitech.engine.script.jobs.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.script.lua.LuaHostProxy;
 import org.foxesworld.kalitech.engine.script.lua.LuaExecutionLimiter;
+import org.foxesworld.kalitech.engine.script.resolve.ApplicationResolver;
 import org.foxesworld.kalitech.engine.script.resolve.BuiltinResolver;
 import org.foxesworld.kalitech.engine.script.resolve.EngineResolver;
 import org.foxesworld.kalitech.engine.script.resolve.NamespaceResolver;
@@ -538,6 +539,7 @@ public final class ScriptRuntime implements Closeable {
                 .add(new BuiltinResolver(BUILTIN_PREFIX))
                 .add(new BuiltinResolver(MODULES_PREFIX))
                 .add(new EngineResolver("@module", "@builtin/modules"))
+                .add(new ApplicationResolver())
                 .add(new RelativeResolver())
                 .add(new NamespaceResolver("Mods"))
                 .add(new PassThroughResolver());

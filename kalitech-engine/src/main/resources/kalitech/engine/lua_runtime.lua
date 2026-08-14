@@ -444,39 +444,110 @@ local function LuaTypeOf(value)
     return valueType
 end
 
-return {
-    Error = Error,
-    LuaArrayConcat = LuaArrayConcat,
-    LuaArrayEvery = LuaArrayEvery,
-    LuaArrayIsArray = LuaArrayIsArray,
-    LuaArrayJoin = LuaArrayJoin,
-    LuaArrayMap = LuaArrayMap,
-    LuaArrayReduce = LuaArrayReduce,
-    LuaArraySetLength = LuaArraySetLength,
-    LuaArraySlice = LuaArraySlice,
-    LuaArraySort = LuaArraySort,
-    LuaClass = LuaClass,
-    LuaClassExtends = LuaClassExtends,
-    LuaConstruct = LuaConstruct,
-    LuaDefineProperty = LuaDefineProperty,
-    LuaInstanceOf = LuaInstanceOf,
-    LuaIterator = LuaIterator,
-    LuaMap = LuaMap,
-    LuaNumber = LuaNumber,
-    LuaNumberIsFinite = LuaNumberIsFinite,
-    LuaNumberIsNaN = LuaNumberIsNaN,
-    LuaNumberToFixed = LuaNumberToFixed,
-    LuaParseInt = LuaParseInt,
-    LuaSet = LuaSet,
-    LuaSparseArrayNew = LuaSparseArrayNew,
-    LuaSparseArrayPush = LuaSparseArrayPush,
-    LuaSparseArraySpread = LuaSparseArraySpread,
-    LuaStringAccess = LuaStringAccess,
-    LuaStringSlice = LuaStringSlice,
-    LuaStringSplit = LuaStringSplit,
-    LuaStringTrim = LuaStringTrim,
-    LuaTableKeys = LuaTableKeys,
-    LuaTableMerge = LuaTableMerge,
-    LuaTableRemove = LuaTableRemove,
-    LuaTypeOf = LuaTypeOf
-}
+
+-- Public built-in API is intentionally object-oriented.  The low-level LuaXxx
+-- functions above are implementation details used only by these service objects.
+local ArrayApi = LuaClass()
+ArrayApi.name = "LuaArrayApi"
+function ArrayApi.prototype.isArray(self, value) return LuaArrayIsArray(value) end
+function ArrayApi.prototype.concat(self, target, ...) return LuaArrayConcat(target, ...) end
+function ArrayApi.prototype.every(self, target, callback, thisArg) return LuaArrayEvery(target, callback, thisArg) end
+function ArrayApi.prototype.join(self, target, separator) return LuaArrayJoin(target, separator) end
+function ArrayApi.prototype.map(self, target, callback, thisArg) return LuaArrayMap(target, callback, thisArg) end
+function ArrayApi.prototype.reduce(self, target, callback, ...) return LuaArrayReduce(target, callback, ...) end
+function ArrayApi.prototype.setLength(self, target, length) return LuaArraySetLength(target, length) end
+function ArrayApi.prototype.slice(self, target, first, last) return LuaArraySlice(target, first, last) end
+function ArrayApi.prototype.sort(self, target, compare) return LuaArraySort(target, compare) end
+
+local StringApi = LuaClass()
+StringApi.name = "LuaStringApi"
+function StringApi.prototype.access(self, value, index) return LuaStringAccess(value, index) end
+function StringApi.prototype.slice(self, value, first, last) return LuaStringSlice(value, first, last) end
+function StringApi.prototype.split(self, value, separator, limit) return LuaStringSplit(value, separator, limit) end
+function StringApi.prototype.trim(self, value) return LuaStringTrim(value) end
+
+local NumberApi = LuaClass()
+NumberApi.name = "LuaNumberApi"
+function NumberApi.prototype.coerce(self, value) return LuaNumber(value) end
+function NumberApi.prototype.isFinite(self, value) return LuaNumberIsFinite(value) end
+function NumberApi.prototype.isNaN(self, value) return LuaNumberIsNaN(value) end
+function NumberApi.prototype.toFixed(self, value, digits) return LuaNumberToFixed(value, digits) end
+function NumberApi.prototype.parseInt(self, value, radix) return LuaParseInt(value, radix) end
+
+local TableApi = LuaClass()
+TableApi.name = "LuaTableApi"
+function TableApi.prototype.merge(self, target, ...) return LuaTableMerge(target, ...) end
+function TableApi.prototype.keys(self, source) return LuaTableKeys(source) end
+function TableApi.prototype.remove(self, target, key) return LuaTableRemove(target, key) end
+
+local ClassApi = LuaClass()
+ClassApi.name = "LuaClassApi"
+function ClassApi.prototype.create(self) return LuaClass() end
+function ClassApi.prototype.construct(self, target, ...) return LuaConstruct(target, ...) end
+function ClassApi.prototype.extend(self, target, base) return LuaClassExtends(target, base) end
+function ClassApi.prototype.defineProperty(self, target, key, descriptor, isPrototype)
+    return LuaDefineProperty(target, key, descriptor, isPrototype)
+end
+function ClassApi.prototype.isInstance(self, value, class) return LuaInstanceOf(value, class) end
+
+local IteratorApi = LuaClass()
+IteratorApi.name = "LuaIteratorApi"
+function IteratorApi.prototype.iterate(self, iterable) return LuaIterator(iterable) end
+
+local SparseArrayApi = LuaClass()
+SparseArrayApi.name = "LuaSparseArrayApi"
+function SparseArrayApi.prototype.new(self, ...) return LuaSparseArrayNew(...) end
+function SparseArrayApi.prototype.push(self, target, ...) return LuaSparseArrayPush(target, ...) end
+function SparseArrayApi.prototype.spread(self, target) return LuaSparseArraySpread(target) end
+
+local CollectionApi = LuaClass()
+CollectionApi.name = "LuaCollectionApi"
+function CollectionApi.prototype.newMap(self, entries) return LuaConstruct(LuaMap, entries) end
+function CollectionApi.prototype.newSet(self, values) return LuaConstruct(LuaSet, values) end
+function CollectionApi.prototype.isMap(self, value) return LuaInstanceOf(value, LuaMap) end
+function CollectionApi.prototype.isSet(self, value) return LuaInstanceOf(value, LuaSet) end
+
+local TypeApi = LuaClass()
+TypeApi.name = "LuaTypeApi"
+function TypeApi.prototype.of(self, value) return LuaTypeOf(value) end
+
+local ObjectApi = LuaClass()
+ObjectApi.name = "LuaObjectApi"
+function ObjectApi.prototype.create(self, prototype)
+    if KObject and KObject.create then return KObject:create(prototype) end
+    if prototype == nil then return {} end
+    return setmetatable({}, {__index = prototype})
+end
+function ObjectApi.prototype.freeze(self, value)
+    if KObject and KObject.freeze then return KObject:freeze(value) end
+    return value
+end
+function ObjectApi.prototype.keys(self, value)
+    if KObject and KObject.keys then return KObject:keys(value) end
+    return LuaTableKeys(value)
+end
+function ObjectApi.prototype.hasOwn(self, value, key)
+    if value == nil then return false end
+    return rawget(value, key) ~= nil
+end
+
+local LuaRuntime = LuaClass()
+LuaRuntime.name = "LuaRuntime"
+function LuaRuntime.prototype.lua_constructor(self)
+    self.version = "2.0.0"
+    self.array = LuaConstruct(ArrayApi)
+    self.string = LuaConstruct(StringApi)
+    self.number = LuaConstruct(NumberApi)
+    self.table = LuaConstruct(TableApi)
+    self.class = LuaConstruct(ClassApi)
+    self.iterator = LuaConstruct(IteratorApi)
+    self.sparseArray = LuaConstruct(SparseArrayApi)
+    self.collection = LuaConstruct(CollectionApi)
+    self.type = LuaConstruct(TypeApi)
+    self.object = LuaConstruct(ObjectApi)
+
+    -- Error remains a class because it participates in instanceof semantics.
+    self.Error = Error
+end
+
+return LuaConstruct(LuaRuntime)

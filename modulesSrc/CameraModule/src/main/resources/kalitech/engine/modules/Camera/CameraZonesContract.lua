@@ -1,13 +1,13 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
 function fail(self, msg)
     error(
-        LuaConstruct(Error, msg),
+        Classes:construct(Error, msg),
         0
     )
 end
@@ -15,7 +15,7 @@ function isObj(self, x)
     return x and KTypeOf(x) == "table"
 end
 function isNum(self, x)
-    return KTypeOf(x) == "number" and LuaNumberIsFinite(x)
+    return KTypeOf(x) == "number" and Numbers:isFinite(x)
 end
 function isInt(self, x)
     return isNum(_G, x) and bit32.bor(x, 0) == x
@@ -24,7 +24,7 @@ function isBool(self, x)
     return KTypeOf(x) == "boolean"
 end
 function isStr(self, x)
-    return KTypeOf(x) == "string" and not not LuaStringTrim(x)
+    return KTypeOf(x) == "string" and not not Strings:trim(x)
 end
 function req(self, v, msg)
     if v == nil then
@@ -69,7 +69,7 @@ function asStr(self, v, name)
     return KString.trim(v)
 end
 function asVec3(self, v, name)
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         if #v ~= 3 then
             fail(
                 _G,
@@ -305,7 +305,7 @@ function validateZonesConfig(self, cfg)
         return {enabled = false, zones = {}}
     end
     local zones = req(_G, cfg.zones, "[camera][zones] cfg.zones is required when enabled=true")
-    if not LuaArrayIsArray(zones) or #zones == 0 then
+    if not Arrays:isArray(zones) or #zones == 0 then
         fail(_G, "[camera][zones] cfg.zones must be a non-empty array")
     end
     local out = {}

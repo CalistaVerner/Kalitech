@@ -1,7 +1,7 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaStringTrim = luaRuntime.LuaStringTrim
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
 local lua_require_result_0 = require("./HudUtil.lua")
 isObj = lua_require_result_0.isObj
 num = lua_require_result_0.num
@@ -28,10 +28,10 @@ AnchorMap = KObject:freeze({
     rc = Anchor.RC
 })
 function toAnchor(self, v)
-    if KTypeOf(v) == "number" and LuaNumberIsFinite(v) then
+    if KTypeOf(v) == "number" and Numbers:isFinite(v) then
         return bit32.bor(v, 0)
     end
-    local s = string.lower(LuaStringTrim(tostring(v or "tl")))
+    local s = string.lower(Strings:trim(tostring(v or "tl")))
     local a = AnchorMap[s]
     local lua_temp_1
     if a == nil then

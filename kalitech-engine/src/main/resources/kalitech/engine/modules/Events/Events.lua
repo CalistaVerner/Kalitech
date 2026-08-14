@@ -1,13 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaTypeOf = luaRuntime.LuaTypeOf
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaArrayEvery = luaRuntime.LuaArrayEvery
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaClass = luaRuntime.LuaClass
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
+local Types = luaRuntime.type
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaStringTrim = luaRuntime.LuaStringTrim
 function _isFn(self, x)
     return KTypeOf(x) == "function"
 end
@@ -28,18 +26,18 @@ function _isJsonValue(self, x, depth)
     if x == nil then
         return true
     end
-    local t = LuaTypeOf(x)
+    local t = Types:of(x)
     if t == "string" or t == "number" or t == "boolean" then
         return true
     end
-    if LuaArrayIsArray(x) then
-        return LuaArrayEvery(
+    if Arrays:isArray(x) then
+        return Arrays:every(
             x,
             function(lua_, v) return _isJsonValue(_G, v, depth + 1) end
         )
     end
     if _isPlainObj(_G, x) then
-        for lua_, k in ipairs(LuaTableKeys(x)) do
+        for lua_, k in ipairs(Tables:keys(x)) do
             if not _isJsonValue(_G, x[k], depth + 1) then
                 return false
             end
@@ -52,10 +50,10 @@ function _typeOfValue(self, v)
     if v == nil then
         return "null"
     end
-    if LuaArrayIsArray(v) then
+    if Arrays:isArray(v) then
         return "array"
     end
-    return LuaTypeOf(v)
+    return Types:of(v)
 end
 function _safeCall(self, fn, fb)
     do
@@ -286,7 +284,7 @@ function _busEmit(self, bus, topic, payload)
     end
     return false
 end
-EventsApi = LuaClass()
+EventsApi = Classes:create()
 EventsApi.name = "EventsApi"
 function EventsApi.prototype.lua_constructor(self, engine, K)
     self.engineRef = engine
@@ -350,7 +348,7 @@ function EventsApi.prototype._needBus(self)
     local b = self:_resolveBus(false)
     if not b and self._throwIfNoBus then
         error(
-            LuaConstruct(Error, "[EVENTS] bus is not available (yet)"),
+            Classes:construct(Error, "[EVENTS] bus is not available (yet)"),
             0
         )
     end
@@ -360,13 +358,13 @@ function EventsApi.prototype.on(self, topic, handler)
     local t = tostring(topic or "")
     if not t then
         error(
-            LuaConstruct(Error, "[EVENTS] topic is required"),
+            Classes:construct(Error, "[EVENTS] topic is required"),
             0
         )
     end
     if not _isFn(_G, handler) then
         error(
-            LuaConstruct(Error, "[EVENTS] handler must be a function"),
+            Classes:construct(Error, "[EVENTS] handler must be a function"),
             0
         )
     end
@@ -383,13 +381,13 @@ function EventsApi.prototype.once(self, topic, handler)
     local t = tostring(topic or "")
     if not t then
         error(
-            LuaConstruct(Error, "[EVENTS] topic is required"),
+            Classes:construct(Error, "[EVENTS] topic is required"),
             0
         )
     end
     if not _isFn(_G, handler) then
         error(
-            LuaConstruct(Error, "[EVENTS] handler must be a function"),
+            Classes:construct(Error, "[EVENTS] handler must be a function"),
             0
         )
     end
@@ -432,7 +430,7 @@ function EventsApi.prototype.emit(self, topic, payload)
     local t = tostring(topic or "")
     if not t then
         error(
-            LuaConstruct(Error, "[EVENTS] topic is required"),
+            Classes:construct(Error, "[EVENTS] topic is required"),
             0
         )
     end
@@ -450,10 +448,10 @@ function EventsApi.prototype.register(self, def)
         lua_temp_5 = {}
     end
     def = lua_temp_5
-    local id = LuaStringTrim(tostring(def.id or ""))
+    local id = Strings:trim(tostring(def.id or ""))
     if not id then
         error(
-            LuaConstruct(Error, "[EVENTS] schema id is required"),
+            Classes:construct(Error, "[EVENTS] schema id is required"),
             0
         )
     end
@@ -489,7 +487,7 @@ function EventsApi.prototype.evt(self, id, payload, meta)
     local topic = tostring(id or "")
     if not topic then
         error(
-            LuaConstruct(Error, "[EVENTS] evt id is required"),
+            Classes:construct(Error, "[EVENTS] evt id is required"),
             0
         )
     end
@@ -497,19 +495,19 @@ function EventsApi.prototype.evt(self, id, payload, meta)
     if self._validate then
         if not def then
             error(
-                LuaConstruct(Error, "[EVENTS] missing schema for event: " .. topic),
+                Classes:construct(Error, "[EVENTS] missing schema for event: " .. topic),
                 0
             )
         end
         if not _isJsonValue(_G, payload) then
             error(
-                LuaConstruct(Error, "[EVENTS] event payload must be JSON-safe (no host objects): " .. topic),
+                Classes:construct(Error, "[EVENTS] event payload must be JSON-safe (no host objects): " .. topic),
                 0
             )
         end
         local schema = def.schema or KObject:create(nil)
         if _isPlainObj(_G, schema) then
-            for lua_, key in ipairs(LuaTableKeys(schema)) do
+            for lua_, key in ipairs(Tables:keys(schema)) do
                 do
                     local rule = schema[key]
                     local lua_isPlainObj_result_8
@@ -538,7 +536,7 @@ function EventsApi.prototype.evt(self, id, payload, meta)
                     if actual == "nil" then
                         if not optional then
                             error(
-                                LuaConstruct(Error, (("[EVENTS] missing field '" .. key) .. "' in ") .. topic),
+                                Classes:construct(Error, (("[EVENTS] missing field '" .. key) .. "' in ") .. topic),
                                 0
                             )
                         end
@@ -546,7 +544,7 @@ function EventsApi.prototype.evt(self, id, payload, meta)
                     end
                     if expected ~= "any" and expected ~= actual then
                         error(
-                            LuaConstruct(Error, ((((((("[EVENTS] field '" .. key) .. "' type mismatch in ") .. topic) .. " (expected ") .. expected) .. ", got ") .. actual) .. ")"),
+                            Classes:construct(Error, ((((((("[EVENTS] field '" .. key) .. "' type mismatch in ") .. topic) .. " (expected ") .. expected) .. ", got ") .. actual) .. ")"),
                             0
                         )
                     end
@@ -574,7 +572,7 @@ function EventsApi.prototype.evt(self, id, payload, meta)
     return _busEmit(_G, bus, topic, payload)
 end
 function EventsApi.prototype.scope(self, scopeName, separator)
-    local scope = LuaStringTrim(tostring(scopeName or ""))
+    local scope = Strings:trim(tostring(scopeName or ""))
     local lua_temp_13
     if separator == nil then
         lua_temp_13 = self._defaultSeparator
@@ -634,11 +632,11 @@ create = setmetatable(
     {__call = function(lua_, self, engine, K)
         if not engine then
             error(
-                LuaConstruct(Error, "[EVENTS] engine is required"),
+                Classes:construct(Error, "[EVENTS] engine is required"),
                 0
             )
         end
-        return LuaConstruct(EventsApi, engine, K)
+        return Classes:construct(EventsApi, engine, K)
     end}
 )
 create.META = {

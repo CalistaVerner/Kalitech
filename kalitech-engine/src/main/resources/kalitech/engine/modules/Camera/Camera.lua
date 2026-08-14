@@ -1,11 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -35,7 +35,7 @@ function makeApi(self, engine)
         local Orchestrator = require(ORCH_MODULE_ID)
         if KTypeOf(Orchestrator) ~= "function" then
             error(
-                LuaConstruct(Error, "[camera] Orchestrator export must be a function/class: " .. ORCH_MODULE_ID),
+                Classes:construct(Error, "[camera] Orchestrator export must be a function/class: " .. ORCH_MODULE_ID),
                 0
             )
         end
@@ -44,7 +44,7 @@ function makeApi(self, engine)
     local function createOrchestrator(self, player)
         req(_G, player, "[camera] createOrchestrator(player): player is required")
         local Orchestrator = requireOrchestrator(_G)
-        return LuaConstruct(Orchestrator, player)
+        return Classes:construct(Orchestrator, player)
     end
     local function hasOrchestrator(self)
         do

@@ -1,4 +1,6 @@
 local M = {}
+local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 
 local function normalizeMeta(_, exported, fallbackName, moduleId)
     local source = exported and exported.META
@@ -16,5 +18,7 @@ local function normalizeMeta(_, exported, fallbackName, moduleId)
     }
 end
 
-M.normalizeMeta = normalizeMeta
-return M
+local BootstrapMetaApi = Classes:create()
+BootstrapMetaApi.name = "BootstrapMetaApi"
+BootstrapMetaApi.prototype.normalizeMeta = normalizeMeta
+return Classes:construct(BootstrapMetaApi)

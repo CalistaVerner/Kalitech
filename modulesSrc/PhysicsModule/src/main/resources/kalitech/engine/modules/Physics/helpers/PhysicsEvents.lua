@@ -1,8 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableMerge = luaRuntime.LuaTableMerge
 local lua_require_result_0 = require("./PhysicsIds.lua")
 bodyIdOf = lua_require_result_0.bodyIdOf
 surfaceIdOf = lua_require_result_0.surfaceIdOf
@@ -12,11 +12,11 @@ function normalizeFilter(self, filter)
     end
     if KTypeOf(filter) ~= "table" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics.events] filter must be an object"),
+            Classes:construct(Error, "[ENGINE.physics.events] filter must be an object"),
             0
         )
     end
-    local f = LuaTableMerge({}, filter)
+    local f = Tables:merge({}, filter)
     if f.a ~= nil then
         f.a = bodyIdOf(_G, f.a)
     end
@@ -57,19 +57,19 @@ end
 function createPhysicsEvents(self, engine, physics)
     if not engine then
         error(
-            LuaConstruct(Error, "[ENGINE.physics.events] engine is required"),
+            Classes:construct(Error, "[ENGINE.physics.events] engine is required"),
             0
         )
     end
     if not physics then
         error(
-            LuaConstruct(Error, "[ENGINE.physics.events] physics is required"),
+            Classes:construct(Error, "[ENGINE.physics.events] physics is required"),
             0
         )
     end
     if KTypeOf(physics.on) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENGINE.physics.events] ENGINE.physics.on(topic,fn) missing"),
+            Classes:construct(Error, "[ENGINE.physics.events] ENGINE.physics.on(topic,fn) missing"),
             0
         )
     end
@@ -80,7 +80,7 @@ function createPhysicsEvents(self, engine, physics)
         end
         if KTypeOf(fn) ~= "function" then
             error(
-                LuaConstruct(Error, "[ENGINE.physics.events] handler must be a function"),
+                Classes:construct(Error, "[ENGINE.physics.events] handler must be a function"),
                 0
             )
         end
@@ -102,7 +102,7 @@ function createPhysicsEvents(self, engine, physics)
         onPostStep = function(self, fn)
             if KTypeOf(fn) ~= "function" then
                 error(
-                    LuaConstruct(Error, "[ENGINE.physics.events] handler must be a function"),
+                    Classes:construct(Error, "[ENGINE.physics.events] handler must be a function"),
                     0
                 )
             end

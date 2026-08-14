@@ -1,16 +1,15 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
+local Arrays = luaRuntime.array
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
 local lua_require_result_0 = require("./WorldUtil.lua")
 deepMerge = lua_require_result_0.deepMerge
 isObj = lua_require_result_0.isObj
 str = lua_require_result_0.str
 bool = lua_require_result_0.bool
 numInt = lua_require_result_0.numInt
-WorldBuilder = LuaClass()
+WorldBuilder = Classes:create()
 WorldBuilder.name = "WorldBuilder"
 function WorldBuilder.prototype.lua_constructor(self, worldApi)
     self._api = worldApi
@@ -28,12 +27,12 @@ function WorldBuilder.prototype.merge(self, desc)
     end
     if not isObj(_G, desc) then
         error(
-            LuaConstruct(Error, "[WORLD] builder.merge(desc): desc must be an object"),
+            Classes:construct(Error, "[WORLD] builder.merge(desc): desc must be an object"),
             0
         )
     end
     self._desc = deepMerge(_G, self._desc, desc)
-    if not LuaArrayIsArray(self._desc.systems) then
+    if not Arrays:isArray(self._desc.systems) then
         self._desc.systems = {}
     end
     return self
@@ -63,7 +62,7 @@ end
 function WorldBuilder.prototype.system(self, v)
     if v == nil then
         error(
-            LuaConstruct(Error, "[WORLD] builder.system(v): v is required"),
+            Classes:construct(Error, "[WORLD] builder.system(v): v is required"),
             0
         )
     end
@@ -75,7 +74,7 @@ function WorldBuilder.prototype.luaSystem(self, module, config, opts)
     local m = str(_G, module, "")
     if not m then
         error(
-            LuaConstruct(Error, "[WORLD] luaSystem(module,...): module is required"),
+            Classes:construct(Error, "[WORLD] luaSystem(module,...): module is required"),
             0
         )
     end

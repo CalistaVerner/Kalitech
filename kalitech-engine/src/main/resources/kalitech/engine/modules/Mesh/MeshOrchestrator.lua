@@ -1,11 +1,10 @@
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaTableMerge = luaRuntime.LuaTableMerge
-local LuaClass = luaRuntime.LuaClass
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaNumber = luaRuntime.LuaNumber
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
 local MeshMath = require("./helpers/MeshMath.lua")
 local MeshCfg = require("./helpers/MeshCfg.lua")
 local MeshIds = require("./helpers/MeshIds.lua")
@@ -31,18 +30,18 @@ function hostMethod(self, target, name)
     end
 end
 function cloneCfgShallow(self, state)
-    local out = LuaTableMerge({}, state)
+    local out = Tables:merge({}, state)
     if state.physics then
-        out.physics = LuaTableMerge({}, state.physics)
+        out.physics = Tables:merge({}, state.physics)
     end
     return out
 end
-MeshOrchestrator = LuaClass()
+MeshOrchestrator = Classes:create()
 MeshOrchestrator.name = "MeshOrchestrator"
 function MeshOrchestrator.prototype.lua_constructor(self, ENGINE)
     if not ENGINE then
         error(
-            LuaConstruct(Error, "[MESH] ENGINE is required"),
+            Classes:construct(Error, "[MESH] ENGINE is required"),
             0
         )
     end
@@ -50,13 +49,13 @@ function MeshOrchestrator.prototype.lua_constructor(self, ENGINE)
     local mesh = ENGINE:mesh()
     if not mesh then
         error(
-            LuaConstruct(Error, "[MESH] ENGINE.mesh() is required"),
+            Classes:construct(Error, "[MESH] ENGINE.mesh() is required"),
             0
         )
     end
     if KTypeOf(mesh.create) ~= "function" then
         error(
-            LuaConstruct(Error, "[MESH] ENGINE.mesh().create(cfg) is required"),
+            Classes:construct(Error, "[MESH] ENGINE.mesh().create(cfg) is required"),
             0
         )
     end
@@ -133,7 +132,7 @@ function MeshOrchestrator.prototype.wrapSurface(self, handle)
                     local p = MeshIds:requirePhysics(ENGINE)
                     return p:yaw(
                         bodyId(_G),
-                        LuaNumber(yawRad)
+                        Numbers:coerce(yawRad)
                     )
                 end
             end
@@ -259,7 +258,7 @@ function MeshOrchestrator.prototype.decorateMeshApi(self)
                 local createFn = lua_hostMethod_result_1
                 if not createFn then
                     error(
-                        LuaConstruct(Error, "[MESH] ENGINE.mesh().create(cfg) is required"),
+                        Classes:construct(Error, "[MESH] ENGINE.mesh().create(cfg) is required"),
                         0
                     )
                 end
@@ -280,9 +279,9 @@ function MeshOrchestrator.prototype.decorateMeshApi(self)
                         c = MeshCfg:normalizeCfg(pathOrCfg)
                         c.type = "model"
                     end
-                    if not c.path or LuaStringTrim(tostring(c.path)) == "" then
+                    if not c.path or Strings:trim(tostring(c.path)) == "" then
                         error(
-                            LuaConstruct(Error, "[MESH] loadModel: path is required"),
+                            Classes:construct(Error, "[MESH] loadModel: path is required"),
                             0
                         )
                     end
@@ -293,7 +292,7 @@ function MeshOrchestrator.prototype.decorateMeshApi(self)
                 local manyFn = hostMethod(_G, target, "many") or KFunction:bind(target.many, target)
                 return function(lua_, list)
                     local arr = manyFn(_G, list)
-                    if not LuaArrayIsArray(arr) then
+                    if not Arrays:isArray(arr) then
                         return arr
                     end
                     do
@@ -333,7 +332,7 @@ function MeshOrchestrator.prototype.decorateMeshApi(self)
                             return b
                         end,
                         pos = function(self, x, y, z)
-                            if LuaArrayIsArray(x) or MeshMath:isObj(x) then
+                            if Arrays:isArray(x) or MeshMath:isObj(x) then
                                 state.pos = MeshMath:normalizePos(x)
                             else
                                 state.pos = {

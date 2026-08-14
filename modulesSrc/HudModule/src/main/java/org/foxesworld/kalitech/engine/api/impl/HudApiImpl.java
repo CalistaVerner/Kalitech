@@ -106,16 +106,23 @@ implements HudApi {
     }
 
     private void ensureLemur() {
+        boolean initializedHere = false;
         try {
             if (GuiGlobals.getInstance() == null) {
                 GuiGlobals.initialize((Application)this.engine.getApp());
+                initializedHere = true;
             }
         }
         catch (Throwable throwable) {
             // empty catch block
         }
         try {
-            BaseStyles.loadGlassStyle();
+            // The normal engine bootstrap already loads the glass style once.
+            // Only pay the Groovy/style parsing cost here when this module had
+            // to bootstrap Lemur on its own.
+            if (initializedHere) {
+                BaseStyles.loadGlassStyle();
+            }
             GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
         }
         catch (Throwable throwable) {

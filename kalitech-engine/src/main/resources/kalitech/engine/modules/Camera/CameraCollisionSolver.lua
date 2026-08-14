@@ -1,13 +1,9 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
+local SparseArrays = luaRuntime.sparseArray
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaSparseArrayNew = luaRuntime.LuaSparseArrayNew
-local LuaSparseArrayPush = luaRuntime.LuaSparseArrayPush
-local LuaSparseArraySpread = luaRuntime.LuaSparseArraySpread
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaClass = luaRuntime.LuaClass
 U = require("./camUtil.lua")
 function clamp(self, v, lo, hi)
     local lua_temp_1
@@ -79,14 +75,14 @@ function requireTerrainApi(self)
     local e = lua_temp_5
     if not e or not e.terrain then
         error(
-            LuaConstruct(Error, "[camera][collision] ENGINE.terrain is required"),
+            Classes:construct(Error, "[camera][collision] ENGINE.terrain is required"),
             0
         )
     end
     local terr = e.terrain
     if KTypeOf(terr.heightAt) ~= "function" or KTypeOf(terr.normalAt) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera][collision] ENGINE.terrain.heightAt/normalAt are required"),
+            Classes:construct(Error, "[camera][collision] ENGINE.terrain.heightAt/normalAt are required"),
             0
         )
     end
@@ -102,7 +98,7 @@ function requireTerrainHandle(self)
     local t = lua_temp_6
     if not t then
         error(
-            LuaConstruct(Error, "[camera][collision] ENGINE.sceneTerrain global is required when terrain sampling is enabled"),
+            Classes:construct(Error, "[camera][collision] ENGINE.sceneTerrain global is required when terrain sampling is enabled"),
             0
         )
     end
@@ -196,7 +192,7 @@ function dbgRay(self, dbg, o, d, len, col, ttl, depth, alpha, arrow, arrowLen)
     if dbg and KTypeOf(dbg.ray) == "function" then
         local lua_dbg_10 = dbg
         local lua_dbg_ray_11 = dbg.ray
-        local lua_array_9 = LuaSparseArrayNew(
+        local lua_array_9 = SparseArrays:new(
             o,
             d,
             len,
@@ -212,10 +208,10 @@ function dbgRay(self, dbg, o, d, len, col, ttl, depth, alpha, arrow, arrowLen)
         else
             lua_temp_8 = 0.12
         end
-        LuaSparseArrayPush(lua_array_9, lua_temp_8)
+        SparseArrays:push(lua_array_9, lua_temp_8)
         lua_dbg_ray_11(
             lua_dbg_10,
-            LuaSparseArraySpread(lua_array_9)
+            SparseArrays:spread(lua_array_9)
         )
     end
 end
@@ -232,20 +228,20 @@ function normalizeRayHit(self, hit)
         return nil
     end
 
-    local x = LuaNumber(point.x)
-    local y = LuaNumber(point.y)
-    local z = LuaNumber(point.z)
-    if not (LuaNumberIsFinite(x) and LuaNumberIsFinite(y) and LuaNumberIsFinite(z)) then
+    local x = Numbers:coerce(point.x)
+    local y = Numbers:coerce(point.y)
+    local z = Numbers:coerce(point.z)
+    if not (Numbers:isFinite(x) and Numbers:isFinite(y) and Numbers:isFinite(z)) then
         return nil
     end
 
     local nx, ny, nz = 0, 1, 0
     local normal = hit.normal
     if normal and isObj(_G, normal) then
-        nx = LuaNumber(normal.x)
-        ny = LuaNumber(normal.y)
-        nz = LuaNumber(normal.z)
-        if not (LuaNumberIsFinite(nx) and LuaNumberIsFinite(ny) and LuaNumberIsFinite(nz)) then
+        nx = Numbers:coerce(normal.x)
+        ny = Numbers:coerce(normal.y)
+        nz = Numbers:coerce(normal.z)
+        if not (Numbers:isFinite(nx) and Numbers:isFinite(ny) and Numbers:isFinite(nz)) then
             nx, ny, nz = 0, 1, 0
         end
 
@@ -271,7 +267,7 @@ end
 function physicsRay(self, physics, ox, oy, oz, dx, dy, dz, length, ignoreBodyId)
     if not physics or KTypeOf(physics.raycastEx) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera][collision] physics.raycastEx(cfg) is required"),
+            Classes:construct(Error, "[camera][collision] physics.raycastEx(cfg) is required"),
             0
         )
     end
@@ -281,7 +277,7 @@ function physicsRay(self, physics, ox, oy, oz, dx, dy, dz, length, ignoreBodyId)
         return nil
     end
 
-    local rayLength = math.max(0.01, LuaNumber(length))
+    local rayLength = math.max(0.01, Numbers:coerce(length))
     local hit = physics:raycastEx({
         from = {ox, oy, oz},
         to = {
@@ -409,7 +405,7 @@ function resolvePearObstacle(self, phys, dbg, from, to, farRadius, nearRadius, p
     local nx = n.x
     local ny = n.y
     local nz = n.z
-    if not (LuaNumberIsFinite(nx) and LuaNumberIsFinite(ny) and LuaNumberIsFinite(nz)) then
+    if not (Numbers:isFinite(nx) and Numbers:isFinite(ny) and Numbers:isFinite(nz)) then
         nx = 0
         ny = 1
         nz = 0
@@ -504,7 +500,7 @@ function sampleGround(self, ctx, x, yHint, z, lift, len, useTerr, terrWorld, ign
             nxP = n.x
             nyP = n.y
             nzP = n.z
-            haveP = LuaNumberIsFinite(nxP) and LuaNumberIsFinite(nyP) and LuaNumberIsFinite(nzP)
+            haveP = Numbers:isFinite(nxP) and Numbers:isFinite(nyP) and Numbers:isFinite(nzP)
         end
     end
     local yTerr = 0 / 0
@@ -516,17 +512,17 @@ function sampleGround(self, ctx, x, yHint, z, lift, len, useTerr, terrWorld, ign
     if useTerr then
         local terrApi = requireTerrainApi(_G)
         local terrainH = requireTerrainHandle(_G)
-        local yW = LuaNumber(terrApi:heightAt(terrainH, x, z, true))
-        local yL = LuaNumber(terrApi:heightAt(terrainH, x, z, false))
+        local yW = Numbers:coerce(terrApi:heightAt(terrainH, x, z, true))
+        local yL = Numbers:coerce(terrApi:heightAt(terrainH, x, z, false))
         local lua_Number_isFinite_result_14
-        if LuaNumberIsFinite(yW) then
+        if Numbers:isFinite(yW) then
             lua_Number_isFinite_result_14 = math.abs(yW - yHint)
         else
             lua_Number_isFinite_result_14 = math.huge
         end
         local dw = lua_Number_isFinite_result_14
         local lua_Number_isFinite_result_15
-        if LuaNumberIsFinite(yL) then
+        if Numbers:isFinite(yL) then
             lua_Number_isFinite_result_15 = math.abs(yL - yHint)
         else
             lua_Number_isFinite_result_15 = math.huge
@@ -542,10 +538,10 @@ function sampleGround(self, ctx, x, yHint, z, lift, len, useTerr, terrWorld, ign
         yTerr = lua_terrChosenWorld_16
         local n = terrApi:normalAt(terrainH, x, z, terrChosenWorld)
         if n then
-            nxT = LuaNumber(n.x)
-            nyT = LuaNumber(n.y)
-            nzT = LuaNumber(n.z)
-            haveT = LuaNumberIsFinite(nxT) and LuaNumberIsFinite(nyT) and LuaNumberIsFinite(nzT)
+            nxT = Numbers:coerce(n.x)
+            nyT = Numbers:coerce(n.y)
+            nzT = Numbers:coerce(n.z)
+            haveT = Numbers:isFinite(nxT) and Numbers:isFinite(nyT) and Numbers:isFinite(nzT)
         end
     end
     local y = 0 / 0
@@ -553,7 +549,7 @@ function sampleGround(self, ctx, x, yHint, z, lift, len, useTerr, terrWorld, ign
     local ny = 1
     local nz = 0
     local haveN = false
-    if LuaNumberIsFinite(yPhys) then
+    if Numbers:isFinite(yPhys) then
         y = yPhys
         if haveP then
             nx = nxP
@@ -566,7 +562,7 @@ function sampleGround(self, ctx, x, yHint, z, lift, len, useTerr, terrWorld, ign
             nz = nzT
             haveN = true
         end
-    elseif LuaNumberIsFinite(yTerr) then
+    elseif Numbers:isFinite(yTerr) then
         y = yTerr
         if haveT then
             nx = nxT
@@ -636,7 +632,7 @@ function pearGroundClamp(self, ctx, dbg, from, to, nearR, farR, pearK, baseFloor
                     terrWorld,
                     ignoreBodyId
                 )
-                if not LuaNumberIsFinite(g.y) then
+                if not Numbers:isFinite(g.y) then
                     goto lua_continue85
                 end
                 local nyClamped = clamp(_G, g.ny, 0, 1)
@@ -697,7 +693,7 @@ function pearGroundClamp(self, ctx, dbg, from, to, nearR, farR, pearK, baseFloor
     end
     return {minYAtCam = minYAtCam, lifted = needLift}
 end
-CameraCollisionSolver = LuaClass()
+CameraCollisionSolver = Classes:create()
 CameraCollisionSolver.name = "CameraCollisionSolver"
 function CameraCollisionSolver.prototype.lua_constructor(self)
     self.enabled = true
@@ -733,7 +729,7 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     local phys = ctx and ctx.physics
     if not phys or KTypeOf(phys.raycastEx) ~= "function" and KTypeOf(phys.raycast) ~= "function" then
         error(
-            LuaConstruct(Error, "[camera][collision] ctx.physics.raycastEx(cfg) or raycast(cfg) is required"),
+            Classes:construct(Error, "[camera][collision] ctx.physics.raycastEx(cfg) or raycast(cfg) is required"),
             0
         )
     end
@@ -745,28 +741,28 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     local to = ctx.outPos
     if not from or not to then
         error(
-            LuaConstruct(Error, "[camera][collision] ctx.target and ctx.outPos are required"),
+            Classes:construct(Error, "[camera][collision] ctx.target and ctx.outPos are required"),
             0
         )
     end
     local ignoreBodyId = bit32.bor(ctx.bodyId, 0) or 0
     local lua_temp_17
     if zo and zo.camRadius ~= nil then
-        lua_temp_17 = LuaNumber(zo.camRadius)
+        lua_temp_17 = Numbers:coerce(zo.camRadius)
     else
         lua_temp_17 = self.radius
     end
     local farR = lua_temp_17
     local lua_temp_18
     if zo and zo.nearRadius ~= nil then
-        lua_temp_18 = LuaNumber(zo.nearRadius)
+        lua_temp_18 = Numbers:coerce(zo.nearRadius)
     else
         lua_temp_18 = self.nearRadius
     end
     local nearR = lua_temp_18
     local lua_temp_19
     if zo and zo.pearK ~= nil then
-        lua_temp_19 = LuaNumber(zo.pearK)
+        lua_temp_19 = Numbers:coerce(zo.pearK)
     else
         lua_temp_19 = self.pearK
     end
@@ -780,28 +776,28 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     local pearSamples = lua_temp_20
     local lua_temp_21
     if zo and zo.surfacePadding ~= nil then
-        lua_temp_21 = LuaNumber(zo.surfacePadding)
+        lua_temp_21 = Numbers:coerce(zo.surfacePadding)
     else
         lua_temp_21 = self.surfacePadding
     end
     local pad = lua_temp_21
     local lua_temp_22
     if zo and zo.floorPadding ~= nil then
-        lua_temp_22 = LuaNumber(zo.floorPadding)
+        lua_temp_22 = Numbers:coerce(zo.floorPadding)
     else
         lua_temp_22 = self.floorPadding
     end
     local baseFloorPad = lua_temp_22
     local lua_temp_23
     if zo and zo.slopePadScale ~= nil then
-        lua_temp_23 = LuaNumber(zo.slopePadScale)
+        lua_temp_23 = Numbers:coerce(zo.slopePadScale)
     else
         lua_temp_23 = self.slopePadScale
     end
     local slopePadScale = lua_temp_23
     local lua_temp_24
     if zo and zo.slopeSlide ~= nil then
-        lua_temp_24 = LuaNumber(zo.slopeSlide)
+        lua_temp_24 = Numbers:coerce(zo.slopeSlide)
     else
         lua_temp_24 = self.slopeSlide
     end
@@ -815,7 +811,7 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     local dbg = getDbg(_G, self.debugDraw or zo and zo.debugDraw == true)
     local lua_temp_25
     if zo and zo.debugTTL ~= nil then
-        lua_temp_25 = LuaNumber(zo.debugTTL)
+        lua_temp_25 = Numbers:coerce(zo.debugTTL)
     else
         lua_temp_25 = self.debugTTL
     end
@@ -925,14 +921,14 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     end
     local lua_temp_34
     if zo and zo.groundRayLift ~= nil then
-        lua_temp_34 = LuaNumber(zo.groundRayLift)
+        lua_temp_34 = Numbers:coerce(zo.groundRayLift)
     else
         lua_temp_34 = self.groundRayLift
     end
     local lift = lua_temp_34
     local lua_temp_35
     if zo and zo.maxRayLenDown ~= nil then
-        lua_temp_35 = LuaNumber(zo.maxRayLenDown)
+        lua_temp_35 = Numbers:coerce(zo.maxRayLenDown)
     else
         lua_temp_35 = self.maxRayLenDown
     end
@@ -942,7 +938,7 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
     local lua_ctx_38 = ctx
     local lua_temp_36
     if zo and zo.debugMinYSpan ~= nil then
-        lua_temp_36 = LuaNumber(zo.debugMinYSpan)
+        lua_temp_36 = Numbers:coerce(zo.debugMinYSpan)
     else
         lua_temp_36 = self.debugMinYSpan
     end
@@ -965,14 +961,14 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
         lua_temp_36,
         ignoreBodyId
     )
-    if LuaNumberIsFinite(clampRes.minYAtCam) then
+    if Numbers:isFinite(clampRes.minYAtCam) then
         ctx._camMinY = clampRes.minYAtCam
     end
-    if LuaNumberIsFinite(ctx._camMinY) and to.y < ctx._camMinY then
+    if Numbers:isFinite(ctx._camMinY) and to.y < ctx._camMinY then
         local pen = ctx._camMinY - to.y
         local lua_temp_40
         if zo and zo.groundSnapPen ~= nil then
-            lua_temp_40 = LuaNumber(zo.groundSnapPen)
+            lua_temp_40 = Numbers:coerce(zo.groundSnapPen)
         else
             lua_temp_40 = self.groundSnapPen
         end
@@ -982,7 +978,7 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
         else
             local lua_temp_41
             if zo and zo.smooth ~= nil then
-                lua_temp_41 = LuaNumber(zo.smooth)
+                lua_temp_41 = Numbers:coerce(zo.smooth)
             else
                 lua_temp_41 = self.smooth
             end
@@ -991,7 +987,7 @@ function CameraCollisionSolver.prototype.solve(self, ctx)
             to.y = to.y + (ctx._camMinY - to.y) * a
         end
     end
-    if slopeSlide > 0 and LuaNumberIsFinite(ctx._camMinY) then
+    if slopeSlide > 0 and Numbers:isFinite(ctx._camMinY) then
         local gEnd = sampleGround(
             _G,
             ctx,

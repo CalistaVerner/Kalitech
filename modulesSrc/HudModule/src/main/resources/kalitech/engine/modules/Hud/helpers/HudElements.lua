@@ -1,13 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaStringSplit = luaRuntime.LuaStringSplit
-local LuaClass = luaRuntime.LuaClass
-local LuaNumber = luaRuntime.LuaNumber
-local LuaClassExtends = luaRuntime.LuaClassExtends
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableMerge = luaRuntime.LuaTableMerge
 local lua_require_result_0 = require("./HudUtil.lua")
 num = lua_require_result_0.num
 bool = lua_require_result_0.bool
@@ -19,12 +16,12 @@ function readPath(self, root, path)
     if root == nil then
         return nil
     end
-    local p = LuaStringTrim(tostring(path or ""))
+    local p = Strings:trim(tostring(path or ""))
     if not p then
         return nil
     end
     local v = root
-    local parts = LuaStringSplit(p, ".")
+    local parts = Strings:split(p, ".")
     do
         local i = 0
         while i < #parts do
@@ -44,7 +41,7 @@ function readPath(self, root, path)
     end
     return v
 end
-Element = LuaClass()
+Element = Classes:create()
 Element.name = "Element"
 function Element.prototype.lua_constructor(self, hud, handle, layer, parent)
     self._hud = hud
@@ -249,7 +246,7 @@ function Element.prototype.value(self, v)
     if self.kind == "slider" then
         if v == nil then
             if isFn(_G, self._api.getSliderValue) then
-                return LuaNumber(self._api:getSliderValue(self.handle)) or 0
+                return Numbers:coerce(self._api:getSliderValue(self.handle)) or 0
             end
             return 0
         end
@@ -288,9 +285,9 @@ function Element.prototype._setPlace(self, place)
     self._place = place or nil
     return self
 end
-Panel = LuaClass()
+Panel = Classes:create()
 Panel.name = "Panel"
-LuaClassExtends(Panel, Element)
+Classes:extend(Panel, Element)
 function Panel.prototype.lua_constructor(self, hud, handle, layer, parent)
     Element.prototype.lua_constructor(
         self,
@@ -330,13 +327,13 @@ function Panel.prototype.stack(self, id, text, cfg)
     end
     if not self.layer or KTypeOf(self.layer.stackText) ~= "function" then
         error(
-            LuaConstruct(Error, "[HUD] Panel.stack requires Layer.stackText"),
+            Classes:construct(Error, "[HUD] Panel.stack requires Layer.stackText"),
             0
         )
     end
     return self.layer:stackText(
         self,
-        LuaTableMerge({}, cfg or ({}), {id = id, text = text})
+        Tables:merge({}, cfg or ({}), {id = id, text = text})
     )
 end
 M = {Element = Element, Panel = Panel}

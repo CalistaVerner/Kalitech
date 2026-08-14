@@ -1,8 +1,7 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local lua_require_result_0 = require("./EntUtil.lua")
 req = lua_require_result_0.req
 subsystem = lua_require_result_0.subsystem
@@ -10,7 +9,7 @@ deepMerge = lua_require_result_0.deepMerge
 local lua_require_result_1 = require("./IdExtractor.lua")
 idOf = lua_require_result_1.idOf
 surfaceId = lua_require_result_1.surfaceId
-PhysicsBinding = LuaClass()
+PhysicsBinding = Classes:create()
 PhysicsBinding.name = "PhysicsBinding"
 function PhysicsBinding.prototype.lua_constructor(self, engine)
     self.engine = engine
@@ -23,14 +22,14 @@ function PhysicsBinding.prototype.resolveBodyIdBySurface(self, surfaceHandleOrId
     local s = subsystem(_G, self.engine, "surface")
     if KTypeOf(s.attachedBody) == "function" then
         local bid = s:attachedBody(sid)
-        if KTypeOf(bid) == "number" and LuaNumberIsFinite(LuaNumber(bid)) and bid > 0 then
+        if KTypeOf(bid) == "number" and Numbers:isFinite(Numbers:coerce(bid)) and bid > 0 then
             return bit32.bor(bid, 0)
         end
     end
     local p = subsystem(_G, self.engine, "physics")
     if KTypeOf(p.bodyOfSurface) == "function" then
         local bid = p:bodyOfSurface(sid)
-        if KTypeOf(bid) == "number" and LuaNumberIsFinite(LuaNumber(bid)) and bid > 0 then
+        if KTypeOf(bid) == "number" and Numbers:isFinite(Numbers:coerce(bid)) and bid > 0 then
             return bit32.bor(bid, 0)
         end
     end

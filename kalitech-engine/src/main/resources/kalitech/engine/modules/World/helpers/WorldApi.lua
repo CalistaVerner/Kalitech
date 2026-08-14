@@ -1,14 +1,12 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaSet = luaRuntime.LuaSet
-local LuaConstruct = luaRuntime.LuaConstruct
+local Collections = luaRuntime.collection
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaNumber = luaRuntime.LuaNumber
-local LuaClass = luaRuntime.LuaClass
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
-local LuaTableRemove = luaRuntime.LuaTableRemove
 local lua_require_result_0 = require("./WorldUtil.lua")
 req = lua_require_result_0.req
 deepMerge = lua_require_result_0.deepMerge
@@ -23,7 +21,7 @@ local lua_require_result_2 = require("./WorldSession.lua")
 WorldSession = lua_require_result_2.WorldSession
 WORLD_SCHEMA_VERSION = 1
 function stableIdFromModule(self, modulePath)
-    local m = LuaStringTrim(tostring(modulePath or ""))
+    local m = Strings:trim(tostring(modulePath or ""))
     if not m then
         return nil
     end
@@ -36,7 +34,7 @@ function stableIdFromModule(self, modulePath)
     return "sys." .. tostring(x)
 end
 function ensureUniqueStableIds(self, systems)
-    local seen = LuaConstruct(LuaSet)
+    local seen = Collections:newSet()
     do
         local i = 0
         while i < KLength(systems) do
@@ -54,7 +52,7 @@ function ensureUniqueStableIds(self, systems)
                 end
                 if seen:has(id) then
                     error(
-                        LuaConstruct(Error, "[WORLD] duplicate stableId: " .. id),
+                        Classes:construct(Error, "[WORLD] duplicate stableId: " .. id),
                         0
                     )
                 end
@@ -71,25 +69,25 @@ function normalizeTimeDesc(self, time)
     end
     local out = {}
     if time.worldTime ~= nil then
-        out.worldTime = LuaNumber(time.worldTime)
+        out.worldTime = Numbers:coerce(time.worldTime)
     end
     if time.timeRate ~= nil then
-        out.timeRate = LuaNumber(time.timeRate)
+        out.timeRate = Numbers:coerce(time.timeRate)
     end
     if time.paused ~= nil then
         out.paused = not not time.paused
     end
     if time.fixedStep ~= nil then
-        out.fixedStep = LuaNumber(time.fixedStep)
+        out.fixedStep = Numbers:coerce(time.fixedStep)
     end
     if time.maxDelta ~= nil then
-        out.maxDelta = LuaNumber(time.maxDelta)
+        out.maxDelta = Numbers:coerce(time.maxDelta)
     end
     return out
 end
 function normalizeMode(self, mode)
     local m = mode == nil and "game" or tostring(mode)
-    local t = LuaStringTrim(m)
+    local t = Strings:trim(m)
     local lua_t_4
     if t then
         lua_t_4 = t
@@ -98,7 +96,7 @@ function normalizeMode(self, mode)
     end
     return lua_t_4
 end
-WorldApi = LuaClass()
+WorldApi = Classes:create()
 WorldApi.name = "WorldApi"
 function WorldApi.prototype.lua_constructor(self, engine, K)
     self.engine = engine
@@ -118,37 +116,37 @@ function WorldApi.prototype.getWorldTime(self)
     end
     local out = {}
     if t.worldTime ~= nil then
-        out.worldTime = LuaNumber(t.worldTime)
+        out.worldTime = Numbers:coerce(t.worldTime)
     end
     if t.timeRate ~= nil then
-        out.timeRate = LuaNumber(t.timeRate)
+        out.timeRate = Numbers:coerce(t.timeRate)
     end
     if t.paused ~= nil then
         out.paused = not not t.paused
     end
     if t.frameIndex ~= nil then
-        out.frameIndex = LuaNumber(t.frameIndex)
+        out.frameIndex = Numbers:coerce(t.frameIndex)
     end
     if t.tickIndex ~= nil then
-        out.tickIndex = LuaNumber(t.tickIndex)
+        out.tickIndex = Numbers:coerce(t.tickIndex)
     end
     if t.realDt ~= nil then
-        out.realDt = LuaNumber(t.realDt)
+        out.realDt = Numbers:coerce(t.realDt)
     end
     if t.simDt ~= nil then
-        out.simDt = LuaNumber(t.simDt)
+        out.simDt = Numbers:coerce(t.simDt)
     end
     if t.stepDt ~= nil then
-        out.stepDt = LuaNumber(t.stepDt)
+        out.stepDt = Numbers:coerce(t.stepDt)
     end
     if t.interpAlpha ~= nil then
-        out.interpAlpha = LuaNumber(t.interpAlpha)
+        out.interpAlpha = Numbers:coerce(t.interpAlpha)
     end
     if t.fixedStep ~= nil then
-        out.fixedStep = LuaNumber(t.fixedStep)
+        out.fixedStep = Numbers:coerce(t.fixedStep)
     end
     if t.maxDelta ~= nil then
-        out.maxDelta = LuaNumber(t.maxDelta)
+        out.maxDelta = Numbers:coerce(t.maxDelta)
     end
     return out
 end
@@ -181,13 +179,13 @@ function WorldApi.prototype.env(self, opts)
         entities = {}
     }
     local time = normalizeTimeDesc(_G, opts.time)
-    if time and #LuaTableKeys(time) then
+    if time and #Tables:keys(time) then
         out.time = time
     end
     return out
 end
 WorldApi.prototype["$"] = function(self, seed)
-    return LuaConstruct(WorldSession, self, seed or ({}))
+    return Classes:construct(WorldSession, self, seed or ({}))
 end
 function WorldApi.prototype.boot(self, desc, systems, overrides)
     local lua_temp_9
@@ -198,7 +196,7 @@ function WorldApi.prototype.boot(self, desc, systems, overrides)
     end
     local d = lua_temp_9
     local lua_Array_isArray_result_10
-    if LuaArrayIsArray(systems) then
+    if Arrays:isArray(systems) then
         lua_Array_isArray_result_10 = systems
     else
         lua_Array_isArray_result_10 = {}
@@ -210,7 +208,7 @@ function WorldApi.prototype.boot(self, desc, systems, overrides)
         overrides or ({})
     )
     finalDesc.systems = sys
-    LuaTableRemove(finalDesc, "entities")
+    Tables:remove(finalDesc, "entities")
     return self:create(finalDesc)
 end
 function WorldApi.prototype.normalize(self, desc)
@@ -232,7 +230,7 @@ function WorldApi.prototype.normalize(self, desc)
     local runtime = lua_str_14(lua_G_13, lua_desc_runtime_12, self._defaults.runtime)
     local orderStep = numInt(_G, desc.orderStep, self._defaults.orderStep)
     local lua_Array_isArray_result_15
-    if LuaArrayIsArray(desc.systems) then
+    if Arrays:isArray(desc.systems) then
         lua_Array_isArray_result_15 = desc.systems
     else
         lua_Array_isArray_result_15 = {}
@@ -245,10 +243,10 @@ function WorldApi.prototype.normalize(self, desc)
             do
                 local it = KIndex(systemsIn, i)
                 if KTypeOf(it) == "string" then
-                    local module = LuaStringTrim(it)
+                    local module = Strings:trim(it)
                     if not module then
                         error(
-                            LuaConstruct(
+                            Classes:construct(
                                 Error,
                                 ("[WORLD] systems[" .. tostring(i)) .. "]: empty module string"
                             ),
@@ -266,7 +264,7 @@ function WorldApi.prototype.normalize(self, desc)
                 end
                 if not isObj(_G, it) then
                     error(
-                        LuaConstruct(
+                        Classes:construct(
                             Error,
                             ("[WORLD] systems[" .. tostring(i)) .. "]: must be string or object"
                         ),
@@ -278,7 +276,7 @@ function WorldApi.prototype.normalize(self, desc)
                     local module = str(_G, cfg.module, "")
                     if not module then
                         error(
-                            LuaConstruct(
+                            Classes:construct(
                                 Error,
                                 ("[WORLD] systems[" .. tostring(i)) .. "].config.module is required"
                             ),
@@ -310,7 +308,7 @@ function WorldApi.prototype.normalize(self, desc)
                     local module = str(_G, cfg.module, "")
                     if not module then
                         error(
-                            LuaConstruct(
+                            Classes:construct(
                                 Error,
                                 ("[WORLD] systems[" .. tostring(i)) .. "].config.module is required"
                             ),
@@ -341,7 +339,7 @@ function WorldApi.prototype.normalize(self, desc)
                     local module = str(_G, it.module, "")
                     if not module then
                         error(
-                            LuaConstruct(
+                            Classes:construct(
                                 Error,
                                 ("[WORLD] systems[" .. tostring(i)) .. "].module is required"
                             ),
@@ -364,20 +362,20 @@ function WorldApi.prototype.normalize(self, desc)
                     end
                     local stableId = lua_temp_27
                     local cfg = deepMerge(_G, {}, it)
-                    LuaTableRemove(cfg, "id")
-                    LuaTableRemove(cfg, "order")
-                    LuaTableRemove(cfg, "stableId")
-                    LuaTableRemove(cfg, "module")
-                    LuaTableRemove(cfg, "runtime")
-                    LuaTableRemove(cfg, "profile")
-                    LuaTableRemove(cfg, "config")
+                    Tables:remove(cfg, "id")
+                    Tables:remove(cfg, "order")
+                    Tables:remove(cfg, "stableId")
+                    Tables:remove(cfg, "module")
+                    Tables:remove(cfg, "runtime")
+                    Tables:remove(cfg, "profile")
+                    Tables:remove(cfg, "config")
                     cfg.module = module
                     cfg.runtime = rt
                     systems[#systems + 1] = {id = "luaSystem", order = order, stableId = stableId, config = cfg}
                     goto lua_continue38
                 end
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         ("[WORLD] systems[" .. tostring(i)) .. "]: cannot infer luaSystem (missing module/config.module)"
                     ),
@@ -391,7 +389,7 @@ function WorldApi.prototype.normalize(self, desc)
     local time = normalizeTimeDesc(_G, desc.time)
     ensureUniqueStableIds(_G, systems)
     local out = {name = name, start = start, systems = systems}
-    if time and #LuaTableKeys(time) then
+    if time and #Tables:keys(time) then
         out.time = time
     end
     return out
@@ -411,7 +409,7 @@ function WorldApi.prototype._mkLuaSystem(self, lua_bindingPattern0)
     cfg.module = str(_G, module, "")
     if not cfg.module then
         error(
-            LuaConstruct(Error, "[WORLD] luaSystem: module is required"),
+            Classes:construct(Error, "[WORLD] luaSystem: module is required"),
             0
         )
     end
@@ -437,7 +435,7 @@ function WorldApi.prototype.create(self, desc)
     return normalized
 end
 function WorldApi.prototype.builder(self, seed)
-    local b = LuaConstruct(WorldBuilder, self)
+    local b = Classes:construct(WorldBuilder, self)
     if seed ~= nil then
         b:merge(seed)
     end

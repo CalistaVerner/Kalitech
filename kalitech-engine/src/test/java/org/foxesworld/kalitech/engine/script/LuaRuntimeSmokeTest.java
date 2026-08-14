@@ -1,5 +1,6 @@
 package org.foxesworld.kalitech.engine.script;
 
+import org.foxesworld.kalitech.engine.project.ProjectDescriptor;
 import org.junit.jupiter.api.Test;
 import org.luaj.vm2.Globals;
 
@@ -58,8 +59,11 @@ final class LuaRuntimeSmokeTest {
         Path repo = Path.of(System.getProperty("kalitech.repoRoot"))
                 .toAbsolutePath()
                 .normalize();
+        ProjectDescriptor project = ProjectDescriptor.load(
+                Path.of(System.getProperty("kalitech.project"))
+        );
         List<Path> roots = List.of(
-                repo.resolve("assets"),
+                project.projectOwnedRoot(),
                 repo.resolve("kalitech-engine/src/main/resources"),
                 repo.resolve("modulesSrc")
         );

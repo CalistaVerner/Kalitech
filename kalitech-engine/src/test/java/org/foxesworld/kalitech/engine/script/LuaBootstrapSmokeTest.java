@@ -1,6 +1,7 @@
 package org.foxesworld.kalitech.engine.script;
 
 import org.foxesworld.kalitech.engine.api.EngineApi;
+import org.foxesworld.kalitech.engine.project.ProjectDescriptor;
 import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 import org.junit.jupiter.api.Test;
 
@@ -21,12 +22,18 @@ final class LuaBootstrapSmokeTest {
     @Test
     void builtinsInitializeAndStartApplicationEntrypoint() throws Exception {
         Path repo = Path.of(System.getProperty("kalitech.repoRoot")).toAbsolutePath().normalize();
-        Path assets = repo.resolve("assets");
+        ProjectDescriptor project = ProjectDescriptor.load(
+                Path.of(System.getProperty("kalitech.project"))
+        );
+        Path projectOwned = project.projectOwnedRoot();
+        ScriptEntryPoint entryPoint = project.scripts();
         EngineApi engine = fakeInterface(EngineApi.class, new ConcurrentHashMap<>());
         try (ScriptRuntime runtime = new ScriptRuntime()) {
             runtime.setModuleStreamProvider(moduleId -> {
-                Path file = assets.resolve(moduleId).normalize();
-                if (!file.startsWith(assets) || !Files.isRegularFile(file)) return null;
+                String projectPath = entryPoint.projectOwnedPath(moduleId);
+                if (projectPath == null) return null;
+                Path file = projectOwned.resolve(projectPath).normalize();
+                if (!file.startsWith(projectOwned) || !Files.isRegularFile(file)) return null;
                 return Files.newInputStream(file);
             });
             runtime.initBuiltIns(engine);
@@ -54,7 +61,7 @@ final class LuaBootstrapSmokeTest {
                     assert(cfg.pos[1] == 1 and cfg.pos[2] == 2 and cfg.pos[3] == 3)
                     """, "@test/mesh-builder").call());
 
-            LuaValueRef app = runtime.require("Scripts/main.lua");
+            LuaValueRef app = runtime.require(entryPoint.moduleId());
             assertTrue(app.hasMember("start"));
             assertTrue(app.getMember("start").canExecute());
             runtime.globals().set("APP_MAIN", app.asLuaValue());

@@ -1,4 +1,6 @@
 local M = {}
+local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 function createDeferredProxy(self, resolveFn, label)
     local state = {resolved = nil}
     local function ensureResolved(self)
@@ -57,6 +59,7 @@ function createDeferredProxy(self, resolveFn, label)
         end}
     )
 end
-M = {createDeferredProxy = createDeferredProxy}
-
-return M
+local BootstrapDeferredApi = Classes:create()
+BootstrapDeferredApi.name = "BootstrapDeferredApi"
+BootstrapDeferredApi.prototype.createDeferredProxy = createDeferredProxy
+return Classes:construct(BootstrapDeferredApi)

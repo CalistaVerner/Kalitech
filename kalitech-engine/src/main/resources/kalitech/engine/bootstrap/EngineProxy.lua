@@ -1,11 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function createEngineProxy(self, javaEngine)
     if not javaEngine then
         error(
-            LuaConstruct(Error, "[bootstrap] createEngineProxy: javaEngine is required"),
+            Classes:construct(Error, "[bootstrap] createEngineProxy: javaEngine is required"),
             0
         )
     end
@@ -110,7 +110,7 @@ function createEngineProxy(self, javaEngine)
             local out = api(_G, key)
             if not out then
                 error(
-                    LuaConstruct(
+                    Classes:construct(
                         Error,
                         ("[ENGINE] api missing: '" .. tostring(key)) .. "'"
                     ),
@@ -124,7 +124,7 @@ function createEngineProxy(self, javaEngine)
         key = tostring(key)
         if rawget(modules, key) ~= nil then
             error(
-                LuaConstruct(
+                Classes:construct(
                     Error,
                     ("[ENGINE] duplicate module key '" .. tostring(key)) .. "'"
                 ),
@@ -213,7 +213,7 @@ function createEngineProxy(self, javaEngine)
                         local out = store:api(prop)
                         if not out then
                             error(
-                                LuaConstruct(Error, ("[ENGINE] api missing: '" .. prop) .. "'"),
+                                Classes:construct(Error, ("[ENGINE] api missing: '" .. prop) .. "'"),
                                 0
                             )
                         end
@@ -275,6 +275,7 @@ function createEngineProxy(self, javaEngine)
         }
     )
 end
-M = {createEngineProxy = createEngineProxy}
-
-return M
+local BootstrapEngineProxyApi = Classes:create()
+BootstrapEngineProxyApi.name = "BootstrapEngineProxyApi"
+BootstrapEngineProxyApi.prototype.createEngineProxy = createEngineProxy
+return Classes:construct(BootstrapEngineProxyApi)

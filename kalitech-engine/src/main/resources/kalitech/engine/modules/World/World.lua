@@ -1,6 +1,6 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaConstruct = luaRuntime.LuaConstruct
+local Classes = luaRuntime.class
 local lua_require_result_0 = require("./helpers/WorldUtil.lua")
 req = lua_require_result_0.req
 local lua_require_result_1 = require("./helpers/WorldApi.lua")
@@ -9,7 +9,7 @@ create = setmetatable(
     {},
     {__call = function(lua_, self, engine, K)
         req(_G, engine, "[WORLD] engine is required")
-        local api = LuaConstruct(WorldApi, engine, K)
+        local api = Classes:construct(WorldApi, engine, K)
         local publicApi = KObject:freeze({
             create = KFunction:bind(api.create, api),
             boot = KFunction:bind(api.boot, api),

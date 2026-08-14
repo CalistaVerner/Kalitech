@@ -1,7 +1,7 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaNumber = luaRuntime.LuaNumber
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 U = require("../camUtil.lua")
 function clamp(self, v, lo, hi)
     local lua_temp_1
@@ -28,7 +28,7 @@ end
 function expAlpha(self, rate, dt)
     return 1 - math.exp(-math.max(0, rate) * math.max(0, dt))
 end
-ThirdPersonCameraMode = LuaClass()
+ThirdPersonCameraMode = Classes:create()
 ThirdPersonCameraMode.name = "ThirdPersonCameraMode"
 function ThirdPersonCameraMode.prototype.lua_constructor(self)
     self.id = "third"
@@ -124,8 +124,8 @@ function ThirdPersonCameraMode.prototype._readMove(self, ctx)
     local dz = 0
     local sp = 0
     if mv then
-        dx = LuaNumber(U:vx(mv, 0)) or 0
-        dz = LuaNumber(U:vz(mv, 0)) or 0
+        dx = Numbers:coerce(U:vx(mv, 0)) or 0
+        dz = Numbers:coerce(U:vz(mv, 0)) or 0
         local len = KMath:hypot(dx, dz)
         if len > 0.000001 then
             dx = dx / len
@@ -133,13 +133,13 @@ function ThirdPersonCameraMode.prototype._readMove(self, ctx)
         end
         sp = clamp(
             _G,
-            LuaNumber(mv.speed) or LuaNumber(mv.mag) or LuaNumber(KLength(mv)) or 0,
+            Numbers:coerce(mv.speed) or Numbers:coerce(mv.mag) or Numbers:coerce(KLength(mv)) or 0,
             0,
             1
         )
     elseif vel then
-        local vx = LuaNumber(U:vx(vel, 0)) or 0
-        local vz = LuaNumber(U:vz(vel, 0)) or 0
+        local vx = Numbers:coerce(U:vx(vel, 0)) or 0
+        local vz = Numbers:coerce(U:vz(vel, 0)) or 0
         local len = KMath:hypot(vx, vz)
         if len > 0.000001 then
             dx = vx / len
@@ -189,7 +189,7 @@ end
 function ThirdPersonCameraMode.prototype.update(self, ctx)
     local dt = math.max(
         0,
-        LuaNumber(ctx.dt) or 0
+        Numbers:coerce(ctx.dt) or 0
     )
     local p = ctx.bodyPos
     local zo = ctx.zoneOverrides
@@ -203,28 +203,28 @@ function ThirdPersonCameraMode.prototype.update(self, ctx)
     local po = lua_temp_2
     local lua_temp_3
     if zo and zo.shoulderX ~= nil then
-        lua_temp_3 = LuaNumber(zo.shoulderX)
+        lua_temp_3 = Numbers:coerce(zo.shoulderX)
     else
         lua_temp_3 = self.shoulderX
     end
     local baseShoulder = lua_temp_3
     local lua_temp_4
     if zo and zo.shoulderAimX ~= nil then
-        lua_temp_4 = LuaNumber(zo.shoulderAimX)
+        lua_temp_4 = Numbers:coerce(zo.shoulderAimX)
     else
         lua_temp_4 = self.shoulderAimX
     end
     local aimShoulder = lua_temp_4
     local lua_temp_5
     if zo and zo.verticalLift ~= nil then
-        lua_temp_5 = LuaNumber(zo.verticalLift)
+        lua_temp_5 = Numbers:coerce(zo.verticalLift)
     else
         lua_temp_5 = self.verticalLift
     end
     local lift = lua_temp_5
     self:_updateShoulderSide(ctx)
-    local yaw = LuaNumber(ctx.look.yaw) or 0
-    local pitch = LuaNumber(ctx.look.pitch) or 0
+    local yaw = Numbers:coerce(ctx.look.yaw) or 0
+    local pitch = Numbers:coerce(ctx.look.pitch) or 0
     pitch = self:_softClampPitch(pitch)
     if self.recenterEnabled then
         local mv = self:_readMove(ctx)
@@ -314,7 +314,7 @@ function ThirdPersonCameraMode.prototype.update(self, ctx)
     ctx.target.z = self._pivot.z
     local dist = math.max(
         0.05,
-        LuaNumber(ctx.zoom:value())
+        Numbers:coerce(ctx.zoom:value())
     )
     self:_applyCollisionOverrides(ctx, dist)
     local p2 = pitch * self.pitchOrbitScale

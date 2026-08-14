@@ -1,19 +1,18 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
 function isObj(self, v)
-    return not not v and KTypeOf(v) == "table" and not LuaArrayIsArray(v)
+    return not not v and KTypeOf(v) == "table" and not Arrays:isArray(v)
 end
 function req(self, cond, msg)
     if not cond then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
@@ -29,10 +28,10 @@ function deepMerge(self, dst, src)
     if not src or KTypeOf(src) ~= "table" then
         return dst
     end
-    for lua_, k in ipairs(LuaTableKeys(src)) do
+    for lua_, k in ipairs(Tables:keys(src)) do
         local sv = src[k]
         local dv = dst[k]
-        if sv and KTypeOf(sv) == "table" and not LuaArrayIsArray(sv) then
+        if sv and KTypeOf(sv) == "table" and not Arrays:isArray(sv) then
             dst[k] = deepMerge(_G, dv, sv)
         else
             dst[k] = sv
@@ -49,7 +48,7 @@ function subsystem(self, engine, name)
         return v
     end
     error(
-        LuaConstruct(
+        Classes:construct(
             Error,
             ("[WORLD] engine." .. tostring(name)) .. " missing"
         ),
@@ -58,7 +57,7 @@ function subsystem(self, engine, name)
 end
 function str(self, v, fb)
     local s = v == nil and "" or tostring(v)
-    local t = LuaStringTrim(s)
+    local t = Strings:trim(s)
     local lua_t_2
     if t then
         lua_t_2 = t
@@ -83,8 +82,8 @@ function bool(self, v, fb)
     return lua_temp_3
 end
 function numInt(self, v, fb)
-    local n = LuaNumber(v)
-    if not LuaNumberIsFinite(n) then
+    local n = Numbers:coerce(v)
+    if not Numbers:isFinite(n) then
         return bit32.bor(fb, 0)
     end
     return bit32.bor(n, 0)

@@ -1,11 +1,11 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
 function requireEngineApi(self, engine, methodName, moduleTag)
     if not engine or KTypeOf(engine[methodName]) ~= "function" then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ((("[" .. tostring(moduleTag)) .. "] engine.") .. tostring(methodName)) .. "() is required"
             ),
@@ -15,7 +15,7 @@ function requireEngineApi(self, engine, methodName, moduleTag)
     local api = engine[methodName](engine)
     if not api then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ((("[" .. tostring(moduleTag)) .. "] engine.") .. tostring(methodName)) .. "() returned null"
             ),
@@ -41,7 +41,7 @@ function normalizeNullableObject(self, cfg, moduleTag, label)
         return cfg
     end
     error(
-        LuaConstruct(
+        Classes:construct(
             Error,
             ((("[" .. tostring(moduleTag)) .. "] ") .. tostring(label)) .. " must be an object or null"
         ),

@@ -1,12 +1,10 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaClass = luaRuntime.LuaClass
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Tables = luaRuntime.table
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaTableKeys = luaRuntime.LuaTableKeys
-local LuaTableRemove = luaRuntime.LuaTableRemove
 local lua_require_result_0 = require("./WorldUtil.lua")
 deepMerge = lua_require_result_0.deepMerge
 isObj = lua_require_result_0.isObj
@@ -19,23 +17,23 @@ function normalizeTimeDesc(self, time)
     end
     local out = {}
     if time.worldTime ~= nil then
-        out.worldTime = LuaNumber(time.worldTime)
+        out.worldTime = Numbers:coerce(time.worldTime)
     end
     if time.timeRate ~= nil then
-        out.timeRate = LuaNumber(time.timeRate)
+        out.timeRate = Numbers:coerce(time.timeRate)
     end
     if time.paused ~= nil then
         out.paused = not not time.paused
     end
     if time.fixedStep ~= nil then
-        out.fixedStep = LuaNumber(time.fixedStep)
+        out.fixedStep = Numbers:coerce(time.fixedStep)
     end
     if time.maxDelta ~= nil then
-        out.maxDelta = LuaNumber(time.maxDelta)
+        out.maxDelta = Numbers:coerce(time.maxDelta)
     end
     return out
 end
-WorldSession = LuaClass()
+WorldSession = Classes:create()
 WorldSession.name = "WorldSession"
 function WorldSession.prototype.lua_constructor(self, worldApi, seed)
     self._api = worldApi
@@ -46,7 +44,7 @@ function WorldSession.prototype.lua_constructor(self, worldApi, seed)
         lua_isObj_result_1 = {}
     end
     self._desc = lua_isObj_result_1
-    if not LuaArrayIsArray(self._desc.systems) then
+    if not Arrays:isArray(self._desc.systems) then
         self._desc.systems = {}
     end
 end
@@ -56,12 +54,12 @@ function WorldSession.prototype.merge(self, v)
     end
     if not isObj(_G, v) then
         error(
-            LuaConstruct(Error, "[WORLD] session.merge(v): v must be an object"),
+            Classes:construct(Error, "[WORLD] session.merge(v): v must be an object"),
             0
         )
     end
     self._desc = deepMerge(_G, self._desc, v)
-    if not LuaArrayIsArray(self._desc.systems) then
+    if not Arrays:isArray(self._desc.systems) then
         self._desc.systems = {}
     end
     return self
@@ -91,7 +89,7 @@ end
 function WorldSession.prototype.systems(self, list)
     local lua_self__desc_3 = self._desc
     local lua_Array_isArray_result_2
-    if LuaArrayIsArray(list) then
+    if Arrays:isArray(list) then
         lua_Array_isArray_result_2 = list
     else
         lua_Array_isArray_result_2 = {}
@@ -102,11 +100,11 @@ end
 function WorldSession.prototype.addSystem(self, v)
     if v == nil then
         error(
-            LuaConstruct(Error, "[WORLD] addSystem(v): v is required"),
+            Classes:construct(Error, "[WORLD] addSystem(v): v is required"),
             0
         )
     end
-    if not LuaArrayIsArray(self._desc.systems) then
+    if not Arrays:isArray(self._desc.systems) then
         self._desc.systems = {}
     end
     KArrayOps.push(self._desc.systems, v)
@@ -114,10 +112,10 @@ function WorldSession.prototype.addSystem(self, v)
 end
 function WorldSession.prototype.time(self, v)
     local t = normalizeTimeDesc(_G, v)
-    if t and #LuaTableKeys(t) then
+    if t and #Tables:keys(t) then
         self._desc.time = t
     else
-        LuaTableRemove(self._desc, "time")
+        Tables:remove(self._desc, "time")
     end
     return self
 end

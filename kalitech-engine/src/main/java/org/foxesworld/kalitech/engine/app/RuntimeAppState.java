@@ -15,6 +15,7 @@ import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
+import org.foxesworld.kalitech.engine.script.ScriptEntryPoint;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
@@ -22,6 +23,7 @@ import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -33,8 +35,8 @@ public final class RuntimeAppState extends BaseAppState {
 
     private static final Logger log = LogManager.getLogger(RuntimeAppState.class);
 
-    private final String entry;
-    private final Path watchRoot;
+    private final ScriptEntryPoint entryPoint;
+    private final Path projectOwnedRoot;
 
     private SimpleApplication app;
     private ScriptRuntime runtime;
@@ -58,9 +60,14 @@ public final class RuntimeAppState extends BaseAppState {
     private float reloadCooldown = 0.25f;
     private float cooldown = 0f;
 
-    public RuntimeAppState(String entry, Path watchRoot, EcsWorld ecs, ScriptEventBus bus) {
-        this.entry = Objects.requireNonNull(entry, "entry");
-        this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
+    public RuntimeAppState(
+            ScriptEntryPoint entryPoint,
+            Path projectOwnedRoot,
+            EcsWorld ecs,
+            ScriptEventBus bus
+    ) {
+        this.entryPoint = Objects.requireNonNull(entryPoint, "entryPoint");
+        this.projectOwnedRoot = Objects.requireNonNull(projectOwnedRoot, "projectOwnedRoot");
         this.ecs = Objects.requireNonNull(ecs, "ecs");
         this.bus = Objects.requireNonNull(bus, "bus");
         this.runtime = new ScriptRuntime();
@@ -83,16 +90,6 @@ public final class RuntimeAppState extends BaseAppState {
         }
 
         return module;
-    }
-
-    private static String normalizeLuaModuleId(String moduleId) {
-        String id = (moduleId == null) ? "" : moduleId.trim();
-        if (id.isEmpty()) return "";
-        id = id.replace('\\', '/');
-        while (id.startsWith("./")) id = id.substring(2);
-        while (id.startsWith("/")) id = id.substring(1);
-        if (!id.endsWith(".lua") && !id.endsWith(".json")) id += ".lua";
-        return id;
     }
 
     private static SimpleApplication coerceSimpleApp(Application app) {
@@ -124,21 +121,20 @@ public final class RuntimeAppState extends BaseAppState {
             physicsSpace.setGravity(new Vector3f(0f, -9.81f, 0f));
         }
 
+        // Install the project namespace before EngineApiImpl mounts module JARs.
+        // RuntimeLuaBridge will chain on top of this provider instead of being
+        // overwritten by a later application provider.
+        runtime.setModuleStreamProvider(this::openProjectModule);
+
         // --- Engine API MUST exist before builtins init ---
         engineApi = new EngineApiImpl(this);
         engineApi.__setPhysicsSpace(physicsSpace);
-
-        // --- Script runtime (shared base for app + potential worlds) ---
-        //runtime = new ScriptRuntime();
-
-        // CRITICAL: providers MUST be set BEFORE any require() or builtins init
-        runtime.setModuleStreamProvider(this::openLuaModuleStream);
 
         // Builtins must be initialized AFTER engineApi exists
         runtime.initBuiltIns(engineApi);
 
         // --- Hot reload watcher ---
-        watcher = new HotReloadWatcher(watchRoot);
+        watcher = new HotReloadWatcher(projectOwnedRoot);
 
         // --- App-only context ---
         // WorldTime is world-only => null here.
@@ -163,7 +159,8 @@ public final class RuntimeAppState extends BaseAppState {
         appQuarantineReason = null;
         cooldown = 0f;
 
-        log.info("[Runtime] started entry={} watchRoot={}", entry, watchRoot.toAbsolutePath());
+        log.info("[Runtime] started namespace={} entry={} projectOwnedRoot={}",
+                entryPoint.namespace(), entryPoint.moduleId(), projectOwnedRoot.toAbsolutePath());
     }
 
     @Override
@@ -183,7 +180,12 @@ public final class RuntimeAppState extends BaseAppState {
             Set<String> changed = watcher.pollChanged();
             if (changed != null && !changed.isEmpty()) {
                 try {
-                    runtime.invalidateMany(changed);
+                    HashSet<String> changedModules = new HashSet<>();
+                    for (String changedProjectPath : changed) {
+                        String moduleId = entryPoint.moduleIdForProjectPath(changedProjectPath);
+                        if (moduleId != null) changedModules.add(moduleId);
+                    }
+                    runtime.invalidateManyWithReason(changedModules, "hot reload");
                 } catch (Throwable ignored) {
             ScriptFailureBoundary.rethrowIfFatal(ignored);
                 }
@@ -216,6 +218,7 @@ public final class RuntimeAppState extends BaseAppState {
     private void restartApp() {
         final ScriptRuntime rt = this.runtime;
         final SystemContext ctx = this.appCtx;
+        final String entry = this.entryPoint.moduleId();
 
         if (rt == null || ctx == null) return;
 
@@ -261,15 +264,19 @@ public final class RuntimeAppState extends BaseAppState {
         }
     }
 
-    private InputStream openLuaModuleStream(String moduleId) {
+    /**
+     * Opens only modules owned by this project's virtual application namespace.
+     * Physical project-owned paths are never accepted as module ids.
+     */
+    public InputStream openProjectModule(String moduleId) {
         try {
-            String id = normalizeLuaModuleId(moduleId);
-            if (id.isEmpty()) return null;
+            String projectPath = entryPoint.projectOwnedPath(moduleId);
+            if (projectPath == null) return null;
 
             AssetManager am = (app != null) ? app.getAssetManager() : null;
             if (am == null) return null;
 
-            var ai = am.locateAsset(new AssetKey<>(id));
+            var ai = am.locateAsset(new AssetKey<>(projectPath));
             return (ai != null) ? ai.openStream() : null;
         } catch (Throwable ignored) {
             ScriptFailureBoundary.rethrowIfFatal(ignored);
@@ -352,6 +359,14 @@ public final class RuntimeAppState extends BaseAppState {
 
     public ScriptRuntime getRuntime() {
         return runtime;
+    }
+
+    public ScriptEntryPoint getEntryPoint() {
+        return entryPoint;
+    }
+
+    public Path getProjectOwnedRoot() {
+        return projectOwnedRoot;
     }
 
     public BulletAppState getBullet() {

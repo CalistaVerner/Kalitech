@@ -1,18 +1,17 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaClass = luaRuntime.LuaClass
 function req(self, v, msg)
     if v == nil then
         error(
-            LuaConstruct(Error, msg),
+            Classes:construct(Error, msg),
             0
         )
     end
     return v
 end
-EntityController = LuaClass()
+EntityController = Classes:create()
 EntityController.name = "EntityController"
 function EntityController.prototype.lua_constructor(self, ctx, entity, stack)
     self.ctx = req(_G, ctx, "[EntityController] ctx is required")
@@ -26,7 +25,7 @@ end
 function EntityController.prototype.update(self, dt)
     if not self._alive then
         error(
-            LuaConstruct(Error, "[EntityController] update on disposed"),
+            Classes:construct(Error, "[EntityController] update on disposed"),
             0
         )
     end

@@ -1,7 +1,7 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaNumber = luaRuntime.LuaNumber
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 U = require("../camUtil.lua")
 function clamp(self, v, lo, hi)
     local lua_temp_1
@@ -28,7 +28,7 @@ function smoothstep(self, t)
     t = clamp(_G, t, 0, 1)
     return t * t * (3 - 2 * t)
 end
-FirstPersonCameraMode = LuaClass()
+FirstPersonCameraMode = Classes:create()
 FirstPersonCameraMode.name = "FirstPersonCameraMode"
 function FirstPersonCameraMode.prototype.lua_constructor(self)
     self.id = "first"
@@ -71,12 +71,12 @@ function FirstPersonCameraMode.prototype._readMoveSpeed01(self, ctx)
     local mv = ctx.moveDir or ctx.move or ctx.motion or nil
     local vel = ctx.bodyVel or ctx.vel or nil
     if mv then
-        local s = LuaNumber(mv.speed) or LuaNumber(mv.mag) or LuaNumber(KLength(mv)) or 0
+        local s = Numbers:coerce(mv.speed) or Numbers:coerce(mv.mag) or Numbers:coerce(KLength(mv)) or 0
         return clamp(_G, s, 0, 1)
     end
     if vel then
-        local vx = LuaNumber(U:vx(vel, 0)) or 0
-        local vz = LuaNumber(U:vz(vel, 0)) or 0
+        local vx = Numbers:coerce(U:vx(vel, 0)) or 0
+        local vz = Numbers:coerce(U:vz(vel, 0)) or 0
         local len = KMath:hypot(vx, vz)
         return clamp(_G, len / 6, 0, 1)
     end
@@ -109,11 +109,11 @@ end
 function FirstPersonCameraMode.prototype.update(self, ctx)
     local dt = math.max(
         0,
-        LuaNumber(ctx.dt) or 0
+        Numbers:coerce(ctx.dt) or 0
     )
     local aiming = not not (ctx.aiming or ctx.input and ctx.input.aiming)
-    local yaw = LuaNumber(ctx.look.yaw) or 0
-    local pitch = LuaNumber(ctx.look.pitch) or 0
+    local yaw = Numbers:coerce(ctx.look.yaw) or 0
+    local pitch = Numbers:coerce(ctx.look.pitch) or 0
     pitch = self:_softClampPitch(pitch)
     local a = expAlpha(_G, self.cfg.adsBlendRate, dt)
     self._ads = lerp(_G, self._ads, aiming and 1 or 0, a)

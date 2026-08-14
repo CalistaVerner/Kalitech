@@ -1,10 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaClass = luaRuntime.LuaClass
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
-local LuaConstruct = luaRuntime.LuaConstruct
-local LuaArrayJoin = luaRuntime.LuaArrayJoin
 local lua_require_result_0 = require("./EntUtil.lua")
 req = lua_require_result_0.req
 subsystem = lua_require_result_0.subsystem
@@ -20,7 +18,7 @@ function pushErr(self, list, op, e)
     local msg = lua_temp_2
     KArrayOps.push(list, (tostring(op) .. " :: ") .. tostring(msg))
 end
-EntityHandle = LuaClass()
+EntityHandle = Classes:create()
 EntityHandle.name = "EntityHandle"
 function EntityHandle.prototype.lua_constructor(self, engine, ctx)
     self._engine = engine
@@ -36,7 +34,7 @@ function EntityHandle.prototype.lua_constructor(self, engine, ctx)
     self.surfaceId = bit32.bor(ctx.surfaceId, 0)
     self.bodyId = bit32.bor(ctx.bodyId, 0)
     local lua_Array_isArray_result_4
-    if LuaArrayIsArray(ctx._destroyers) then
+    if Arrays:isArray(ctx._destroyers) then
         lua_Array_isArray_result_4 = ctx._destroyers
     else
         lua_Array_isArray_result_4 = {}
@@ -53,7 +51,7 @@ function EntityHandle.prototype.lua_constructor(self, engine, ctx)
     req(_G, self._log and self._log.info and self._log.warn and self._log.error, "[ENT] engine.log() must provide info/warn/error")
     if not self.uuid then
         error(
-            LuaConstruct(Error, "[ENT] EntityHandle missing uuid (UUID-only)"),
+            Classes:construct(Error, "[ENT] EntityHandle missing uuid (UUID-only)"),
             0
         )
     end
@@ -61,7 +59,7 @@ function EntityHandle.prototype.lua_constructor(self, engine, ctx)
 end
 function EntityHandle.prototype.id(self)
     error(
-        LuaConstruct(Error, "[ENT] EntityHandle.id() removed (UUID-only)"),
+        Classes:construct(Error, "[ENT] EntityHandle.id() removed (UUID-only)"),
         0
     )
 end
@@ -87,7 +85,7 @@ function EntityHandle.prototype.setVisible(self, v)
     local sid = bit32.bor(self.surfaceId, 0)
     if not sid then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[ENT] setVisible: surfaceId=0 uuid=" .. tostring(self.uuid)
             ),
@@ -107,7 +105,7 @@ function EntityHandle.prototype.setCull(self, hint)
     local sid = bit32.bor(self.surfaceId, 0)
     if not sid then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 "[ENT] setCull: surfaceId=0 uuid=" .. tostring(self.uuid)
             ),
@@ -133,7 +131,7 @@ function EntityHandle.prototype.requireBodyId(self, opName)
     local id = bit32.bor(self.bodyId, 0)
     if id <= 0 then
         error(
-            LuaConstruct(
+            Classes:construct(
                 Error,
                 ((("[ENT] " .. tostring(opName)) .. ": entity has no bodyId (uuid=") .. tostring(self.uuid)) .. ")"
             ),
@@ -166,7 +164,7 @@ function EntityHandle.prototype.snapshot(self)
     local uuid = self.uuid
     if not uuid then
         error(
-            LuaConstruct(Error, "[ENT] snapshot: uuid empty"),
+            Classes:construct(Error, "[ENT] snapshot: uuid empty"),
             0
         )
     end
@@ -221,7 +219,7 @@ function EntityHandle.prototype.destroy(self)
                 local phys = subsystem(_G, engine, "physics")
                 if KTypeOf(phys.remove) ~= "function" then
                     error(
-                        LuaConstruct(Error, "engine.physics().remove(bodyId) missing"),
+                        Classes:construct(Error, "engine.physics().remove(bodyId) missing"),
                         0
                     )
                 end
@@ -246,7 +244,7 @@ function EntityHandle.prototype.destroy(self)
                 local surf = subsystem(_G, engine, "surface")
                 if KTypeOf(surf.drop) ~= "function" then
                     error(
-                        LuaConstruct(Error, "engine.surface().drop(surfaceId,recursive) missing"),
+                        Classes:construct(Error, "engine.surface().drop(surfaceId,recursive) missing"),
                         0
                     )
                 end
@@ -271,7 +269,7 @@ function EntityHandle.prototype.destroy(self)
                 local ent = subsystem(_G, engine, "entity")
                 if KTypeOf(ent.destroy) ~= "function" then
                     error(
-                        LuaConstruct(Error, "engine.entity().destroy(uuid) missing"),
+                        Classes:construct(Error, "engine.entity().destroy(uuid) missing"),
                         0
                     )
                 end
@@ -291,9 +289,9 @@ function EntityHandle.prototype.destroy(self)
     self.uuid = ""
     self.core = nil
     if #errors > 0 then
-        local err = LuaConstruct(
+        local err = Classes:construct(
             Error,
-            "[ENT] destroy failed:\n- " .. LuaArrayJoin(errors, "\n- ")
+            "[ENT] destroy failed:\n- " .. Arrays:join(errors, "\n- ")
         )
         error(err, 0)
     end
@@ -325,7 +323,7 @@ end
 function EntityHandle.prototype.addDestroyer(self, fn)
     if KTypeOf(fn) ~= "function" then
         error(
-            LuaConstruct(Error, "[ENT] addDestroyer(fn): fn must be a function"),
+            Classes:construct(Error, "[ENT] addDestroyer(fn): fn must be a function"),
             0
         )
     end
@@ -337,7 +335,7 @@ function EntityHandle.prototype.setComponent(self, lua_type, value)
     local uuid = self.uuid
     if not uuid then
         error(
-            LuaConstruct(Error, "[ENT] setComponent: uuid empty"),
+            Classes:construct(Error, "[ENT] setComponent: uuid empty"),
             0
         )
     end
@@ -358,7 +356,7 @@ function EntityHandle.prototype.getComponent(self, lua_type)
     local uuid = self.uuid
     if not uuid then
         error(
-            LuaConstruct(Error, "[ENT] getComponent: uuid empty"),
+            Classes:construct(Error, "[ENT] getComponent: uuid empty"),
             0
         )
     end
@@ -377,7 +375,7 @@ function EntityHandle.prototype.hasComponent(self, lua_type)
     local uuid = self.uuid
     if not uuid then
         error(
-            LuaConstruct(Error, "[ENT] hasComponent: uuid empty"),
+            Classes:construct(Error, "[ENT] hasComponent: uuid empty"),
             0
         )
     end

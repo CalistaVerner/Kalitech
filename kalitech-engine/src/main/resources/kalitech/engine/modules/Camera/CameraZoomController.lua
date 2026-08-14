@@ -1,9 +1,8 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaClass = luaRuntime.LuaClass
-local LuaArrayIsArray = luaRuntime.LuaArrayIsArray
+local Arrays = luaRuntime.array
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 function clamp(self, v, lo, hi)
     local lua_temp_1
     if v < lo then
@@ -20,9 +19,9 @@ function clamp(self, v, lo, hi)
     return lua_temp_1
 end
 function num(self, v, fb)
-    local n = LuaNumber(v)
+    local n = Numbers:coerce(v)
     local lua_Number_isFinite_result_2
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_2 = n
     else
         lua_Number_isFinite_result_2 = fb
@@ -40,15 +39,15 @@ function expSmooth(self, cur, target, smooth, dt)
     if s == 0 then
         return target
     end
-    local a = 1 - math.exp(LuaNumber(-s) * dt)
+    local a = 1 - math.exp(Numbers:coerce(-s) * dt)
     return cur + (target - cur) * a
 end
-CameraZoomController = LuaClass()
+CameraZoomController = Classes:create()
 CameraZoomController.name = "CameraZoomController"
 function CameraZoomController.prototype.lua_constructor(self, cfg)
     cfg = cfg or KObject:create(nil)
     local lua_temp_4
-    if LuaArrayIsArray(cfg.steps) and KLength(cfg.steps) > 0 then
+    if Arrays:isArray(cfg.steps) and KLength(cfg.steps) > 0 then
         lua_temp_4 = cfg.steps
     else
         lua_temp_4 = {
@@ -130,7 +129,7 @@ function CameraZoomController.prototype.configure(self, cfg)
     if not cfg then
         return self
     end
-    if LuaArrayIsArray(cfg.steps) and KLength(cfg.steps) > 0 then
+    if Arrays:isArray(cfg.steps) and KLength(cfg.steps) > 0 then
         self.steps = KArrayOps.slice(cfg.steps)
         self.minIndex = bit32.bor(
             clamp(_G, self.minIndex, 0, KLength(self.steps) - 1),
@@ -216,8 +215,8 @@ function CameraZoomController.prototype.configure(self, cfg)
 end
 function CameraZoomController.prototype.reset(self, value)
     if value ~= nil then
-        local v = LuaNumber(value)
-        if LuaNumberIsFinite(v) then
+        local v = Numbers:coerce(value)
+        if Numbers:isFinite(v) then
             self.current = clamp(_G, v, self.min, self.max)
             self.target = self.current
         end
@@ -270,7 +269,7 @@ function CameraZoomController.prototype.update(self, dt, ctx)
         if w ~= 0 then
             local lua_table_invertWheel_7
             if self.invertWheel then
-                lua_table_invertWheel_7 = LuaNumber(-w)
+                lua_table_invertWheel_7 = Numbers:coerce(-w)
             else
                 lua_table_invertWheel_7 = w
             end

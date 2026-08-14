@@ -1,9 +1,8 @@
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumber = luaRuntime.LuaNumber
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaSet = luaRuntime.LuaSet
-local LuaConstruct = luaRuntime.LuaConstruct
+local Collections = luaRuntime.collection
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
+local Classes = luaRuntime.class
 local Error = luaRuntime.Error
 META = {moduleId = "input", version = "1.0.0", engineMin = "0.0.0"}
 function _isObj(self, x)
@@ -13,9 +12,9 @@ function _num(self, x, def)
     if def == nil then
         def = 0
     end
-    x = LuaNumber(x)
+    x = Numbers:coerce(x)
     local lua_Number_isFinite_result_0
-    if LuaNumberIsFinite(x) then
+    if Numbers:isFinite(x) then
         lua_Number_isFinite_result_0 = x
     else
         lua_Number_isFinite_result_0 = def
@@ -29,15 +28,15 @@ function _keyNameNormalize(self, name)
     if name == nil then
         return ""
     end
-    return LuaStringTrim(tostring(name))
+    return Strings:trim(tostring(name))
 end
 function _arrToSet(self, arr)
     do
         local function lua_catch()
-            return true, LuaConstruct(LuaSet)
+            return true, Collections:newSet()
         end
         local lua_try, lua_hasReturned, lua_returnValue = pcall(function()
-            local out = LuaConstruct(LuaSet)
+            local out = Collections:newSet()
             if not arr then
                 return true, out
             end
@@ -69,13 +68,13 @@ local moduleFactory = function(self, engine, K)
     local input = lua_temp_1
     if not input then
         error(
-            LuaConstruct(Error, "Input module: engine.input() is required"),
+            Classes:construct(Error, "Input module: engine.input() is required"),
             0
         )
     end
     local _lastSnap = nil
-    local _lastJustPressed = LuaConstruct(LuaSet)
-    local _lastJustReleased = LuaConstruct(LuaSet)
+    local _lastJustPressed = Collections:newSet()
+    local _lastJustReleased = Collections:newSet()
     local function _vec2(self, x, y)
         return {
             x = _num(_G, x),
@@ -93,8 +92,8 @@ local moduleFactory = function(self, engine, K)
         _lastSnap = snap or nil
         do
             local function lua_catch()
-                _lastJustPressed = LuaConstruct(LuaSet)
-                _lastJustReleased = LuaConstruct(LuaSet)
+                _lastJustPressed = Collections:newSet()
+                _lastJustReleased = Collections:newSet()
             end
             local lua_try = pcall(function()
                 local jp = snap and (snap.justPressed or snap.justPressedKeyCodes or snap.justPressedCodes)

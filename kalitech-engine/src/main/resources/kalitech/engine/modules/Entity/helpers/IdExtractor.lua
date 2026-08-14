@@ -1,16 +1,14 @@
 local M = {}
 local luaRuntime = require("@builtin/lua_runtime")
-local LuaNumberIsFinite = luaRuntime.LuaNumberIsFinite
-local LuaNumber = luaRuntime.LuaNumber
-local LuaStringTrim = luaRuntime.LuaStringTrim
-local LuaParseInt = luaRuntime.LuaParseInt
+local Strings = luaRuntime.string
+local Numbers = luaRuntime.number
 function toInt32(self, v)
     if v == nil then
         return 0
     end
     if KTypeOf(v) == "number" then
         local lua_Number_isFinite_result_0
-        if LuaNumberIsFinite(v) then
+        if Numbers:isFinite(v) then
             lua_Number_isFinite_result_0 = bit32.bor(v, 0)
         else
             lua_Number_isFinite_result_0 = 0
@@ -18,9 +16,9 @@ function toInt32(self, v)
         return lua_Number_isFinite_result_0
     end
     if KTypeOf(v) == "bigint" then
-        local n = LuaNumber(v)
+        local n = Numbers:coerce(v)
         local lua_Number_isFinite_result_1
-        if LuaNumberIsFinite(n) then
+        if Numbers:isFinite(n) then
             lua_Number_isFinite_result_1 = bit32.bor(n, 0)
         else
             lua_Number_isFinite_result_1 = 0
@@ -28,17 +26,17 @@ function toInt32(self, v)
         return lua_Number_isFinite_result_1
     end
     if KTypeOf(v) == "string" then
-        local s = LuaStringTrim(v)
+        local s = Strings:trim(v)
         if not s then
             return 0
         end
-        local n = LuaNumber(s)
-        if LuaNumberIsFinite(n) then
+        local n = Numbers:coerce(s)
+        if Numbers:isFinite(n) then
             return bit32.bor(n, 0)
         end
-        local p = LuaParseInt(s, 10)
+        local p = Numbers:parseInt(s, 10)
         local lua_Number_isFinite_result_2
-        if LuaNumberIsFinite(p) then
+        if Numbers:isFinite(p) then
             lua_Number_isFinite_result_2 = bit32.bor(p, 0)
         else
             lua_Number_isFinite_result_2 = 0
@@ -56,9 +54,9 @@ function toInt32(self, v)
         end
     end
     if KTypeOf(v.intValue) == "function" then
-        local n = LuaNumber(v:intValue())
+        local n = Numbers:coerce(v:intValue())
         local lua_Number_isFinite_result_3
-        if LuaNumberIsFinite(n) then
+        if Numbers:isFinite(n) then
             lua_Number_isFinite_result_3 = bit32.bor(n, 0)
         else
             lua_Number_isFinite_result_3 = 0
@@ -66,18 +64,18 @@ function toInt32(self, v)
         return lua_Number_isFinite_result_3
     end
     if KTypeOf(v.longValue) == "function" then
-        local n = LuaNumber(v:longValue())
+        local n = Numbers:coerce(v:longValue())
         local lua_Number_isFinite_result_4
-        if LuaNumberIsFinite(n) then
+        if Numbers:isFinite(n) then
             lua_Number_isFinite_result_4 = bit32.bor(n, 0)
         else
             lua_Number_isFinite_result_4 = 0
         end
         return lua_Number_isFinite_result_4
     end
-    local n = LuaNumber(v)
+    local n = Numbers:coerce(v)
     local lua_Number_isFinite_result_5
-    if LuaNumberIsFinite(n) then
+    if Numbers:isFinite(n) then
         lua_Number_isFinite_result_5 = bit32.bor(n, 0)
     else
         lua_Number_isFinite_result_5 = 0
