@@ -5,7 +5,7 @@ MaterialDef KaliTonemap {
         // Keep this: some pipelines clear/set it, and missing param causes exceptions.
         Int NumSamples;
 
-        // Optional, but leave for compatibility
+        // Optional tonemapping parameter
         Texture2D DepthTexture;
 
         // IMPORTANT: FPP may set this for scaling the valid region of the scene RT

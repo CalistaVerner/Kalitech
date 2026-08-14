@@ -2,97 +2,97 @@ package org.foxesworld.kalitech.engine.api;
 
 import org.foxesworld.kalitech.engine.api.interfaces.*;
 import org.foxesworld.kalitech.engine.api.interfaces.physics.PhysicsApi;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 @SuppressWarnings("unused")
 public interface EngineApi {
-    @HostAccess.Export
+    @LuaExport
     LogApi log();
 
-    @HostAccess.Export
+    @LuaExport
     AssetsApi assets();
 
-    @HostAccess.Export
+    @LuaExport
     EventsApi bus();
 
-    @HostAccess.Export
+    @LuaExport
     MaterialApi material();
 
-    @HostAccess.Export
+    @LuaExport
     EntityApi entity();
 
-    @HostAccess.Export
+    @LuaExport
     SoundApi sound();
 
-    @HostAccess.Export
+    @LuaExport
     RenderApi render();
 
-    @HostAccess.Export
+    @LuaExport
     CameraApi camera();
 
     //  NEW
-    @HostAccess.Export
+    @LuaExport
     PhysicsApi physics();
 
-    @HostAccess.Export
+    @LuaExport
     LightApi light();
 
-    @HostAccess.Export
+    @LuaExport
     DebugDrawApi debug();
 
-    @HostAccess.Export
+    @LuaExport
     ParticlesApi particles();
 
     //  new unified surface layer
-    @HostAccess.Export
+    @LuaExport
     SurfaceApi surface();
 
     //  new terrain builder
-    @HostAccess.Export
+    @LuaExport
     TerrainApi terrain();
 
-    @HostAccess.Export
+    @LuaExport
     boolean isJmeThread();
 
 
     //  new terrain splat layer (separate from builder)
-    @HostAccess.Export
+    @LuaExport
     TerrainSplatApi terrainSplat();
 
-    @HostAccess.Export
+    @LuaExport
     EditorLinesApi editorLines();
 
-    @HostAccess.Export
+    @LuaExport
     MeshApi mesh();
 
-    @HostAccess.Export
+    @LuaExport
     HudApi hud();
 
-    @HostAccess.Export
+    @LuaExport
     String engineVersion();
 
-    @HostAccess.Export
+    @LuaExport
     TimeApi time();
 
-    @HostAccess.Export
+    @LuaExport
     InputApi input();
 
-    @HostAccess.Export
+    @LuaExport
     WorldApi world();
 
-    @HostAccess.Export
+    @LuaExport
     EditorApi editor();
 
-    @HostAccess.Export
+    @LuaExport
     ModulesApi modules();
 
-    @HostAccess.Export
+    @LuaExport
     double fps();
 
     /**
      * Execute a callback on JME main thread via Application#enqueue.
      */
-    @HostAccess.Export
-    void runOnMainThread(Value fn);
+    @LuaExport
+    void runOnMainThread(LuaValueRef fn);
 }

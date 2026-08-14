@@ -1,0 +1,8 @@
+{
+  "id": "sound",
+  "name": "Sound",
+  "version": "1.0.0",
+  "mainClass": "org.foxesworld.kalitech.engine.api.impl.SoundApiImpl",
+  "depends": [],
+  "lua": "kalitech/engine/modules/Sound/Sound.lua"
+}

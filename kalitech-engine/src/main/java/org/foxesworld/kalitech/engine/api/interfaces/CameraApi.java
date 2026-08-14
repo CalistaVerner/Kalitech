@@ -2,8 +2,8 @@ package org.foxesworld.kalitech.engine.api.interfaces;
 
 // Author: KΛYLΛ
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 /**
  * Script-facing Camera API (durable, thin).
@@ -11,7 +11,7 @@ import org.graalvm.polyglot.Value;
  * Design rules:
  *  - Java exposes ONLY stable primitives (transform + directions).
  *  - All camera behavior (modes, follow, collision, zoom, smoothing)
- *    lives entirely in JS.
+ *    lives entirely in Lua.
  *  - No engine-side state machines, no hidden modes.
  *
  * Threading:
@@ -22,33 +22,32 @@ import org.graalvm.polyglot.Value;
  *  - Y is up.
  *  - Yaw around +Y, pitch around +X.
  */
-@HostAccess.Implementable
 public interface CameraApi {
 
     // -------------------------------------------------------------------------
     // Position
     // -------------------------------------------------------------------------
 
-    /** Get camera world position as a JS object: {x,y,z}. */
-    @HostAccess.Export
+    /** Get camera world position as a Lua object: {x,y,z}. */
+    @LuaExport
     Object location();
 
     /** Alias for location(). */
-    @HostAccess.Export
+    @LuaExport
     default Object position() {
         return location();
     }
 
-    /** Set camera world position from JS object {x,y,z}. */
-    @HostAccess.Export
-    void setLocation(Value v);
+    /** Set camera world position from Lua object {x,y,z}. */
+    @LuaExport
+    void setLocation(LuaValueRef v);
 
     /** Set camera world position by components. */
-    @HostAccess.Export
+    @LuaExport
     void setLocation(double x, double y, double z);
 
     /** Alias for setLocation(x,y,z). */
-    @HostAccess.Export
+    @LuaExport
     default void setPosition(double x, double y, double z) {
         setLocation(x, y, z);
     }
@@ -61,18 +60,18 @@ public interface CameraApi {
      * Set absolute yaw/pitch (radians).
      * Convention: yaw around +Y, pitch around +X.
      */
-    @HostAccess.Export
+    @LuaExport
     void setYawPitch(double yaw, double pitch);
 
-    @HostAccess.Export
+    @LuaExport
     void __flush();
 
     /** Current yaw (radians). */
-    @HostAccess.Export
+    @LuaExport
     double yaw();
 
     /** Current pitch (radians). */
-    @HostAccess.Export
+    @LuaExport
     double pitch();
 
     // -------------------------------------------------------------------------
@@ -80,15 +79,15 @@ public interface CameraApi {
     // -------------------------------------------------------------------------
 
     /** Camera forward direction as {x,y,z}. */
-    @HostAccess.Export
+    @LuaExport
     Object forward();
 
     /** Camera right direction as {x,y,z}. */
-    @HostAccess.Export
+    @LuaExport
     Object right();
 
     /** Camera up direction as {x,y,z}. */
-    @HostAccess.Export
+    @LuaExport
     Object up();
 
     // -------------------------------------------------------------------------
@@ -101,17 +100,17 @@ public interface CameraApi {
      *  dy -> up
      *  dz -> forward
      */
-    @HostAccess.Export
+    @LuaExport
     void moveLocal(double dx, double dy, double dz);
 
     /** Relative motion in world axes. */
-    @HostAccess.Export
+    @LuaExport
     void moveWorld(double dx, double dy, double dz);
 
     /**
      * Incremental rotation (radians): adds to yaw/pitch.
      * Optional clamping may be applied by implementation.
      */
-    @HostAccess.Export
+    @LuaExport
     void rotateYawPitch(double dYaw, double dPitch);
 }

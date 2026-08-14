@@ -3,7 +3,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -104,13 +104,13 @@ public final class MainThreadBudgetQueue {
 
     public void enqueueHigh(Runnable r) { tryEnqueueHigh(r); }
 
-    public void enqueue(Value fn) {
+    public void enqueue(LuaValueRef fn) {
         if (fn == null || fn.isNull()) return;
         if (!fn.canExecute()) throw new IllegalArgumentException("mainQueue.enqueue(fn): fn is not executable");
         enqueue(() -> fn.executeVoid());
     }
 
-    public void enqueueHigh(Value fn) {
+    public void enqueueHigh(LuaValueRef fn) {
         if (fn == null || fn.isNull()) return;
         if (!fn.canExecute()) throw new IllegalArgumentException("mainQueue.enqueueHigh(fn): fn is not executable");
         enqueueHigh(() -> fn.executeVoid());

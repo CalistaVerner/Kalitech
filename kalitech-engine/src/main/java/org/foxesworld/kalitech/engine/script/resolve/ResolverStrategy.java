@@ -6,7 +6,7 @@ package org.foxesworld.kalitech.engine.script.resolve;
 import java.util.Optional;
 
 /**
- * Strategy interface for resolving CommonJS require() requests to a canonical moduleId.
+ * Strategy interface for resolving Lua require() requests to a canonical moduleId.
  * <p>
  * Contract:
  * - Implementations MUST be pure: no I/O, no caching, no side effects.
@@ -24,7 +24,7 @@ public interface ResolverStrategy {
     /**
      * @param parentModuleId current module (who calls require), may be "" for root
      * @param request        raw require("...") string
-     * @return resolved moduleId (e.g. "Scripts/core/math.js") or Optional.empty() if not applicable
+     * @return resolved moduleId (e.g. "Scripts/core/math.lua") or Optional.empty() if not applicable
      */
     Optional<String> resolve(String parentModuleId, String request);
 }

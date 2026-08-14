@@ -1,12 +1,12 @@
 // FILE: RenderApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 /**
- * Render API (no legacy).
- * JS-first: all high-level behavior lives in scripts; Java exposes stable primitives.
+ * Render API.
+ * Lua-first: all high-level behavior lives in scripts; Java exposes stable primitives.
  */
 public interface RenderApi {
 
@@ -14,7 +14,7 @@ public interface RenderApi {
      * Ensures base render scene contract is created (lights, post pipeline root, etc.).
      * Idempotent.
      */
-    @HostAccess.Export
+    @LuaExport
     void ensureScene();
 
     // ---------------------------
@@ -29,8 +29,8 @@ public interface RenderApi {
      *   - r,g,b (or color:{r,g,b}) in 0..1
      *   - intensity (>=0)
      */
-    @HostAccess.Export
-    void ambientCfg(Value cfg);
+    @LuaExport
+    void ambientCfg(LuaValueRef cfg);
 
     /**
      * Sun (directional) light configuration.
@@ -39,8 +39,8 @@ public interface RenderApi {
      *   - color: [r,g,b] or {r,g,b}
      *   - intensity (>=0)
      */
-    @HostAccess.Export
-    void sunCfg(Value cfg);
+    @LuaExport
+    void sunCfg(LuaValueRef cfg);
 
     // ---------------------------
     // Shadows (minimal)
@@ -50,8 +50,8 @@ public interface RenderApi {
      * Same as sunShadows(mapSize), but accepts cfg:
      *   - mapSize
      */
-    @HostAccess.Export
-    void sunShadowsCfg(Value cfg);
+    @LuaExport
+    void sunShadowsCfg(LuaValueRef cfg);
 
     // ---------------------------
     // Atmosphere / scene visuals
@@ -64,8 +64,8 @@ public interface RenderApi {
      *   - density (>0 enables, <=0 disables)
      *   - distance (>0 enables, <=0 disables)
      */
-    @HostAccess.Export
-    void fogCfg(Value cfg);
+    @LuaExport
+    void fogCfg(LuaValueRef cfg);
 
     /**
      * Post-processing configuration (optional).
@@ -78,6 +78,6 @@ public interface RenderApi {
      *   - tonemap: boolean  (no exposure param)
      *   - ssao: boolean (optional, if filter exists in classpath)
      */
-    @HostAccess.Export
-    void postCfg(Value cfg);
+    @LuaExport
+    void postCfg(LuaValueRef cfg);
 }

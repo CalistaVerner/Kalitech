@@ -9,8 +9,8 @@ import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.LogApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.Objects;
 
@@ -39,8 +39,8 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
         if (v == null) return null;
         if (v instanceof Throwable t) return t;
 
-        // Polyglot Value may wrap a host throwable
-        if (v instanceof Value val) {
+        // LuaValueRef may wrap a host throwable
+        if (v instanceof LuaValueRef val) {
             try {
                 if (val.isHostObject()) {
                     Object host = val.asHostObject();
@@ -61,15 +61,15 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
             return (m == null || m.isBlank()) ? t.toString() : m;
         }
 
-        if (v instanceof Value val) {
+        if (v instanceof LuaValueRef val) {
             try {
                 if (val.isNull()) return "null";
                 if (val.isString()) return val.asString();
                 if (val.isNumber() || val.isBoolean()) return val.toString();
-                // JS Error often shows useful "Error: ..." here
+                // Lua errors usually provide useful text here
                 return val.toString();
             } catch (Throwable ignored) {
-                return "<polyglot-value>";
+                return "<lua-value>";
             }
         }
 
@@ -86,7 +86,7 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
         this.sink = Objects.requireNonNull(ctx.log, "ctx.log");
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void info(String msg) {
@@ -94,47 +94,47 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
     }
 
     // ------------------------------------------------------------
-    // 2-arg overloads (fix for Graal arity errors)
+    // 2-arg overloads for the Lua bridge
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void warn(String msg) {
         profiledVoid(() -> sink.warn("{}", msg));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void error(String msg) {
         profiledVoid(() -> sink.error("{}", msg));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void debug(String msg) {
         profiledVoid(() -> sink.debug("{}", msg));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void info(String msg, Object extra) {
         profiledVoid(() -> sink.info("{} {}", nullToEmpty(msg), toText(extra)));
     }
 
     // ------------------------------------------------------------
-    // Optional: "tag, msg" convenience (common pattern in JS)
+    // Two-value logging convenience
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void debug(String msg, Object extra) {
         profiledVoid(() -> sink.debug("{} {}", nullToEmpty(msg), toText(extra)));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void warn(String msg, Object extra) {
         profiledVoid(() -> {
@@ -147,7 +147,7 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void error(String msg, Object extra) {
         profiledVoid(() -> {
@@ -160,7 +160,7 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void info(Object a, Object b) {
         profiledVoid(() -> sink.info("{} {}", toText(a), toText(b)));
@@ -170,7 +170,7 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
     // Unformatted (kept)
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void warn(Object a, Object b) {
         profiledVoid(() -> sink.warn("{} {}", toText(a), toText(b)));
@@ -180,7 +180,7 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
     // Helpers
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void error(Object a, Object b) {
         profiledVoid(() -> {
@@ -194,13 +194,13 @@ public final class LogApiImpl extends AbstractApiModule implements LogApi {
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void debug(Object a, Object b) {
         profiledVoid(() -> sink.debug("{} {}", toText(a), toText(b)));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.ANY, sync = false, flags = {ApiFlag.SANDBOX_ALLOWED}, cost = ApiCostHint.NORMAL)
     public void unformatted(String msg) {

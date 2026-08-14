@@ -27,20 +27,20 @@ public final class KalitechLauncher {
             if (Files.isRegularFile(vmoptions)) {
                 List<String> opts = readVmOptions(vmoptions);
                 if (!opts.isEmpty()) {
-                    relaunchWithVmOptions(opts, args);
-                    return; // current process exits after relaunch
+                    if (relaunchWithVmOptions(opts, args)) {
+                        return;
+                    }
                 }
             }
         }
         setupTheme(System.getProperty("theme.path"));
         KalitechApplication app = new KalitechApplication();
         AppSettings settings = KalitechWindowSettings.build(KalitechLauncher.class.getClassLoader());
-        var screen = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-        settings.setResolution(2560, 1440);
+        settings.setResolution(1440, 900);
         settings.setRenderer(AppSettings.LWJGL_OPENGL45);
         //settings.setCustomRenderer(AWTSettingsDialog.class);
         settings.setSettingsDialogImage(System.getProperty("banner.path"));
-        app.setShowSettings(true);
+        app.setShowSettings(!isSmokeRun());
         app.setSettings(settings);
 
         app.start();
@@ -51,7 +51,7 @@ public final class KalitechLauncher {
         private KalitechWindowSettings() {}
 
         static AppSettings build(ClassLoader cl) {
-            AppSettings s = new AppSettings(false);
+            AppSettings s = new AppSettings(true);
             s.setTitle(KalitechVersion.NAME + " " + KalitechVersion.VERSION);
             s.setResizable(true);
             s.setVSync(true);
@@ -66,6 +66,14 @@ public final class KalitechLauncher {
             }
 
             return s;
+        }
+    }
+
+    private static boolean isSmokeRun() {
+        try {
+            return Float.parseFloat(System.getProperty("kalitech.smokeExitAfterSeconds", "0").trim()) > 0f;
+        } catch (RuntimeException ignored) {
+            return false;
         }
     }
 
@@ -100,40 +108,47 @@ public final class KalitechLauncher {
         return out;
     }
 
-    private static void relaunchWithVmOptions(List<String> vmopts, String[] args) {
+    private static boolean relaunchWithVmOptions(List<String> vmopts, String[] args) {
+        Process child = null;
         try {
-            // java executable
             String javaHome = System.getProperty("java.home");
             boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
             File javaExe = Path.of(javaHome, "bin", isWindows ? "java.exe" : "java").toFile();
 
-            // classpath and main class
             String classPath = System.getProperty("java.class.path");
             String mainClass = KalitechLauncher.class.getName();
 
             List<String> cmd = new ArrayList<>();
             cmd.add(javaExe.getAbsolutePath());
-
             cmd.addAll(vmopts);
             cmd.add("-D" + RELAUNCH_FLAG + "=true");
-
             cmd.add("-cp");
             cmd.add(classPath);
-
             cmd.add(mainClass);
-
             cmd.addAll(Arrays.asList(args));
 
             System.out.println("[KalitechLauncher] Relaunching JVM with VMOPTIONS:");
-            for (String o : vmopts) System.out.println("  " + o);
+            for (String option : vmopts) {
+                System.out.println("  " + option);
+            }
 
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.inheritIO();
-            Process p = pb.start();
-            System.exit(0);
-        } catch (Exception e) {
+            ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+            processBuilder.inheritIO();
+            child = processBuilder.start();
+
+            int exitCode = child.waitFor();
+            System.exit(exitCode);
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            if (child != null) child.destroy();
+            System.err.println("[KalitechLauncher] Relaunched JVM wait interrupted.");
+            return true;
+        } catch (Exception failure) {
             System.err.println("[KalitechLauncher] Relaunch failed; continuing without vmoptions.");
-            e.printStackTrace(System.err);
+            failure.printStackTrace(System.err);
+            return false;
         }
     }
+
 }

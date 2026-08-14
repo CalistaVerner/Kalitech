@@ -18,10 +18,10 @@ public final class ModuleManager {
     private final ModuleResolver resolver = new ModuleResolver();
     private final ModuleLoader loader;
 
-    public ModuleManager(Logger log, ApiRegistry apiRegistry, ModuleJsBridge jsBridge, ClassLoader parentLoader) {
+    public ModuleManager(Logger log, ApiRegistry apiRegistry, ModuleLuaBridge luaBridge, ClassLoader parentLoader) {
         this.log = Objects.requireNonNull(log, "log");
         this.scanner = new ModuleScanner(log);
-        this.loader = new ModuleLoader(log, apiRegistry, jsBridge, parentLoader);
+        this.loader = new ModuleLoader(log, apiRegistry, luaBridge, parentLoader);
     }
 
     public void loadFromDir(Path modulesDir) {

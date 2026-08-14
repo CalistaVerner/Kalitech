@@ -8,8 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
-
-@Deprecated
 public final class PerfFileWriter implements Closeable {
 
     private final BufferedWriter out;

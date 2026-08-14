@@ -1,11 +1,11 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 public interface LogApi {
-    @HostAccess.Export void info(String msg);
-    @HostAccess.Export void warn(String msg);
-    @HostAccess.Export void error(String msg);
-    @HostAccess.Export void debug(String msg);
-    @HostAccess.Export void unformatted(String msg);
+    @LuaExport void info(String msg);
+    @LuaExport void warn(String msg);
+    @LuaExport void error(String msg);
+    @LuaExport void debug(String msg);
+    @LuaExport void unformatted(String msg);
 }

@@ -1,0 +1,8 @@
+{
+  "id": "camera",
+  "name": "Camera",
+  "version": "1.0.0",
+  "mainClass": "org.foxesworld.kalitech.engine.api.impl.CameraApiImpl",
+  "depends": [],
+  "lua": "kalitech/engine/modules/Camera/Camera.lua"
+}

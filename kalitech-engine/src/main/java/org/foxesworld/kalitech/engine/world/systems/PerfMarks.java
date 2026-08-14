@@ -1,7 +1,7 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * PerfMarks
  * <p>
  * Lightweight per-frame marker ring ("spike hints") for fast offender identification.
- * JS/Java can tag work using {@link #mark(String)}; when a frame goes over budget, the last marks
+ * Lua/Java can tag work using {@link #mark(String)}; when a frame goes over budget, the last marks
  * are printed to quickly find the hot path without a heavyweight profiler.
  */
 public final class PerfMarks {
@@ -60,7 +60,7 @@ public final class PerfMarks {
     /**
      * Mark an event (safe to call often, but keep the string short).
      */
-    @HostAccess.Export
+    @LuaExport
     public void mark(String raw) {
         String s = normalize(raw, maxLen);
         if (s == null) return;
@@ -80,7 +80,7 @@ public final class PerfMarks {
     /**
      * Convenience: mark a budget-related event (used by scheduler/budget queue).
      */
-    @HostAccess.Export
+    @LuaExport
     public void markBudget(String system, long spentNanos, long softBudgetNanos, boolean overSoft) {
         String s = (system == null ? "sys" : system);
         long spentMs = TimeUnit.NANOSECONDS.toMillis(Math.max(0L, spentNanos));
@@ -91,7 +91,7 @@ public final class PerfMarks {
     /**
      * Convenience: mark a backpressure event (apply queue overloaded).
      */
-    @HostAccess.Export
+    @LuaExport
     public void markBackpressure(String system, int pending, int threshold) {
         String s = (system == null ? "sys" : system);
         mark("backpressure:" + s + " pending=" + pending + " thr=" + threshold);
@@ -111,7 +111,7 @@ public final class PerfMarks {
     /**
      * Ring snapshot (newest first).
      */
-    @HostAccess.Export
+    @LuaExport
     public MarkSnapshot[] snapshot() {
         int n = this.count;
         MarkSnapshot[] out = new MarkSnapshot[n];
@@ -129,9 +129,9 @@ public final class PerfMarks {
     }
 
     public static final class MarkSnapshot {
-        @HostAccess.Export
+        @LuaExport
         public final String mark;
-        @HostAccess.Export
+        @LuaExport
         public final long atNanos;
 
         public MarkSnapshot(String mark, long atNanos) {
@@ -139,7 +139,7 @@ public final class PerfMarks {
             this.atNanos = atNanos;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public long ageMs(long nowNanos) {
             long age = Math.max(0L, nowNanos - atNanos);
             return TimeUnit.NANOSECONDS.toMillis(age);

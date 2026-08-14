@@ -8,13 +8,11 @@ import org.foxesworld.kalitech.engine.api.interfaces.EntityApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Objects;
-
-@Deprecated
 public final class EntityApiImpl extends AbstractApiModule implements EntityApi {
 
     private static final Logger log = LogManager.getLogger(EntityApiImpl.class);
@@ -72,7 +70,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         super.detach();
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -94,7 +92,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -120,7 +118,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -134,7 +132,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -151,7 +149,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -168,7 +166,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -185,7 +183,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -202,7 +200,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -215,7 +213,7 @@ public final class EntityApiImpl extends AbstractApiModule implements EntityApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,

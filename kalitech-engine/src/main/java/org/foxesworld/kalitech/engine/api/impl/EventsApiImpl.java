@@ -5,8 +5,8 @@ import org.foxesworld.kalitech.engine.api.contract.*;
 import org.foxesworld.kalitech.engine.api.interfaces.EventsApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -14,7 +14,6 @@ import java.util.List;
 /**
  * Script event bus facade.
  */
-@Deprecated
 public final class EventsApiImpl extends AbstractApiModule implements EventsApi {
 
     private static final Method M_EMIT_TOPIC =
@@ -24,10 +23,10 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
             method(EventsApiImpl.class, "emit", String.class, Object.class);
 
     private static final Method M_ON =
-            method(EventsApiImpl.class, "on", String.class, Value.class);
+            method(EventsApiImpl.class, "on", String.class, LuaValueRef.class);
 
     private static final Method M_ONCE =
-            method(EventsApiImpl.class, "once", String.class, Value.class);
+            method(EventsApiImpl.class, "once", String.class, LuaValueRef.class);
 
     private static final Method M_OFF_TOPIC_TOKEN =
             method(EventsApiImpl.class, "off", String.class, int.class);
@@ -45,28 +44,28 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
             method(EventsApiImpl.class, "emitEvent", String.class, Object.class, Object.class);
 
     private static final Method M_ON_EVENT =
-            method(EventsApiImpl.class, "onEvent", String.class, Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "onEvent", String.class, LuaValueRef.class, String.class, int.class);
 
     private static final Method M_ONCE_EVENT =
-            method(EventsApiImpl.class, "onceEvent", String.class, Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "onceEvent", String.class, LuaValueRef.class, String.class, int.class);
 
     private static final Method M_ON_ANY =
-            method(EventsApiImpl.class, "onAny", Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "onAny", LuaValueRef.class, String.class, int.class);
 
     private static final Method M_ONCE_ANY =
-            method(EventsApiImpl.class, "onceAny", Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "onceAny", LuaValueRef.class, String.class, int.class);
 
     private static final Method M_ON_PATTERN_4 =
-            method(EventsApiImpl.class, "onPattern", String.class, Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "onPattern", String.class, LuaValueRef.class, String.class, int.class);
 
     private static final Method M_ON_PATTERN_2 =
-            method(EventsApiImpl.class, "onPattern", String.class, Value.class);
+            method(EventsApiImpl.class, "onPattern", String.class, LuaValueRef.class);
 
     private static final Method M_ONCE_PATTERN_2 =
-            method(EventsApiImpl.class, "oncePattern", String.class, Value.class);
+            method(EventsApiImpl.class, "oncePattern", String.class, LuaValueRef.class);
 
     private static final Method M_ONCE_PATTERN_4 =
-            method(EventsApiImpl.class, "oncePattern", String.class, Value.class, String.class, int.class);
+            method(EventsApiImpl.class, "oncePattern", String.class, LuaValueRef.class, String.class, int.class);
 
     private static final Method M_SET_HISTORY_MAX =
             method(EventsApiImpl.class, "setHistoryMax", int.class);
@@ -101,7 +100,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     // Topic bus (cheap, pure-ish, safe in sandbox)
     // ---------------------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -112,7 +111,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         apiVoid(M_EMIT_TOPIC, new Object[]{topic}, () -> emit(topic, null));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -129,7 +128,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -137,7 +136,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.CHEAP
     )
-    public int on(@NotNull String topic, @NotNull Value handler) {
+    public int on(@NotNull String topic, @NotNull LuaValueRef handler) {
         return profiled(() ->
                 apiCall(M_ON, new Object[]{topic, handler}, () -> {
                     ScriptEventBus b = bus();
@@ -146,7 +145,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -154,7 +153,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.CHEAP
     )
-    public int once(@NotNull String topic, @NotNull Value handler) {
+    public int once(@NotNull String topic, @NotNull LuaValueRef handler) {
         return profiled(() ->
                 apiCall(M_ONCE, new Object[]{topic, handler}, () -> {
                     ScriptEventBus b = bus();
@@ -163,7 +162,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -180,7 +179,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -197,7 +196,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -217,7 +216,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     // Envelope event bus (supports meta + phases)
     // ---------------------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -228,7 +227,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         apiVoid(M_EMIT_EVENT_2, new Object[]{topic, payload}, () -> emitEvent(topic, payload, null));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -247,14 +246,14 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onEvent(@NotNull String topic, @NotNull Value handler, String phase, int priority) {
+    public int onEvent(@NotNull String topic, @NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ON_EVENT, new Object[]{topic, handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -263,14 +262,14 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onceEvent(@NotNull String topic, @NotNull Value handler, String phase, int priority) {
+    public int onceEvent(@NotNull String topic, @NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ONCE_EVENT, new Object[]{topic, handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -283,14 +282,14 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     // Any / Pattern subscriptions
     // ---------------------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onAny(@NotNull Value handler, String phase, int priority) {
+    public int onAny(@NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ON_ANY, new Object[]{handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -299,14 +298,14 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onceAny(@NotNull Value handler, String phase, int priority) {
+    public int onceAny(@NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ONCE_ANY, new Object[]{handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -315,14 +314,14 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onPattern(@NotNull String pattern, @NotNull Value handler, String phase, int priority) {
+    public int onPattern(@NotNull String pattern, @NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ON_PATTERN_4, new Object[]{pattern, handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -331,36 +330,36 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int onPattern(@NotNull String pattern, @NotNull Value handler) {
+    public int onPattern(@NotNull String pattern, @NotNull LuaValueRef handler) {
         return apiCall(M_ON_PATTERN_2, new Object[]{pattern, handler}, () -> onPattern(pattern, handler, "MAIN", 0));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int oncePattern(@NotNull String pattern, @NotNull Value handler) {
+    public int oncePattern(@NotNull String pattern, @NotNull LuaValueRef handler) {
         return apiCall(M_ONCE_PATTERN_2, new Object[]{pattern, handler}, () -> oncePattern(pattern, handler, "MAIN", 0));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public int oncePattern(@NotNull String pattern, @NotNull Value handler, String phase, int priority) {
+    public int oncePattern(@NotNull String pattern, @NotNull LuaValueRef handler, String phase, int priority) {
         return profiled(() ->
                 apiCall(M_ONCE_PATTERN_4, new Object[]{pattern, handler, phase, priority}, () -> {
                     ScriptEventBus b = bus();
@@ -373,7 +372,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
     // Diagnostics / history
     // ---------------------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -389,7 +388,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -405,7 +404,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -421,7 +420,7 @@ public final class EventsApiImpl extends AbstractApiModule implements EventsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,

@@ -1,26 +1,26 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface TerrainApi {
 
-    @HostAccess.Export
-    SurfaceApi.SurfaceHandle terrain(Value cfg);
+    @LuaExport
+    SurfaceApi.SurfaceHandle terrain(LuaValueRef cfg);
 
-    @HostAccess.Export
-    SurfaceApi.SurfaceHandle quad(Value cfg);
+    @LuaExport
+    SurfaceApi.SurfaceHandle quad(LuaValueRef cfg);
 
-    @HostAccess.Export
-    SurfaceApi.SurfaceHandle plane(Value cfg);
+    @LuaExport
+    SurfaceApi.SurfaceHandle plane(LuaValueRef cfg);
 
     //  ECS attach/detach (UUID-only)
-    @HostAccess.Export
+    @LuaExport
     void attachEntity(SurfaceApi.SurfaceHandle handle, Object entityUuid);
 
-    @HostAccess.Export
+    @LuaExport
     void detachEntity(SurfaceApi.SurfaceHandle handle);
 
-    @HostAccess.Export
+    @LuaExport
     void detach(SurfaceApi.SurfaceHandle handle);
 }

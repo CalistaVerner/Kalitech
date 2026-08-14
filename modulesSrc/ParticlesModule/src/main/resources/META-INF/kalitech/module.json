@@ -1,0 +1,8 @@
+{
+  "id": "particles",
+  "name": "Particles",
+  "version": "1.0.0",
+  "mainClass": "org.foxesworld.kalitech.engine.api.impl.ParticlesApiImpl",
+  "depends": [],
+  "lua": "kalitech/engine/modules/Particles/Particles.lua"
+}

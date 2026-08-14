@@ -36,7 +36,6 @@ import java.util.Map;
  * - File format is JSON Lines: one JSON object per line.
  * - When enabled+writeToFile, a header and footer meta records are written.
  */
-@Deprecated
 public final class PerfProfiler implements Closeable {
 
     private final Logger log;

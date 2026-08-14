@@ -5,7 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.world.systems.KSystem;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.*;
 
@@ -13,7 +13,7 @@ import java.util.*;
  * SystemRegistry
  * <p>
  * Script-driven world building requires a stable Java-side registry that maps string IDs
- * (coming from JS world descriptors) to {@link SystemProvider} factories discovered via
+ * (coming from Lua world descriptors) to {@link SystemProvider} factories discovered via
  * {@link java.util.ServiceLoader}.
  * <p>
  * Goals:
@@ -73,7 +73,7 @@ public final class SystemRegistry {
         }
     }
 
-    /** Returns provider or throws if missing. Prefer {@link #create(String, SystemContext, Value)} for resilient builds. */
+    /** Returns provider or throws if missing. Prefer {@link #create(String, SystemContext, LuaValueRef)} for resilient builds. */
     public SystemProvider require(String id) {
         SystemProvider p = providers.get(id);
         if (p == null) throw new IllegalArgumentException("Unknown system id: " + id);
@@ -98,7 +98,7 @@ public final class SystemRegistry {
      * Resilient factory: creates a system instance from provider id.
      * Returns null if id unknown or provider threw; caller may skip.
      */
-    public KSystem create(String id, SystemContext ctx, Value config) {
+    public KSystem create(String id, SystemContext ctx, LuaValueRef config) {
         if (id == null || id.isBlank()) return null;
         Objects.requireNonNull(ctx, "ctx");
 

@@ -1,17 +1,17 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 public interface TimeApi {
     /** last frame tpf (seconds) */
-    @HostAccess.Export double tpf();
+    @LuaExport double tpf();
 
     /** alias for tpf (seconds) */
-    @HostAccess.Export double dt();
+    @LuaExport double dt();
 
     /** monotonic time since engine start (seconds) */
-    @HostAccess.Export double now();
+    @LuaExport double now();
 
     /** frame counter since start */
-    @HostAccess.Export long frame();
+    @LuaExport long frame();
 }

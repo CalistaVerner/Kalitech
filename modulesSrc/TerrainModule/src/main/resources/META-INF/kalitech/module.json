@@ -1,0 +1,11 @@
+{
+  "id": "terrain",
+  "name": "Terrain",
+  "version": "1.0.0",
+  "mainClass": [
+    "org.foxesworld.kalitech.engine.api.impl.TerrainApiImpl",
+    "org.foxesworld.kalitech.engine.api.impl.TerrainSplatApiImpl"
+  ],
+  "depends": [],
+  "lua": "kalitech/engine/modules/Terrain/Terrain.lua"
+}

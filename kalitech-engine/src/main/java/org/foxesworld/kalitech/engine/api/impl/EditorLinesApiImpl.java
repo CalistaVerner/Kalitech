@@ -25,16 +25,14 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.Future;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
-
-@Deprecated
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.*;
 public final class EditorLinesApiImpl extends AbstractApiModule implements EditorLinesApi {
 
     private EngineApiImpl engine;
@@ -113,11 +111,11 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
     }
 
 
-    private static double numPath(Value v, String k1, String k2, double def) {
+    private static double numPath(LuaValueRef v, String k1, String k2, double def) {
         try {
-            Value a = member(v, k1);
+            LuaValueRef a = member(v, k1);
             if (a == null || a.isNull() || !a.hasMember(k2)) return def;
-            Value b = a.getMember(k2);
+            LuaValueRef b = a.getMember(k2);
             return (b == null || b.isNull()) ? def : b.asDouble();
         } catch (Exception e) {
             return def;
@@ -144,7 +142,7 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         this.surfaces = engine.getSurfaceRegistry();
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -152,7 +150,7 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public SurfaceApi.SurfaceHandle createGridPlane(Value cfg) {
+    public SurfaceApi.SurfaceHandle createGridPlane(LuaValueRef cfg) {
         final double halfExtentD = num(cfg, "halfExtent", num(cfg, "size", 600.0));
         final double stepD = num(cfg, "step", 1.0);
 
@@ -284,7 +282,7 @@ public final class EditorLinesApiImpl extends AbstractApiModule implements Edito
         return h;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,

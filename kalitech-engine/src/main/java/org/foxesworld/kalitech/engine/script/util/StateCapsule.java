@@ -1,14 +1,14 @@
 package org.foxesworld.kalitech.engine.script.util;
 
-import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.proxy.ProxyArray;
-import org.graalvm.polyglot.proxy.ProxyObject;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
+import org.foxesworld.kalitech.engine.script.lua.LuaArray;
+import org.foxesworld.kalitech.engine.script.lua.LuaObject;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * State capsule sanitizer: converts JS Values into JSON-safe data.
+ * State capsule sanitizer: converts Lua Values into JSON-safe data.
  * Host objects/functions are stripped to avoid keeping live engine references.
  */
 public final class StateCapsule {
@@ -18,11 +18,11 @@ public final class StateCapsule {
     private StateCapsule() {
     }
 
-    public static Object toState(Value v) {
+    public static Object toState(LuaValueRef v) {
         return toState(v, 0);
     }
 
-    private static Object toState(Value v, int depth) {
+    private static Object toState(LuaValueRef v, int depth) {
         if (v == null || v.isNull()) return null;
         if (depth > MAX_DEPTH) return null;
 
@@ -39,7 +39,7 @@ public final class StateCapsule {
             for (int i = 0; i < len; i++) {
                 arr[i] = toState(v.getArrayElement(i), depth + 1);
             }
-            return ProxyArray.fromArray(arr);
+            return LuaArray.fromArray(arr);
         }
 
         if (v.hasMembers()) {
@@ -47,7 +47,7 @@ public final class StateCapsule {
             for (String k : v.getMemberKeys()) {
                 out.put(k, toState(v.getMember(k), depth + 1));
             }
-            return ProxyObject.fromMap(out);
+            return LuaObject.fromMap(out);
         }
 
         return null;

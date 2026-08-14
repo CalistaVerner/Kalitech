@@ -12,11 +12,10 @@ import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.LightApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.proxy.ProxyArray;
-import org.graalvm.polyglot.proxy.ProxyObject;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
+import org.foxesworld.kalitech.engine.script.lua.LuaArray;
+import org.foxesworld.kalitech.engine.script.lua.LuaObject;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,7 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.*;
 
 /**
  * Light API.
@@ -35,7 +34,6 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
  *   <li>All scenegraph light mutations (create/attach/detach/set/destroy) happen on the JME thread.</li>
  * </ul>
  */
-@Deprecated
 public final class LightApiImpl extends AbstractApiModule implements LightApi {
 
     private final AtomicInteger ids = new AtomicInteger(1);
@@ -139,7 +137,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         return t;
     }
 
-    private static ProxyObject stateToProxy(LightState st) {
+    private static LuaObject stateToProxy(LightState st) {
         Map<String, Object> o = new LinkedHashMap<>();
 
         o.put("id", st.id);
@@ -148,17 +146,17 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         o.put("attached", st.attached);
 
         o.put("intensity", st.intensity);
-        o.put("color", ProxyArray.fromArray(st.colorR, st.colorG, st.colorB, st.colorA));
+        o.put("color", LuaArray.fromArray(st.colorR, st.colorG, st.colorB, st.colorA));
 
-        if (st.dir != null) o.put("dir", ProxyArray.fromArray(st.dir.x, st.dir.y, st.dir.z));
-        if (st.pos != null) o.put("pos", ProxyArray.fromArray(st.pos.x, st.pos.y, st.pos.z));
+        if (st.dir != null) o.put("dir", LuaArray.fromArray(st.dir.x, st.dir.y, st.dir.z));
+        if (st.pos != null) o.put("pos", LuaArray.fromArray(st.pos.x, st.pos.y, st.pos.z));
 
         if (st.radius != null) o.put("radius", st.radius);
         if (st.range != null) o.put("range", st.range);
         if (st.innerDeg != null) o.put("innerDeg", st.innerDeg);
         if (st.outerDeg != null) o.put("outerDeg", st.outerDeg);
 
-        return ProxyObject.fromMap(o);
+        return LuaObject.fromMap(o);
     }
 
     private static Light createLightByType(String type) {
@@ -201,7 +199,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         super.detach();
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -209,7 +207,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public LightHandle create(Value cfg) {
+    public LightHandle create(LuaValueRef cfg) {
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("light.create(cfg): cfg is null");
 
         LightConfig c = LightConfig.from(cfg);
@@ -234,7 +232,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -246,7 +244,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         return handle != null && lights.containsKey(handle.id());
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -254,7 +252,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void set(LightHandle handle, Value cfg) {
+    public void set(LightHandle handle, LuaValueRef cfg) {
         if (handle == null) throw new IllegalArgumentException("light.set(handle,cfg): handle is null");
         if (cfg == null || cfg.isNull()) return;
 
@@ -277,7 +275,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -298,7 +296,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -316,7 +314,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -324,16 +322,15 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Value get(LightHandle handle) {
+    public LuaValueRef get(LightHandle handle) {
         if (handle == null) return null;
 
         LightState st = states.get(handle.id());
         if (st == null) return null;
 
-        Context ctx = (engine == null || engine.getRuntime() == null) ? null : engine.getRuntime().getCtx();
         if (ctx == null) return null;
 
-        return ctx.asValue(stateToProxy(st));
+        return LuaValueRef.fromJava(stateToProxy(st));
     }
 
     private Light require(LightHandle h) {
@@ -352,7 +349,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         return st;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -360,8 +357,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Value list() {
-        Context ctx = (engine == null || engine.getRuntime() == null) ? null : engine.getRuntime().getCtx();
+    public LuaValueRef list() {
         if (ctx == null) return null;
 
         var idsSorted = states.keySet().stream().sorted().toList();
@@ -374,10 +370,10 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             Map<String, Object> o = new LinkedHashMap<>();
             o.put("id", st.id);
             o.put("type", st.type);
-            arr[i] = ProxyObject.fromMap(o);
+            arr[i] = LuaObject.fromMap(o);
         }
 
-        return ctx.asValue(ProxyArray.fromArray(arr));
+        return LuaValueRef.fromJava(LuaArray.fromArray(arr));
     }
 
     private void attachToRoot(Light l) {
@@ -401,7 +397,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             this.type = type;
         }
 
-        @HostAccess.Export
+        @LuaExport
         @ApiMethod(
                 thread = ApiThreadRule.ANY,
                 sync = false,
@@ -412,7 +408,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             return id;
         }
 
-        @HostAccess.Export
+        @LuaExport
         @ApiMethod(
                 thread = ApiThreadRule.ANY,
                 sync = false,
@@ -478,7 +474,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             this.outerDeg = outerDeg;
         }
 
-        static LightConfig from(Value cfg) {
+        static LightConfig from(LuaValueRef cfg) {
             Objects.requireNonNull(cfg, "cfg");
 
             String type = str(cfg, "type", null);
@@ -521,7 +517,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
         }
 
 
-        private static ColorRGBA parseColor(Value v, float dr, float dg, float db, float da) {
+        private static ColorRGBA parseColor(LuaValueRef v, float dr, float dg, float db, float da) {
             if (v == null || v.isNull()) return new ColorRGBA(dr, dg, db, da);
 
             try {
@@ -549,10 +545,10 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             return new ColorRGBA(dr, dg, db, da);
         }
 
-        private static double numMember(Value v, String key, double def) {
+        private static double numMember(LuaValueRef v, String key, double def) {
             try {
                 if (v == null || v.isNull() || !v.hasMember(key)) return def;
-                Value m = v.getMember(key);
+                LuaValueRef m = v.getMember(key);
                 if (m == null || m.isNull()) return def;
                 return m.asDouble();
             } catch (Throwable t) {
@@ -560,7 +556,7 @@ public final class LightApiImpl extends AbstractApiModule implements LightApi {
             }
         }
 
-        private static Vector3f parseVec3Nullable(Value v) {
+        private static Vector3f parseVec3Nullable(LuaValueRef v) {
             if (v == null || v.isNull()) return null;
 
             try {

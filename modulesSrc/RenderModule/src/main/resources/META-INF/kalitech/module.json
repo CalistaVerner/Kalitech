@@ -1,0 +1,11 @@
+{
+  "id": "render",
+  "name": "Render",
+  "version": "1.0.0",
+  "mainClass": [
+    "org.foxesworld.kalitech.engine.api.impl.RenderApiImpl",
+    "org.foxesworld.kalitech.engine.api.impl.LightApiImpl"
+  ],
+  "depends": [],
+  "lua": "kalitech/engine/modules/Render/Render.lua"
+}

@@ -1,6 +1,8 @@
 // FILE: ScriptJobQueue.java
 package org.foxesworld.kalitech.engine.script.jobs;
 
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
+
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -32,6 +34,7 @@ public final class ScriptJobQueue {
             System.err.println(msg + ": " + t);
             t.printStackTrace(System.err);
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             // Intentionally left empty: last-resort logging must never crash the engine.
         }
     }
@@ -60,6 +63,7 @@ public final class ScriptJobQueue {
             try {
                 f.complete(supplier.get());
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 f.completeExceptionally(t);
                 reportError(t);
             }
@@ -114,6 +118,7 @@ public final class ScriptJobQueue {
             try {
                 j.run.run();
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 reportError(new JobFailedException(j.id, t));
             }
 
@@ -158,6 +163,7 @@ public final class ScriptJobQueue {
                 h.accept(t);
                 return;
             } catch (Throwable hookFailure) {
+                ScriptFailureBoundary.rethrowIfFatal(hookFailure);
                 safeStderr("[ScriptJobQueue] onError hook failed", hookFailure);
             }
         }

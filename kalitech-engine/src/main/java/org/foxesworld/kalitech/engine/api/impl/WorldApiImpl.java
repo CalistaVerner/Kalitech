@@ -20,11 +20,11 @@ import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.world.KWorld;
 import org.foxesworld.kalitech.engine.world.WorldAppState;
 import org.foxesworld.kalitech.engine.world.WorldTimeParams;
-import org.foxesworld.kalitech.engine.world.systems.JsWorldSystem;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.proxy.ProxyArray;
-import org.graalvm.polyglot.proxy.ProxyObject;
+import org.foxesworld.kalitech.engine.world.systems.LuaWorldSystem;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
+import org.foxesworld.kalitech.engine.script.lua.LuaArray;
+import org.foxesworld.kalitech.engine.script.lua.LuaObject;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -41,43 +41,43 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         super("world", "World", "2.4.1");
     }
 
-    private static Value requireMember(Value obj, String key, String err) {
+    private static LuaValueRef requireMember(LuaValueRef obj, String key, String err) {
         if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) {
             throw new IllegalArgumentException(err);
         }
-        final Value v = obj.getMember(key);
+        final LuaValueRef v = obj.getMember(key);
         if (v == null || v.isNull()) throw new IllegalArgumentException(err);
         return v;
     }
 
-    private static String readStr(Value obj, String key, String def, String errPrefix) {
+    private static String readStr(LuaValueRef obj, String key, String def, String errPrefix) {
         if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) return def;
-        final Value v = obj.getMember(key);
+        final LuaValueRef v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
         if (!v.isString()) throw new IllegalArgumentException(errPrefix + key + " must be a string");
         final String s = v.asString();
         return (s == null || s.isBlank()) ? def : s;
     }
 
-    private static boolean readBool(Value obj, String key, boolean def, String errPrefix) {
+    private static boolean readBool(LuaValueRef obj, String key, boolean def, String errPrefix) {
         if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) return def;
-        final Value v = obj.getMember(key);
+        final LuaValueRef v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
         if (!v.isBoolean()) throw new IllegalArgumentException(errPrefix + key + " must be a boolean");
         return v.asBoolean();
     }
 
-    private static int readInt(Value obj, String key, int def, String errPrefix) {
+    private static int readInt(LuaValueRef obj, String key, int def, String errPrefix) {
         if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) return def;
-        final Value v = obj.getMember(key);
+        final LuaValueRef v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
         if (!v.isNumber() || !v.fitsInInt()) throw new IllegalArgumentException(errPrefix + key + " must be an int");
         return v.asInt();
     }
 
-    private static double readDouble(Value obj, String key, double def, String errPrefix) {
+    private static double readDouble(LuaValueRef obj, String key, double def, String errPrefix) {
         if (obj == null || obj.isNull() || !obj.hasMembers() || !obj.hasMember(key)) return def;
-        final Value v = obj.getMember(key);
+        final LuaValueRef v = obj.getMember(key);
         if (v == null || v.isNull()) return def;
         if (!v.isNumber()) throw new IllegalArgumentException(errPrefix + key + " must be a number");
         final double x = v.asDouble();
@@ -91,15 +91,15 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return t.isEmpty() ? "world" : t;
     }
 
-    private static String requireStr(Value obj, String key, String err) {
-        final Value v = requireMember(obj, key, err);
+    private static String requireStr(LuaValueRef obj, String key, String err) {
+        final LuaValueRef v = requireMember(obj, key, err);
         if (!v.isString()) throw new IllegalArgumentException(err);
         final String s = v.asString();
         if (s == null || s.isBlank()) throw new IllegalArgumentException(err);
         return s;
     }
 
-    private static Object toProxy(Value v) {
+    private static Object toProxy(LuaValueRef v) {
         if (v == null || v.isNull()) return null;
 
         if (v.isBoolean()) return v.asBoolean();
@@ -110,13 +110,13 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             final int len = (int) Math.min(v.getArraySize(), Integer.MAX_VALUE);
             final Object[] arr = new Object[len];
             for (int i = 0; i < len; i++) arr[i] = toProxy(v.getArrayElement(i));
-            return ProxyArray.fromArray(arr);
+            return LuaArray.fromArray(arr);
         }
 
         if (v.hasMembers()) {
             final Map<String, Object> map = new LinkedHashMap<>();
             for (String k : v.getMemberKeys()) map.put(k, toProxy(v.getMember(k)));
-            return ProxyObject.fromMap(map);
+            return LuaObject.fromMap(map);
         }
 
         return v;
@@ -146,12 +146,12 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         if (b != null) b.emit(name, payload);
     }
 
-    private static WorldTimeParams parseWorldTimeParams(Value desc) {
+    private static WorldTimeParams parseWorldTimeParams(LuaValueRef desc) {
         if (desc == null || desc.isNull() || !desc.hasMembers() || !desc.hasMember("time")) {
             return WorldTimeParams.defaults();
         }
 
-        final Value t = desc.getMember("time");
+        final LuaValueRef t = desc.getMember("time");
         if (t == null || t.isNull()) return WorldTimeParams.defaults();
         if (!t.hasMembers()) throw new IllegalArgumentException("world.create: desc.time must be an object");
 
@@ -170,7 +170,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
     }
 
-    private static Double readOptionalPositiveDouble(Value obj, String key, String errPrefix) {
+    private static Double readOptionalPositiveDouble(LuaValueRef obj, String key, String errPrefix) {
         final double v = readDouble(obj, key, 0.0, errPrefix);
         if (v <= 0.0) return null;
         return v;
@@ -189,7 +189,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         return sm.getState(WorldAppState.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -224,17 +224,17 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             out.put("maxDelta", t.getMaxDeltaSec());
         }
 
-        return ProxyObject.fromMap(out);
+        return LuaObject.fromMap(out);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void create(Value desc) {
+    public void create(LuaValueRef desc) {
         if (desc == null || desc.isNull() || !desc.hasMembers()) {
             throw new IllegalArgumentException("world.create(desc): desc object is required");
         }
@@ -242,7 +242,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         final String name = readStr(desc, "name", "world", "world desc.");
         final boolean start = readBool(desc, "start", true, "world desc.");
 
-        final Value systems = requireMember(desc, "systems", "world.create: desc.systems[] is required");
+        final LuaValueRef systems = requireMember(desc, "systems", "world.create: desc.systems[] is required");
         if (!systems.hasArrayElements()) {
             throw new IllegalArgumentException("world.create: desc.systems must be an array");
         }
@@ -252,22 +252,22 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
 
         final long n = systems.getArraySize();
         for (long i = 0; i < n; i++) {
-            final Value it = systems.getArrayElement(i);
+            final LuaValueRef it = systems.getArrayElement(i);
             if (it == null || it.isNull() || !it.hasMembers()) {
                 throw new IllegalArgumentException("world.create: systems[" + i + "] must be an object");
             }
 
             final String id = requireStr(it, "id", "world.create: systems[" + i + "].id is required");
-            if (!"jsSystem".equals(id)) {
+            if (!"luaSystem".equals(id)) {
                 throw new IllegalArgumentException(
-                        "world.create: systems[" + i + "].id must be 'jsSystem' (got '" + id + "')"
+                        "world.create: systems[" + i + "].id must be 'luaSystem' (got '" + id + "')"
                 );
             }
 
             final int order = readInt(it, "order", 0, "world system.");
             final String stableId = readStr(it, "stableId", null, "world system.");
 
-            final Value cfg = requireMember(it, "config", "world.create: systems[" + i + "].config is required");
+            final LuaValueRef cfg = requireMember(it, "config", "world.create: systems[" + i + "].config is required");
             if (!cfg.hasMembers()) {
                 throw new IllegalArgumentException("world.create: systems[" + i + "].config must be an object");
             }
@@ -278,17 +278,17 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
                     readStr(cfg, "runtime", readStr(cfg, "profile", "world", "world cfg."), "world cfg.")
             );
 
-            final Object cfgJs = toProxy(cfg);
+            final Object cfgLua = toProxy(cfg);
 
             final Map<String, Object> sysDesc = new LinkedHashMap<>();
-            sysDesc.put("id", "jsSystem");
+            sysDesc.put("id", "luaSystem");
             sysDesc.put("order", order);
             sysDesc.put("stableId", stableId);
             sysDesc.put("module", module);
             sysDesc.put("runtime", runtime);
-            sysDesc.put("config", cfgJs);
+            sysDesc.put("config", cfgLua);
 
-            world.addSystem(new JsWorldSystem(module, cfgJs, ProxyObject.fromMap(sysDesc), runtime), order);
+            world.addSystem(new LuaWorldSystem(module, cfgLua, LuaObject.fromMap(sysDesc), runtime), order);
         }
 
         final WorldAppState wa = ensureWorldAppStateAttached();
@@ -303,7 +303,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
         log.info("[world.create] name={} systems={} start={}", name, n, start);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -311,7 +311,7 @@ public final class WorldApiImpl extends AbstractApiModule implements WorldApi {
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public String spawn(Value args) {
+    public String spawn(LuaValueRef args) {
         if (args == null || args.isNull() || !args.hasMembers()) {
             throw new IllegalArgumentException("world.spawn(args): args object is required");
         }

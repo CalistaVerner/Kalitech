@@ -1,12 +1,12 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.api.interfaces.physics;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
- * Physics facade exposed to JS.
+ * Physics facade exposed to Lua.
  *
- * <p>All methods annotated with {@link HostAccess.Export} are part of the public scripting surface.</p>
+ * <p>All methods annotated with {@link LuaExport} are part of the public scripting surface.</p>
  *
  * <pre>
  * const PH = engine.physics();
@@ -15,87 +15,86 @@ import org.graalvm.polyglot.HostAccess;
  * PH.velocity(body, {x:0,y:0,z:5});
  * </pre>
  */
-@HostAccess.Implementable
 public interface PhysicsApi {
 
     /* ==========================================================
-       Exported to JS
+       Exported to Lua
        ========================================================== */
 
-    @HostAccess.Export
+    @LuaExport
     PhysicsBodyHandle body(Object cfg);
 
-    @HostAccess.Export
+    @LuaExport
     int bodyOfSurface(int surfaceId);
 
-    @HostAccess.Export
+    @LuaExport
     PhysicsBodyHandle handle(int bodyId);
 
-    @HostAccess.Export
+    @LuaExport
     boolean exists(int bodyId);
 
-    @HostAccess.Export
+    @LuaExport
     void remove(Object handleOrId);
 
-    @HostAccess.Export
+    @LuaExport
     PhysicsRayHit raycast(Object cfg);
 
-    @HostAccess.Export
+    @LuaExport
     Object raycastEx(Object cfg);
 
-    @HostAccess.Export
+    @LuaExport
     Object raycastAll(Object cfg);
 
-    @HostAccess.Export
+    @LuaExport
     Object position(Object handleOrId);
 
-    @HostAccess.Export
+    @LuaExport
     void warp(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     Object velocity(Object handleOrId);
 
-    @HostAccess.Export
+    @LuaExport
     void velocity(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     void yaw(Object handleOrId, double yaw);
 
-    @HostAccess.Export
+    @LuaExport
     void applyImpulse(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     void lockRotation(Object handleOrId, boolean lock);
 
-    @HostAccess.Export
+    @LuaExport
     void setKinematic(Object handleOrId, boolean kinematic);
 
-    @HostAccess.Export
+    @LuaExport
     void collisionGroups(Object handleOrId, int group, int mask);
 
-    @HostAccess.Export
+    @LuaExport
     void applyCentralForce(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     void applyTorque(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     Object angularVelocity(Object handleOrId);
 
-    @HostAccess.Export
+    @LuaExport
     void angularVelocity(Object handleOrId, Object vec3);
 
-    @HostAccess.Export
+    @LuaExport
     void clearForces(Object handleOrId);
 
-    @HostAccess.Export
+    @LuaExport
     void debug(boolean enabled);
 
-    @HostAccess.Export
+    @LuaExport
     void gravity(Object vec3);
 
     /* ==========================================================
-       Engine-internal lifecycle hooks (NOT exported to JS)
+       Engine-internal lifecycle hooks (NOT exported to Lua)
        ========================================================== */
 
     /**

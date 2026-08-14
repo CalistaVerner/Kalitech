@@ -21,8 +21,8 @@ import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -30,9 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
-
-@Deprecated
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.*;
 public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     private static final Logger log = LogManager.getLogger(MeshApiImpl.class);
@@ -40,7 +38,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
     private static final AtomicBoolean LOADERS_REGISTERED = new AtomicBoolean(false);
 
     // ---- Contract method cache ----
-    private static final Method M_CREATE = method(MeshApiImpl.class, "create", Value.class);
+    private static final Method M_CREATE = method(MeshApiImpl.class, "create", LuaValueRef.class);
 
     private EngineApiImpl engine;
     private AssetManager assets;
@@ -104,10 +102,10 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return m;
     }
 
-    private void applyTransform(Spatial s, Value cfg) {
+    private void applyTransform(Spatial s, LuaValueRef cfg) {
         if (cfg == null || cfg.isNull()) return;
 
-        Value pos = member(cfg, "pos");
+        LuaValueRef pos = member(cfg, "pos");
         if (pos != null && !pos.isNull()) {
             float x = 0, y = 0, z = 0;
             if (pos.hasArrayElements() && pos.getArraySize() >= 3) {
@@ -115,9 +113,9 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
                 y = (float) pos.getArrayElement(1).asDouble();
                 z = (float) pos.getArrayElement(2).asDouble();
             } else if (pos.hasMembers()) {
-                Value mx = member(pos, "x");
-                Value my = member(pos, "y");
-                Value mz = member(pos, "z");
+                LuaValueRef mx = member(pos, "x");
+                LuaValueRef my = member(pos, "y");
+                LuaValueRef mz = member(pos, "z");
                 if (mx != null && mx.isNumber()) x = (float) mx.asDouble();
                 if (my != null && my.isNumber()) y = (float) my.asDouble();
                 if (mz != null && mz.isNumber()) z = (float) mz.asDouble();
@@ -125,7 +123,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
             s.setLocalTranslation(x, y, z);
         }
 
-        Value rot = member(cfg, "rot");
+        LuaValueRef rot = member(cfg, "rot");
         if (rot != null && !rot.isNull()) {
             float rx = 0, ry = 0, rz = 0;
             if (rot.hasArrayElements() && rot.getArraySize() >= 3) {
@@ -133,9 +131,9 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
                 ry = (float) rot.getArrayElement(1).asDouble();
                 rz = (float) rot.getArrayElement(2).asDouble();
             } else if (rot.hasMembers()) {
-                Value mx = member(rot, "x");
-                Value my = member(rot, "y");
-                Value mz = member(rot, "z");
+                LuaValueRef mx = member(rot, "x");
+                LuaValueRef my = member(rot, "y");
+                LuaValueRef mz = member(rot, "z");
                 if (mx != null && mx.isNumber()) rx = (float) mx.asDouble();
                 if (my != null && my.isNumber()) ry = (float) my.asDouble();
                 if (mz != null && mz.isNumber()) rz = (float) mz.asDouble();
@@ -143,7 +141,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
             s.setLocalRotation(new com.jme3.math.Quaternion().fromAngles((float) Math.toRadians(rx), (float) Math.toRadians(ry), (float) Math.toRadians(rz)));
         }
 
-        Value sc = member(cfg, "scale");
+        LuaValueRef sc = member(cfg, "scale");
         if (sc != null && !sc.isNull()) {
             if (sc.isNumber()) {
                 float v = (float) sc.asDouble();
@@ -155,9 +153,9 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
                 s.setLocalScale(x, y, z);
             } else if (sc.hasMembers()) {
                 float x = 1, y = 1, z = 1;
-                Value mx = member(sc, "x");
-                Value my = member(sc, "y");
-                Value mz = member(sc, "z");
+                LuaValueRef mx = member(sc, "x");
+                LuaValueRef my = member(sc, "y");
+                LuaValueRef mz = member(sc, "z");
                 if (mx != null && mx.isNumber()) x = (float) mx.asDouble();
                 if (my != null && my.isNumber()) y = (float) my.asDouble();
                 if (mz != null && mz.isNumber()) z = (float) mz.asDouble();
@@ -168,7 +166,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
 
     // ---------- primitives builders ----------
 
-    private Spatial buildBox(Value cfg, String name) {
+    private Spatial buildBox(LuaValueRef cfg, String name) {
         double size = num(cfg, "size", -1);
         float hx;
         float hy;
@@ -188,7 +186,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return g;
     }
 
-    private Spatial buildSphere(Value cfg, String name) {
+    private Spatial buildSphere(LuaValueRef cfg, String name) {
         int zS = (int) clamp(num(cfg, "zSamples", 16), 3, 128);
         int radial = (int) clamp(num(cfg, "radialSamples", 16), 3, 256);
         float r = (float) clamp(num(cfg, "radius", 1.0), 0.001, 1e6);
@@ -198,7 +196,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return g;
     }
 
-    private Spatial buildCylinder(Value cfg, String name) {
+    private Spatial buildCylinder(LuaValueRef cfg, String name) {
         int axis = (int) clamp(num(cfg, "axisSamples", 2), 1, 64);
         int radial = (int) clamp(num(cfg, "radialSamples", 16), 3, 256);
         float r = (float) clamp(num(cfg, "radius", 0.5), 0.001, 1e6);
@@ -209,7 +207,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return g;
     }
 
-    private Spatial buildCapsule(Value cfg, String name) {
+    private Spatial buildCapsule(LuaValueRef cfg, String name) {
         int zS = (int) clamp(num(cfg, "zSamples", 8), 3, 64);
         int radial = (int) clamp(num(cfg, "radialSamples", 16), 3, 256);
 
@@ -236,7 +234,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return root;
     }
 
-    private Spatial buildModel(Value cfg, String name) {
+    private Spatial buildModel(LuaValueRef cfg, String name) {
         String path = str(cfg, "path", null);
         if (path == null || path.isBlank()) {
             throw new IllegalArgumentException("mesh.create: type='model' requires cfg.path");
@@ -260,7 +258,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return model;
     }
 
-    private Spatial buildSpatial(String type, Value cfg) {
+    private Spatial buildSpatial(String type, LuaValueRef cfg) {
         String t = normType(type);
         String name = str(cfg, "name", t);
 
@@ -274,8 +272,8 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         };
     }
 
-    private void applyMaterial(SurfaceApi.SurfaceHandle h, Spatial s, Value cfg) {
-        Value m = member(cfg, "material");
+    private void applyMaterial(SurfaceApi.SurfaceHandle h, Spatial s, LuaValueRef cfg) {
+        LuaValueRef m = member(cfg, "material");
         if (m == null || m.isNull()) return;
 
         if (s instanceof Geometry || s instanceof com.jme3.terrain.geomipmap.TerrainQuad) {
@@ -295,7 +293,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         }
     }
 
-    private Map<String, Object> autoCollider(String meshType, Value meshCfg) {
+    private Map<String, Object> autoCollider(String meshType, LuaValueRef meshCfg) {
         String t = normType(meshType);
 
         Map<String, Object> col = new HashMap<>();
@@ -344,8 +342,8 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return col;
     }
 
-    private void maybeCreatePhysics(SurfaceApi.SurfaceHandle h, Value cfg, String meshType) {
-        Value phys = member(cfg, "physics");
+    private void maybeCreatePhysics(SurfaceApi.SurfaceHandle h, LuaValueRef cfg, String meshType) {
+        LuaValueRef phys = member(cfg, "physics");
         if (phys == null || phys.isNull()) return;
 
         boolean enabled = bool(phys, "enabled", true);
@@ -357,29 +355,29 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         p.put("surface", h.id());
         p.put("mass", mass);
 
-        Value friction = member(phys, "friction");
+        LuaValueRef friction = member(phys, "friction");
         if (friction != null && friction.isNumber()) p.put("friction", friction.asDouble());
 
-        Value restitution = member(phys, "restitution");
+        LuaValueRef restitution = member(phys, "restitution");
         if (restitution != null && restitution.isNumber()) p.put("restitution", restitution.asDouble());
 
-        Value kinematic = member(phys, "kinematic");
+        LuaValueRef kinematic = member(phys, "kinematic");
         if (kinematic != null && kinematic.isBoolean()) p.put("kinematic", kinematic.asBoolean());
 
-        Value lockRotation = member(phys, "lockRotation");
+        LuaValueRef lockRotation = member(phys, "lockRotation");
         if (lockRotation != null && lockRotation.isBoolean()) p.put("lockRotation", lockRotation.asBoolean());
 
-        Value damping = member(phys, "damping");
+        LuaValueRef damping = member(phys, "damping");
         if (damping != null && !damping.isNull() && damping.hasMembers()) {
             Map<String, Object> d = new HashMap<>();
-            Value ld = member(damping, "linear");
-            Value ad = member(damping, "angular");
+            LuaValueRef ld = member(damping, "linear");
+            LuaValueRef ad = member(damping, "angular");
             if (ld != null && ld.isNumber()) d.put("linear", ld.asDouble());
             if (ad != null && ad.isNumber()) d.put("angular", ad.asDouble());
             if (!d.isEmpty()) p.put("damping", d);
         }
 
-        Value collider = member(phys, "collider");
+        LuaValueRef collider = member(phys, "collider");
         if (collider != null && !collider.isNull()) {
             p.put("collider", collider);
         } else {
@@ -397,7 +395,7 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         engine.physics().body(p);
     }
 
-    private SurfaceApi.SurfaceHandle register(Spatial s, String kind, Value cfg) {
+    private SurfaceApi.SurfaceHandle register(Spatial s, String kind, LuaValueRef cfg) {
         s.setShadowMode(RenderQueue.ShadowMode.CastAndReceive);
 
         SurfaceApi.SurfaceHandle h = registry.register(s, kind, engine.surface());
@@ -411,10 +409,10 @@ public final class MeshApiImpl extends AbstractApiModule implements MeshApi {
         return h;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(thread = ApiThreadRule.JME, sync = true, flags = {ApiFlag.SANDBOX_ALLOWED, ApiFlag.EDITOR_VISIBLE}, cost = ApiCostHint.EXPENSIVE)
-    public SurfaceApi.SurfaceHandle create(@NotNull Value cfg) {
+    public SurfaceApi.SurfaceHandle create(@NotNull LuaValueRef cfg) {
         return profiled(() -> apiCall(M_CREATE, new Object[]{cfg}, () -> {
             if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("mesh.create(cfg): cfg is required");
 

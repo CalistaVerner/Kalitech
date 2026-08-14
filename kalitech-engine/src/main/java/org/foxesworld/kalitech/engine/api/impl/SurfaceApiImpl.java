@@ -29,13 +29,13 @@ import org.foxesworld.kalitech.engine.api.module.ApiContext;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.*;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.num;
 
 /**
  * Surface API.
@@ -44,7 +44,6 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
  * <ul>
  *   <li>All scene graph mutations are executed on the JME thread via {@code onJme*} helpers.</li>
  *   <li>Public entity binding is UUID-only (string).</li>
- *   <li>No legacy constructors or ad-hoc binding paths.</li>
  * </ul>
  */
 public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceApi {
@@ -75,8 +74,8 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     // Utilities
     // ---------------------------------------------------------------------
 
-    private static boolean bool(Value v, String k, boolean def) {
-        Value m = member(v, k);
+    private static boolean bool(LuaValueRef v, String k, boolean def) {
+        LuaValueRef m = member(v, k);
         if (m == null || m.isNull()) return def;
         if (m.isBoolean()) return m.asBoolean();
         if (m.isNumber()) return m.asDouble() != 0.0;
@@ -87,7 +86,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return def;
     }
 
-    private static Vector3f vec3(Value v, float dx, float dy, float dz) {
+    private static Vector3f vec3(LuaValueRef v, float dx, float dy, float dz) {
         if (v == null || v.isNull()) return new Vector3f(dx, dy, dz);
 
         if (v.hasMembers()) {
@@ -110,7 +109,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     private static Vector3f vec3Any(Object v, float dx, float dy, float dz) {
         if (v == null) return new Vector3f(dx, dy, dz);
         if (v instanceof Vector3f vv) return vv;
-        if (v instanceof Value gv) return vec3(gv, dx, dy, dz);
+        if (v instanceof LuaValueRef gv) return vec3(gv, dx, dy, dz);
 
         if (v instanceof Map<?, ?> m) {
             Object x = m.get("x"), y = m.get("y"), z = m.get("z");
@@ -133,10 +132,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 // TileWorld extraction (NO dependency on material module)
 // ---------------------------------------------------------------------
 
-    private static TileWorld extractTileWorld(Value materialCfg) {
+    private static TileWorld extractTileWorld(LuaValueRef materialCfg) {
         if (materialCfg == null || materialCfg.isNull()) return null;
 
-        Value params = member(materialCfg, "params");
+        LuaValueRef params = member(materialCfg, "params");
         if (params == null || params.isNull() || !params.hasMembers()) return null;
 
         // Prefer common slots first
@@ -146,7 +145,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         // Fallback: scan all params for any texture desc that contains tileWorld
         if (tw == null) {
             for (String k : params.getMemberKeys()) {
-                Value v = params.getMember(k);
+                LuaValueRef v = params.getMember(k);
                 tw = parseTileWorldFromTextureDesc(v);
                 if (tw != null) break;
             }
@@ -155,7 +154,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return tw;
     }
 
-    private static TileWorld tryTileWorld(Value params, String name) {
+    private static TileWorld tryTileWorld(LuaValueRef params, String name) {
         if (params == null || params.isNull() || !params.hasMember(name)) return null;
         return parseTileWorldFromTextureDesc(params.getMember(name));
     }
@@ -167,7 +166,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
      * - object: { texture: "...", tileWorld: [2,2] }
      * - object: { tileWorld: {x:2, z:2} } (even without texture)
      */
-    private static TileWorld parseTileWorldFromTextureDesc(Value v) {
+    private static TileWorld parseTileWorldFromTextureDesc(LuaValueRef v) {
         if (v == null || v.isNull()) return null;
 
         // Strings can't carry tileWorld (by your current schema)
@@ -175,7 +174,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         // If it's an object, try tileWorld member
         if (v.hasMembers()) {
-            Value tw = member(v, "tileWorld");
+            LuaValueRef tw = member(v, "tileWorld");
             TileWorld out = parseTileWorldValue(tw);
             if (out != null) return out;
 
@@ -187,7 +186,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return null;
     }
 
-    private static TileWorld parseTileWorldValue(Value tw) {
+    private static TileWorld parseTileWorldValue(LuaValueRef tw) {
         if (tw == null || tw.isNull()) return null;
 
         float x;
@@ -195,8 +194,8 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         // {x, z}
         if (tw.hasMembers()) {
-            Value vx = member(tw, "x");
-            Value vz = member(tw, "z");
+            LuaValueRef vx = member(tw, "x");
+            LuaValueRef vz = member(tw, "z");
 
             if (vx == null || vx.isNull() || !vx.isNumber()) return null;
             if (vz == null || vz.isNull() || !vz.isNumber()) return null;
@@ -206,8 +205,8 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }
         // [x, z]
         else if (tw.hasArrayElements() && tw.getArraySize() >= 2) {
-            Value vx = tw.getArrayElement(0);
-            Value vz = tw.getArrayElement(1);
+            LuaValueRef vx = tw.getArrayElement(0);
+            LuaValueRef vz = tw.getArrayElement(1);
 
             if (vx == null || vx.isNull() || !vx.isNumber()) return null;
             if (vz == null || vz.isNull() || !vz.isNumber()) return null;
@@ -232,7 +231,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             return x;
         }
 
-        if (ref instanceof Value v) {
+        if (ref instanceof LuaValueRef v) {
             if (v.isNull()) throw new IllegalArgumentException("surface: uuid is null");
             if (v.isString()) {
                 String x = v.asString().trim();
@@ -457,7 +456,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: entity binding
+    // API: entity binding
     // ---------------------------------------------------------------------
 
     private Spatial requireSpatial(SurfaceHandle h) {
@@ -490,7 +489,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (api == null) api = engine.material();
         if (api == null) return null;
 
-        if (materialHandle instanceof Value v) {
+        if (materialHandle instanceof LuaValueRef v) {
             if (v.isNull()) return null;
 
             if (v.isHostObject()) {
@@ -519,10 +518,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: scene graph ops
+    // API: scene graph ops
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -534,7 +533,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return registry.attachedEntityUuid(target.id());
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -553,7 +552,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -572,7 +571,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -585,7 +584,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.attachToRoot", () -> registry.attachToRoot(target.id()));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -598,7 +597,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.detach", () -> registry.detachFromParent(target.id()));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -610,7 +609,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return target != null && registry.exists(target.id());
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -626,7 +625,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -639,7 +638,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.setPos", () -> requireSpatial(target).setLocalTranslation(p));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -659,7 +658,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
@@ -671,10 +670,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
 
         final boolean isScalar =
                 (scale instanceof Number)
-                        || (scale instanceof Value v && !v.isNull() && v.isNumber());
+                        || (scale instanceof LuaValueRef v && !v.isNull() && v.isNumber());
 
         final float scalar = isScalar
-                ? (scale instanceof Number n ? n.floatValue() : (float) ((Value) scale).asDouble())
+                ? (scale instanceof Number n ? n.floatValue() : (float) ((LuaValueRef) scale).asDouble())
                 : 0f;
 
         final Vector3f v3 = (!isScalar) ? vec3Any(scale, 1f, 1f, 1f) : null;
@@ -686,7 +685,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -700,7 +699,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.setCull", () -> requireSpatial(target).setCullHint(ch));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -714,7 +713,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.setVisible", () -> requireSpatial(target).setCullHint(ch));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -728,7 +727,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.setShadowMode", () -> requireSpatial(target).setShadowMode(sm));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -736,7 +735,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void setTransform(SurfaceHandle target, Value cfg) {
+    public void setTransform(SurfaceHandle target, LuaValueRef cfg) {
         Objects.requireNonNull(target, "target");
 
         final TransformCfg t = TransformCfg.parse(cfg);
@@ -744,10 +743,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: bounds + picking
+    // API: bounds + picking
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -765,7 +764,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         onJmeSyncVoid("surface.applyMaterialToChildren", () -> applyMaterialRecursive(requireSpatial(target), mat));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -787,7 +786,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (matDirect != null) {
             createdHandle = null;
             tileWorld = null;
-        } else if (materialHandleOrCfg instanceof Value v && v != null && !v.isNull() && v.hasMembers() && v.hasMember("def")) {
+        } else if (materialHandleOrCfg instanceof LuaValueRef v && v != null && !v.isNull() && v.hasMembers() && v.hasMember("def")) {
             createdHandle = api.create(v); // impl in separate JAR is OK
             tileWorld = extractTileWorld(v);
         } else {
@@ -828,7 +827,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -858,7 +857,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new WorldBounds("none", 0, 0, 0, 0, 0, 0, 0));
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -866,7 +865,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Hit[] raycast(SurfaceHandle target, Value cfg) {
+    public Hit[] raycast(SurfaceHandle target, LuaValueRef cfg) {
         Objects.requireNonNull(target, "target");
         if (cfg == null || cfg.isNull()) throw new IllegalArgumentException("surface.raycast: cfg is null");
 
@@ -880,7 +879,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new Hit[0]);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -888,7 +887,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg) {
+    public Hit[] pickUnderCursorCfg(SurfaceHandle target, LuaValueRef cfg) {
         Objects.requireNonNull(target, "target");
 
         final double cx = (cfg != null && !cfg.isNull()) ? num(cfg, "x", Double.NaN) : Double.NaN;
@@ -916,7 +915,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         }, new Hit[0]);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -925,10 +924,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             cost = ApiCostHint.NORMAL
     )
     public Hit[] pickUnderCursor() {
-        return pickUnderCursorCfg((Value) null);
+        return pickUnderCursorCfg((LuaValueRef) null);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -940,7 +939,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         return pickUnderCursorCfg(target, null);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -948,7 +947,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public Hit[] pickUnderCursorCfg(Value cfg) {
+    public Hit[] pickUnderCursorCfg(LuaValueRef cfg) {
         final double cx = (cfg != null && !cfg.isNull()) ? num(cfg, "x", Double.NaN) : Double.NaN;
         final double cy = (cfg != null && !cfg.isNull()) ? num(cfg, "y", Double.NaN) : Double.NaN;
         final float max = (cfg != null && !cfg.isNull()) ? (float) num(cfg, "max", 10_000.0) : 10_000.0f;
@@ -978,10 +977,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: physics bridge
+    // API: physics bridge
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -994,6 +993,13 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
         if (!registry.exists(surfaceId)) return 0;
 
         PhysicsApi p = this.physicsApi;
+        if (p == null) {
+            p = engine.physics();
+            if (p != null) {
+                this.physicsApi = p;
+            }
+        }
+        if (p == null) return 0;
 
         try {
             return p.bodyOfSurface(surfaceId);
@@ -1003,10 +1009,10 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     }
 
     // ---------------------------------------------------------------------
-    // Exports: destroy
+    // API: destroy
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -1063,7 +1069,7 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             this.onlyClosest = onlyClosest;
         }
 
-        static RaycastCfg parse(Value cfg, Vector3f originDef, Vector3f dirDef, float maxDef, int limitDef, boolean onlyClosestDef) {
+        static RaycastCfg parse(LuaValueRef cfg, Vector3f originDef, Vector3f dirDef, float maxDef, int limitDef, boolean onlyClosestDef) {
             if (cfg == null || cfg.isNull()) {
                 return new RaycastCfg(originDef, dirDef, maxDef, limitDef, onlyClosestDef);
             }
@@ -1103,17 +1109,17 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
             this.bucket = bucket;
         }
 
-        static TransformCfg parse(Value cfg) {
+        static TransformCfg parse(LuaValueRef cfg) {
             if (cfg == null || cfg.isNull()) {
                 return new TransformCfg(null, null, null, null, null, null);
             }
 
-            Value pos = member(cfg, "pos");
-            Value sc = member(cfg, "scale");
-            Value rot = member(cfg, "rot");
-            Value shadow = member(cfg, "shadow");
-            Value cull = member(cfg, "cull");
-            Value bucket = member(cfg, "bucket");
+            LuaValueRef pos = member(cfg, "pos");
+            LuaValueRef sc = member(cfg, "scale");
+            LuaValueRef rot = member(cfg, "rot");
+            LuaValueRef shadow = member(cfg, "shadow");
+            LuaValueRef cull = member(cfg, "cull");
+            LuaValueRef bucket = member(cfg, "bucket");
 
             Vector3f p = (pos != null && !pos.isNull()) ? vec3(pos, 0f, 0f, 0f) : null;
 
@@ -1177,9 +1183,9 @@ public final class SurfaceApiImpl extends AbstractApiModule implements SurfaceAp
     // ---------------------------------------------------------------------
 
     public static final class SurfaceComponent {
-        @HostAccess.Export
+        @LuaExport
         public final int surfaceId;
-        @HostAccess.Export
+        @LuaExport
         public final String kind;
 
         public SurfaceComponent(int surfaceId, String kind) {

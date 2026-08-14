@@ -1,13 +1,12 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
-@HostAccess.Implementable
 public interface ParticlesApi {
 
     /**
-     * Create a particle emitter from JS config.
+     * Create a particle emitter from Lua config.
      * <p>
      * Expected cfg fields (all optional):
      * - name: string
@@ -24,44 +23,44 @@ public interface ParticlesApi {
      * - local: boolean (default true)
      * - enabled: boolean (default true)
      */
-    @HostAccess.Export
-    ParticleHandle create(Value cfg);
+    @LuaExport
+    ParticleHandle create(LuaValueRef cfg);
 
-    @HostAccess.Export
+    @LuaExport
     void destroy(ParticleHandle h);
 
-    @HostAccess.Export
+    @LuaExport
     void setEnabled(ParticleHandle h, boolean enabled);
 
-    @HostAccess.Export
+    @LuaExport
     void play(ParticleHandle h);
 
-    @HostAccess.Export
+    @LuaExport
     void stop(ParticleHandle h);
 
-    void configure(ParticleHandle h, Value cfg);
+    void configure(ParticleHandle h, LuaValueRef cfg);
 
     // Transform primitives
-    @HostAccess.Export
-    void setPosition(ParticleHandle h, Value vec3);
+    @LuaExport
+    void setPosition(ParticleHandle h, LuaValueRef vec3);
 
-    @HostAccess.Export
-    void setRotation(ParticleHandle h, Value quat); // {x,y,z,w}
+    @LuaExport
+    void setRotation(ParticleHandle h, LuaValueRef quat); // {x,y,z,w}
 
-    @HostAccess.Export
+    @LuaExport
     void setScale(ParticleHandle h, double s);
 
     // Quick burst helper (one-shot)
-    @HostAccess.Export
+    @LuaExport
     void emitAll(ParticleHandle h);
 
     // Optional stats/debug
-    @HostAccess.Export
+    @LuaExport
     int alive();
 
-    // Handle is intentionally tiny and stable for JS.
+    // Handle is intentionally tiny and stable for Lua.
     final class ParticleHandle {
-        @HostAccess.Export
+        @LuaExport
         public final int id;
 
         public ParticleHandle(int id) {

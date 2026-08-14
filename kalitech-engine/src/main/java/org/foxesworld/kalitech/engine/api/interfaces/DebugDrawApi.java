@@ -1,18 +1,18 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface DebugDrawApi {
 
-    @HostAccess.Export void enabled(boolean v);
-    @HostAccess.Export boolean enabled();
+    @LuaExport void enabled(boolean v);
+    @LuaExport boolean enabled();
 
-    @HostAccess.Export void clear();
+    @LuaExport void clear();
 
-    @HostAccess.Export void line(Value cfg);
-    @HostAccess.Export void ray(Value cfg);
-    @HostAccess.Export void axes(Value cfg);
+    @LuaExport void line(LuaValueRef cfg);
+    @LuaExport void ray(LuaValueRef cfg);
+    @LuaExport void axes(LuaValueRef cfg);
 
-    @HostAccess.Export void tick(double tpf);
+    @LuaExport void tick(double tpf);
 }

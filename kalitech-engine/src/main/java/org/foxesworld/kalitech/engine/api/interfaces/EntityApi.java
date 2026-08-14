@@ -1,7 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/EntityApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
  * Entity API (UUID-only).
@@ -16,31 +16,31 @@ public interface EntityApi {
     /**
      * Create entity and return its UUID string.
      */
-    @HostAccess.Export
+    @LuaExport
     String create(String name);
 
     /** Destroy entity by UUID. Throws if UUID is unknown. */
-    @HostAccess.Export
+    @LuaExport
     void destroy(String uuid);
 
     /** True if UUID resolves to a live entity. */
-    @HostAccess.Export
+    @LuaExport
     boolean exists(String uuid);
 
     // -------------------------
     // components (UUID-only)
     // -------------------------
 
-    @HostAccess.Export
+    @LuaExport
     void setComponent(String uuid, String type, Object value);
 
-    @HostAccess.Export
+    @LuaExport
     Object getComponent(String uuid, String type);
 
-    @HostAccess.Export
+    @LuaExport
     boolean hasComponent(String uuid, String type);
 
-    @HostAccess.Export
+    @LuaExport
     void removeComponent(String uuid, String type);
 
     // -------------------------
@@ -50,12 +50,12 @@ public interface EntityApi {
     /**
      * Snapshot entity state for UI/editor tooling.
      */
-    @HostAccess.Export
+    @LuaExport
     java.util.Map<String, Object> snapshot(String uuid);
 
     /**
      * List up to {@code limit} entity UUIDs.
      */
-    @HostAccess.Export
+    @LuaExport
     String[] list(int limit);
 }

@@ -12,7 +12,6 @@ import java.util.Objects;
  *
  * <p>Threading: all JME state changes are executed on the JME thread.
  */
-@Deprecated
 public final class EditorApiImpl extends AbstractApiModule implements EditorApi {
 
     private SimpleApplication app;

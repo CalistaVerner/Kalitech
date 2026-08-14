@@ -21,8 +21,8 @@ import org.foxesworld.kalitech.engine.api.contract.ApiThreadRule;
 import org.foxesworld.kalitech.engine.api.interfaces.DebugDrawApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiContext;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
@@ -31,8 +31,8 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.bool;
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.bool;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.num;
 
 /**
  * Debug draw (batched line renderer).
@@ -44,7 +44,6 @@ import static org.foxesworld.kalitech.engine.script.util.JsCfg.num;
  *   <li>Thread-safe API: exported methods only enqueue commands; actual mesh rebuild is on JME thread.</li>
  * </ul>
  */
-@Deprecated
 public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDrawApi {
 
     private final AtomicBoolean inited = new AtomicBoolean(false);
@@ -93,7 +92,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // DebugDrawApi (typed contract)
     // ---------------------------------------------------------------------
 
-    private static Vector3f parseVec3(Value v, float dx, float dy, float dz) {
+    private static Vector3f parseVec3(LuaValueRef v, float dx, float dy, float dz) {
         if (v == null || v.isNull()) return new Vector3f(dx, dy, dz);
 
         try {
@@ -117,7 +116,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         return new Vector3f(dx, dy, dz);
     }
 
-    private static Quaternion parseQuat(Value v) {
+    private static Quaternion parseQuat(LuaValueRef v) {
         if (v == null || v.isNull()) return null;
         try {
             if (v.hasArrayElements() && v.getArraySize() >= 4) {
@@ -140,7 +139,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         return null;
     }
 
-    private static ColorRGBA parseColor(Value v, float dr, float dg, float db, float da) {
+    private static ColorRGBA parseColor(LuaValueRef v, float dr, float dg, float db, float da) {
         if (v == null || v.isNull()) return new ColorRGBA(dr, dg, db, da);
 
         try {
@@ -168,7 +167,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         return new ColorRGBA(dr, dg, db, da);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -202,7 +201,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         super.detach();
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -220,7 +219,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // Extra shapes (exported, but not necessarily in the interface)
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -237,7 +236,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -268,7 +267,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -276,7 +275,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void line(Value cfg) {
+    public void line(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -301,7 +300,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         enqueueLine(a, b, c, ttl, dt);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -309,7 +308,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void ray(Value cfg) {
+    public void ray(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -346,7 +345,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         }
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -354,7 +353,7 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void axes(Value cfg) {
+    public void axes(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -383,14 +382,14 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // Internal fast path (Java-only, package-private)
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void box(Value cfg) {
+    public void box(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -451,14 +450,14 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         enqueueLine(p[3], p[7], col, ttl, dt);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void sphere(Value cfg) {
+    public void sphere(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -479,14 +478,14 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
     // Init / render setup
     // ---------------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void circle(Value cfg) {
+    public void circle(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
@@ -505,18 +504,18 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         drawCircle(center, normal, r, seg, col, ttl, dt);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void polyline(Value cfg) {
+    public void polyline(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 
-        Value pts = cfg.getMember("points");
+        LuaValueRef pts = cfg.getMember("points");
         if (pts == null || pts.isNull() || !pts.hasArrayElements()) return;
 
         long n = pts.getArraySize();
@@ -539,14 +538,14 @@ public final class DebugDrawApiImpl extends AbstractApiModule implements DebugDr
         if (closed) enqueueLine(prev, first, col, ttl, dt);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public void grid(Value cfg) {
+    public void grid(LuaValueRef cfg) {
         if (!enabled) return;
         if (cfg == null || cfg.isNull()) return;
 

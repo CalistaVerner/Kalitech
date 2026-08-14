@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 import java.util.Map;
 
@@ -12,18 +12,18 @@ public interface ModulesApi {
     /**
      * List registered API module ids.
      */
-    @HostAccess.Export
+    @LuaExport
     String[] list();
 
     /**
      * Describe a module by id, or null if not found.
      */
-    @HostAccess.Export
+    @LuaExport
     Map<String, Object> describe(String id);
 
     /**
      * Describe all modules in registration order.
      */
-    @HostAccess.Export
+    @LuaExport
     Map<String, Object>[] describeAll();
 }

@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+version = '1.0.0'
+
+dependencies {
+    implementation project(':kalitech-engine')
+    implementation project(':kalitech-core')
+    implementation 'com.simsilica:lemur:1.16.0'
+}
+
+tasks.named('jar') {
+    archiveBaseName.set('HudModule')
+}

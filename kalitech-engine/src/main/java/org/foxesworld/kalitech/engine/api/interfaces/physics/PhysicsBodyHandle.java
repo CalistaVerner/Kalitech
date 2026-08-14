@@ -3,12 +3,12 @@ package org.foxesworld.kalitech.engine.api.interfaces.physics;
 
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.math.Vector3f;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.Map;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.member;
 
 @SuppressWarnings("unused")
 public final class PhysicsBodyHandle {
@@ -28,7 +28,7 @@ public final class PhysicsBodyHandle {
 
     public static float asFloat(Object v, float def) {
         if (v instanceof Number n) return n.floatValue();
-        if (v instanceof Value val) return val.isNumber() ? (float) val.asDouble() : def;
+        if (v instanceof LuaValueRef val) return val.isNumber() ? (float) val.asDouble() : def;
         return def;
     }
 
@@ -45,7 +45,7 @@ public final class PhysicsBodyHandle {
             return;
         }
 
-        if (v instanceof Value val) {
+        if (v instanceof LuaValueRef val) {
             if (val.isNull()) {
                 out.set(dx, dy, dz);
                 return;
@@ -88,46 +88,46 @@ public final class PhysicsBodyHandle {
         return out;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void applyImpulse(Object vec3) {
         Vector3f v = vec3(vec3, 0, 0, 0);
         body.applyImpulse(v, Vector3f.ZERO);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setKinematic(boolean v) {
         body.setKinematic(v);
         body.activate();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setEnabled(boolean v) {
         body.setEnabled(v);
         body.activate();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setFriction(double v) {
         body.setFriction((float) v);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setRestitution(double v) {
         body.setRestitution((float) v);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setDamping(double linear, double angular) {
         body.setDamping((float) linear, (float) angular);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void applyCentralForce(Object vec3) {
         Vector3f v = vec3(vec3, 0, 0, 0);
         body.applyCentralForce(v);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setVelocity(Object vec3) {
         Vector3f v = vec3(vec3, 0, 0, 0);
         body.setLinearVelocity(v);
@@ -136,36 +136,36 @@ public final class PhysicsBodyHandle {
 
     // ----- getters -----
 
-    //  CRITICAL: make id visible to JS in a durable way
-    @HostAccess.Export
+    //  CRITICAL: make id visible to Lua in a durable way
+    @LuaExport
     public int id() {
         return id;
     }
 
-    //  CRITICAL: make surfaceId visible to JS
-    @HostAccess.Export
+    //  CRITICAL: make surfaceId visible to Lua
+    @LuaExport
     public int surfaceId() {
         return surfaceId;
     }
 
-    // Optional: allow numeric coercion in JS (Number(handle) / handle | 0 in some cases)
-    @HostAccess.Export
+    // Optional: allow numeric coercion in Lua (Number(handle) / handle | 0 in some cases)
+    @LuaExport
     public int valueOf() {
         return id;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public float mass() {
         return body.getMass();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public Object position() {
         Vector3f p = body.getPhysicsLocation();
         return new PhysicsRayHit.Vec3(p.x, p.y, p.z);
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void setAngularVelocity(Object vec3) {
         Vector3f v = vec3(vec3, 0, 0, 0);
         body.setAngularVelocity(v);
@@ -176,14 +176,14 @@ public final class PhysicsBodyHandle {
     // internal
     public RigidBodyControl __raw() { return body; }
 
-    @HostAccess.Export
+    @LuaExport
     public void setGravity(Object vec3) {
         Vector3f g = vec3(vec3, 0, -9.81f, 0);
         body.setGravity(g);
         body.activate();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void teleport(Object vec3) {
         Vector3f p = vec3(vec3, 0, 0, 0);
         body.setPhysicsLocation(p);

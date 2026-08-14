@@ -47,30 +47,6 @@ public final class ApiRegistry {
     }
 
     /**
-     * Legacy entry registration (non-module APIs). Prefer {@link #register(ApiModule)}.
-     */
-    @Deprecated
-    public <T> T registerLegacy(String id, T api) {
-        String normalized = requireId(id);
-        Objects.requireNonNull(api, "api");
-
-        Entry prev = map.put(normalized, new Entry(normalized, api, null, normalized, "legacy"));
-
-        if (log.isDebugEnabled()) {
-            if (prev == null) {
-                log.debug("[api] register legacy id='{}' impl={}", normalized, api.getClass().getName());
-            } else {
-                log.debug("[api] replace legacy id='{}' prevImpl={} newImpl={}",
-                        normalized,
-                        prev.api != null ? prev.api.getClass().getName() : "null",
-                        api.getClass().getName());
-            }
-        }
-
-        return api;
-    }
-
-    /**
      * Registers a module and attaches it immediately. If another entry with the same id exists,
      * the previous module (if any) is detached deterministically after a successful replace.
      */
@@ -90,8 +66,7 @@ public final class ApiRegistry {
                 log.debug("[api] register id='{}' name='{}' ver='{}' impl={}",
                         id, next.name, next.version, module.getClass().getName());
             } else {
-                log.debug("[api] replace id='{}' prev={} new={} (prevLegacy={})",
-                        id, fmt(prev), fmt(next), prev.isLegacy());
+                log.debug("[api] replace id='{}' prev={} new={}", id, fmt(prev), fmt(next));
             }
         }
 
@@ -130,7 +105,7 @@ public final class ApiRegistry {
         }
 
         Entry current = map.get(id);
-        if (current == null || current.module == null) {
+        if (current == null) {
             return;
         }
 
@@ -153,7 +128,7 @@ public final class ApiRegistry {
     }
 
     /**
-     * Returns the registered API object cast to the requested type, or null if missing/incompatible.
+     * Returns the registered API object cast to the requested type, or null if missing or of the wrong type.
      */
     public <T> T api(String id, Class<T> type) {
         Objects.requireNonNull(type, "type");
@@ -204,15 +179,7 @@ public final class ApiRegistry {
         }
 
         for (Entry e : ordered) {
-            if (e.module != null) {
-                detachEntry(e, "all");
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug("[api] skip detach legacy id='{}' impl={}",
-                            e.id,
-                            e.api != null ? e.api.getClass().getName() : "null");
-                }
-            }
+            detachEntry(e, "all");
         }
 
         map.clear();
@@ -242,7 +209,7 @@ public final class ApiRegistry {
     public static final class Entry {
         public final String id;
         public final Object api;
-        public final ApiModule module; // null if legacy
+        public final ApiModule module;
         public final String name;
         public final String version;
 
@@ -254,8 +221,5 @@ public final class ApiRegistry {
             this.version = version;
         }
 
-        boolean isLegacy() {
-            return module == null;
-        }
     }
 }

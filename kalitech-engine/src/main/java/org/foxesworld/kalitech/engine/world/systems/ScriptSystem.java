@@ -7,11 +7,12 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.ScriptComponent;
 import org.foxesworld.kalitech.engine.script.EntityScriptAPI;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.script.util.StateCapsule;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.Set;
  *
  * <p>Required ScriptRuntime API (stable contract):</p>
  * <ul>
- *   <li>{@code Value require(String moduleId)}</li>
+ *   <li>{@code LuaValueRef require(String moduleId)}</li>
  *   <li>{@code long moduleVersion(String moduleId)}</li>
  *   <li>{@code int invalidateManyWithReason(Set<String> ids, String reason)}</li>
  *   <li>{@code int invalidateAllWithReason(String reason)}</li>
@@ -58,58 +59,70 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         this.watchRoot = Objects.requireNonNull(watchRoot, "watchRoot");
     }
 
-    private static Value createInstance(Value exports) {
-        if (exports == null || exports.isNull()) {
-            throw new IllegalStateException("Script module exports is null");
+    private static LuaValueRef createInstance(LuaValueRef moduleValue) {
+        if (moduleValue == null || moduleValue.isNull()) {
+            throw new IllegalStateException("Lua module returned nil");
         }
 
-        if (exports.canExecute()) return exports.execute();
+        if (moduleValue.canExecute()) return moduleValue.executeLifecycle("entity.create");
 
-        if (exports.hasMember("create")) {
-            Value c = exports.getMember("create");
-            if (c != null && c.canExecute()) return c.execute();
+        if (moduleValue.hasMember("create")) {
+            LuaValueRef c = moduleValue.getMember("create");
+            if (c != null && c.canExecute()) return moduleValue.invokeMemberLifecycle("entity.create", "create");
         }
 
-        return exports;
+        return moduleValue;
     }
 
-    private static void callIfExists(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) return;
-        if (!obj.hasMember(member)) return;
-        Value fn = obj.getMember(member);
+    private static void callIfExists(LuaValueRef obj, String member, Object... args) {
+        if (obj == null || obj.isNull() || !obj.hasMember(member)) return;
+        LuaValueRef fn = obj.getMember(member);
         if (fn == null || fn.isNull() || !fn.canExecute()) return;
-        fn.execute(args);
+        obj.invokeMember(member, args);
     }
 
-    private static Object callForState(Value obj, String member, Object... args) {
-        if (obj == null || obj.isNull()) return null;
-        if (!obj.hasMember(member)) return null;
-        Value fn = obj.getMember(member);
+    private static Object callForState(LuaValueRef obj, String member, Object... args) {
+        if (obj == null || obj.isNull() || !obj.hasMember(member)) return null;
+        LuaValueRef fn = obj.getMember(member);
         if (fn == null || fn.isNull() || !fn.canExecute()) return null;
-        try {
-            return StateCapsule.toState(fn.execute(args));
-        } catch (Throwable ignored) {
-            return null;
-        }
+        return StateCapsule.toState(obj.invokeMember(member, args));
     }
 
-    private static Object snapshotState(Value obj) {
+    private static void callLifecycleIfExists(LuaValueRef obj, String member, Object... args) {
+        if (obj == null || obj.isNull() || !obj.hasMember(member)) return;
+        LuaValueRef fn = obj.getMember(member);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return;
+        obj.invokeMemberLifecycle("entity." + member, member, args);
+    }
+
+    private static Object callLifecycleForState(LuaValueRef obj, String member, Object... args) {
+        if (obj == null || obj.isNull() || !obj.hasMember(member)) return null;
+        LuaValueRef fn = obj.getMember(member);
+        if (fn == null || fn.isNull() || !fn.canExecute()) return null;
+        return StateCapsule.toState(
+                obj.invokeMemberLifecycle("entity." + member, member, args)
+        );
+    }
+
+    private static Object snapshotState(LuaValueRef obj) {
         if (obj == null || obj.isNull() || !obj.hasMember("state")) return null;
         try {
             return StateCapsule.toState(obj.getMember("state"));
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             return null;
         }
     }
 
-    private static void callOnError(Value obj, Throwable t) {
+    private static void callOnError(LuaValueRef obj, Throwable t) {
         if (obj == null || obj.isNull()) return;
         if (!obj.hasMember("onError")) return;
-        Value fn = obj.getMember("onError");
+        LuaValueRef fn = obj.getMember("onError");
         if (fn == null || fn.isNull() || !fn.canExecute()) return;
         try {
-            fn.execute(String.valueOf(t));
-        } catch (Throwable ignored) {
+            obj.invokeMember("onError", ScriptFailureBoundary.summary(t));
+        } catch (Throwable hookFailure) {
+            ScriptFailureBoundary.rethrowIfFatal(hookFailure);
         }
     }
 
@@ -136,6 +149,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 this.watcher = new HotReloadWatcher(watchRoot);
                 log.info("ScriptSystem hotReload enabled (root={}, cooldown={}s)", watchRoot.toAbsolutePath(), cooldownSec);
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("ScriptSystem hotReload failed to start watcher at {}", watchRoot.toAbsolutePath(), t);
                 this.watcher = null;
             }
@@ -170,11 +184,30 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 continue;
             }
 
+            String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
+                    ? sc.moduleId
+                    : normalize(sc.assetPath);
+
+            long version;
             try {
-                ensureStarted(rt, uuid, entityId, sc);
-            } catch (Throwable t) {
-                log.error("Script ensureStarted failed entityId={} uuid={}", entityId, uuid, t);
-                callOnError(sc != null ? sc.instance : null, t);
+                version = rt.moduleVersion(moduleId);
+            } catch (Throwable failure) {
+                ScriptFailureBoundary.rethrowIfFatal(failure);
+                quarantineEntity(sc, entityId, uuid, moduleId, sc.moduleVersion, "version", failure);
+                continue;
+            }
+
+            if (sc.quarantined) {
+                if (version == sc.quarantineVersion) continue;
+                clearQuarantine(sc);
+                log.info("Entity Lua script retrying after module change entityId={} uuid={} module={}",
+                        entityId, uuid, moduleId);
+            }
+
+            try {
+                ensureStarted(rt, uuid, entityId, sc, moduleId, version);
+            } catch (Throwable failure) {
+                quarantineEntity(sc, entityId, uuid, moduleId, version, "start", failure);
                 continue;
             }
 
@@ -182,9 +215,8 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 callIfExists(sc.instance, "update", tpf);
                 Object state = snapshotState(sc.instance);
                 if (state != null) sc.stateCapsule = state;
-            } catch (Throwable t) {
-                log.error("Script update failed entityId={} uuid={}", entityId, uuid, t);
-                callOnError(sc.instance, t);
+            } catch (Throwable failure) {
+                quarantineEntity(sc, entityId, uuid, moduleId, version, "update", failure);
             }
         }
     }
@@ -197,6 +229,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
             try {
                 watcher.close();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("ScriptSystem watcher.close failed", t);
             }
             watcher = null;
@@ -228,10 +261,12 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 try {
                     bus.emit("hotreload:force", (reason != null) ? reason : "F5");
                 } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                     log.error("HotReload: bus emit failed", t);
                 }
             }
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             log.warn("HotReload failed in ScriptSystem", t);
         }
     }
@@ -246,6 +281,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         try {
             changed = watcher.pollChanged();
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             log.error("HotReload watcher.pollChanged failed", t);
             cooldown = cooldownSec;
             return;
@@ -262,6 +298,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
         try {
             removed = rt.invalidateManyWithReason(changed, "hotReload");
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             log.error("HotReload invalidateManyWithReason failed changed={}", changed.size(), t);
         }
 
@@ -273,6 +310,7 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
             try {
                 bus.emit("hotreload:changed", changed);
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("HotReload bus emit failed", t);
             }
         }
@@ -290,13 +328,14 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                         Object state = snapshotState(sc.instance);
                         if (state != null) sc.stateCapsule = state;
                         if (sc.instance.hasMember("onStop")) {
-                            callIfExists(sc.instance, "onStop", "stop");
+                            callLifecycleIfExists(sc.instance, "onStop", "stop");
                         } else {
-                            callIfExists(sc.instance, "destroy");
+                            callLifecycleIfExists(sc.instance, "destroy");
                         }
-                    } catch (org.graalvm.polyglot.PolyglotException pe) {
-                        // Cancelled context is acceptable during shutdown.
+                    } catch (org.luaj.vm2.LuaError ignored) {
+                        // Lua shutdown errors are non-fatal during teardown.
                     } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                         log.warn("Script destroy failed for entity {}", e.getKey(), t);
                         callOnError(sc.instance, t);
                     }
@@ -304,25 +343,53 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
 
                 sc.instance = null;
                 sc.moduleVersion = 0L;
+                clearQuarantine(sc);
             }
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             log.warn("destroyAllInstances encountered errors", t);
         }
     }
 
-    private void ensureStarted(ScriptRuntime rt, String uuid, int entityId, ScriptComponent sc) {
-        String moduleId = (sc.moduleId != null && !sc.moduleId.isBlank())
-                ? sc.moduleId
-                : normalize(sc.assetPath);
+    private static void clearQuarantine(ScriptComponent sc) {
+        sc.quarantined = false;
+        sc.quarantineVersion = 0L;
+        sc.quarantineReason = null;
+    }
 
-        long v;
-        try {
-            v = rt.moduleVersion(moduleId);
-        } catch (Throwable t) {
-            throw new IllegalStateException("runtime.moduleVersion failed for moduleId=" + moduleId, t);
-        }
+    private void quarantineEntity(
+            ScriptComponent sc,
+            int entityId,
+            String uuid,
+            String moduleId,
+            long version,
+            String callback,
+            Throwable failure
+    ) {
+        ScriptFailureBoundary.rethrowIfFatal(failure);
+        if (sc.quarantined && sc.quarantineVersion == version) return;
 
-        boolean needsStart = (sc.instance == null) || (sc.moduleVersion != v);
+        sc.quarantined = true;
+        sc.quarantineVersion = version;
+        sc.quarantineReason = ScriptFailureBoundary.summary(failure);
+
+        log.error("Entity Lua script quarantined entityId={} uuid={} module={} callback={}; "
+                        + "world and engine remain active; recovery=module change",
+                entityId, uuid, moduleId, callback, failure);
+
+        callOnError(sc.instance, failure);
+        sc.instance = null;
+    }
+
+    private void ensureStarted(
+            ScriptRuntime rt,
+            String uuid,
+            int entityId,
+            ScriptComponent sc,
+            String moduleId,
+            long version
+    ) {
+        boolean needsStart = (sc.instance == null) || (sc.moduleVersion != version);
         if (!needsStart) return;
 
         Object prevState = sc.stateCapsule;
@@ -331,57 +398,62 @@ public final class ScriptSystem implements KSystem, HotReloadableSystem {
                 Object state = snapshotState(sc.instance);
                 if (state != null) prevState = state;
                 if (sc.instance.hasMember("onStop")) {
-                    callIfExists(sc.instance, "onStop", "reload");
+                    callLifecycleIfExists(sc.instance, "onStop", "reload");
                 } else {
-                    callIfExists(sc.instance, "destroy");
+                    callLifecycleIfExists(sc.instance, "destroy");
                 }
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("Script destroy (reload) failed entityId={} uuid={}", entityId, uuid, t);
                 callOnError(sc.instance, t);
             }
             sc.instance = null;
         }
 
-        Value exports;
+        LuaValueRef moduleValue;
         try {
-            exports = rt.require(moduleId);
+            moduleValue = rt.require(moduleId);
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             throw new IllegalStateException("runtime.require failed for moduleId=" + moduleId, t);
         }
 
-        Value instance;
+        LuaValueRef instance;
         try {
-            instance = createInstance(exports);
+            instance = createInstance(moduleValue);
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             throw new IllegalStateException("createInstance failed for moduleId=" + moduleId, t);
         }
 
         sc.instance = instance;
-        sc.moduleVersion = v;
+        sc.moduleVersion = version;
 
         EntityScriptAPI api = new EntityScriptAPI(uuid, ecs, bus);
         try {
             Object onLoadState = null;
             if (sc.instance.hasMember("onLoad")) {
-                onLoadState = callForState(sc.instance, "onLoad", api);
+                onLoadState = callLifecycleForState(sc.instance, "onLoad", api);
             } else if (sc.instance.hasMember("init")) {
-                callIfExists(sc.instance, "init", api);
+                callLifecycleIfExists(sc.instance, "init", api);
             }
 
             if (onLoadState != null) sc.stateCapsule = onLoadState;
             if (prevState != null && sc.instance.hasMember("onReload")) {
-                Object reloaded = callForState(sc.instance, "onReload", prevState);
+                Object reloaded = callLifecycleForState(sc.instance, "onReload", prevState);
                 if (reloaded != null) sc.stateCapsule = reloaded;
             } else if (prevState != null) {
                 sc.stateCapsule = prevState;
             }
 
             if (sc.instance.hasMember("onStart")) {
-                callIfExists(sc.instance, "onStart");
+                callLifecycleIfExists(sc.instance, "onStart");
             }
-        } catch (Throwable t) {
-            log.error("Script init failed entityId={} uuid={} moduleId={}", entityId, uuid, moduleId, t);
-            callOnError(sc.instance, t);
+        } catch (Throwable failure) {
+            throw new IllegalStateException(
+                    "Lua lifecycle failed entityId=" + entityId + " uuid=" + uuid
+                            + " moduleId=" + moduleId,
+                    failure);
         }
     }
 }

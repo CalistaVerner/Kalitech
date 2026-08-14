@@ -4,33 +4,33 @@ package org.foxesworld.kalitech.engine.api.interfaces;
 
 import com.jme3.material.Material;
 import org.foxesworld.kalitech.engine.api.types.MaterialHandle;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface MaterialApi {
 
-    // JS-visible
+    // Lua-visible
 
-    @HostAccess.Export
-    MaterialHandle create(Value cfg);
+    @LuaExport
+    MaterialHandle create(LuaValueRef cfg);
 
-    @HostAccess.Export
-    int createId(Value cfg);
+    @LuaExport
+    int createId(LuaValueRef cfg);
 
-    @HostAccess.Export
+    @LuaExport
     MaterialHandle getById(int id);
 
-    @HostAccess.Export
+    @LuaExport
     void destroy(MaterialHandle handle);
 
-    @HostAccess.Export
+    @LuaExport
     void destroyById(int id);
 
-    @HostAccess.Export
-    void set(MaterialHandle handle, Value params);
+    @LuaExport
+    void set(MaterialHandle handle, LuaValueRef params);
 
-    @HostAccess.Export
-    void setById(int id, Value params);
+    @LuaExport
+    void setById(int id, LuaValueRef params);
 
     // Java-only (engine-internal)
     Material material(MaterialHandle handle);

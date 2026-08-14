@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.core.KalitechPlatform;
 import org.foxesworld.kalitech.core.KalitechVersion;
 import org.foxesworld.kalitech.engine.asset.InputTextLoader;
-import org.foxesworld.kalitech.engine.asset.JsTextLoader;
+import org.foxesworld.kalitech.engine.asset.LuaTextLoader;
 
 import java.nio.file.Path;
 
@@ -19,6 +19,8 @@ public class KalitechApplication extends SimpleApplication {
 
     private static final Logger log = LogManager.getLogger(KalitechApplication.class);
     private String version, os, java, assetsDir;
+    private final float smokeExitAfterSeconds = positiveFloatProperty("kalitech.smokeExitAfterSeconds");
+    private float runtimeSeconds;
 
     @Override
     public void simpleInitApp() {
@@ -32,7 +34,7 @@ public class KalitechApplication extends SimpleApplication {
 
         assetManager.registerLocator(assetsDir, com.jme3.asset.plugins.FileLocator.class);
         assetManager.registerLoader(InputTextLoader.class, "json", "html", "css");
-        assetManager.registerLoader(JsTextLoader.class, "js", "mjs");
+        assetManager.registerLoader(LuaTextLoader.class, "lua");
         GuiGlobals.initialize(this);
         BaseStyles.loadGlassStyle();
         GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
@@ -46,12 +48,31 @@ public class KalitechApplication extends SimpleApplication {
         stateManager.detach(stateManager.getState(FlyCamAppState.class));
 
         stateManager.attach(new org.foxesworld.kalitech.engine.app.RuntimeAppState(
-                "Scripts/main.js",
+                "Scripts/main.lua",
                 Path.of(assetsDir),
                 ecs,
                 bus
         ));
 
+    }
+
+    @Override
+    public void simpleUpdate(float tpf) {
+        if (smokeExitAfterSeconds <= 0f) return;
+        runtimeSeconds += Math.max(0f, tpf);
+        if (runtimeSeconds >= smokeExitAfterSeconds) {
+            log.info("[Smoke] runtime remained active for {} seconds; stopping test instance",
+                    smokeExitAfterSeconds);
+            stop();
+        }
+    }
+
+    private static float positiveFloatProperty(String name) {
+        try {
+            return Math.max(0f, Float.parseFloat(System.getProperty(name, "0").trim()));
+        } catch (RuntimeException ignored) {
+            return 0f;
+        }
     }
 
     public String getVersion() {
@@ -65,8 +86,11 @@ public class KalitechApplication extends SimpleApplication {
     }
 
     @Override
-    public void handleError(String errMsg, Throwable t) {
-        t.printStackTrace();
+    public void handleError(String errMsg, Throwable failure) {
+        log.error("[Engine] fatal application error: {}", errMsg, failure);
         stop();
+        if (smokeExitAfterSeconds > 0f) {
+            System.exit(2);
+        }
     }
 }

@@ -1,7 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/PhysicsRayHit.java
 package org.foxesworld.kalitech.engine.api.interfaces.physics;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 @SuppressWarnings("unused")
 public final class PhysicsRayHit {
@@ -20,12 +20,12 @@ public final class PhysicsRayHit {
         this.hitNormal = hitNormal;
     }
 
-    /** Tiny vec class JS-friendly (plain fields). */
+    /** Tiny vec class Lua-friendly (plain fields). */
     public static final class Vec3 {
         public final float x, y, z;
         public Vec3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
-        @HostAccess.Export public float x() { return x; }
-        @HostAccess.Export public float y() { return y; }
-        @HostAccess.Export public float z() { return z; }
+        @LuaExport public float x() { return x; }
+        @LuaExport public float y() { return y; }
+        @LuaExport public float z() { return z; }
     }
 }

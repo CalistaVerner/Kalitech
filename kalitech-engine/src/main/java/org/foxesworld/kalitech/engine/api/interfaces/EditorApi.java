@@ -1,7 +1,7 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/EditorApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
  * Editor API for runtime developer affordances (debug camera, stats overlays).
@@ -9,17 +9,17 @@ import org.graalvm.polyglot.HostAccess;
 public interface EditorApi {
 
     /** Returns true when editor helpers are enabled. */
-    @HostAccess.Export boolean enabled();
+    @LuaExport boolean enabled();
 
     /** Enables or disables editor helpers. */
-    @HostAccess.Export void setEnabled(boolean enabled);
+    @LuaExport void setEnabled(boolean enabled);
 
     /** Toggles editor helpers. */
-    @HostAccess.Export void toggle();
+    @LuaExport void toggle();
 
     /** Enables or disables free-flight camera controls. */
-    @HostAccess.Export void setFlyCam(boolean enabled);
+    @LuaExport void setFlyCam(boolean enabled);
 
     /** Enables or disables the stats overlay. */
-    @HostAccess.Export void setStatsView(boolean enabled);
+    @LuaExport void setStatsView(boolean enabled);
 }

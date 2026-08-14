@@ -31,6 +31,42 @@ subprojects {
 ext {
     jmeVersion   = '3.8.1-stable'
     log4jVersion = '2.25.3'
-    graalVersion = '25.0.1'
+    luaJVersion  = '3.0.1'
     junitBom     = '6.0.1'
+}
+
+def moduleJarTargets = [
+        ':CameraModule'   : 'CameraModule-1.0.0-SNAPSHOT.jar',
+        ':HudModule'      : 'HudModule-1.0.0-SNAPSHOT.jar',
+        ':InputModule'    : 'InputModule-1.0-SNAPSHOT.jar',
+        ':MaterialModule' : 'MaterialModule-1.1.0-SNAPSHOT.jar',
+        ':ParticlesModule': 'ParticlesModule-1.0.0-SNAPSHOT.jar',
+        ':PhysicsModule'  : 'PhysicsModule-1.2.0-SNAPSHOT.jar',
+        ':RenderModule'   : 'RenderModule-1.0.0-SNAPSHOT.jar',
+        ':SoundModule'    : 'SoundModule-1.0.0-SNAPSHOT.jar',
+        ':TerrainModule'  : 'TerrainModule-1.0.0-SNAPSHOT.jar'
+]
+
+tasks.register('syncModuleJars') {
+    def jarTasks = moduleJarTargets.collectEntries { projectPath, targetName ->
+        [(projectPath): project(projectPath).tasks.named('jar')]
+    }
+
+    dependsOn jarTasks.values()
+    inputs.files(jarTasks.values().collect { it.flatMap { task -> task.archiveFile } })
+    outputs.files(moduleJarTargets.values().collect { file('modules/' + it) })
+
+    doLast {
+        moduleJarTargets.each { projectPath, targetName ->
+            copy {
+                from jarTasks[projectPath].get().archiveFile
+                into layout.projectDirectory.dir('modules')
+                rename { targetName }
+            }
+        }
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('syncModuleJars')
 }

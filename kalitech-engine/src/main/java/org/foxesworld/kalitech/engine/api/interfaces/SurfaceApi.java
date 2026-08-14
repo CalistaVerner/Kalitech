@@ -1,11 +1,11 @@
 // FILE: org/foxesworld/kalitech/engine/api/interfaces/SurfaceApi.java
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 /**
- * Surface API (NO legacy).
+ * Surface API.
  *
  * Contract:
  * - API accepts ONLY SurfaceHandle (no raw ids, no "Object target", no coercion).
@@ -18,64 +18,64 @@ public interface SurfaceApi {
     // Core surface operations (handle-scoped)
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     void setMaterial(SurfaceHandle target, Object materialHandleOrCfg);
 
-    @HostAccess.Export
+    @LuaExport
     void applyMaterialToChildren(SurfaceHandle target, Object materialHandle);
 
-    @HostAccess.Export
-    void setTransform(SurfaceHandle target, Value cfg);
+    @LuaExport
+    void setTransform(SurfaceHandle target, LuaValueRef cfg);
 
-    @HostAccess.Export
+    @LuaExport
     void setShadowMode(SurfaceHandle target, String mode); // Off|Receive|Cast|CastAndReceive
 
-    @HostAccess.Export
+    @LuaExport
     void attachToRoot(SurfaceHandle target);
 
-    @HostAccess.Export
+    @LuaExport
     void detach(SurfaceHandle target);
 
-    @HostAccess.Export
+    @LuaExport
     void destroy(SurfaceHandle target);
 
-    @HostAccess.Export
+    @LuaExport
     boolean exists(SurfaceHandle target);
 
-    @HostAccess.Export
+    @LuaExport
     void setCull(SurfaceHandle target, String hint);
 
-    @HostAccess.Export
+    @LuaExport
     int attachedBody(int surfaceId);
 
-    @HostAccess.Export
+    @LuaExport
     void setVisible(SurfaceHandle target, boolean visible);
 
     // ------------------------------------------------------------
     // Bounds / picking (handle-scoped)
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     WorldBounds getWorldBounds(SurfaceHandle target);
 
-    @HostAccess.Export
-    Hit[] raycast(SurfaceHandle target, Value cfg);
+    @LuaExport
+    Hit[] raycast(SurfaceHandle target, LuaValueRef cfg);
 
-    @HostAccess.Export
+    @LuaExport
     Hit[] pickUnderCursor(SurfaceHandle target);
 
-    @HostAccess.Export
-    Hit[] pickUnderCursorCfg(SurfaceHandle target, Value cfg);
+    @LuaExport
+    Hit[] pickUnderCursorCfg(SurfaceHandle target, LuaValueRef cfg);
 
     // ------------------------------------------------------------
     // World picking (API-scoped)
     // ------------------------------------------------------------
 
-    @HostAccess.Export
+    @LuaExport
     Hit[] pickUnderCursor();
 
-    @HostAccess.Export
-    Hit[] pickUnderCursorCfg(Value cfg);
+    @LuaExport
+    Hit[] pickUnderCursorCfg(LuaValueRef cfg);
 
     // ------------------------------------------------------------
     // UUID-only entity binding
@@ -85,24 +85,24 @@ public interface SurfaceApi {
      * Attach a surface to entity UUID.
      * (Public UUID-only contract. No entityId accepted.)
      */
-    @HostAccess.Export
+    @LuaExport
     void attachEntity(SurfaceHandle target, Object entityUuid);
 
     /**
      * Detach mapping by surface handle (if any).
      * Kept name for scripts: "detachFromEntity".
      */
-    @HostAccess.Export
+    @LuaExport
     void detachFromEntity(SurfaceHandle target);
 
     /**
      * Get attached entity UUID, or empty string if none.
      */
-    @HostAccess.Export
+    @LuaExport
     String attachedEntityUuid(SurfaceHandle target);
 
     // ------------------------------------------------------------
-    // Host-safe DTOs for JS
+    // Host-safe DTOs for Lua
     // ------------------------------------------------------------
 
     final class SurfaceHandle {
@@ -118,76 +118,76 @@ public interface SurfaceApi {
             this.api = api;
         }
 
-        @HostAccess.Export public int id() { return id; }
-        @HostAccess.Export public String kind() { return kind; }
+        @LuaExport public int id() { return id; }
+        @LuaExport public String kind() { return kind; }
 
         // -------------------------
         // Fluent methods
         // -------------------------
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle setMaterial(Object materialHandleOrCfg) {
             requireApi("setMaterial");
             api.setMaterial(this, materialHandleOrCfg);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle applyMaterialToChildren(Object materialHandle) {
             requireApi("applyMaterialToChildren");
             api.applyMaterialToChildren(this, materialHandle);
             return this;
         }
 
-        @HostAccess.Export
-        public SurfaceHandle setTransform(Value cfg) {
+        @LuaExport
+        public SurfaceHandle setTransform(LuaValueRef cfg) {
             requireApi("setTransform");
             api.setTransform(this, cfg);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle setShadowMode(String mode) {
             requireApi("setShadowMode");
             api.setShadowMode(this, mode);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle attachToRoot() {
             requireApi("attachToRoot");
             api.attachToRoot(this);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle detach() {
             requireApi("detach");
             api.detach(this);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle destroy() {
             requireApi("destroy");
             api.destroy(this);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public boolean exists() {
             requireApi("exists");
             return api.exists(this);
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle setCull(String hint) {
             requireApi("setCull");
             api.setCull(this, hint);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle setVisible(boolean visible) {
             requireApi("setVisible");
             api.setVisible(this, visible);
@@ -198,20 +198,20 @@ public interface SurfaceApi {
         // UUID-only entity binding (fluent)
         // -------------------------
 
-        @HostAccess.Export
+        @LuaExport
         public String attachedEntityUuid() {
             requireApi("attachedEntityUuid");
             return api.attachedEntityUuid(this);
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle attachEntity(Object entityUuid) {
             requireApi("attachEntity");
             api.attachEntity(this, entityUuid);
             return this;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public SurfaceHandle detachFromEntity() {
             requireApi("detachFromEntity");
             api.detachFromEntity(this);
@@ -222,26 +222,26 @@ public interface SurfaceApi {
         // Bounds / picking (handle-scoped)
         // -------------------------
 
-        @HostAccess.Export
+        @LuaExport
         public WorldBounds getWorldBounds() {
             requireApi("getWorldBounds");
             return api.getWorldBounds(this);
         }
 
-        @HostAccess.Export
-        public Hit[] raycast(Value cfg) {
+        @LuaExport
+        public Hit[] raycast(LuaValueRef cfg) {
             requireApi("raycast");
             return api.raycast(this, cfg);
         }
 
-        @HostAccess.Export
+        @LuaExport
         public Hit[] pickUnderCursor() {
             requireApi("pickUnderCursor");
             return api.pickUnderCursor(this);
         }
 
-        @HostAccess.Export
-        public Hit[] pickUnderCursorCfg(Value cfg) {
+        @LuaExport
+        public Hit[] pickUnderCursorCfg(LuaValueRef cfg) {
             requireApi("pickUnderCursorCfg");
             return api.pickUnderCursorCfg(this, cfg);
         }
@@ -261,10 +261,10 @@ public interface SurfaceApi {
     }
 
     final class WorldBounds {
-        @HostAccess.Export public final String type; // "box" | "sphere" | "none" | "other"
-        @HostAccess.Export public final float cx, cy, cz;
-        @HostAccess.Export public final float ex, ey, ez; // extents (box)
-        @HostAccess.Export public final float radius;     // sphere
+        @LuaExport public final String type; // "box" | "sphere" | "none" | "other"
+        @LuaExport public final float cx, cy, cz;
+        @LuaExport public final float ex, ey, ez; // extents (box)
+        @LuaExport public final float radius;     // sphere
 
         public WorldBounds(String type, float cx, float cy, float cz,
                            float ex, float ey, float ez, float radius) {
@@ -276,10 +276,10 @@ public interface SurfaceApi {
     }
 
     final class Hit {
-        @HostAccess.Export public final String geometry; // name
-        @HostAccess.Export public final float distance;
-        @HostAccess.Export public final float px, py, pz; // contact point
-        @HostAccess.Export public final float nx, ny, nz; // contact normal
+        @LuaExport public final String geometry; // name
+        @LuaExport public final float distance;
+        @LuaExport public final float px, py, pz; // contact point
+        @LuaExport public final float nx, ny, nz; // contact normal
 
         public Hit(String geometry, float distance,
                    float px, float py, float pz,

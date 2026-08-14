@@ -9,16 +9,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.jobs.ScriptJobQueue;
 import org.foxesworld.kalitech.engine.world.HotReloadHub;
 import org.foxesworld.kalitech.engine.world.WorldTime;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Universal execution context for systems and app scripts.
@@ -28,18 +30,18 @@ public final class SystemContext {
 
     private static final Logger FALLBACK_LOG = LogManager.getLogger(SystemContext.class);
 
-    @HostAccess.Export public final EngineDomain engine;
-    @HostAccess.Export
+    @LuaExport public final EngineDomain engine;
+    @LuaExport
     public final WorldDomain world;
-    @HostAccess.Export
+    @LuaExport
     public final TimeDomain time;
-    @HostAccess.Export
+    @LuaExport
     public final RenderDomain render;
-    @HostAccess.Export
+    @LuaExport
     public final StateDomain stateDomain;
-    @HostAccess.Export
+    @LuaExport
     public final PerfDomain perfDomain;
-    @HostAccess.Export
+    @LuaExport
     public final HotReloadDomain hotReloadDomain;
 
     private final SimpleApplication app;
@@ -171,38 +173,38 @@ public final class SystemContext {
         return hotReloadHub;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public ScriptJobQueue jobs() {
         ScriptRuntime rt = runtime();
         return (rt != null) ? rt.jobs() : null;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public long nowNanos() {
         return System.nanoTime();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public boolean isWorldThread() {
         return perfProvider != null && perfProvider.isWorldThread();
     }
 
-    @HostAccess.Export
+    @LuaExport
     public boolean has(String key) {
         return stateDomain.has(key);
     }
 
-    @HostAccess.Export public PerfDomain perf() { return perfDomain; }
-    @HostAccess.Export public StateDomain state() { return stateDomain; }
+    @LuaExport public PerfDomain perf() { return perfDomain; }
+    @LuaExport public StateDomain state() { return stateDomain; }
 
-    @HostAccess.Export
+    @LuaExport
     public HotReloadDomain hotReload() {
         return hotReloadDomain;
     }
 
-    @HostAccess.Export public void put(String key, Object value) { stateDomain.set(key, value); }
-    @HostAccess.Export public Object get(String key) { return stateDomain.get(key); }
-    @HostAccess.Export public Object remove(String key) { return stateDomain.remove(key); }
+    @LuaExport public void put(String key, Object value) { stateDomain.set(key, value); }
+    @LuaExport public Object get(String key) { return stateDomain.get(key); }
+    @LuaExport public Object remove(String key) { return stateDomain.remove(key); }
 
     public interface RuntimeProvider {
         ScriptRuntime runtime(String profile);
@@ -261,7 +263,7 @@ public final class SystemContext {
     public static final class EngineDomain {
         private final EngineApi api;
         EngineDomain(EngineApi api) { this.api = api; }
-        @HostAccess.Export public EngineApi api() { return api; }
+        @LuaExport public EngineApi api() { return api; }
     }
 
     public static final class WorldDomain {
@@ -275,17 +277,18 @@ public final class SystemContext {
             this.log = (log != null) ? log : FALLBACK_LOG;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void emit(String name, Object payload) {
             if (events == null) return;
             try {
                 events.emit(name, payload);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[WorldDomain] emit failed: {}", name, t);
             }
         }
 
-        @HostAccess.Export
+        @LuaExport
         public EcsWorld ecs() { return ecs; }
     }
 
@@ -296,84 +299,84 @@ public final class SystemContext {
             this.time = time;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public boolean available() {
             return time != null;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double now() {
             return (time != null) ? time.worldTimeSec() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double rate() {
             return (time != null) ? time.timeRate() : 1.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public boolean paused() {
             return time != null && time.paused();
         }
 
-        @HostAccess.Export
+        @LuaExport
         public Double fixedStepSec() {
             return (time != null) ? time.fixedStepSec() : null;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public Double maxDeltaSec() {
             return (time != null) ? time.maxDeltaSec() : null;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double accumulatorSec() {
             return (time != null) ? time.accumulatorSec() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public long frameIndex() {
             return (time != null) ? time.frameIndex() : 0L;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public long tickIndex() {
             return (time != null) ? time.tickIndex() : 0L;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double realDtSec() {
             return (time != null) ? time.lastRealDtSec() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double simDtSec() {
             return (time != null) ? time.lastSimDtSec() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double stepDtSec() {
             return (time != null) ? time.lastStepDtSec() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public double interpAlpha() {
             return (time != null) ? time.interpolationAlpha() : 0.0;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void setRate(double rate) {
             if (time == null) return;
             time.setTimeRate(rate);
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void setPaused(boolean paused) {
             if (time == null) return;
             time.setPaused(paused);
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void seek(double worldTimeSec) {
             if (time == null) return;
             time.seek(worldTimeSec);
@@ -383,7 +386,7 @@ public final class SystemContext {
     public static final class RenderDomain {
         private final EngineApi api;
         RenderDomain(EngineApi api) { this.api = api; }
-        @HostAccess.Export public EngineApi api() { return api; }
+        @LuaExport public EngineApi api() { return api; }
     }
 
     public static final class StateDomain {
@@ -393,16 +396,16 @@ public final class SystemContext {
             this.map = Objects.requireNonNull(map, "map");
         }
 
-        @HostAccess.Export
+        @LuaExport
         public Object set(String key, Object value) {
             if (key == null) return null;
             return map.put(normKey(key), value);
         }
 
-        @HostAccess.Export public Object get(String key) { return map.get(normKey(key)); }
-        @HostAccess.Export public boolean has(String key) { return map.containsKey(normKey(key)); }
-        @HostAccess.Export public Object remove(String key) { return map.remove(normKey(key)); }
-        @HostAccess.Export public void clear() { map.clear(); }
+        @LuaExport public Object get(String key) { return map.get(normKey(key)); }
+        @LuaExport public boolean has(String key) { return map.containsKey(normKey(key)); }
+        @LuaExport public Object remove(String key) { return map.remove(normKey(key)); }
+        @LuaExport public void clear() { map.clear(); }
 
         private static String normKey(String key) {
             String k = (key == null) ? "" : key.trim();
@@ -421,52 +424,56 @@ public final class SystemContext {
             this.log = (log != null) ? log : FALLBACK_LOG;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public FrameStats frame() {
             return (perf != null) ? perf.getLastFrameStats() : null;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public WorkerSystemStats[] workers() {
             return (perf != null) ? perf.getWorkerStatsSnapshot() : EMPTY_WORKERS;
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void dump() {
             if (perf == null) return;
             try {
                 perf.dumpPerfSnapshotToLog();
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[PerfDomain] dump failed", t);
             }
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void targetFps(int fps) {
             if (perf == null) return;
             try {
                 perf.setTargetFps(fps);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[PerfDomain] targetFps failed: fps={}", fps, t);
             }
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void workerLogEverySeconds(int sec) {
             if (perf == null) return;
             try {
                 perf.setStatsLogEverySeconds(sec);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[PerfDomain] workerLogEverySeconds failed: sec={}", sec, t);
             }
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void frameLogEverySeconds(int sec) {
             if (perf == null) return;
             try {
                 perf.setFrameOverBudgetLogEverySeconds(sec);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[PerfDomain] frameLogEverySeconds failed: sec={}", sec, t);
             }
         }
@@ -482,41 +489,48 @@ public final class SystemContext {
         }
 
         /**
-         * Register a JS hook: fn(reason)
+         * Register a Lua hook: fn(reason)
          *
          * @param fn callback
          */
-        @HostAccess.Export
-        public void register(Value fn) {
+        @LuaExport
+        public void register(LuaValueRef fn) {
             if (fn == null || !fn.canExecute()) return;
+            AtomicBoolean active = new AtomicBoolean(true);
             hub.register(reason -> {
+                if (!active.get()) return;
                 try {
                     fn.execute(reason);
-                } catch (Throwable t) {
-                    log.error("[HotReloadDomain] callback failed: reason={}", reason, t);
+                } catch (Throwable failure) {
+                    ScriptFailureBoundary.rethrowIfFatal(failure);
+                    active.set(false);
+                    log.error("[HotReloadDomain] Lua callback quarantined reason={}; "
+                            + "reload hub and engine remain active", reason, failure);
                 }
             });
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void fire(String reason) {
             try {
                 hub.fire(reason);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[HotReloadDomain] fire failed: reason={}", reason, t);
             }
         }
 
-        @HostAccess.Export
+        @LuaExport
         public int size() {
             return hub.size();
         }
 
-        @HostAccess.Export
+        @LuaExport
         public void clear() {
             try {
                 hub.clear();
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[HotReloadDomain] clear failed", t);
             }
         }

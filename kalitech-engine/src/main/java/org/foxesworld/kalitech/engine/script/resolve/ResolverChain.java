@@ -17,7 +17,7 @@ public final class ResolverChain {
     }
 
     /**
-     * Returns canonical base id (normalized), without applying "index.js / .js" expansion.
+     * Returns canonical base id (normalized), without applying "index.lua / .lua" expansion.
      */
     public String resolveOrThrow(String parentModuleId, String request) {
         String req = request == null ? "" : request.trim();
@@ -33,7 +33,7 @@ public final class ResolverChain {
     /**
      * Returns candidate ids in strict order:
      * - if resolved has extension -> [resolved]
-     * - else -> [resolved/index.js, resolved.js]
+     * - else -> [resolved/index.lua, resolved.lua]
      * <p>
      * Existence check is done by runtime (I/O layer).
      */

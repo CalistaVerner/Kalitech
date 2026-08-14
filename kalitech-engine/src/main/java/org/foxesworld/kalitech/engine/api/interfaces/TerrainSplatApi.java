@@ -1,7 +1,7 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface TerrainSplatApi {
 
@@ -14,12 +14,12 @@ public interface TerrainSplatApi {
      *    material: <MaterialHandle> (optional; if omitted, will create TerrainLighting material)
      *  }
      */
-    @HostAccess.Export
-    void apply(SurfaceApi.SurfaceHandle terrainHandle, Value cfg);
+    @LuaExport
+    void apply(SurfaceApi.SurfaceHandle terrainHandle, LuaValueRef cfg);
 
     /**
      * Convenience: create TerrainLighting.j3md configured for splat.
      */
-    @HostAccess.Export
-    Object createMaterial(Value cfg);
+    @LuaExport
+    Object createMaterial(LuaValueRef cfg);
 }

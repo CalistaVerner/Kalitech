@@ -1,6 +1,8 @@
 // FILE: org/foxesworld/kalitech/engine/world/HotReloadHub.java
 package org.foxesworld.kalitech.engine.world;
 
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,7 +28,8 @@ public final class HotReloadHub {
         for (int i = 0; i < hooks.size(); i++) {
             try {
                 hooks.get(i).run(why);
-            } catch (Throwable ignored) {
+            } catch (Throwable failure) {
+                ScriptFailureBoundary.rethrowIfFatal(failure);
             }
         }
     }

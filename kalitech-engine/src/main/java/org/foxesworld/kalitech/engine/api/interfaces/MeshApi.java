@@ -1,11 +1,11 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 /**
- * JS-first mesh constructor.
+ * Lua-first mesh constructor.
  *
  * <pre>
  * engine.mesh().create({
@@ -20,6 +20,6 @@ import org.graalvm.polyglot.Value;
  * </pre>
  */
 public interface MeshApi {
-    @HostAccess.Export
-    SurfaceApi.SurfaceHandle create(Value cfg);
+    @LuaExport
+    SurfaceApi.SurfaceHandle create(LuaValueRef cfg);
 }

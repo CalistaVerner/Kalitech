@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.List;
 
 /**
- * ICOParser — современный, максимально совместимый парсер .ico для десктоп-иконок.
+ * ICOParser — строгий современный парсер .ico для десктоп-иконок.
  *
  * <p>Цели:
  * <ul>
@@ -88,14 +88,6 @@ public class ICOParser extends ByteParser<BufferedImage[]> {
     }
 
     /**
-     * Back-compat helper: returns List instead of array.
-     */
-    public List<BufferedImage> parseList(InputStream in) throws IOException {
-        BufferedImage[] arr = parse(in);
-        return Arrays.asList(arr);
-    }
-
-    /**
      * Load best window icons for engines like jME (AppSettings.setIcons(BufferedImage[])).
      *
      * <p>Resolver order:
@@ -141,8 +133,7 @@ public class ICOParser extends ByteParser<BufferedImage[]> {
     }
 
     /**
-     * Compatibility helper for old usage:
-     * icoParser.getBestIcon(icoParser.parse(stream))
+     * Selects the best general-purpose application icon.
      */
     public BufferedImage getBestIcon(BufferedImage[] icons) {
         if (icons == null || icons.length == 0) return null;
@@ -153,14 +144,6 @@ public class ICOParser extends ByteParser<BufferedImage[]> {
         best = getBestMatchingIcon(icons, 128, 128);
         if (best != null) return best;
         return getHighestQualityIcon(icons);
-    }
-
-    /**
-     * Back-compat overload (List).
-     */
-    public BufferedImage getBestIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
-        return getBestIcon(icons.toArray(BufferedImage[]::new));
     }
 
     /**
@@ -179,14 +162,6 @@ public class ICOParser extends ByteParser<BufferedImage[]> {
         }
 
         return uniq.values().toArray(BufferedImage[]::new);
-    }
-
-    /**
-     * Back-compat overload (List).
-     */
-    public BufferedImage[] pickBestIcons(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return new BufferedImage[0];
-        return pickBestIcons(icons.toArray(BufferedImage[]::new));
     }
 
     /**
@@ -640,27 +615,6 @@ public class ICOParser extends ByteParser<BufferedImage[]> {
             }
         }
         return best;
-    }
-
-    // Back-compat overloads for List (optional)
-    public BufferedImage getIconExactSize(List<BufferedImage> icons, int width, int height) {
-        if (icons == null || icons.isEmpty()) return null;
-        return getIconExactSize(icons.toArray(BufferedImage[]::new), width, height);
-    }
-
-    public BufferedImage getBestMatchingIcon(List<BufferedImage> icons, int width, int height) {
-        if (icons == null || icons.isEmpty()) return null;
-        return getBestMatchingIcon(icons.toArray(BufferedImage[]::new), width, height);
-    }
-
-    public BufferedImage getHighestQualityIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
-        return getHighestQualityIcon(icons.toArray(BufferedImage[]::new));
-    }
-
-    public BufferedImage getLargestIcon(List<BufferedImage> icons) {
-        if (icons == null || icons.isEmpty()) return null;
-        return getLargestIcon(icons.toArray(BufferedImage[]::new));
     }
 
     private static int getEffectiveBitDepth(BufferedImage image) {

@@ -4,7 +4,7 @@ package org.foxesworld.kalitech.engine.world;
 /**
  * WorldBuilder
  *
- * Builds a {@link KWorld} from a JS/Polyglot world description object.
+ * Builds a {@link KWorld} from a Lua world description object.
  * Resolves system IDs via {@link SystemRegistry}, sorts by "order", and registers systems into the world
  * using the world’s explicit ordering API (no implicit add).
  *
@@ -21,7 +21,7 @@ import org.foxesworld.kalitech.engine.world.systems.SystemContext;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemDescriptor;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemRegistry;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemType;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.*;
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.*;
 
 public final class WorldBuilder {
 
@@ -43,8 +43,8 @@ public final class WorldBuilder {
         this.registry = Objects.requireNonNull(registry, "registry");
     }
 
-    private static WorldTimeParams parseWorldTimeParams(Value worldDesc) {
-        Value t = member(worldDesc, "time");
+    private static WorldTimeParams parseWorldTimeParams(LuaValueRef worldDesc) {
+        LuaValueRef t = member(worldDesc, "time");
         if (t == null || t.isNull()) return WorldTimeParams.defaults();
 
         double worldTime = num(t, "worldTime", 0.0);
@@ -52,14 +52,14 @@ public final class WorldBuilder {
         boolean paused = bool(t, "paused", false);
 
         Double fixedStep = null;
-        Value fs = member(t, "fixedStep");
+        LuaValueRef fs = member(t, "fixedStep");
         if (fs != null && !fs.isNull()) {
             double v = fs.fitsInDouble() ? fs.asDouble() : num(t, "fixedStep", 0.0);
             if (Double.isFinite(v) && v > 0.0) fixedStep = v;
         }
 
         Double maxDelta = null;
-        Value md = member(t, "maxDelta");
+        LuaValueRef md = member(t, "maxDelta");
         if (md != null && !md.isNull()) {
             double v = md.fitsInDouble() ? md.asDouble() : num(t, "maxDelta", 0.0);
             if (Double.isFinite(v) && v > 0.0) maxDelta = v;
@@ -68,7 +68,7 @@ public final class WorldBuilder {
         return new WorldTimeParams(worldTime, timeRate, paused, fixedStep, maxDelta);
     }
 
-    public KWorld buildFromWorldDesc(SystemContext ctx, Value worldDesc) {
+    public KWorld buildFromWorldDesc(SystemContext ctx, LuaValueRef worldDesc) {
         Objects.requireNonNull(ctx, "ctx");
         Objects.requireNonNull(worldDesc, "worldDesc");
 
@@ -77,7 +77,7 @@ public final class WorldBuilder {
         WorldTimeParams time = parseWorldTimeParams(worldDesc);
         KWorld world = new KWorld(name, time);
 
-        Value systems = member(worldDesc, "systems");
+        LuaValueRef systems = member(worldDesc, "systems");
         if (systems == null || !systems.hasArrayElements()) {
             log.warn("WorldBuilder: worldDesc.systems missing or not an array (world='{}')", name);
             return world;
@@ -94,7 +94,7 @@ public final class WorldBuilder {
 
         Set<String> seenIds = new java.util.HashSet<>();
         for (long i = 0; i < n; i++) {
-            Value s = systems.getArrayElement(i);
+            LuaValueRef s = systems.getArrayElement(i);
             if (s == null || s.isNull()) continue;
 
             String id = str(s, "id", null);
@@ -106,7 +106,7 @@ public final class WorldBuilder {
             }
 
             int order = (int) num(s, "order", 0);
-            Value config = member(s, "config");
+            LuaValueRef config = member(s, "config");
             defs.add(new SystemDef(id, order, config));
         }
 
@@ -153,9 +153,9 @@ public final class WorldBuilder {
     private static final class SystemDef {
         final String id;
         final int order;
-        final Value config;
+        final LuaValueRef config;
 
-        SystemDef(String id, int order, Value config) {
+        SystemDef(String id, int order, LuaValueRef config) {
             this.id = id;
             this.order = order;
             this.config = config;

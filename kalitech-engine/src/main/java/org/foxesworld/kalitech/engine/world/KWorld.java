@@ -3,6 +3,7 @@
 package org.foxesworld.kalitech.engine.world;
 
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.world.systems.*;
 
 import java.util.ArrayList;
@@ -68,6 +69,7 @@ public final class KWorld {
             try {
                 m = sys.threadMode();
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 continue;
             }
 
@@ -82,6 +84,7 @@ public final class KWorld {
             try {
                 sys.onStart(ctx);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] system onStart failed: {}", name, sys, t);
             }
         }
@@ -92,6 +95,7 @@ public final class KWorld {
                 if (sch != null) sch.ensureStarted(sys, ctx);
                 else sys.onStart(ctx);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] worker start failed: {}", name, sys, t);
             }
         }
@@ -170,6 +174,7 @@ public final class KWorld {
             if (budgetNanos > 0L) sch.awaitBudgetNanos(budgetNanos);
             else sch.awaitDefaultBudget();
         } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
             ctx.log().warn("[world:{}] scheduler await failed: {}", name, t.toString());
         }
     }
@@ -179,6 +184,7 @@ public final class KWorld {
             try {
                 sys.onUpdate(ctx, tpfSim);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] system onUpdate failed: {}", name, sys, t);
             }
         }
@@ -189,6 +195,7 @@ public final class KWorld {
                 if (sch != null) sch.submitUpdate(sys, ctx, tpfSim);
                 else sys.onUpdate(ctx, tpfSim);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] worker update failed: {}", name, sys, t);
             }
         }
@@ -198,6 +205,7 @@ public final class KWorld {
         try {
             if (ctx.events() != null) ctx.events().pump();
         } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
             ctx.log().warn("[world:{}] events.pump failed: {}", name, t.toString());
         }
     }
@@ -212,6 +220,7 @@ public final class KWorld {
                 if (sch != null) sch.stopSystem(sys);
                 else sys.onStop(ctx);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] worker stop failed: {}", name, sys, t);
             }
         }
@@ -220,6 +229,7 @@ public final class KWorld {
             try {
                 sys.onStop(ctx);
             } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
                 ctx.log().error("[world:{}] system onStop failed: {}", name, sys, t);
             }
         }
@@ -236,6 +246,7 @@ public final class KWorld {
         try {
             ctx.hotReloadHub().fire(why);
         } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
             ctx.log().warn("[world:{}] hotReload hub.fire failed: {}", name, t.toString());
         }
 
@@ -244,6 +255,7 @@ public final class KWorld {
                 try {
                     hr.onHotReload(ctx, why);
                 } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 }
             }
         }
@@ -252,6 +264,7 @@ public final class KWorld {
                 try {
                     hr.onHotReload(ctx, why);
                 } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 }
             }
         }
@@ -261,6 +274,7 @@ public final class KWorld {
                 impl.__resetWorldState(why);
             }
         } catch (Throwable t) {
+                ScriptFailureBoundary.rethrowIfFatal(t);
             ctx.log().warn("[world:{}] reset failed: {}", name, t.toString());
         }
 

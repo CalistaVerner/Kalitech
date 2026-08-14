@@ -11,22 +11,22 @@ import java.util.Objects;
 
 /**
  * Loads resolved modules: creates classloaders, instantiates ApiModule, registers into ApiRegistry,
- * mounts JS resources, and tracks loaded modules for deterministic shutdown.
+ * mounts Lua resources, and tracks loaded modules for deterministic shutdown.
  */
 public final class ModuleLoader {
 
     private final Logger log;
     private final ApiRegistry apiRegistry;
-    private final ModuleJsBridge jsBridge;
+    private final ModuleLuaBridge luaBridge;
     private final ClassLoader parentLoader;
 
     private final ArrayList<URLClassLoader> classLoaders = new ArrayList<>(16);
     private final ArrayList<ApiModule> loadedModules = new ArrayList<>(16);
 
-    public ModuleLoader(Logger log, ApiRegistry apiRegistry, ModuleJsBridge jsBridge, ClassLoader parentLoader) {
+    public ModuleLoader(Logger log, ApiRegistry apiRegistry, ModuleLuaBridge luaBridge, ClassLoader parentLoader) {
         this.log = Objects.requireNonNull(log, "log");
         this.apiRegistry = Objects.requireNonNull(apiRegistry, "apiRegistry");
-        this.jsBridge = Objects.requireNonNull(jsBridge, "jsBridge");
+        this.luaBridge = Objects.requireNonNull(luaBridge, "luaBridge");
         this.parentLoader = Objects.requireNonNull(parentLoader, "parentLoader");
     }
 
@@ -47,11 +47,9 @@ public final class ModuleLoader {
             URLClassLoader cl = ModuleClassLoaders.newModuleClassLoader(mj.jarPath, parentLoader);
             classLoaders.add(cl);
 
-            // Mount JS/types/docs/globals once per JAR descriptor
-            if (d.js != null) jsBridge.mountJs(d.id, cl, d.js);
-            if (d.types != null) jsBridge.mountTypes(d.id, cl, d.types);
-            if (d.docs != null) jsBridge.mountDocs(d.id, cl, d.docs);
-            if (d.globals.length != 0) jsBridge.exposeGlobals(d.id, d.globals);
+            // Mount Lua and optional documentation once per JAR descriptor
+            if (d.lua != null) luaBridge.mountLua(d.id, cl, d.lua);
+            if (d.docs != null) luaBridge.mountDocs(d.id, cl, d.docs);
 
             // Instantiate and register multiple ApiModules from the same JAR
             for (String mainClass : d.mainClass) {

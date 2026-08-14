@@ -1,29 +1,29 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import org.foxesworld.kalitech.engine.api.impl.LightApiImpl;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface LightApi {
 
-    @HostAccess.Export
-    LightApiImpl.LightHandle create(Value cfg);
+    @LuaExport
+    LightApiImpl.LightHandle create(LuaValueRef cfg);
 
-    @HostAccess.Export
-    void set(LightApiImpl.LightHandle handle, Value cfg);
+    @LuaExport
+    void set(LightApiImpl.LightHandle handle, LuaValueRef cfg);
 
-    @HostAccess.Export
+    @LuaExport
     void enable(LightApiImpl.LightHandle handle, boolean enabled);
 
-    @HostAccess.Export
+    @LuaExport
     boolean exists(LightApiImpl.LightHandle handle);
 
-    @HostAccess.Export
+    @LuaExport
     void destroy(LightApiImpl.LightHandle handle);
 
-    @HostAccess.Export
-    Value get(LightApiImpl.LightHandle handle);
+    @LuaExport
+    LuaValueRef get(LightApiImpl.LightHandle handle);
 
-    @HostAccess.Export
-    Value list();
+    @LuaExport
+    LuaValueRef list();
 }

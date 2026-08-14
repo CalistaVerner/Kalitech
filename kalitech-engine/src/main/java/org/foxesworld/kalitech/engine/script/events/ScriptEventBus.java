@@ -3,8 +3,9 @@ package org.foxesworld.kalitech.engine.script.events;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -15,30 +16,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * ScriptEventBus (REDengine-style, AAA-contract) — BACKWARD COMPATIBLE.
- * <p>
- * Keeps legacy API + behavior:
- * <ul>
- *   <li>emit(name, payload) enqueues raw event</li>
- *   <li>on(name, fn) / once(name, fn) => fn(payload?) exactly as before</li>
- *   <li>off(name, id), clear(name), clearAll(), pump(...)</li>
- * </ul>
+ * Thread-safe event bus for Lua scripts.
  *
- * Adds AAA-contract API (envelope):
- * <ul>
- *   <li>emitEvent(topic, payload, meta) => dispatches envelope listeners (and also legacy listeners for the same topic)</li>
- *   <li>onEvent/onceEvent(topic, fn, phase, priority) => fn(EventEnvelope)</li>
- *   <li>onAny/onceAny(fn, phase, priority) => fn(EventEnvelope)</li>
- *   <li>onPattern/oncePattern(pattern, fn, phase, priority) => fn(EventEnvelope)</li>
- *   <li>off(token) => token-based unsubscribe (topic not required)</li>
- *   <li>history ring buffer: setHistoryMax(), getHistory()</li>
- * </ul>
- *
- * Threading model:
- * <ul>
- *   <li>emit/emitEvent are thread-safe and only enqueue</li>
- *   <li>pump() must be called from main thread once per frame (or more) to dispatch</li>
- * </ul>
+ * <p>Direct subscriptions receive the payload. Envelope subscriptions receive an
+ * {@link EventEnvelope} with topic, payload, metadata, phase and priority ordering.
+ * Producers only enqueue; {@link #pump()} performs deterministic dispatch on the main thread.</p>
  */
 public final class ScriptEventBus {
 
@@ -46,7 +28,7 @@ public final class ScriptEventBus {
     public static final long DEFAULT_TIME_BUDGET_NANOS = 2_000_000L; // 2ms
     private static final Logger log = LogManager.getLogger(ScriptEventBus.class);
 
-    // -------------------- AAA envelope --------------------
+    // -------------------- envelope envelope --------------------
     private final Queue<QEvent> queue = new ConcurrentLinkedQueue<>();
     private final AtomicInteger nextSubId = new AtomicInteger(1);
     private final AtomicLong nextSeq = new AtomicLong(1);
@@ -62,32 +44,32 @@ public final class ScriptEventBus {
     private final ConcurrentHashMap<Integer, SubRef> byToken = new ConcurrentHashMap<>();
 
     /**
-     * exact-topic legacy handlers
+     * exact-topic direct handlers
      */
-    private final Map<String, LegacySubList> legacyHandlers = new ConcurrentHashMap<>();
+    private final Map<String, TopicSubList> topicHandlers = new ConcurrentHashMap<>();
 
     /**
-     * exact-topic AAA listeners: topic -> [phase0, phase1, phase2] lists
+     * exact-topic envelope listeners: topic -> [phase0, phase1, phase2] lists
      */
     private final Map<String, OrderedSubList[]> eventTopic = new ConcurrentHashMap<>();
 
-    // any AAA listeners by phase
+    // any envelope listeners by phase
     private final OrderedSubList[] any = new OrderedSubList[]{
             new OrderedSubList(), new OrderedSubList(), new OrderedSubList()
     };
 
-    // pattern AAA listeners by phase
+    // pattern envelope listeners by phase
     private final OrderedSubList[] patterns = new OrderedSubList[]{
             new OrderedSubList(), new OrderedSubList(), new OrderedSubList()
     };
 
-    // -------------------- legacy payload normalization --------------------
+    // -------------------- direct payload normalization --------------------
 
     /**
-     * Topic-specific legacy adapters. They transform arbitrary engine objects into JS-friendly maps
+     * Topic-specific adapters transform engine objects into stable Lua-facing maps
      * (stable property access, predictable field names).
      */
-    private final ConcurrentHashMap<String, LegacyPayloadAdapter> legacyAdapters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PayloadAdapter> payloadAdapters = new ConcurrentHashMap<>();
 
     private final Object histLock = new Object();
     private final ArrayDeque<EventEnvelope> history = new ArrayDeque<>();
@@ -95,7 +77,7 @@ public final class ScriptEventBus {
     private volatile int historyMax = 0;
 
     public ScriptEventBus() {
-        installDefaultLegacyAdapters();
+        installDefaultPayloadAdapters();
     }
 
     private static String normalizeTopic(String t) {
@@ -108,26 +90,26 @@ public final class ScriptEventBus {
     }
 
     /**
-     * Register (or replace) a legacy payload adapter for exact topic.
+     * Register or replace a payload adapter for an exact topic.
      * Adapter must be deterministic and never throw.
      */
-    public void setLegacyAdapter(String topic, LegacyPayloadAdapter adapter) {
+    public void setPayloadAdapter(String topic, PayloadAdapter adapter) {
         if (topic == null) return;
         String key = normalizeTopic(topic);
         if (key.isEmpty()) return;
-        if (adapter == null) legacyAdapters.remove(key);
-        else legacyAdapters.put(key, adapter);
+        if (adapter == null) payloadAdapters.remove(key);
+        else payloadAdapters.put(key, adapter);
     }
 
-    private void installDefaultLegacyAdapters() {
-        LegacyPayloadAdapter collision = new CollisionLegacyAdapter();
-        legacyAdapters.put("engine.physics.collision.begin", collision);
-        legacyAdapters.put("engine.physics.collision.end", collision);
-        legacyAdapters.put("engine.physics.collision.persist", collision);
+    private void installDefaultPayloadAdapters() {
+        PayloadAdapter collision = new CollisionPayloadAdapter();
+        payloadAdapters.put("engine.physics.collision.begin", collision);
+        payloadAdapters.put("engine.physics.collision.end", collision);
+        payloadAdapters.put("engine.physics.collision.persist", collision);
     }
 
     public void clearAll() {
-        legacyHandlers.clear();
+        topicHandlers.clear();
         eventTopic.clear();
         any[0].clear();
         any[1].clear();
@@ -137,14 +119,14 @@ public final class ScriptEventBus {
         patterns[2].clear();
         byToken.clear();
         queue.clear();
-        legacyAdapters.clear();
-        installDefaultLegacyAdapters();
+        payloadAdapters.clear();
+        installDefaultPayloadAdapters();
         synchronized (histLock) {
             history.clear();
         }
     }
 
-    // -------------------- legacy subscriptions (exact topic, raw payload) --------------------
+    // -------------------- direct subscriptions (exact topic, raw payload) --------------------
 
     public void setTimeProvider(TimeProvider provider) {
         this.time = (provider == null) ? TimeProvider.SYSTEM : provider;
@@ -172,7 +154,7 @@ public final class ScriptEventBus {
         return out;
     }
 
-    // -------------------- AAA subscriptions (envelope) --------------------
+    // -------------------- envelope subscriptions (envelope) --------------------
 
     private void record(EventEnvelope env) {
         int max = historyMax;
@@ -188,7 +170,7 @@ public final class ScriptEventBus {
         String key = normalizeTopic(name);
         if (key.isEmpty()) return;
         emittedCount.incrementAndGet();
-        queue.add(new QEvent(key, payload, null, false));
+        queue.add(new QEvent(key, payload, null));
     }
 
     public void emit(String name) {
@@ -200,29 +182,29 @@ public final class ScriptEventBus {
         String key = normalizeTopic(topic);
         if (key.isEmpty()) return;
         emittedCount.incrementAndGet();
-        queue.add(new QEvent(key, payload, meta, true));
+        queue.add(new QEvent(key, payload, meta));
     }
 
-    public int on(String name, Value fn) {
+    public int on(String name, LuaValueRef fn) {
         return on(name, fn, false);
     }
 
-    public int once(String name, Value fn) {
+    public int once(String name, LuaValueRef fn) {
         return on(name, fn, true);
     }
 
-    private int on(String name, Value fn, boolean once) {
+    private int on(String name, LuaValueRef fn, boolean once) {
         if (name == null) return 0;
         String key = normalizeTopic(name);
         if (key.isEmpty()) return 0;
 
         if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
 
-        LegacySubList list = legacyHandlers.computeIfAbsent(key, k -> new LegacySubList());
+        TopicSubList list = topicHandlers.computeIfAbsent(key, k -> new TopicSubList());
         int id = nextSubId.getAndIncrement();
-        list.add(new LegacySub(id, fn, once));
+        list.add(new TopicSub(id, fn, once));
 
-        byToken.put(id, new SubRef(SubKind.LEGACY_TOPIC, key, -1, id));
+        byToken.put(id, new SubRef(SubKind.TOPIC, key, -1, id));
         return id;
     }
 
@@ -233,45 +215,45 @@ public final class ScriptEventBus {
         String key = normalizeTopic(name);
         if (key.isEmpty()) return false;
 
-        LegacySubList list = legacyHandlers.get(key);
+        TopicSubList list = topicHandlers.get(key);
         if (list == null) return false;
 
         boolean removed = list.removeById(subId);
-        if (removed && list.isEmpty()) legacyHandlers.remove(key, list);
+        if (removed && list.isEmpty()) topicHandlers.remove(key, list);
 
         if (removed) byToken.remove(subId);
         return removed;
     }
 
     /**
-     * Remove all legacy+aaa subscriptions for topic (does not touch queue).
+     * Remove all direct and envelope subscriptions for a topic without touching the queue.
      */
     public void clear(String name) {
         if (name == null) return;
         String key = normalizeTopic(name);
         if (key.isEmpty()) return;
 
-        legacyHandlers.remove(key);
+        topicHandlers.remove(key);
         OrderedSubList[] arr = eventTopic.remove(key);
         if (arr != null) {
             for (int pi = 0; pi < 3; pi++) {
                 OrderedSubList l = arr[pi];
                 for (int i = 0; i < l.size(); i++) {
-                    AaaSub s = l.get(i);
+                    EnvelopeSub s = l.get(i);
                     if (s != null) byToken.remove(s.id);
                 }
             }
         }
     }
 
-    private void dispatchLegacy(String topic, Object payload) {
-        LegacySubList list = legacyHandlers.get(topic);
+    private void dispatchTopic(String topic, Object payload) {
+        TopicSubList list = topicHandlers.get(topic);
         if (list == null || list.isEmpty()) return;
 
-        Object normalized = normalizeLegacyPayload(topic, payload);
+        Object normalized = normalizePayload(topic, payload);
 
         for (int i = 0; i < list.size(); ) {
-            LegacySub s = list.get(i);
+            TopicSub s = list.get(i);
             if (s == null) {
                 i++;
                 continue;
@@ -280,9 +262,15 @@ public final class ScriptEventBus {
             try {
                 if (normalized == null) s.fn.execute();
                 else s.fn.execute(normalized);
-            } catch (Throwable t) {
-                String pCls = (normalized == null) ? "null" : normalized.getClass().getName();
-                log.error("Event handler failed (legacy): {} (subId={}, payloadClass={})", topic, s.id, pCls, t);
+            } catch (Throwable failure) {
+                ScriptFailureBoundary.rethrowIfFatal(failure);
+                String payloadClass = (normalized == null) ? "null" : normalized.getClass().getName();
+                log.error("Lua event handler quarantined topic={} token={} payloadClass={}; "
+                                + "event bus and engine remain active",
+                        topic, s.id, payloadClass, failure);
+                list.removeById(s.id);
+                byToken.remove(s.id);
+                continue;
             }
 
             if (s.once) {
@@ -294,41 +282,41 @@ public final class ScriptEventBus {
             i++;
         }
 
-        if (list.isEmpty()) legacyHandlers.remove(topic, list);
+        if (list.isEmpty()) topicHandlers.remove(topic, list);
     }
 
-    public int onEvent(String topic, Value fn, Phase phase, int priority) {
-        return addAaaTopic(topic, fn, false, phase, priority);
+    public int onEvent(String topic, LuaValueRef fn, Phase phase, int priority) {
+        return addEnvelopeTopic(topic, fn, false, phase, priority);
     }
 
-    public int onceEvent(String topic, Value fn, Phase phase, int priority) {
-        return addAaaTopic(topic, fn, true, phase, priority);
+    public int onceEvent(String topic, LuaValueRef fn, Phase phase, int priority) {
+        return addEnvelopeTopic(topic, fn, true, phase, priority);
     }
 
-    public int onAny(Value fn, Phase phase, int priority) {
-        return addAaaSpecial(SubKind.ANY, null, new AnyMatcher(), fn, false, phase, priority);
+    public int onAny(LuaValueRef fn, Phase phase, int priority) {
+        return addEnvelopeSpecial(SubKind.ANY, null, new AnyMatcher(), fn, false, phase, priority);
     }
 
-    public int onceAny(Value fn, Phase phase, int priority) {
-        return addAaaSpecial(SubKind.ANY, null, new AnyMatcher(), fn, true, phase, priority);
+    public int onceAny(LuaValueRef fn, Phase phase, int priority) {
+        return addEnvelopeSpecial(SubKind.ANY, null, new AnyMatcher(), fn, true, phase, priority);
     }
 
-    public int onPattern(String pattern, Value fn, Phase phase, int priority) {
+    public int onPattern(String pattern, LuaValueRef fn, Phase phase, int priority) {
         if (pattern == null) return 0;
         String p = normalizeTopic(pattern);
         if (p.isEmpty()) return 0;
-        return addAaaSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, false, phase, priority);
+        return addEnvelopeSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, false, phase, priority);
     }
 
-    public int oncePattern(String pattern, Value fn, Phase phase, int priority) {
+    public int oncePattern(String pattern, LuaValueRef fn, Phase phase, int priority) {
         if (pattern == null) return 0;
         String p = normalizeTopic(pattern);
         if (p.isEmpty()) return 0;
-        return addAaaSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, true, phase, priority);
+        return addEnvelopeSpecial(SubKind.PATTERN, null, new PatternMatcher(p), fn, true, phase, priority);
     }
 
     /**
-     * Token-based unsubscribe (works for legacy and AAA).
+     * Token-based unsubscribe (works for direct and envelope subscriptions).
      */
     public boolean off(int token) {
         if (token <= 0) return false;
@@ -336,11 +324,11 @@ public final class ScriptEventBus {
         if (ref == null) return false;
 
         switch (ref.kind) {
-            case LEGACY_TOPIC -> {
-                LegacySubList list = legacyHandlers.get(ref.key);
+            case TOPIC -> {
+                TopicSubList list = topicHandlers.get(ref.key);
                 if (list == null) return false;
                 boolean removed = list.removeById(ref.subId);
-                if (removed && list.isEmpty()) legacyHandlers.remove(ref.key, list);
+                if (removed && list.isEmpty()) topicHandlers.remove(ref.key, list);
                 return removed;
             }
             case EVENT_TOPIC -> {
@@ -363,7 +351,7 @@ public final class ScriptEventBus {
         return false;
     }
 
-    private int addAaaTopic(String topic, Value fn, boolean once, Phase phase, int priority) {
+    private int addEnvelopeTopic(String topic, LuaValueRef fn, boolean once, Phase phase, int priority) {
         if (topic == null) return 0;
         String key = normalizeTopic(topic);
         if (key.isEmpty()) return 0;
@@ -376,21 +364,21 @@ public final class ScriptEventBus {
         OrderedSubList[] lists = eventTopic.computeIfAbsent(key, k ->
                 new OrderedSubList[]{new OrderedSubList(), new OrderedSubList(), new OrderedSubList()});
 
-        AaaSub s = new AaaSub(id, fn, once, priority, ph, new ExactMatcher(key));
+        EnvelopeSub s = new EnvelopeSub(id, fn, once, priority, ph, new ExactMatcher(key));
         lists[phaseIdx].addOrdered(s);
 
         byToken.put(id, new SubRef(SubKind.EVENT_TOPIC, key, phaseIdx, id));
         return id;
     }
 
-    private int addAaaSpecial(SubKind kind, String key, Matcher matcher, Value fn, boolean once, Phase phase, int priority) {
+    private int addEnvelopeSpecial(SubKind kind, String key, Matcher matcher, LuaValueRef fn, boolean once, Phase phase, int priority) {
         if (fn == null || fn.isNull() || !fn.canExecute()) return 0;
 
         int id = nextSubId.getAndIncrement();
         Phase ph = (phase == null) ? Phase.MAIN : phase;
         int phaseIdx = ph.ordinal();
 
-        AaaSub s = new AaaSub(id, fn, once, priority, ph, matcher);
+        EnvelopeSub s = new EnvelopeSub(id, fn, once, priority, ph, matcher);
 
         if (kind == SubKind.ANY) any[phaseIdx].addOrdered(s);
         else patterns[phaseIdx].addOrdered(s);
@@ -448,56 +436,57 @@ public final class ScriptEventBus {
     }
 
     private void dispatch(QEvent qe) {
-        dispatchLegacy(qe.topic, qe.payload);
+        dispatchTopic(qe.topic, qe.payload);
 
         EventEnvelope env = buildEnvelope(qe.topic, qe.payload, qe.metaOrNull);
         record(env);
 
-        dispatchAaa(env, Phase.PRE);
-        dispatchAaa(env, Phase.MAIN);
-        dispatchAaa(env, Phase.POST);
+        dispatchEnvelope(env, Phase.PRE);
+        dispatchEnvelope(env, Phase.MAIN);
+        dispatchEnvelope(env, Phase.POST);
     }
 
-    private Object normalizeLegacyPayload(String topic, Object payload) {
+    private Object normalizePayload(String topic, Object payload) {
         if (payload == null) return null;
 
-        LegacyPayloadAdapter adapter = legacyAdapters.get(topic);
+        PayloadAdapter adapter = payloadAdapters.get(topic);
         if (adapter == null) return payload;
 
         try {
             Object out = adapter.adapt(topic, payload);
             return (out != null) ? out : null;
         } catch (Throwable t) {
-            log.warn("Legacy payload adapter failed: topic={} adapter={} payloadClass={}",
+            ScriptFailureBoundary.rethrowIfFatal(t);
+            log.warn("direct payload adapter failed: topic={} adapter={} payloadClass={}",
                     topic, adapter.getClass().getName(), payload.getClass().getName(), t);
             return payload;
         }
     }
 
     /**
-     * Adapter contract: convert raw payload into a JS-friendly object.
+     * Adapter contract: convert a raw payload into a Lua-facing object.
      * Must never throw; return original payload if unsure.
      */
     @FunctionalInterface
-    public interface LegacyPayloadAdapter {
+    public interface PayloadAdapter {
         Object adapt(String topic, Object payload);
     }
 
-    private void dispatchAaa(EventEnvelope env, Phase phase) {
+    private void dispatchEnvelope(EventEnvelope env, Phase phase) {
         int pi = phase.ordinal();
 
         OrderedSubList[] tLists = eventTopic.get(env.topic);
-        if (tLists != null) runAaaList(tLists[pi], env, SubKind.EVENT_TOPIC);
+        if (tLists != null) runEnvelopeList(tLists[pi], env, SubKind.EVENT_TOPIC);
 
-        runAaaList(any[pi], env, SubKind.ANY);
-        runAaaList(patterns[pi], env, SubKind.PATTERN);
+        runEnvelopeList(any[pi], env, SubKind.ANY);
+        runEnvelopeList(patterns[pi], env, SubKind.PATTERN);
     }
 
-    private void runAaaList(OrderedSubList list, EventEnvelope env, SubKind kind) {
+    private void runEnvelopeList(OrderedSubList list, EventEnvelope env, SubKind kind) {
         if (list == null || list.isEmpty()) return;
 
         for (int i = 0; i < list.size(); ) {
-            AaaSub s = list.get(i);
+            EnvelopeSub s = list.get(i);
             if (s == null) {
                 i++;
                 continue;
@@ -509,9 +498,13 @@ public final class ScriptEventBus {
 
             try {
                 s.fn.execute(env);
-            } catch (Throwable t) {
-                log.error("Event handler failed (aaa): topic={} phase={} token={} matcher={}",
-                        env.topic, s.phase, s.id, s.matcher.debug(), t);
+            } catch (Throwable failure) {
+                ScriptFailureBoundary.rethrowIfFatal(failure);
+                log.error("Lua event handler quarantined topic={} phase={} token={} matcher={}; "
+                                + "event bus and engine remain active",
+                        env.topic, s.phase, s.id, s.matcher.debug(), failure);
+                off(s.id);
+                continue;
             }
 
             if (s.once) {
@@ -526,7 +519,7 @@ public final class ScriptEventBus {
     private EventEnvelope buildEnvelope(String topic, Object payload, Meta metaIn) {
         Meta m = (metaIn != null) ? metaIn : new Meta();
 
-        if (m.ts == 0L) m.ts = time.nowMs();
+        if (m.timestampMs == 0L) m.timestampMs = time.nowMs();
         if (m.frame == 0L) m.frame = time.frame();
         if (m.thread == null) m.thread = Thread.currentThread().getName();
         if (m.seq == 0L) m.seq = nextSeq.getAndIncrement();
@@ -545,7 +538,7 @@ public final class ScriptEventBus {
 
     public enum Phase {PRE, MAIN, POST}
 
-    private enum SubKind {LEGACY_TOPIC, EVENT_TOPIC, ANY, PATTERN}
+    private enum SubKind {TOPIC, EVENT_TOPIC, ANY, PATTERN}
 
     /**
      * Optional: provide frame/time from engine.
@@ -575,10 +568,10 @@ public final class ScriptEventBus {
     }
 
     /**
-     * Stable meta for telemetry/debug. Fill what you have; bus fills missing ts/thread/seq.
+     * Stable metadata for telemetry and debugging; the bus fills missing timestamp, thread and sequence values.
      */
     public static final class Meta {
-        public long ts;
+        public long timestampMs;
         public long frame;
         public String thread;
         public long seq;
@@ -588,10 +581,10 @@ public final class ScriptEventBus {
     }
 
     public static final class EventStats {
-        @HostAccess.Export public final double eventsPerSec;
-        @HostAccess.Export public final long emitted;
-        @HostAccess.Export public final long pumped;
-        @HostAccess.Export public final int queued;
+        @LuaExport public final double eventsPerSec;
+        @LuaExport public final long emitted;
+        @LuaExport public final long pumped;
+        @LuaExport public final int queued;
 
         public EventStats(double eventsPerSec, long emitted, long pumped, int queued) {
             this.eventsPerSec = eventsPerSec;
@@ -602,7 +595,7 @@ public final class ScriptEventBus {
     }
 
     /**
-     * Stable envelope passed to AAA listeners.
+     * Stable envelope passed to envelope listeners.
      */
     public static final class EventEnvelope {
         public final String topic;
@@ -616,7 +609,7 @@ public final class ScriptEventBus {
         }
     }
 
-    private record QEvent(String topic, Object payload, Meta metaOrNull, boolean isEnvelope) {
+    private record QEvent(String topic, Object payload, Meta metaOrNull) {
     }
 
     private static final class SubRef {
@@ -633,23 +626,23 @@ public final class ScriptEventBus {
         }
     }
 
-    private static final class LegacySub {
+    private static final class TopicSub {
         final int id;
-        final Value fn;
+        final LuaValueRef fn;
         final boolean once;
 
-        LegacySub(int id, Value fn, boolean once) {
+        TopicSub(int id, LuaValueRef fn, boolean once) {
             this.id = id;
             this.fn = fn;
             this.once = once;
         }
     }
 
-    private static final class LegacySubList {
-        private LegacySub[] arr = new LegacySub[8];
+    private static final class TopicSubList {
+        private TopicSub[] arr = new TopicSub[8];
         private int size = 0;
 
-        int add(LegacySub s) {
+        int add(TopicSub s) {
             if (s == null) return 0;
             if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
             arr[size++] = s;
@@ -664,13 +657,13 @@ public final class ScriptEventBus {
             return size;
         }
 
-        LegacySub get(int i) {
+        TopicSub get(int i) {
             return arr[i];
         }
 
         boolean removeById(int id) {
             for (int i = 0; i < size; i++) {
-                LegacySub s = arr[i];
+                TopicSub s = arr[i];
                 if (s != null && s.id == id) {
                     int last = size - 1;
                     arr[i] = arr[last];
@@ -750,15 +743,15 @@ public final class ScriptEventBus {
         }
     }
 
-    private static final class AaaSub {
+    private static final class EnvelopeSub {
         final int id;
-        final Value fn;
+        final LuaValueRef fn;
         final boolean once;
         final int priority;
         final Phase phase;
         final Matcher matcher;
 
-        AaaSub(int id, Value fn, boolean once, int priority, Phase phase, Matcher matcher) {
+        EnvelopeSub(int id, LuaValueRef fn, boolean once, int priority, Phase phase, Matcher matcher) {
             this.id = id;
             this.fn = fn;
             this.once = once;
@@ -769,7 +762,7 @@ public final class ScriptEventBus {
     }
 
     private static final class OrderedSubList {
-        private AaaSub[] arr = new AaaSub[8];
+        private EnvelopeSub[] arr = new EnvelopeSub[8];
         private int size = 0;
 
         int size() {
@@ -780,17 +773,17 @@ public final class ScriptEventBus {
             return size == 0;
         }
 
-        AaaSub get(int i) {
+        EnvelopeSub get(int i) {
             return arr[i];
         }
 
-        int addOrdered(AaaSub s) {
+        int addOrdered(EnvelopeSub s) {
             if (s == null) return 0;
             if (size >= arr.length) arr = Arrays.copyOf(arr, arr.length << 1);
 
             int i = size;
             while (i > 0) {
-                AaaSub prev = arr[i - 1];
+                EnvelopeSub prev = arr[i - 1];
                 if (prev == null || prev.priority >= s.priority) break;
                 arr[i] = prev;
                 i--;
@@ -802,7 +795,7 @@ public final class ScriptEventBus {
 
         boolean removeById(int id) {
             for (int i = 0; i < size; i++) {
-                AaaSub s = arr[i];
+                EnvelopeSub s = arr[i];
                 if (s != null && s.id == id) {
                     int last = size - 1;
                     if (i < last) System.arraycopy(arr, i + 1, arr, i, last - i);
@@ -820,13 +813,13 @@ public final class ScriptEventBus {
         }
     }
 
-    // -------------------- built-in legacy adapters --------------------
+    // -------------------- built-in direct adapters --------------------
 
     /**
      * Normalizes collision payload into a stable map:
      * { a: <obj>, b: <obj>, step: int, dt: double, contact: <obj> }
      */
-    private static final class CollisionLegacyAdapter implements LegacyPayloadAdapter {
+    private static final class CollisionPayloadAdapter implements PayloadAdapter {
 
         private static Object firstPresent(Map<?, ?> m, String... keys) {
             for (String k : keys) {
@@ -852,6 +845,7 @@ public final class ScriptEventBus {
                 f.setAccessible(true);
                 return f.get(obj);
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 return null;
             }
         }
@@ -879,6 +873,7 @@ public final class ScriptEventBus {
                 m.setAccessible(true);
                 return m.invoke(obj);
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 return null;
             }
         }

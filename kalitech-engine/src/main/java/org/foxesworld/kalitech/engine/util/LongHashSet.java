@@ -11,14 +11,12 @@ import java.util.Arrays;
  * Not thread-safe.
  *
  * Sentinel policy:
- *  - EMPTY key is 0L (reserved, cannot be added)
- *  - For backwards compatibility, contains(0) returns true (legacy behavior).
- *    Use containsStrict(k) if you want sane semantics for 0.
+ *  - EMPTY key is 0L (reserved, cannot be added or contained)
  *
  * Implementation:
  *  - Open addressing + Robin Hood linear probing
  *  - Early-exit contains() using probe-distance ordering
- *  - Deletion via backward shift (no tombstones) compatible with Robin Hood invariant
+ *  - Deletion via backward shift (no tombstones) preserves the Robin Hood invariant
  */
 public final class LongHashSet implements Iterable<Long> {
 
@@ -157,20 +155,10 @@ public final class LongHashSet implements Iterable<Long> {
     }
 
     /**
-     * Legacy contains semantics: contains(0) == true.
-     */
-    public boolean contains(long k) {
-        if (k == EMPTY) return true;
-        return containsStrict(k);
-    }
-
-    /**
-     * Sane contains semantics: containsStrict(0) == false.
-     *
      * Robin Hood early-exit:
      *  - If current slot's resident has probeDistance < our probeDistance, key is not present.
      */
-    public boolean containsStrict(long k) {
+    public boolean contains(long k) {
         if (k == EMPTY) return false;
 
         long[] t = table;
@@ -337,7 +325,7 @@ public final class LongHashSet implements Iterable<Long> {
         result.ensureCapacity(this.size);
         long[] t = this.table;
         for (long v : t) {
-            if (v != EMPTY && other.containsStrict(v)) {
+            if (v != EMPTY && other.contains(v)) {
                 result.add(v);
             }
         }
@@ -359,7 +347,7 @@ public final class LongHashSet implements Iterable<Long> {
         if (other.size > this.size) return false;
         long[] ot = other.table;
         for (long v : ot) {
-            if (v != EMPTY && !containsStrict(v)) {
+            if (v != EMPTY && !contains(v)) {
                 return false;
             }
         }
@@ -376,7 +364,7 @@ public final class LongHashSet implements Iterable<Long> {
         if (other == null || other.size == 0 || this.size == 0) return false;
         long[] ot = other.table;
         for (long v : ot) {
-            if (v != EMPTY && containsStrict(v)) {
+            if (v != EMPTY && contains(v)) {
                 return true;
             }
         }
@@ -455,7 +443,7 @@ public final class LongHashSet implements Iterable<Long> {
         if (other == null) throw new NullPointerException("other");
 
         long[] tt = this.table;
-        int ts = this.size;
+        int previousSize = this.size;
         int tm = this.mask;
         int tr = this.resizeAt;
 
@@ -465,7 +453,7 @@ public final class LongHashSet implements Iterable<Long> {
         this.resizeAt = other.resizeAt;
 
         other.table = tt;
-        other.size = ts;
+        other.size = previousSize;
         other.mask = tm;
         other.resizeAt = tr;
     }
@@ -504,7 +492,7 @@ public final class LongHashSet implements Iterable<Long> {
      * and {@link java.util.Spliterator#SIZED} characteristics.  The returned spliterator is
      * fail-fast only in the sense that structural modifications made through the set's APIs
      * after obtaining the spliterator may or may not be reflected; however, since this set is
-     * not thread-safe, concurrent modifications from other threads will produce undefined results.
+     * not thread-safe, concurrent modifications from other threads will produce unpredictable results.
      *
      * <p>The spliterator traverses the backing table directly and does not allocate auxiliary
      * collections.
@@ -764,7 +752,7 @@ public final class LongHashSet implements Iterable<Long> {
     }
 
     /**
-     * Robin Hood compatible backward shift deletion.
+     * Robin Hood backward-shift deletion.
      * After clearing a slot, shift subsequent entries left while their probe distance > 0.
      */
     private void deleteAndShiftRobinHood(int deleteIndex) {

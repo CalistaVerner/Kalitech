@@ -1,6 +1,6 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
  * Stable input interface exposed to scripting environments.
@@ -17,10 +17,10 @@ public interface InputApi {
      * @param key human-readable key name (e.g. "W", "SPACE", "ESCAPE")
      * @return true if the key is currently pressed
      */
-    @HostAccess.Export
+    @LuaExport
     boolean keyDown(String key);
 
-    @HostAccess.Export
+    @LuaExport
     boolean keyDown(int keyCode);
 
     /**
@@ -29,7 +29,7 @@ public interface InputApi {
      * @param name key name
      * @return key code, or a negative value if unknown
      */
-    @HostAccess.Export
+    @LuaExport
     int keyCode(String name);
 
     /**
@@ -37,7 +37,7 @@ public interface InputApi {
      *
      * @return mouse X position in pixels
      */
-    @HostAccess.Export
+    @LuaExport
     double mouseX();
 
     /**
@@ -45,7 +45,7 @@ public interface InputApi {
      *
      * @return mouse Y position in pixels
      */
-    @HostAccess.Export
+    @LuaExport
     double mouseY();
 
     /**
@@ -53,7 +53,7 @@ public interface InputApi {
      *
      * @return horizontal mouse delta
      */
-    @HostAccess.Export
+    @LuaExport
     double mouseDx();
 
     /**
@@ -61,19 +61,19 @@ public interface InputApi {
      *
      * @return vertical mouse delta
      */
-    @HostAccess.Export
+    @LuaExport
     double mouseDy();
 
-    @HostAccess.Export
+    @LuaExport
     Object cursorPosition();
 
-    @HostAccess.Export
+    @LuaExport
     double mouseDX();
 
-    @HostAccess.Export
+    @LuaExport
     double mouseDY();
 
-    @HostAccess.Export
+    @LuaExport
     Object mouseDelta();
 
     /**
@@ -82,7 +82,7 @@ public interface InputApi {
      *
      * @return object containing { dx, dy }
      */
-    @HostAccess.Export
+    @LuaExport
     Object consumeMouseDelta();
 
     /**
@@ -90,7 +90,7 @@ public interface InputApi {
      *
      * @return wheel delta
      */
-    @HostAccess.Export
+    @LuaExport
     double wheelDelta();
 
     /**
@@ -99,7 +99,7 @@ public interface InputApi {
      *
      * @return wheel delta
      */
-    @HostAccess.Export
+    @LuaExport
     double consumeWheelDelta();
 
     /**
@@ -108,7 +108,7 @@ public interface InputApi {
      * @param button mouse button index
      * @return true if the button is held down
      */
-    @HostAccess.Export
+    @LuaExport
     boolean mouseDown(int button);
 
     /**
@@ -116,7 +116,7 @@ public interface InputApi {
      *
      * @param visible whether the cursor should be visible
      */
-    @HostAccess.Export
+    @LuaExport
     void cursorVisible(boolean visible);
 
     /**
@@ -124,7 +124,7 @@ public interface InputApi {
      *
      * @return true if the cursor is visible
      */
-    @HostAccess.Export
+    @LuaExport
     boolean cursorVisible();
 
     /**
@@ -132,7 +132,7 @@ public interface InputApi {
      *
      * @param grab whether the mouse should be grabbed
      */
-    @HostAccess.Export
+    @LuaExport
     void grabMouse(boolean grab);
 
     /**
@@ -140,7 +140,7 @@ public interface InputApi {
      *
      * @return true if the mouse is grabbed
      */
-    @HostAccess.Export
+    @LuaExport
     boolean grabbed();
 
     /**
@@ -148,6 +148,6 @@ public interface InputApi {
      * <p>
      * Must be called exactly once per engine frame after all input has been processed.
      */
-    @HostAccess.Export
+    @LuaExport
     void endFrame();
 }

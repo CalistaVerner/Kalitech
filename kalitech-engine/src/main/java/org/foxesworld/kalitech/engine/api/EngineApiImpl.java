@@ -18,12 +18,13 @@ import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.app.RuntimeAppState;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.moduleLoader.ModuleManager;
-import org.foxesworld.kalitech.engine.moduleLoader.RuntimeJsBridge;
+import org.foxesworld.kalitech.engine.moduleLoader.RuntimeLuaBridge;
 import org.foxesworld.kalitech.engine.perf.PerfProfiler;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.util.Objects;
 import java.util.concurrent.Future;
@@ -114,9 +115,8 @@ public final class EngineApiImpl implements EngineApi {
         this.apiCtx = new ApiContext(this);
         this.apiRegistry = new ApiRegistry(apiCtx);
 
-        this.moduleManager = new ModuleManager(LOG, this.apiRegistry, new RuntimeJsBridge(this.runtime), getClass().getClassLoader());
+        this.moduleManager = new ModuleManager(LOG, this.apiRegistry, new RuntimeLuaBridge(this.runtime), getClass().getClassLoader());
 
-        // NO legacy ctor
         this.surfaceRegistry = new SurfaceRegistry(this.app, this::getBus);
 
         this.logApi = apiRegistry.register(new LogApiImpl());
@@ -203,157 +203,157 @@ public final class EngineApiImpl implements EngineApi {
         }
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public LogApi log() {
         return logApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public AssetsApi assets() {
         return assetsApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public EventsApi bus() {
         return eventsApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public MaterialApi material() {
         return apiRegistry.api("material", MaterialApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public EntityApi entity() {
         return entityApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public SoundApi sound() {
         return apiRegistry.api("sound", SoundApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public RenderApi render() {
         return apiRegistry.api("render", RenderApi.class);
     }
 
     @Override
-    @HostAccess.Export
+    @LuaExport
     public CameraApi camera() {
         return apiRegistry.api("camera", CameraApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public PhysicsApi physics() {
         return physicsApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public LightApi light() {
         return apiRegistry.api("light", LightApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public DebugDrawApi debug() {
         return debugApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public ParticlesApi particles() {
         return apiRegistry.api("particles", ParticlesApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public SurfaceApi surface() {
         return surfaceApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public TerrainApi terrain() {
         return apiRegistry.api("terrain", TerrainApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public TerrainSplatApi terrainSplat() {
         return apiRegistry.api("terrainSplat", TerrainSplatApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public EditorLinesApi editorLines() {
         return editorLinesApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public MeshApi mesh() {
         return meshApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public HudApi hud() {
         return apiRegistry.api("hud", HudApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public TimeApi time() {
         return timeApi;
     }
 
     @Override
-    @HostAccess.Export
+    @LuaExport
     public InputApi input() {
         return apiRegistry.api("input", InputApi.class);
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public WorldApi world() {
         return worldApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public EditorApi editor() {
         return editorApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public ModulesApi modules() {
         return modulesApi;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public String engineVersion() {
         return app != null ? app.getVersion() : "unknown";
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public boolean isJmeThread() {
         return Thread.currentThread() == jmeThread;
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     public double fps() {
         return fps;
@@ -498,17 +498,26 @@ public final class EngineApiImpl implements EngineApi {
         else fpsEma += (inst - fpsEma) * alpha;
     }
 
-    @HostAccess.Export
+    public void runOnRenderThread(Runnable task) {
+        Objects.requireNonNull(task, "task");
+        if (Thread.currentThread() == jmeThread) {
+            task.run();
+            return;
+        }
+        app.enqueue(task);
+    }
+    @LuaExport
     @Override
-    public void runOnMainThread(Value fn) {
+    public void runOnMainThread(LuaValueRef fn) {
         if (fn == null || fn.isNull()) return;
         if (!fn.canExecute()) throw new IllegalArgumentException("runOnMainThread(fn): fn must be executable");
 
         app.enqueue(() -> {
             try {
                 fn.executeVoid();
-            } catch (Throwable t) {
-                LOG.error("JS runOnMainThread failed", t);
+            } catch (Throwable failure) {
+                ScriptFailureBoundary.rethrowIfFatal(failure);
+                LOG.error("Lua main-thread callback quarantined; engine remains active", failure);
             }
             return null;
         });
@@ -518,7 +527,7 @@ public final class EngineApiImpl implements EngineApi {
         return LOG;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public SimpleApplication getApp() {
         return app;
     }
@@ -527,7 +536,7 @@ public final class EngineApiImpl implements EngineApi {
         return ecs;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public Object api(String id) {
         if (id == null) return null;
         ApiRegistry.Entry e = this.apiRegistry.get(id);

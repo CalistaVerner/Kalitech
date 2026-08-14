@@ -11,16 +11,14 @@ import org.foxesworld.kalitech.engine.api.interfaces.SurfaceApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.services.SurfaceRegistry;
 import org.foxesworld.kalitech.engine.asset.AssetIO;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.foxesworld.kalitech.engine.script.util.JsCfg.member;
-
-@Deprecated
+import static org.foxesworld.kalitech.engine.script.util.LuaCfg.member;
 public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi {
 
     private static final Logger L = LogManager.getLogger(AssetsApiImpl.class);
@@ -28,11 +26,11 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
     private static final Method M_READ_TEXT =
             method(AssetsApiImpl.class, "readText", String.class);
 
-    private static final Method M_READ_JS_VERIFIED =
-            method(AssetsApiImpl.class, "readJsVerified", String.class);
+    private static final Method M_READ_LUA_VERIFIED =
+            method(AssetsApiImpl.class, "readLuaVerified", String.class);
 
     private static final Method M_LOAD_MODEL =
-            method(AssetsApiImpl.class, "loadModel", String.class, Value.class);
+            method(AssetsApiImpl.class, "loadModel", String.class, LuaValueRef.class);
 
     private AssetManager assets;
     private SurfaceRegistry surfaceRegistry;
@@ -99,7 +97,7 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
         });
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -116,22 +114,23 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
+    @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
             sync = false,
             flags = {ApiFlag.SANDBOX_ALLOWED},
             cost = ApiCostHint.NORMAL
     )
-    public String readJsVerified(@NotNull String assetPath) {
+    public String readLuaVerified(@NotNull String assetPath) {
         return profiled(() ->
-                apiCall(M_READ_JS_VERIFIED, new Object[]{assetPath}, () -> {
-                    String path = normalizePath("assets.readJsVerified(path)", assetPath);
+                apiCall(M_READ_LUA_VERIFIED, new Object[]{assetPath}, () -> {
+                    String path = normalizePath("assets.readLuaVerified(path)", assetPath);
 
                     try {
                         Object obj = assets.loadAsset(path);
                         if (!(obj instanceof String s)) {
-                            throw new IllegalStateException("JS loader returned non-string for path='" + path + "': " +
+                            throw new IllegalStateException("Lua loader returned non-string for path='" + path + "': " +
                                     (obj == null ? "null" : obj.getClass().getName()));
                         }
                         return s;
@@ -147,7 +146,7 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -155,7 +154,7 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
             flags = {ApiFlag.SANDBOX_ALLOWED, ApiFlag.EDITOR_VISIBLE},
             cost = ApiCostHint.EXPENSIVE
     )
-    public SurfaceApi.SurfaceHandle loadModel(@NotNull String assetPath, Value cfg) {
+    public SurfaceApi.SurfaceHandle loadModel(@NotNull String assetPath, LuaValueRef cfg) {
         return profiled(() ->
                 apiCall(M_LOAD_MODEL, new Object[]{assetPath, cfg}, () -> {
                     String path = normalizePath("assets.loadModel(path,cfg)", assetPath);
@@ -177,7 +176,7 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
                         throw new IllegalStateException("assets.loadModel: model is null for path='" + path + "'");
 
                     if (cfg != null && !cfg.isNull()) {
-                        Value n = member(cfg, "name");
+                        LuaValueRef n = member(cfg, "name");
                         if (n != null && !n.isNull() && n.isString()) {
                             String name = n.asString();
                             if (name != null && !name.isBlank()) model.setName(name);
@@ -190,12 +189,12 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
                     //SurfaceApiImpl.applyTransform(model, cfg);
 
                     if (cfg != null && !cfg.isNull()) {
-                        Value sm = member(cfg, "shadow");
+                        LuaValueRef sm = member(cfg, "shadow");
                         if (sm != null && !sm.isNull() && sm.isString()) api.setShadowMode(h, sm.asString());
                     }
 
                     if (cfg != null && !cfg.isNull()) {
-                        Value mat = member(cfg, "material");
+                        LuaValueRef mat = member(cfg, "material");
                         if (mat != null && !mat.isNull()) {
                             try {
                                 api.setMaterial(h, mat);
@@ -207,13 +206,13 @@ public final class AssetsApiImpl extends AbstractApiModule implements AssetsApi 
 
                     boolean attach = true;
                     if (cfg != null && !cfg.isNull()) {
-                        Value a = member(cfg, "attach");
+                        LuaValueRef a = member(cfg, "attach");
                         if (a != null && !a.isNull()) attach = a.asBoolean();
                     }
                     if (attach) api.attachToRoot(h);
 
                     if (cfg != null && !cfg.isNull()) {
-                        Value ent = member(cfg, "entityUuid");
+                        LuaValueRef ent = member(cfg, "entityUuid");
                         if (ent == null || ent.isNull()) {
                             ent = member(cfg, "entity");
                         }

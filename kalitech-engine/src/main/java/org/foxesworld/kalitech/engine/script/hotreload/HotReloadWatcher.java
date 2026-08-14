@@ -39,7 +39,7 @@ public final class HotReloadWatcher implements Closeable {
     private final Set<String> exts;
 
     public HotReloadWatcher(Path rootDirectory) {
-        this(rootDirectory, Set.of(".js", ".json", ".glsl", ".txt"));
+        this(rootDirectory, Set.of(".lua", ".json", ".glsl", ".txt"));
     }
 
     public HotReloadWatcher(Path rootDirectory, Set<String> extensions) {
@@ -180,8 +180,8 @@ public final class HotReloadWatcher implements Closeable {
      * then clears internal buffer.
      * <p>
      * Example returned ids:
-     * - "Scripts/systems/scene.js"
-     * - "Scripts/entities/player.js"
+     * - "Scripts/systems/scene.lua"
+     * - "Scripts/entities/player.lua"
      */
     public Set<String> pollChanged() {
         WatchKey key;
@@ -240,14 +240,6 @@ public final class HotReloadWatcher implements Closeable {
         HashSet<String> out = new HashSet<>(changedIds);
         changedIds.clear();
         return Collections.unmodifiableSet(out);
-    }
-
-    /**
-     * Backward-compatible: if true — something changed.
-     * Internally also fills pollChanged().
-     */
-    public boolean pollDirty() {
-        return !pollChanged().isEmpty();
     }
 
     @Override

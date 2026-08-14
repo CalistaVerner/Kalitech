@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Marshals synchronous calls from worker threads to the world/main thread using {@link ScriptJobQueue}.
  *
  * Contract (do not break):
- * - JS still calls engine/api as synchronous methods.
+ * - Lua still calls engine/api as synchronous methods.
  * - If the call originates from a worker thread, we enqueue a job to the world queue and wait for the result.
  *
  * Stability upgrades:

@@ -1,7 +1,7 @@
 // Author: KΛYLΛ
 package org.foxesworld.kalitech.engine.world.systems;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
  * WorkerSystemStats
@@ -11,58 +11,58 @@ import org.graalvm.polyglot.HostAccess;
  */
 public final class WorkerSystemStats {
 
-    @HostAccess.Export public final String systemName;
-    @HostAccess.Export public final String profile;
-    @HostAccess.Export public final String threadName;
+    @LuaExport public final String systemName;
+    @LuaExport public final String profile;
+    @LuaExport public final String threadName;
 
     /** True while the system has an in-flight tick. */
-    @HostAccess.Export public final boolean running;
+    @LuaExport public final boolean running;
 
     /** -1 for dedicated threads, otherwise lane index for striped scheduling. */
-    @HostAccess.Export public final int laneIndex;
+    @LuaExport public final int laneIndex;
 
     /** Scheduling priority 0..100. */
-    @HostAccess.Export public final int priority;
+    @LuaExport public final int priority;
 
     /**
      * System desired tick rate (Hz).
      */
-    @HostAccess.Export
+    @LuaExport
     public final double desiredHz;
 
     /** Current adaptive tick rate (Hz) used by the scheduler. */
-    @HostAccess.Export public final double currentHz;
+    @LuaExport public final double currentHz;
 
     // --- timestamps / durations (nanos) ---
-    @HostAccess.Export public final long lastSubmitNanos;
-    @HostAccess.Export public final long lastStartNanos;
-    @HostAccess.Export public final long lastEndNanos;
+    @LuaExport public final long lastSubmitNanos;
+    @LuaExport public final long lastStartNanos;
+    @LuaExport public final long lastEndNanos;
 
     /** Last tick duration. */
-    @HostAccess.Export public final long lastTickNanos;
+    @LuaExport public final long lastTickNanos;
 
     /** Exponential moving average tick duration. */
-    @HostAccess.Export public final long emaTickNanos;
+    @LuaExport public final long emaTickNanos;
 
     /** Worst observed tick duration. */
-    @HostAccess.Export public final long maxTickNanos;
+    @LuaExport public final long maxTickNanos;
 
     /** Last queue lag (start - submit). */
-    @HostAccess.Export public final long lastQueueLagNanos;
+    @LuaExport public final long lastQueueLagNanos;
 
     /** EMA of queue lag (optional). */
-    @HostAccess.Export public final long emaQueueLagNanos;
+    @LuaExport public final long emaQueueLagNanos;
 
     // --- skip / fault counters ---
-    @HostAccess.Export public final int skippedRunning;
-    @HostAccess.Export public final int skippedRateLimited;
-    @HostAccess.Export public final int skippedBackpressure;
+    @LuaExport public final int skippedRunning;
+    @LuaExport public final int skippedRateLimited;
+    @LuaExport public final int skippedBackpressure;
 
     /** Number of times a tick exceeded hard budget (best-effort, non-interrupting). */
-    @HostAccess.Export public final int hardBudgetBreaches;
+    @LuaExport public final int hardBudgetBreaches;
 
     /** Number of exceptions thrown by this system tick. */
-    @HostAccess.Export public final int exceptions;
+    @LuaExport public final int exceptions;
 
     public WorkerSystemStats(
             String systemName,

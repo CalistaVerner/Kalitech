@@ -6,42 +6,42 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 
 /**
- * JSON parsing utilities for module.json.
+ * Strict parser for module.json.
  */
 final class ModuleJson {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
 
     private ModuleJson() {
     }
 
-    private static String[] coerceMainClass(Object v) {
-        if (v == null) return null;
+    private static String[] coerceMainClass(Object value) {
+        if (value == null) return null;
 
-        if (v instanceof String s) {
-            String t = s.trim();
-            return t.isEmpty() ? null : new String[]{t};
+        if (value instanceof String text) {
+            String normalized = text.trim();
+            return normalized.isEmpty() ? null : new String[]{normalized};
         }
 
-        if (v instanceof List<?> list) {
+        if (value instanceof List<?> list) {
             if (list.isEmpty()) return null;
-            String[] tmp = new String[list.size()];
-            int n = 0;
-            for (Object o : list) {
-                if (o == null) continue;
-                String s = String.valueOf(o).trim();
-                if (!s.isEmpty()) tmp[n++] = s;
+            String[] temporary = new String[list.size()];
+            int count = 0;
+            for (Object item : list) {
+                if (item == null) continue;
+                String normalized = String.valueOf(item).trim();
+                if (!normalized.isEmpty()) temporary[count++] = normalized;
             }
-            if (n == 0) return null;
-            if (n == tmp.length) return tmp;
-            String[] out = new String[n];
-            System.arraycopy(tmp, 0, out, 0, n);
-            return out;
+            if (count == 0) return null;
+            if (count == temporary.length) return temporary;
+            String[] result = new String[count];
+            System.arraycopy(temporary, 0, result, 0, count);
+            return result;
         }
 
-        String s = String.valueOf(v).trim();
-        return s.isEmpty() ? null : new String[]{s};
+        String normalized = String.valueOf(value).trim();
+        return normalized.isEmpty() ? null : new String[]{normalized};
     }
 
     static ModuleDescriptor parse(String json) throws Exception {
@@ -52,10 +52,8 @@ final class ModuleJson {
                 dto.version,
                 coerceMainClass(dto.mainClass),
                 dto.depends,
-                dto.js,
-                dto.types,
-                dto.docs,
-                dto.globals
+                dto.lua,
+                dto.docs
         );
     }
 
@@ -64,14 +62,9 @@ final class ModuleJson {
         public String id;
         public String name;
         public String version;
-
-        // Accept both: "mainClass": "..." and "mainClass": ["...","..."]
         public Object mainClass;
-
         public List<String> depends;
-        public String js;
-        public String types;
+        public String lua;
         public String docs;
-        public String[] globals;
     }
 }

@@ -130,7 +130,7 @@ public final class MainThreadProxyFactory {
                 try {
                     return method.invoke(target, args);
                 } catch (InvocationTargetException ite) {
-                    // Re-throw the original cause so JS sees the real error.
+                    // Re-throw the original cause so Lua sees the real error.
                     Throwable c = ite.getCause();
                     if (c != null) {
                         if (c instanceof RuntimeException re) throw re;

@@ -72,13 +72,13 @@ public final class WorldAppState extends BaseAppState {
         this.engine = Objects.requireNonNull(runtimeAppState.getEngineApi(), "engineApi");
     }
 
-    private static String normalizeJsModuleId(String moduleId) {
+    private static String normalizeLuaModuleId(String moduleId) {
         String id = (moduleId == null) ? "" : moduleId.trim();
         if (id.isEmpty()) return "";
         id = id.replace('\\', '/');
         while (id.startsWith("./")) id = id.substring(2);
         while (id.startsWith("/")) id = id.substring(1);
-        if (!id.endsWith(".js")) id += ".js";
+        if (!id.endsWith(".lua") && !id.endsWith(".json")) id += ".lua";
         return id;
     }
 
@@ -376,7 +376,7 @@ public final class WorldAppState extends BaseAppState {
         return runtimeProfiles.computeIfAbsent(p, k -> {
             ScriptRuntime rt = new ScriptRuntime();
             try {
-                rt.setModuleStreamProvider(this::openJsModuleStream);
+                rt.setModuleStreamProvider(this::openLuaModuleStream);
             } catch (Throwable t) {
                 log.warn("[World] setModuleStreamProvider failed for profile '{}': {}", k, t.toString(), t);
             }
@@ -417,7 +417,7 @@ public final class WorldAppState extends BaseAppState {
         }
 
         try {
-            this.baseRuntime.setModuleStreamProvider(this::openJsModuleStream);
+            this.baseRuntime.setModuleStreamProvider(this::openLuaModuleStream);
         } catch (Throwable t) {
             log.warn("[World] failed to set module stream provider for base runtime: {}", t.toString(), t);
         }
@@ -431,9 +431,9 @@ public final class WorldAppState extends BaseAppState {
         baseRuntimeInitialized = true;
     }
 
-    private InputStream openJsModuleStream(String moduleId) {
+    private InputStream openLuaModuleStream(String moduleId) {
         try {
-            String id = normalizeJsModuleId(moduleId);
+            String id = normalizeLuaModuleId(moduleId);
             if (id.isEmpty()) return null;
 
             AssetManager am = (engine.getApp() != null) ? engine.getApp().getAssetManager() : null;
@@ -442,7 +442,7 @@ public final class WorldAppState extends BaseAppState {
             var ai = am.locateAsset(new AssetKey<>(id));
             return (ai != null) ? ai.openStream() : null;
         } catch (Throwable t) {
-            log.warn("[World] openJsModuleStream failed (moduleId='{}'): {}", moduleId, t.toString(), t);
+            log.warn("[World] openLuaModuleStream failed (moduleId='{}'): {}", moduleId, t.toString(), t);
             return null;
         }
     }

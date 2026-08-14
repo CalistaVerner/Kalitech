@@ -43,9 +43,3 @@
 
 # ===== Encoding =====
 -Dfile.encoding=UTF-8
-
-# ===== Graal =====
--Dpolyglot.engine.WarnInterpreterOnly=false
--Dgraal.CompilationFailureAction=Silent
--Dgraal.TruffleCompilationExceptionsAreFatal=false
--Dgraal.TraceTruffleCompilation=false

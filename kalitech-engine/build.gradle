@@ -26,15 +26,19 @@ dependencies {
     api "org.jmonkeyengine:jme3-lwjgl3:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-plugins:${rootProject.ext.jmeVersion}"
     api "org.jmonkeyengine:jme3-effects:${rootProject.ext.jmeVersion}"
+    api "org.jmonkeyengine:jme3-jogg:${rootProject.ext.jmeVersion}"
 
     api "org.jmonkeyengine:jme3-awt-dialogs:${rootProject.ext.jmeVersion}"
     api 'com.github.stephengold:Minie:9.0.3'
 
-    api "org.graalvm.polyglot:polyglot:${rootProject.ext.graalVersion}"
-    api "org.graalvm.polyglot:js:${rootProject.ext.graalVersion}"
+    api "org.luaj:luaj-jse:${rootProject.ext.luaJVersion}"
 
     implementation "com.simsilica:lemur:1.16.0"
     implementation "org.apache.groovy:groovy-jsr223:5.0.3"
+
+    testImplementation platform("org.junit:junit-bom:${rootProject.ext.junitBom}")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 java {
@@ -55,4 +59,15 @@ tasks.shadowJar {
 
 tasks.assemble {
     dependsOn tasks.shadowJar
+}
+
+tasks.named('run', JavaExec) {
+    dependsOn rootProject.tasks.named('syncModuleJars')
+    workingDir rootProject.projectDir
+}
+
+tasks.test {
+    dependsOn rootProject.tasks.named("syncModuleJars")
+    systemProperty "kalitech.repoRoot", rootProject.projectDir.absolutePath
+    systemProperty "log.dir", layout.buildDirectory.dir("test-logs").get().asFile.absolutePath
 }

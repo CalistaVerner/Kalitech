@@ -38,13 +38,11 @@ public final class ModuleClassLoaders {
         }
 
         private static boolean isParentFirst(String name) {
-            // Java / JVM / Graal / JME / engine APIs must be singletons
+            // JVM, rendering, logging, and engine APIs must be singletons
             return name.startsWith("java.")
                     || name.startsWith("javax.")
                     || name.startsWith("jdk.")
                     || name.startsWith("sun.")
-                    || name.startsWith("org.graalvm.")
-                    || name.startsWith("com.oracle.truffle.")
                     || name.startsWith("com.jme3.")
                     || name.startsWith("org.lwjgl.")
                     || name.startsWith("org.slf4j.")

@@ -9,7 +9,7 @@ import org.foxesworld.kalitech.engine.world.systems.registry.AbstractSystemProvi
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemDescriptor;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemModule;
 import org.foxesworld.kalitech.engine.world.systems.registry.SystemType;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 /**
  * ECS transform system provider.
@@ -26,7 +26,7 @@ public final class TransformSystemProvider extends AbstractSystemProvider {
     }
 
     @Override
-    public KSystem create(SystemContext ctx, Value config) {
+    public KSystem create(SystemContext ctx, LuaValueRef config) {
         return new TransformSystem(ctx.ecs());
     }
 }

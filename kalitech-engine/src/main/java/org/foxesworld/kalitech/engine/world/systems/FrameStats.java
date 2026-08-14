@@ -1,29 +1,29 @@
 package org.foxesworld.kalitech.engine.world.systems;
 
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 /**
  * Per-frame performance snapshot (main/world thread).
  *
  * <p>All fields are nanoseconds unless noted.
- * Exposed to JS so you can build in-game profiler/overlay without touching Java.
+ * Exposed to Lua so you can build in-game profiler/overlay without touching Java.
  */
 public final class FrameStats {
 
-    @HostAccess.Export public final long frameIndex;
-    @HostAccess.Export public final long budgetNanos;
+    @LuaExport public final long frameIndex;
+    @LuaExport public final long budgetNanos;
 
-    @HostAccess.Export public final long frameNanos;
-    @HostAccess.Export public final long drainJobsNanos;
-    @HostAccess.Export public final long hotReloadNanos;
-    @HostAccess.Export public final long eventsNanos;
-    @HostAccess.Export public final long worldUpdateNanos;
-    @HostAccess.Export public final long awaitWorkersNanos;
-    @HostAccess.Export public final long poolMaintenanceNanos;
+    @LuaExport public final long frameNanos;
+    @LuaExport public final long drainJobsNanos;
+    @LuaExport public final long hotReloadNanos;
+    @LuaExport public final long eventsNanos;
+    @LuaExport public final long worldUpdateNanos;
+    @LuaExport public final long awaitWorkersNanos;
+    @LuaExport public final long poolMaintenanceNanos;
 
-    @HostAccess.Export public final int jobDrainBudget;
-    @HostAccess.Export public final long dispatcherCalls;
-    @HostAccess.Export public final long dispatcherTimeouts;
+    @LuaExport public final int jobDrainBudget;
+    @LuaExport public final long dispatcherCalls;
+    @LuaExport public final long dispatcherTimeouts;
 
     public FrameStats(
             long frameIndex,

@@ -5,7 +5,7 @@ import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
 import org.foxesworld.kalitech.engine.ecs.components.TransformComponent;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 public final class EntityScriptAPI {
 
@@ -21,24 +21,24 @@ public final class EntityScriptAPI {
         this.events = events;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public String uuid() {
         return uuid;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void info(String msg) {
-        log.info("[JS:{}] {}", uuid, msg);
+        log.info("[Lua:{}] {}", uuid, msg);
     }
 
     // ---------- Events ----------
-    @HostAccess.Export
+    @LuaExport
     public void emit(String eventName, Object payload) {
         events.emit(eventName, payload);
     }
 
     // ---------- Transform ----------
-    @HostAccess.Export
+    @LuaExport
     public void setPos(float x, float y, float z) {
         int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);
@@ -51,14 +51,14 @@ public final class EntityScriptAPI {
         t.z = z;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public float getX() {
         int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);
         return t != null ? t.x : 0f;
     }
 
-    @HostAccess.Export
+    @LuaExport
     public void rotateY(float radians) {
         int entityId = ecs.resolveEntityId(uuid);
         TransformComponent t = ecs.components().get(entityId, TransformComponent.class);

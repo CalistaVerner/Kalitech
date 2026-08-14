@@ -3,6 +3,7 @@ package org.foxesworld.kalitech.engine.world.systems;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 
 import java.util.IdentityHashMap;
@@ -67,6 +68,7 @@ public final class SystemScheduler implements AutoCloseable {
         try {
             return s.getAsInt();
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             return def;
         }
     }
@@ -75,6 +77,7 @@ public final class SystemScheduler implements AutoCloseable {
         try {
             return s.getAsLong();
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             return def;
         }
     }
@@ -84,6 +87,7 @@ public final class SystemScheduler implements AutoCloseable {
             double v = s.getAsDouble();
             return (v > 0 && Double.isFinite(v)) ? v : def;
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             return def;
         }
     }
@@ -119,6 +123,7 @@ public final class SystemScheduler implements AutoCloseable {
         try {
             return sys.runtimeProfile();
         } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
             return null;
         }
     }
@@ -129,6 +134,7 @@ public final class SystemScheduler implements AutoCloseable {
         try {
             return sys.getClass().getSimpleName();
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             return "KSystem";
         }
     }
@@ -183,6 +189,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 slot.shutdown();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("[scheduler] stopSystem shutdown failed: {}", safeSysName(system), t);
             }
         }
@@ -204,6 +211,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 s.shutdown();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("[scheduler] slot shutdown failed: {}", s.safeId(), t);
             }
         }
@@ -212,6 +220,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 lane.shutdown();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.warn("[scheduler] lane shutdown failed: index={}", lane.index, t);
             }
         }
@@ -277,6 +286,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 nameSink.accept(n);
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             }
             return t;
         }
@@ -339,6 +349,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 mode = system.threadMode();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 mode = ThreadMode.WORKER_STRIPED;
             }
 
@@ -366,6 +377,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 ctx.runtimePolicy().assertAllowed(requested, safeSysName(system), SystemContext.RuntimePolicy.Capability.WORLD_ACCESS);
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 throw new SecurityException("RuntimePolicy denied system=" + safeSysName(system) + " profile=" + requested, t);
             }
 
@@ -395,6 +407,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 mode = system.threadMode();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 mode = ThreadMode.WORKER_STRIPED;
             }
 
@@ -405,6 +418,7 @@ public final class SystemScheduler implements AutoCloseable {
                 try {
                     system.onStart(ctx);
                 } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                     exceptions.incrementAndGet();
                     log.error("[scheduler] onStart failed (system={}, profile={}, thread=caller)", safeSysName(system), profile, t);
                 }
@@ -457,6 +471,7 @@ public final class SystemScheduler implements AutoCloseable {
                         system.onUpdate(ctx, tpf);
                     }
                 } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                     exceptions.incrementAndGet();
 
                     if (isStart && startFailureLogged.compareAndSet(0, 1)) {
@@ -501,6 +516,7 @@ public final class SystemScheduler implements AutoCloseable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.debug("[scheduler] await failed (system={}, profile={})", safeSysName(system), profile, t);
             }
         }
@@ -511,6 +527,7 @@ public final class SystemScheduler implements AutoCloseable {
                 try {
                     f.cancel(false);
                 } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                     log.debug("[scheduler] cancel failed (system={}, profile={})", safeSysName(system), profile, t);
                 }
             }
@@ -518,6 +535,7 @@ public final class SystemScheduler implements AutoCloseable {
             try {
                 system.onStop(ctx);
             } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                 log.error("[scheduler] onStop failed (system={}, profile={})", safeSysName(system), profile, t);
             }
 
@@ -525,6 +543,7 @@ public final class SystemScheduler implements AutoCloseable {
                 try {
                     exec.shutdownNow();
                 } catch (Throwable t) {
+            ScriptFailureBoundary.rethrowIfFatal(t);
                     log.warn("[scheduler] dedicated executor shutdown failed (system={}, profile={})", safeSysName(system), profile, t);
                 }
             }

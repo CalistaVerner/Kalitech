@@ -1,23 +1,23 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface EventsApi {
-    @HostAccess.Export void emit(String topic, Object payload);
+    @LuaExport void emit(String topic, Object payload);
 
     /** Subscribe: returns a subscription id (token) that can be used to off(). */
-    @HostAccess.Export int on(String topic, Value handler);
+    @LuaExport int on(String topic, LuaValueRef handler);
 
     /**
      * Subscribe one-shot: handler is removed after the first event.
      */
-    @HostAccess.Export
-    int once(String topic, Value handler);
+    @LuaExport
+    int once(String topic, LuaValueRef handler);
 
     /** Unsubscribe by token. */
-    @HostAccess.Export boolean off(String topic, int token);
+    @LuaExport boolean off(String topic, int token);
 
     /** Remove all listeners for a topic. */
-    @HostAccess.Export void clear(String topic);
+    @LuaExport void clear(String topic);
 }

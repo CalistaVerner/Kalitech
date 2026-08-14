@@ -1,0 +1,8 @@
+{
+  "id": "input",
+  "name": "Input",
+  "version": "1.0.0",
+  "mainClass": "org.foxesworld.kalitech.engine.api.impl.InputApiImpl",
+  "depends": [],
+  "lua": "kalitech/engine/modules/Input/Input.lua"
+}

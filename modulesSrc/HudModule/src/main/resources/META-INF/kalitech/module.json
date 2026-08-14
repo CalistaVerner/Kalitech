@@ -1,0 +1,10 @@
+{
+  "id": "hud",
+  "name": "Hud",
+  "version": "1.0.0",
+  "mainClass": [
+    "org.foxesworld.kalitech.engine.api.impl.HudApiImpl"
+  ],
+  "depends": [],
+  "lua": "kalitech/engine/modules/Hud/Hud.lua"
+}

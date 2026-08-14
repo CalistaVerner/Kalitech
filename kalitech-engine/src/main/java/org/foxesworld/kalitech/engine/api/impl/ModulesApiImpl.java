@@ -8,13 +8,11 @@ import org.foxesworld.kalitech.engine.api.interfaces.ModulesApi;
 import org.foxesworld.kalitech.engine.api.module.AbstractApiModule;
 import org.foxesworld.kalitech.engine.api.module.ApiModuleInfo;
 import org.foxesworld.kalitech.engine.api.module.ApiRegistry;
-import org.graalvm.polyglot.HostAccess;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
 
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
-
-@Deprecated
 public final class ModulesApiImpl extends AbstractApiModule implements ModulesApi {
 
     private static final Method M_LIST =
@@ -33,7 +31,7 @@ public final class ModulesApiImpl extends AbstractApiModule implements ModulesAp
         return engine.getApiRegistry();
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -50,7 +48,7 @@ public final class ModulesApiImpl extends AbstractApiModule implements ModulesAp
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,
@@ -69,7 +67,7 @@ public final class ModulesApiImpl extends AbstractApiModule implements ModulesAp
         );
     }
 
-    @HostAccess.Export
+    @LuaExport
     @Override
     @ApiMethod(
             thread = ApiThreadRule.ANY,

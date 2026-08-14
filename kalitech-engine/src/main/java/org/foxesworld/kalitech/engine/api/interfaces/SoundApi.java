@@ -1,69 +1,69 @@
 package org.foxesworld.kalitech.engine.api.interfaces;
 
 import com.jme3.audio.AudioNode;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaExport;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 public interface SoundApi {
-    AudioNode create(Value cfg);
+    AudioNode create(LuaValueRef cfg);
 
-    @HostAccess.Export
-    long createId(Value cfg);
+    @LuaExport
+    long createId(LuaValueRef cfg);
 
-    @HostAccess.Export
-    AudioNode createAndPlay(Value cfg);
+    @LuaExport
+    AudioNode createAndPlay(LuaValueRef cfg);
 
     void play(AudioNode audioNode);
 
-    @HostAccess.Export
+    @LuaExport
     void playId(long id);
 
-    @HostAccess.Export
+    @LuaExport
     long getSeed();
 
-    @HostAccess.Export
+    @LuaExport
     void setSeed(long seed);
 
-    @HostAccess.Export
+    @LuaExport
     void setDeterministic(boolean deterministic);
 
     void stop(AudioNode audioNode);
 
-    @HostAccess.Export
+    @LuaExport
     void stopId(long id);
 
     void setPosition(AudioNode audioNode, float x, float y, float z);
-    @HostAccess.Export
+    @LuaExport
     void setPositionId(long id, float x, float y, float z);
 
     void setLooping(AudioNode audioNode, boolean loop);
-    @HostAccess.Export
+    @LuaExport
     void setLoopingId(long id, boolean loop);
 
     void setVolume(AudioNode audioNode, float volume);
-    @HostAccess.Export
+    @LuaExport
     void setVolumeId(long id, float volume);
 
     void setPitch(AudioNode audioNode, float pitch);
-    @HostAccess.Export
+    @LuaExport
     void setPitchId(long id, float pitch);
 
     void setDirectional(AudioNode audioNode, boolean directional);
-    @HostAccess.Export
+    @LuaExport
     void setDirectionalId(long id, boolean directional);
 
     void setMaxDistance(AudioNode audioNode, float maxDistance);
-    @HostAccess.Export
+    @LuaExport
     void setMaxDistanceId(long id, float maxDistance);
 
     void setReverbEnabled(AudioNode audioNode, boolean reverbEnabled);
-    @HostAccess.Export
+    @LuaExport
     void setReverbEnabledId(long id, boolean reverbEnabled);
 
     void setDryFilter(AudioNode audioNode, Object filter);
-    @HostAccess.Export
+    @LuaExport
     void setDryFilterId(long id, Object filter);
 
-    @HostAccess.Export
+    @LuaExport
     void setPositionalId(long id, boolean positional);
 }

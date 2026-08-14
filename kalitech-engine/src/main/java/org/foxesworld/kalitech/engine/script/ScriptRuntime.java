@@ -1,453 +1,638 @@
-// FILE: ScriptRuntime.java
 package org.foxesworld.kalitech.engine.script;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApi;
 import org.foxesworld.kalitech.engine.script.cache.ScriptCaches;
 import org.foxesworld.kalitech.engine.script.jobs.ScriptJobQueue;
-import org.foxesworld.kalitech.engine.script.resolve.*;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Source;
-import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.proxy.ProxyExecutable;
+import org.foxesworld.kalitech.engine.script.lua.LuaHostProxy;
+import org.foxesworld.kalitech.engine.script.lua.LuaExecutionLimiter;
+import org.foxesworld.kalitech.engine.script.resolve.BuiltinResolver;
+import org.foxesworld.kalitech.engine.script.resolve.EngineResolver;
+import org.foxesworld.kalitech.engine.script.resolve.NamespaceResolver;
+import org.foxesworld.kalitech.engine.script.resolve.PassThroughResolver;
+import org.foxesworld.kalitech.engine.script.resolve.PathNorm;
+import org.foxesworld.kalitech.engine.script.resolve.RelativeResolver;
+import org.foxesworld.kalitech.engine.script.resolve.ResolverChain;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * ScriptRuntime is responsible for loading and executing JavaScript modules
- * inside a GraalVM {@link Context}. It provides a CommonJS-style {@code require}
- * implementation, manages module caching, supports hot reloading and tracks
- * dependencies to allow transitive invalidation when a module changes.
+ * Thread-confined Lua 5.2 module runtime backed by LuaJ.
  *
- * <p>Thread confined: first thread that touches this runtime becomes the owner.
- * All subsequent interactions must occur on the same thread.</p>
- *
- * <p>Security: host class lookup is disabled; host access is restricted to
- * members annotated with {@link HostAccess.Export}.</p>
- *
- * <p>Author: KΛYLΛ</p>
+ * <p>Java values cross the runtime boundary through the engine-owned
+ * {@link LuaValueRef} API. LuaJ is the only script engine.</p>
  */
 public final class ScriptRuntime implements Closeable {
 
     private static final Logger log = LogManager.getLogger(ScriptRuntime.class);
-
-    /**
-     * Built-in prefix and resources directory.
-     */
     private static final String BUILTIN_PREFIX = "@builtin/";
+    private static final String MODULES_PREFIX = "@modules/";
     private static final String BUILTIN_RES_DIR = "kalitech/engine/";
+    private static final String BOOTSTRAP_ID = "@builtin/init";
+    private static final String JSON_MODULE_ID = "@builtin/json.lua";
+    private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final Context ctx;
+    private static final String LUA_RUNTIME_LIBRARY = """
+            local KNativeType = type
+
+            function KTypeOf(value)
+                local actual = KNativeType(value)
+                if actual ~= "table" then return actual end
+
+                local metatable = getmetatable(value)
+                if KNativeType(metatable) == "table"
+                        and KNativeType(rawget(metatable, "__call")) == "function" then
+                    return "function"
+                end
+
+                local prototype = rawget(value, "prototype")
+                if KNativeType(prototype) == "table"
+                        and rawget(prototype, "constructor") == value then
+                    return "function"
+                end
+                return actual
+            end
+
+            function KArray(a, b)
+                return {}
+            end
+
+            function KArrayFilled(a, b, c)
+                local length, value
+                if c ~= nil then length, value = b, c else length, value = a, b end
+                local out = {}
+                local count = math.max(0, math.floor(tonumber(length) or 0))
+                for i = 1, count do out[i] = value end
+                return out
+            end
+
+            function KLength(value)
+                if value == nil then return 0 end
+                if type(value) == "string" then return #value end
+                if type(value) ~= "table" then return 0 end
+                local declared = rawget(value, "length")
+                if type(declared) == "number" then return declared end
+                return #value
+            end
+
+            function KIndex(value, key)
+                if value == nil then return nil end
+                if type(key) == "number" then
+                    if type(value) == "string" then
+                        return string.sub(value, key + 1, key + 1)
+                    end
+                    return value[key + 1]
+                end
+                return value[key]
+            end
+
+            function KSetIndex(value, key, item)
+                if type(value) ~= "table" then error("indexed value is not writable") end
+                if type(key) == "number" then value[key + 1] = item
+                else value[key] = item end
+                return item
+            end
+
+            function KArrayClear(value)
+                if type(value) ~= "table" then return end
+                for key, _ in pairs(value) do
+                    if type(key) == "number" then value[key] = nil end
+                end
+                rawset(value, "length", nil)
+            end
+
+            KArrayOps = {}
+
+            function KArrayOps.push(array, ...)
+                local count = select("#", ...)
+                for i = 1, count do array[#array + 1] = select(i, ...) end
+                return #array
+            end
+
+            function KArrayOps.pop(array)
+                if type(array) ~= "table" or #array == 0 then return nil end
+                return table.remove(array)
+            end
+
+            function KArrayOps.shift(array)
+                if type(array) ~= "table" or #array == 0 then return nil end
+                return table.remove(array, 1)
+            end
+
+            function KArrayOps.slice(value, first, last)
+                local length = KLength(value)
+                local start = math.floor(tonumber(first) or 0)
+                local finish = last == nil and length or math.floor(tonumber(last) or 0)
+                if start < 0 then start = math.max(length + start, 0)
+                else start = math.min(start, length) end
+                if finish < 0 then finish = math.max(length + finish, 0)
+                else finish = math.min(finish, length) end
+                if finish < start then finish = start end
+
+                if type(value) == "string" then
+                    return string.sub(value, start + 1, finish)
+                end
+
+                local out = {}
+                for index = start, finish - 1 do
+                    out[#out + 1] = KIndex(value, index)
+                end
+                return out
+            end
+
+            function KArrayOps.concat(array, ...)
+                local out = KArrayOps.slice(array)
+                local count = select("#", ...)
+                for argIndex = 1, count do
+                    local item = select(argIndex, ...)
+                    if type(item) == "table" then
+                        for i = 1, #item do out[#out + 1] = item[i] end
+                    else
+                        out[#out + 1] = item
+                    end
+                end
+                return out
+            end
+
+            function KArrayOps.indexOf(value, needle, from)
+                local start = math.max(0, math.floor(tonumber(from) or 0))
+                if type(value) == "string" then
+                    local found = string.find(value, tostring(needle), start + 1, true)
+                    return found and found - 1 or -1
+                end
+                for index = start, KLength(value) - 1 do
+                    if KIndex(value, index) == needle then return index end
+                end
+                return -1
+            end
+
+            function KArrayOps.includes(value, needle, from)
+                return KArrayOps.indexOf(value, needle, from) >= 0
+            end
+
+            function KArrayOps.map(array, callback)
+                local out = {}
+                for i = 1, #array do
+                    out[i] = callback(nil, array[i], i - 1, array)
+                end
+                return out
+            end
+
+            function KArrayOps.filter(array, callback)
+                local out = {}
+                for i = 1, #array do
+                    if callback(nil, array[i], i - 1, array) then
+                        out[#out + 1] = array[i]
+                    end
+                end
+                return out
+            end
+
+            function KArrayOps.reduce(array, callback, ...)
+                local supplied = select("#", ...) > 0
+                local accumulator
+                local first
+                if supplied then
+                    accumulator = select(1, ...)
+                    first = 1
+                else
+                    if #array == 0 then error("reduce of empty array") end
+                    accumulator = array[1]
+                    first = 2
+                end
+                for i = first, #array do
+                    accumulator = callback(nil, accumulator, array[i], i - 1, array)
+                end
+                return accumulator
+            end
+
+            function KArrayOps.every(array, callback)
+                for i = 1, #array do
+                    if not callback(nil, array[i], i - 1, array) then return false end
+                end
+                return true
+            end
+
+            function KArrayOps.some(array, callback)
+                for i = 1, #array do
+                    if callback(nil, array[i], i - 1, array) then return true end
+                end
+                return false
+            end
+
+            function KArrayOps.join(array, separator)
+                local out = {}
+                for i = 1, #array do
+                    local value = array[i]
+                    out[i] = value == nil and "" or tostring(value)
+                end
+                return table.concat(out, separator == nil and "," or tostring(separator))
+            end
+
+            KObject = { prototype = {} }
+
+            function KObject.prototype.hasOwnProperty(self, key)
+                return type(self) == "table" and self[key] ~= nil
+            end
+
+            function KObject.create(a, b)
+                local prototype = b
+                if a ~= KObject then prototype = a end
+                local value = {}
+                if type(prototype) == "table" then
+                    setmetatable(value, { __index = prototype })
+                end
+                return value
+            end
+
+            function KObject.freeze(a, b)
+                if a == KObject then return b end
+                return a
+            end
+
+            function KObject.getPrototypeOf(a, b)
+                local value = (a == KObject) and b or a
+                local meta = type(value) == "table" and getmetatable(value) or nil
+                return meta and meta.__index or nil
+            end
+
+            function KObject.isExtensible(a, b)
+                local value = (a == KObject) and b or a
+                return type(value) == "table" or type(value) == "function"
+            end
+
+            function KObject.getOwnPropertyDescriptor(a, b, c)
+                local value, key
+                if a == KObject then value, key = b, c else value, key = a, b end
+                if type(value) ~= "table" or value[key] == nil then return nil end
+                return {
+                    value = value[key],
+                    configurable = true,
+                    enumerable = true,
+                    writable = true
+                }
+            end
+
+            function KObject.keys(a, b)
+                local value = (a == KObject) and b or a
+                local out = {}
+                if type(value) ~= "table" then return out end
+                for key, _ in pairs(value) do out[#out + 1] = key end
+                return out
+            end
+
+            KMath = {}
+
+            function KMath.random(a, b, c)
+                local low, high
+                if a == KMath then low, high = b, c else low, high = a, b end
+                if low == nil then return math.random() end
+                if high == nil then return math.random(low) end
+                return math.random(low, high)
+            end
+
+            function KMath.hypot(...)
+                local args = {...}
+                local first = args[1] == KMath and 2 or 1
+                local sum = 0
+                for i = first, #args do
+                    local value = tonumber(args[i]) or 0
+                    sum = sum + value * value
+                end
+                return math.sqrt(sum)
+            end
+
+            function KMath.imul(a, b, c)
+                local left, right
+                if a == KMath then left, right = b, c else left, right = a, b end
+                local product = ((tonumber(left) or 0) * (tonumber(right) or 0)) % 4294967296
+                if product >= 2147483648 then product = product - 4294967296 end
+                return product
+            end
+
+            KString = {}
+
+            local function KStringArg(a, b)
+                if a == KString then return b end
+                return a
+            end
+
+            function KString.lastIndexOf(a, b, c, d)
+                local source, needle, from
+                if a == KString then source, needle, from = b, c, d
+                else source, needle, from = a, b, c end
+                source, needle = tostring(source or ""), tostring(needle or "")
+                local limit = from == nil and #source or math.min(#source, math.floor(from) + 1)
+                local result, cursor = -1, 1
+                while true do
+                    local found = string.find(source, needle, cursor, true)
+                    if found == nil or found > limit then break end
+                    result, cursor = found - 1, found + 1
+                end
+                return result
+            end
+
+            function KString.slashes(a, b)
+                local value = KStringArg(a, b)
+                return (string.gsub(tostring(value or ""), string.char(92), "/"))
+            end
+
+            function KString.stripModuleExtension(a, b)
+                local source = tostring(KStringArg(a, b) or "")
+                local lower = string.lower(source)
+                for _, suffix in ipairs({".lua"}) do
+                    if string.sub(lower, -#suffix) == suffix then
+                        return string.sub(source, 1, #source - #suffix)
+                    end
+                end
+                return source
+            end
+
+            function KString.trimLeadingSlashes(a, b)
+                local source = KString.slashes(KStringArg(a, b))
+                return (string.gsub(source, "^/+", ""))
+            end
+
+            function KString.trimTrailingSlashes(a, b)
+                local source = KString.slashes(KStringArg(a, b))
+                return (string.gsub(source, "/+$", ""))
+            end
+
+            function KString.parseSemver(a, b)
+                local value = KStringArg(a, b)
+                local major, minor, patch = string.match(
+                    tostring(value or ""), "^(%d+)%.(%d+)%.(%d+)")
+                if major == nil then return nil end
+                return {
+                    [0] = tonumber(major),
+                    [1] = tonumber(minor),
+                    [2] = tonumber(patch)
+                }
+            end
+
+            function KString.beforeQuery(a, b)
+                local source = tostring(KStringArg(a, b) or "")
+                local at = string.find(source, "?", 1, true)
+                return at and string.sub(source, 1, at - 1) or source
+            end
+
+            function KString.safeModuleChars(a, b)
+                return (string.gsub(
+                    tostring(KStringArg(a, b) or ""), "[^%w/_%.%-]", "_"))
+            end
+
+            function KString.collapseSlashes(a, b)
+                return (string.gsub(tostring(KStringArg(a, b) or ""), "/+", "/"))
+            end
+
+            function KString.trim(a, b)
+                local value = tostring(KStringArg(a, b) or "")
+                return (string.gsub(value, "^%s*(.-)%s*$", "%1"))
+            end
+
+            function KString.lower(a, b)
+                return string.lower(tostring(KStringArg(a, b) or ""))
+            end
+
+            KFunction = {}
+
+            function KFunction.bind(a, b, c)
+                local fn, thisArg
+                if a == KFunction then fn, thisArg = b, c else fn, thisArg = a, b end
+                if type(fn) ~= "function" then return fn end
+                return function(_, ...)
+                    return fn(thisArg, ...)
+                end
+            end
+
+            function KFunction.call(a, b, c, ...)
+                local fn, thisArg
+                if a == KFunction then fn, thisArg = b, c
+                else fn, thisArg = a, b end
+                if a == KFunction then return fn(thisArg, ...)
+                else return fn(thisArg, c, ...) end
+            end
+
+            function KFunction.apply(a, b, c, d)
+                local fn, thisArg, args
+                if a == KFunction then fn, thisArg, args = b, c, d
+                else fn, thisArg, args = a, b, c end
+                local values = args or {}
+                local unpackValues = table.unpack or unpack
+                return fn(thisArg, unpackValues(values))
+            end
+
+            function KProxy(a, b, c)
+                local target, handler
+                if c ~= nil then target, handler = b, c else target, handler = a, b end
+                handler = handler or {}
+                local proxy = {}
+                local meta = {}
+
+                meta.__index = function(_, key)
+                    if type(handler.get) == "function" then
+                        return handler.get(handler, target, key, proxy)
+                    end
+                    if type(target) == "table" then return target[key] end
+                    return nil
+                end
+
+                meta.__newindex = function(_, key, value)
+                    if type(handler.set) == "function" then
+                        local accepted = handler.set(handler, target, key, value, proxy)
+                        if accepted == false then error("Lua proxy rejected assignment: " .. tostring(key)) end
+                        return
+                    end
+                    if type(target) == "table" then
+                        target[key] = value
+                        return
+                    end
+                    error("Lua proxy target is not writable")
+                end
+
+                if type(handler.apply) == "function" or KTypeOf(target) == "function" then
+                    meta.__call = function(_, thisArg, ...)
+                        local args = {...}
+                        if type(handler.apply) == "function" then
+                            return handler.apply(handler, target, thisArg, args)
+                        end
+                        return target(thisArg, ...)
+                    end
+                end
+
+                meta.__pairs = function()
+                    if type(handler.ownKeys) == "function" then
+                        local keys = handler.ownKeys(handler, target) or {}
+                        local index = 0
+                        return function()
+                            index = index + 1
+                            local key = keys[index]
+                            if key == nil then return nil end
+                            return key, proxy[key]
+                        end, proxy, nil
+                    end
+                    if type(target) == "table" then return pairs(target) end
+                    return next, {}, nil
+                end
+
+                meta.__len = function()
+                    return type(target) == "table" and #target or 0
+                end
+
+                return setmetatable(proxy, meta)
+            end
+            """;
+
+    private final Globals globals;
+    private final LuaValue jsonModule = LuaHostProxy.wrap(new LuaJsonCodec());
     private final ScriptCaches caches;
-    private final ThreadLocal<ArrayDeque<String>> requireStack = ThreadLocal.withInitial(ArrayDeque::new);
-
-    /**
-     * CommonJS exports cache (source of truth for loaded modules & cyclic deps).
-     */
+    private final ScriptJobQueue jobs = new ScriptJobQueue();
+    private final ResolverChain resolver;
+    private final ThreadLocal<ArrayDeque<String>> requireStack =
+            ThreadLocal.withInitial(ArrayDeque::new);
     private final Map<String, ModuleRecord> moduleCache = new ConcurrentHashMap<>();
-
-    /**
-     * Version counter per module id.
-     */
     private final Map<String, AtomicLong> moduleVersions = new ConcurrentHashMap<>();
-
-    /**
-     * Dependency graph for hot reload.
-     */
     private final Map<String, Set<String>> forwardDeps = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> reverseDeps = new ConcurrentHashMap<>();
-
-    /**
-     * Global require in JS.
-     */
-    private final Value requireFn;
-
-    private final MutableAliasResolver aliasResolver;
-
-    /**
-     * Job queue.
-     */
-    private final ScriptJobQueue jobs = new ScriptJobQueue();
-
-    /**
-     * Optional host handles registry.
-     */
     private final Map<String, MethodHandle> hostHandles = new ConcurrentHashMap<>();
 
-    /**
-     * Module id resolver chain.
-     */
-    private final ResolverChain resolver;
-
-    /**
-     * Built-in bootstrap module id.
-     */
-    private final String builtinBootstrapId = "@builtin/init";
-
-    private long invalidateEpoch = 0L;
-
-    private volatile Thread ownerThread;
-
-    /**
-     * External stream loader used to fetch module source.
-     */
     private volatile ModuleStreamProvider streamLoader;
-
-    /**
-     * Guard to ensure builtins init happens once.
-     */
-    private volatile boolean builtinsInitialized = false;
-
-    /**
-     * Tracks that runtime is closing. Used to avoid noisy logs on shutdown.
-     */
-    private volatile boolean closing = false;
+    private volatile EngineApi lastAttachedEngineApi;
+    private volatile boolean builtinsInitialized;
+    private volatile boolean closing;
+    private volatile Thread ownerThread;
+    private long invalidateEpoch;
 
     public ScriptRuntime() {
         this(ScriptCaches.defaults());
     }
-    private volatile EngineApi lastAttachedEngineApi;
-
-    // ---------------------------------------------------------------------
-    // Builtin streams
-    // ---------------------------------------------------------------------
-
-    private static InputStream openBuiltInStream(ClassLoader cl, String moduleId) {
-        if (moduleId == null) return null;
-        if (!moduleId.startsWith(BUILTIN_PREFIX)) return null;
-
-        String rel = moduleId.substring(BUILTIN_PREFIX.length());
-        if (rel.isBlank()) return null;
-
-        if (!rel.endsWith(".js")) rel = rel + ".js";
-        String resPath = BUILTIN_RES_DIR + rel;
-
-        return cl.getResourceAsStream(resPath);
-    }
-
-    // ---------------------------------------------------------------------
-    // Path helpers
-    // ---------------------------------------------------------------------
-
-    /**
-     * Resolves relative "./" "../" against parent module id.
-     * IMPORTANT: must see "./" and "../" BEFORE normalizeId strips "./".
-     */
-    private static String resolveRequest(String parentModuleId, String requestRaw) {
-        if (requestRaw == null) return "";
-        String req = requestRaw.trim().replace('\\', '/');
-
-        while (req.startsWith("/")) req = req.substring(1);
-
-        if (req.startsWith("./") || req.startsWith("../")) {
-            String parentDir = dirnameOf(parentModuleId);
-            Deque<String> parts = new ArrayDeque<>();
-            if (!parentDir.isEmpty()) {
-                for (String p : parentDir.split("/")) {
-                    if (!p.isEmpty()) parts.addLast(p);
-                }
-            }
-
-            for (String p : req.split("/")) {
-                if (p.isEmpty() || ".".equals(p)) continue;
-                if ("..".equals(p)) {
-                    if (!parts.isEmpty()) parts.removeLast();
-                } else {
-                    parts.addLast(p);
-                }
-            }
-
-            StringBuilder sb = new StringBuilder();
-            Iterator<String> it = parts.iterator();
-            while (it.hasNext()) {
-                sb.append(it.next());
-                if (it.hasNext()) sb.append('/');
-            }
-            return sb.toString();
-        }
-
-        return req;
-    }
-
-    private static String normalizeId(String moduleId) {
-        if (moduleId == null) return "";
-        String id = moduleId.trim().replace('\\', '/');
-
-        while (id.startsWith("./")) id = id.substring(2);
-        while (id.startsWith("/")) id = id.substring(1);
-
-        id = collapseSlashes(id);
-
-        while (id.endsWith("/")) id = id.substring(0, id.length() - 1);
-
-        return id;
-    }
-
-    private static String collapseSlashes(String s) {
-        if (s.indexOf("//") < 0) return s;
-        StringBuilder out = new StringBuilder(s.length());
-        char prev = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '/' && prev == '/') continue;
-            out.append(c);
-            prev = c;
-        }
-        return out.toString();
-    }
-
-    private static String dirnameOf(String moduleId) {
-        if (moduleId == null) return "";
-        String id = moduleId.replace('\\', '/');
-        int idx = id.lastIndexOf('/');
-        return idx < 0 ? "" : id.substring(0, idx);
-    }
-
-    private static String readUtf8(InputStream in) throws IOException {
-        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-    }
-
-    private String formatRequireStack() {
-        ArrayDeque<String> st = requireStack.get();
-        if (st == null || st.isEmpty()) return "[]";
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        Iterator<String> it = st.descendingIterator(); // root -> leaf
-        boolean first = true;
-        while (it.hasNext()) {
-            if (!first) sb.append(" -> ");
-            first = false;
-            sb.append('\'').append(it.next()).append('\'');
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    // ---------------------------------------------------------------------
-    // Thread ownership
-    // ---------------------------------------------------------------------
-
-    public Context ctx() {
-        return ctx;
-    }
 
     public ScriptRuntime(ScriptCaches caches) {
         this.caches = Objects.requireNonNull(caches, "caches");
-        this.aliasResolver = new MutableAliasResolver();
-
         this.resolver = new ResolverChain()
                 .add(new BuiltinResolver(BUILTIN_PREFIX))
+                .add(new BuiltinResolver(MODULES_PREFIX))
                 .add(new EngineResolver("@module", "@builtin/modules"))
                 .add(new RelativeResolver())
                 .add(new NamespaceResolver("Mods"))
-                .add(aliasResolver)
                 .add(new PassThroughResolver());
 
-        this.ctx = Context.newBuilder("js")
-                .allowExperimentalOptions(true)
-                .option("engine.WarnInterpreterOnly", "false")
-                .allowHostAccess(HostAccess.newBuilder(HostAccess.NONE)
-                        .allowAccessAnnotatedBy(HostAccess.Export.class)
-                        .build())
-                .allowHostClassLookup(className -> false)
-                .allowAllAccess(false)
-                .build();
-
-        ProxyExecutable req = args -> {
-            String request = (args.length > 0) ? args[0].asString() : "";
-            return requireFrom("", request);
-        };
-        this.requireFn = ctx.asValue(req);
-        ctx.getBindings("js").putMember("require", requireFn);
-
-        ProxyExecutable resolveFn = args -> {
-            String parent = (args.length > 0) ? args[0].asString() : "";
-            String request = (args.length > 1) ? args[1].asString() : "";
-            return resolveToModuleId(normalizeId(parent), request);
-        };
-        ctx.getBindings("js").putMember("__resolveId", ctx.asValue(resolveFn));
-
+        this.globals = JsePlatform.standardGlobals();
+        this.globals.load(new LuaExecutionLimiter());
+        restrictGlobals();
+        installRuntimeGlobals();
+        this.streamLoader = wrapWithBuiltIns(null);
         assertOwnerThread();
+    }
+
+    private void restrictGlobals() {
+        for (String name : List.of(
+                "luajava", "io", "os", "package", "debug", "coroutine",
+                "dofile", "loadfile", "load")) {
+            globals.set(name, LuaValue.NIL);
+        }
+        globals.load(LUA_RUNTIME_LIBRARY, "@kalitech/lua-runtime").call();
+    }
+
+    private void installRuntimeGlobals() {
+        VarArgFunction require = new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                String request = requireArgument(args);
+                String parent = requireStack.get().peek();
+                return requireFrom(parent == null ? "" : parent, request).asLuaValue();
+            }
+        };
+        globals.set("require", require);
+    }
+
+    private static String requireArgument(Varargs args) {
+        LuaValue value = args.arg1();
+        if (!value.isstring()) throw new LuaError("require expects a module id");
+        return value.tojstring();
+    }
+
+    public Globals globals() {
+        return globals;
+    }
+
+    public ModuleStreamProvider moduleStreamProvider() {
+        return streamLoader;
     }
 
     private void assertOwnerThread() {
-        Thread t = Thread.currentThread();
+        Thread current = Thread.currentThread();
         Thread owner = ownerThread;
         if (owner == null) {
-            ownerThread = t;
-            return;
-        }
-        if (owner != t) {
-            throw new IllegalStateException("ScriptRuntime is thread confined. Owner=" + owner.getName() + ", current=" + t.getName());
+            ownerThread = current;
+        } else if (owner != current) {
+            throw new IllegalStateException(
+                    "ScriptRuntime is thread confined. Owner=" + owner.getName()
+                            + ", current=" + current.getName());
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Built-ins init
-    // ---------------------------------------------------------------------
-
-    public Context getCtx() {
-        return ctx;
+    public ScriptRuntime attachEngineApi(EngineApi api) {
+        assertOwnerThread();
+        this.lastAttachedEngineApi = Objects.requireNonNull(api, "api");
+        return this;
     }
 
-    /**
-     * Ensures built-ins are loaded before any non-builtin module resolution/loading.
-     * This is called automatically from requireFrom() BEFORE resolveToModuleId().
-     *
-     * <p>Rules:</p>
-     * <ul>
-     *   <li>Built-ins are auto-initialized on the first non-builtin require.</li>
-     *   <li>Direct require("@builtin/...") does not force full bootstrap init (but is allowed).</li>
-     * </ul>
-     */
-    private void ensureBuiltInsBeforeUserScripts(String parentModuleId, String requestRaw) {
+    public void initBuiltIns(EngineApi api) {
+        assertOwnerThread();
         if (builtinsInitialized) return;
+        this.lastAttachedEngineApi = Objects.requireNonNull(api, "api");
+        builtinsInitialized = true;
+        try (LuaExecutionLimiter.Scope ignored =
+                     LuaExecutionLimiter.enterModule("builtins")) {
+            LuaValueRef bootstrap = require(BOOTSTRAP_ID);
+            if (bootstrap != null && bootstrap.hasMember("attachEngine")) {
+                bootstrap.invokeMember("attachEngine", api);
+            }
+            log.info("[lua] builtins initialized from {}", BOOTSTRAP_ID);
+        } catch (RuntimeException | Error failure) {
+            builtinsInitialized = false;
+            throw failure;
+        }
+    }
 
-        String req = (requestRaw == null) ? "" : requestRaw.trim();
-        if (req.startsWith(BUILTIN_PREFIX)) return;
-
-        // Any user-script require triggers bootstrap.
+    private void ensureBuiltInsBeforeUserScripts(String request) {
+        if (builtinsInitialized || request == null || request.startsWith(BUILTIN_PREFIX)) return;
         EngineApi api = lastAttachedEngineApi;
         if (api == null) {
-            String msg = "Builtins are not initialized and EngineApi is not attached yet. " +
-                    "Call initBuiltIns(engineApi) before loading user scripts, or attach engine via bootstrap.";
-            log.error("[script] {}", msg);
-            throw new IllegalStateException(msg);
+            throw new IllegalStateException(
+                    "Lua builtins are not initialized and EngineApi is not attached");
         }
-
         initBuiltIns(api);
     }
 
-    /**
-     * Loads built-in bootstrap module and applies aliases.
-     * Safe to call multiple times.
-     */
-    public void initBuiltIns(EngineApi api) {
-        assertOwnerThread();
-
-        if (builtinsInitialized) return;
-        builtinsInitialized = true;
-
-        if (api == null) {
-            String msg = "initBuiltIns(api) called with null EngineApi";
-            log.error("[script] {}", msg);
-            throw new IllegalArgumentException(msg);
-        }
-
-        this.lastAttachedEngineApi = api;
-
-        if (this.streamLoader == null) {
-            String msg = "ModuleStreamProvider not set before initBuiltIns(). Call setModuleStreamProvider(...) first.";
-            log.error("[script] {}", msg);
-            throw new IllegalStateException(msg);
-        }
-
-        log.debug("[script] builtins: loading {}", builtinBootstrapId);
-        long t0 = System.nanoTime();
-
-        Value boot = require(builtinBootstrapId);
-
-        try {
-            // Convention: builtin bootstrap exports attachEngine(api)
-            if (boot != null && !boot.isNull() && boot.hasMember("attachEngine")) {
-                boot.invokeMember("attachEngine", api);
-            }
-        } catch (Throwable t) {
-            log.error("[script] builtins: attachEngine failed", t);
-            throw t;
-        }
-
-        long ms = (System.nanoTime() - t0) / 1_000_000L;
-        log.debug("[script] builtins: loaded {} ({} ms)", builtinBootstrapId, ms);
-
-        applyBootstrapAliases(boot);
-
-        // Optional warmups (if present in your resources)
-        // warmupBuiltIn("@builtin/assert");
-        // warmupBuiltIn("@builtin/deepMerge");
-        // warmupBuiltIn("@builtin/events");
-        // warmupBuiltIn("@builtin/paths");
-        // warmupBuiltIn("@builtin/schema");
-    }
-
-    /**
-     * Remembers EngineApi for auto-bootstrap on first user require().
-     * This is intentionally separate from initBuiltIns to allow a two-phase setup:
-     * setModuleStreamProvider(...) -> attachEngineApi(...) -> require(userModule)
-     */
-    public ScriptRuntime attachEngineApi(EngineApi api) {
-        assertOwnerThread();
-        this.lastAttachedEngineApi = api;
-        return this;
-    }
-
-    private ModuleStreamProvider wrapWithBuiltIns(ModuleStreamProvider downstream) {
-        final ClassLoader cl = ScriptRuntime.class.getClassLoader();
-
-        return moduleId -> {
-            String id = normalizeId(moduleId);
-
-            if (id.startsWith(BUILTIN_PREFIX)) {
-                InputStream in = openBuiltInStream(cl, id);
-                if (in != null) {
-                    String rel = id.substring(BUILTIN_PREFIX.length());
-                    if (!rel.endsWith(".js")) rel = rel + ".js";
-                    log.debug("[script] builtins: stream=open resource {}{}", BUILTIN_RES_DIR, rel);
-                    return in;
-                }
-                log.error("[script] builtins: resource not found for {}", id);
-                return null;
-            }
-
-            return (downstream != null) ? downstream.openStream(id) : null;
-        };
-    }
-
-    private void warmupBuiltIn(String id) {
-        try {
-            log.debug("[script] builtins: loading {}", id);
-            long t0 = System.nanoTime();
-            require(id);
-            long ms = (System.nanoTime() - t0) / 1_000_000L;
-            log.debug("[script] builtins: loaded {} ({} ms)", id, ms);
-        } catch (Throwable t) {
-            log.warn("[script] builtins: failed to load {}: {}", id, t.toString());
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // Providers / jobs / handles
-    // ---------------------------------------------------------------------
-
-    /**
-     * Legacy setter: wraps text provider into stream provider (UTF-8).
-     */
-    @Deprecated
-    public ScriptRuntime setModuleSourceProvider(ModuleSourceProvider loader) {
-        if (loader == null) {
-            this.streamLoader = null;
-            return this;
-        }
-        this.streamLoader = moduleId -> {
-            String txt = loader.loadText(moduleId);
-            if (txt == null) return null;
-            byte[] bytes = txt.getBytes(StandardCharsets.UTF_8);
-            return new java.io.ByteArrayInputStream(bytes);
-        };
-        return this;
-    }
-
     public ScriptRuntime setModuleStreamProvider(ModuleStreamProvider loader) {
-        this.streamLoader = (loader == null) ? null : wrapWithBuiltIns(loader);
+        this.streamLoader = wrapWithBuiltIns(loader);
         return this;
     }
 
@@ -456,9 +641,7 @@ public final class ScriptRuntime implements Closeable {
     }
 
     public ScriptRuntime registerHostHandle(String name, MethodHandle handle) {
-        Objects.requireNonNull(name, "name");
-        Objects.requireNonNull(handle, "handle");
-        hostHandles.put(name, handle);
+        hostHandles.put(Objects.requireNonNull(name, "name"), Objects.requireNonNull(handle, "handle"));
         return this;
     }
 
@@ -466,317 +649,189 @@ public final class ScriptRuntime implements Closeable {
         return hostHandles.get(name);
     }
 
-    // ---------------------------------------------------------------------
-    // Bootstrap aliases
-    // ---------------------------------------------------------------------
-
-    /**
-     * Loads aliases from bootstrap exports:
-     * module.exports = { config: { aliases: { "@core":"Scripts/core", ... } } }
-     */
-    private void applyBootstrapAliases(Value bootExports) {
-        try {
-            if (bootExports == null) return;
-
-            Value cfg = bootExports.getMember("config");
-            if (cfg == null) {
-                log.warn("[script] builtins: bootstrap has no 'config' export (aliases not applied)");
-                return;
-            }
-
-            Value aliases = cfg.getMember("aliases");
-            if (aliases == null || !aliases.hasMembers()) {
-                log.warn("[script] builtins: bootstrap config has no 'aliases' (aliases not applied)");
-                return;
-            }
-
-            Map<String, String> map = new LinkedHashMap<>();
-            for (String k : aliases.getMemberKeys()) {
-                Value v = aliases.getMember(k);
-                if (v != null && v.isString()) {
-                    map.put(k, v.asString());
-                }
-            }
-
-            if (map.isEmpty()) {
-                log.warn("[script] builtins: bootstrap aliases are empty");
-                return;
-            }
-
-            aliasResolver.setAliases(map);
-            log.debug("[script] builtins: aliases applied ({}) {}", map.size(), map.keySet());
-
-        } catch (Throwable t) {
-            log.warn("[script] builtins: failed to apply bootstrap aliases", t);
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // Core module loader
-    // ---------------------------------------------------------------------
-
-    public Value require(String moduleId) {
+    public LuaValueRef require(String moduleId) {
         assertOwnerThread();
         return requireFrom("", moduleId);
     }
 
     public long moduleVersion(String moduleId) {
-        AtomicLong v = moduleVersions.get(normalizeId(moduleId));
-        return v == null ? 0L : v.get();
+        String id = PathNorm.normalizeId(moduleId);
+        AtomicLong direct = moduleVersions.get(id);
+        if (direct != null) return direct.get();
+        long result = 0L;
+        for (String candidate : PathNorm.expandCandidates(id)) {
+            AtomicLong value = moduleVersions.get(candidate);
+            if (value != null) result = Math.max(result, value.get());
+        }
+        return result;
     }
 
-    private Value requireFrom(String parentModuleId, String requestRaw) {
+    private LuaValueRef requireFrom(String parentModuleId, String requestRaw) {
         assertOwnerThread();
+        String request = requestRaw == null ? "" : requestRaw.trim();
+        ensureBuiltInsBeforeUserScripts(request);
 
-        ensureBuiltInsBeforeUserScripts(parentModuleId, requestRaw);
-
-        final String parent = normalizeId(parentModuleId);
-        final String request = (requestRaw == null) ? "" : requestRaw;
-
-        final String baseId = resolveToModuleId(parent, request);
-        final String[] candidates = expandRequireCandidates(baseId);
+        String parent = PathNorm.normalizeId(parentModuleId);
+        String baseId = resolveToModuleId(parent, request);
+        List<String> candidates = PathNorm.expandCandidates(baseId);
+        if (candidates.isEmpty()) {
+            throw new IllegalArgumentException("Blank Lua module request from '" + parent + "'");
+        }
 
         for (String id : candidates) {
             ModuleRecord existing = moduleCache.get(id);
             if (existing == null) continue;
-
-            if (existing.state == ModuleState.LOADING) return existing.exportsObj;
-
+            recordDependency(parent, id);
+            if (existing.state == ModuleState.LOADING || existing.state == ModuleState.LOADED) {
+                return LuaValueRef.of(existing.moduleValue);
+            }
             if (existing.state == ModuleState.FAILED && existing.failedAtEpoch == invalidateEpoch) {
-                String msg = (existing.lastErrorMessage != null)
-                        ? existing.lastErrorMessage
-                        : ("Failed to evaluate module (cached FAILED). resolved='" + existing.id + "'");
-                throw new RuntimeException(msg, existing.lastError);
+                throw moduleFailure(existing.id, existing.lastError);
             }
-
-            if (existing.state == ModuleState.LOADED) {
-                return existing.exportsObj;
-            }
-
-            break;
         }
 
-        ModuleStreamProvider l = this.streamLoader;
-        if (l == null) {
-            String msg = "require() called but no ModuleStreamProvider is set. resolvedBase='" + baseId +
-                    "', parent='" + parent + "', request='" + request + "'";
-            log.error("[script] {}", msg);
-            throw new IllegalStateException(msg);
+        for (String id : candidates) {
+            LuaValueRef nativeValue = loadNativeModule(parent, id);
+            if (nativeValue != null) return nativeValue;
         }
 
-        String moduleId = null;
-        String code = null;
+        ModuleStreamProvider provider = streamLoader;
+        if (provider == null) {
+            throw new IllegalStateException("No Lua ModuleStreamProvider is configured");
+        }
+
+        Throwable lastFailure = null;
+        for (String id : candidates) {
+            try {
+                String code = caches.moduleText().getIfPresent(id);
+                if (code == null) {
+                    try (InputStream stream = provider.openStream(id)) {
+                        if (stream == null) continue;
+                        code = readUtf8(stream);
+                        caches.moduleText().put(id, code);
+                    }
+                }
+                recordDependency(parent, id);
+                return evaluateModule(id, code);
+            } catch (IOException failure) {
+                lastFailure = failure;
+                break;
+            } catch (RuntimeException failure) {
+                lastFailure = failure;
+                break;
+            } catch (Exception failure) {
+                lastFailure = failure;
+                break;
+            }
+        }
+
+        String message = "Lua module not found. request='" + request + "', parent='"
+                + parent + "', candidates=" + candidates;
+        if (lastFailure != null) throw new IllegalStateException(message, lastFailure);
+        throw new IllegalStateException(message);
+    }
+
+    private LuaValueRef loadNativeModule(String parent, String id) {
+        if (!JSON_MODULE_ID.equals(id)) return null;
+
+        ModuleRecord record = new ModuleRecord(id);
+        record.moduleValue = jsonModule;
+        record.state = ModuleState.LOADED;
+        moduleCache.put(id, record);
+        recordDependency(parent, id);
+        return LuaValueRef.of(jsonModule);
+    }
+
+    private LuaValueRef evaluateModule(String id, String code) {
+        ModuleRecord record = new ModuleRecord(id);
+        moduleCache.put(id, record);
+        record.state = ModuleState.LOADING;
+        requireStack.get().push(id);
 
         try {
-            for (String id : candidates) {
-                String maybe = caches.moduleText().get(id, key -> {
-                    try (InputStream in = l.openStream(key)) {
-                        if (in == null) return null;
-                        return readUtf8(in);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-
-                if (maybe != null) {
-                    moduleId = id;
-                    code = maybe;
-                    break;
+            LuaValue moduleValue;
+            if (id.endsWith(".json")) {
+                Object decoded = JSON.readValue(code, Object.class);
+                moduleValue = LuaHostProxy.wrap(decoded);
+            } else {
+                LuaTable environment = moduleEnvironment(record);
+                LuaValue chunk = globals.load(code, "@" + id, environment);
+                try (LuaExecutionLimiter.Scope ignored =
+                             LuaExecutionLimiter.enterModule("module:" + id)) {
+                    moduleValue = chunk.call();
+                }
+                if (moduleValue.isnil()) {
+                    throw new IllegalStateException("Lua module must return its public value: " + id);
                 }
             }
 
-            if (code == null) {
-                String msg = "ModuleStreamProvider returned null (module not found). tried=" + formatCandidates(candidates) +
-                        " parent='" + parent + "', request='" + request + "', resolvedBase='" + baseId + "'";
-                log.error("[script] {}", msg);
-                throw new IllegalStateException(msg);
-            }
-        } catch (RuntimeException re) {
-            Throwable cause = re.getCause();
-
-            String base = "Failed to load module source. tried=" + formatCandidates(candidates) +
-                    " parent='" + parent + "', request='" + request + "', resolvedBase='" + baseId + "'";
-
-            if (cause != null) {
-                log.error("[script] {} cause={}", base, cause.toString());
-                throw new RuntimeException(base, cause);
-            }
-            log.error("[script] {}", base, re);
-            throw re;
-        }
-
-        ModuleRecord rec = moduleCache.get(moduleId);
-        if (rec != null) {
-            if (rec.state == ModuleState.LOADING) return rec.exportsObj;
-
-            if (rec.state == ModuleState.FAILED && rec.failedAtEpoch == invalidateEpoch) {
-                String msg = (rec.lastErrorMessage != null)
-                        ? rec.lastErrorMessage
-                        : ("Failed to evaluate module (cached FAILED). resolved='" + rec.id + "'");
-                throw new RuntimeException(msg, rec.lastError);
-            }
-
-            if (rec.state == ModuleState.LOADED) return rec.exportsObj;
-
-        } else {
-            rec = new ModuleRecord(moduleId, ctx);
-            moduleCache.put(moduleId, rec);
-        }
-
-        rec.state = ModuleState.LOADING;
-
-        final Set<String> addedChildren = new HashSet<>();
-
-        requireStack.get().push(moduleId);
-        try {
-            evalCommonJsInto(moduleId, code, rec, addedChildren);
-
-            rec.loaded = true;
-            rec.state = ModuleState.LOADED;
-
-            rec.lastErrorMessage = null;
-            rec.lastError = null;
-            rec.failedAtEpoch = -1L;
-
-            return rec.exportsObj;
-        } catch (Exception e) {
-            rec.loaded = false;
-            rec.state = ModuleState.FAILED;
-            rec.failedAtEpoch = invalidateEpoch;
-
-            String msg = "Failed to evaluate module. resolved='" + moduleId + "', parent='" + parent +
-                    "', request='" + request + "', requireStack=" + formatRequireStack();
-
-            rec.lastErrorMessage = msg;
-            rec.lastError = e;
-
-            rollbackDepsOnEvalFail(moduleId, addedChildren);
-
-            log.error("[script] {}", msg, e);
-            throw new RuntimeException(msg, e);
+            record.moduleValue = moduleValue;
+            record.state = ModuleState.LOADED;
+            return LuaValueRef.of(moduleValue);
+        } catch (Throwable failure) {
+            record.state = ModuleState.FAILED;
+            record.failedAtEpoch = invalidateEpoch;
+            record.lastError = failure;
+            throw moduleFailure(id, failure);
         } finally {
-            ArrayDeque<String> st = requireStack.get();
-            if (st != null && !st.isEmpty()) st.pop();
+            ArrayDeque<String> stack = requireStack.get();
+            if (!stack.isEmpty()) stack.pop();
         }
     }
 
-    private void evalCommonJsInto(String moduleId, String code, ModuleRecord rec, Set<String> addedChildren) {
-        String wrapped = caches.wrappedCode().get(
-                ScriptCaches.SourceKey.of(moduleId, code),
-                k -> "(function(module, exports, require, __filename, __dirname) {\n" +
-                        "  'use strict';\n" +
-                        code + "\n" +
-                        "})"
-        );
 
-        ScriptCaches.SourceKey sk = ScriptCaches.SourceKey.of(moduleId, wrapped);
-        Source src = caches.wrappedSources().get(sk, k -> {
-            try {
-                return Source.newBuilder("js", wrapped, moduleId).build();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+    private LuaTable moduleEnvironment(ModuleRecord record) {
+        LuaTable environment = new LuaTable();
+        LuaTable metatable = new LuaTable();
+        metatable.set("__index", globals);
+        environment.setmetatable(metatable);
+        environment.set("_G", globals);
+
+        VarArgFunction scopedRequire = new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                return requireFrom(record.id, requireArgument(args)).asLuaValue();
             }
-        });
-
-        Value fn = ctx.eval(src);
-
-        Value moduleObj = rec.moduleObj;
-        Value exportsObj = rec.exportsObj;
-
-        ProxyExecutable localReq = args -> {
-            String request = (args.length > 0) ? args[0].asString() : "";
-            String childId = resolveToModuleId(moduleId, request);
-
-            recordDependency(moduleId, childId);
-            if (addedChildren != null) addedChildren.add(childId);
-
-            return requireFrom(moduleId, childId);
         };
-        Value localRequire = ctx.asValue(localReq);
+        environment.set("require", scopedRequire);
+        return environment;
+    }
 
-        String __filename = moduleId;
-        String __dirname = dirnameOf(moduleId);
-
-        fn.execute(moduleObj, exportsObj, localRequire, __filename, __dirname);
-
-        Value moduleExports = moduleObj.getMember("exports");
-        if (moduleExports != null) {
-            rec.exportsObj = moduleExports;
-        }
+    private static RuntimeException moduleFailure(String id, Throwable failure) {
+        String detail = failure == null || failure.getMessage() == null
+                ? String.valueOf(failure)
+                : failure.getMessage();
+        return new IllegalStateException("Lua module failed: " + id + ": " + detail, failure);
     }
 
     private void recordDependency(String parent, String child) {
-        if (parent == null || parent.isEmpty()) return;
-        if (child == null || child.isEmpty()) return;
-
-        String p = normalizeId(parent);
-        String c = normalizeId(child);
-        if (p.equals(c)) return;
-
-        forwardDeps.computeIfAbsent(p, k -> ConcurrentHashMap.newKeySet()).add(c);
-        reverseDeps.computeIfAbsent(c, k -> ConcurrentHashMap.newKeySet()).add(p);
+        if (parent == null || parent.isBlank() || parent.equals(child)) return;
+        forwardDeps.computeIfAbsent(parent, ignored -> ConcurrentHashMap.newKeySet()).add(child);
+        reverseDeps.computeIfAbsent(child, ignored -> ConcurrentHashMap.newKeySet()).add(parent);
     }
 
-    private void rollbackDepsOnEvalFail(String moduleId, Set<String> addedChildren) {
-        if (moduleId == null || moduleId.isEmpty()) return;
+    private String resolveToModuleId(String parent, String request) {
+        String normalizedRequest = request == null ? "" : request.trim();
 
-        forwardDeps.remove(moduleId);
+        return resolver.resolveOrThrow(PathNorm.normalizeId(parent), normalizedRequest);
+    }
 
-        if (addedChildren != null) {
-            for (String child : addedChildren) {
-                Set<String> rev = reverseDeps.get(child);
-                if (rev != null) {
-                    rev.remove(moduleId);
-                    if (rev.isEmpty()) reverseDeps.remove(child);
-                }
+    private ModuleStreamProvider wrapWithBuiltIns(ModuleStreamProvider downstream) {
+        ClassLoader loader = ScriptRuntime.class.getClassLoader();
+        return id -> {
+            String normalized = PathNorm.normalizeId(id);
+            if (normalized.startsWith(BUILTIN_PREFIX)) {
+                String relative = normalized.substring(BUILTIN_PREFIX.length());
+                if (!PathNorm.hasExtension(relative)) relative += ".lua";
+                return loader.getResourceAsStream(BUILTIN_RES_DIR + relative);
             }
-        }
+            return downstream == null ? null : downstream.openStream(normalized);
+        };
     }
 
-    /**
-     * Strict rule:
-     * - if baseId is builtin or already has extension -> [baseId]
-     * - else -> [baseId + "/index.js", baseId + ".js"]
-     */
-    private String[] expandRequireCandidates(String baseId) {
-        final String base = normalizeId(baseId);
-
-        if (base.startsWith(BUILTIN_PREFIX)) return new String[]{base};
-
-        if (hasExtension(base)) return new String[]{base};
-
-        return new String[]{base + "/index.js", base + ".js"};
+    private static String readUtf8(InputStream stream) throws IOException {
+        return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
     }
-
-    private boolean hasExtension(String id) {
-        if (id == null || id.isEmpty()) return false;
-        String s = id.replace('\\', '/');
-        int slash = s.lastIndexOf('/');
-        int dot = s.lastIndexOf('.');
-        return dot > slash;
-    }
-
-    private String formatCandidates(String[] cands) {
-        if (cands == null || cands.length == 0) return "[]";
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        for (int i = 0; i < cands.length; i++) {
-            if (i > 0) sb.append(", ");
-            sb.append('\'').append(cands[i]).append('\'');
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private String resolveToModuleId(String parentModuleId, String requestRaw) {
-        String rawResolved = resolveRequest(parentModuleId, requestRaw);
-        String afterChain = resolver.resolveOrThrow(parentModuleId, rawResolved);
-        return normalizeId(afterChain);
-    }
-
-    // ---------------------------------------------------------------------
-    // Invalidation / Hot Reload (NO reflection, stable API)
-    // ---------------------------------------------------------------------
 
     public boolean invalidate(String moduleId) {
         return invalidateWithReason(moduleId, "invalidate");
@@ -784,88 +839,55 @@ public final class ScriptRuntime implements Closeable {
 
     public boolean invalidateWithReason(String moduleId, String reason) {
         assertOwnerThread();
-        nextInvalidateEpoch();
-
-        String id = normalizeId(moduleId);
-        if (id.isEmpty()) return false;
-
-        if (id.startsWith(BUILTIN_PREFIX)) return false;
-
-        int removed = removeModuleAndDependents(id, new HashSet<>());
-        if (removed > 0) {
-            log.debug("[script] invalidate '{}' removed={} reason={}", id, removed, reason);
-            return true;
+        invalidateEpoch++;
+        Set<String> visited = new HashSet<>();
+        int removed = 0;
+        for (String id : canonicalIds(moduleId)) {
+            if (!id.startsWith(BUILTIN_PREFIX)) removed += removeModuleAndDependents(id, visited);
         }
-        return false;
+        if (removed > 0) log.debug("[lua] invalidated {} module(s): {}", removed, reason);
+        return removed > 0;
     }
 
-    /**
-     * Stable API used by ScriptSystem (hot reload watcher).
-     */
     public int invalidateMany(Collection<String> moduleIds) {
         return invalidateManyWithReason(moduleIds, "invalidateMany");
     }
 
-    /**
-     * Stable API used by ScriptSystem (hot reload watcher).
-     */
     public int invalidateManyWithReason(Collection<String> moduleIds, String reason) {
         assertOwnerThread();
-        nextInvalidateEpoch();
-
+        invalidateEpoch++;
         if (moduleIds == null || moduleIds.isEmpty()) return 0;
-
-        int total = 0;
         Set<String> visited = new HashSet<>();
-        for (String id0 : moduleIds) {
-            String id = normalizeId(id0);
-            if (id.isEmpty()) continue;
-            if (id.startsWith(BUILTIN_PREFIX)) continue;
-            total += removeModuleAndDependents(id, visited);
-        }
-
-        if (total > 0) {
-            log.debug("[script] invalidateMany removed={} reason={}", total, reason);
-        }
-        return total;
-    }
-
-    /**
-     * Strict stable API: full invalidation (used by F5 / force hot reload).
-     */
-    public int invalidateAllWithReason(String reason) {
-        assertOwnerThread();
-        nextInvalidateEpoch();
-
         int removed = 0;
-
-        // Snapshot keys to avoid concurrent modification as we remove.
-        Set<String> keys = new HashSet<>(moduleCache.keySet());
-        for (String id : keys) {
-            if (id == null) continue;
-            if (id.startsWith(BUILTIN_PREFIX)) continue;
-            if (moduleCache.remove(id) != null) {
-                removed++;
-                caches.invalidateModule(id);
-                bumpVersion(id);
+        for (String moduleId : moduleIds) {
+            for (String id : canonicalIds(moduleId)) {
+                if (!id.startsWith(BUILTIN_PREFIX)) {
+                    removed += removeModuleAndDependents(id, visited);
+                }
             }
         }
-
-        forwardDeps.clear();
-        reverseDeps.clear();
-
-        if (removed > 0) {
-            log.info("[script] invalidateAll removed={} reason={}", removed, (reason == null ? "" : reason));
-        } else if (log.isDebugEnabled()) {
-            log.debug("[script] invalidateAll removed=0 reason={}", (reason == null ? "" : reason));
-        }
-
+        if (removed > 0) log.debug("[lua] invalidated {} module(s): {}", removed, reason);
         return removed;
     }
 
-    /**
-     * Legacy name retained for convenience (calls invalidateAllWithReason).
-     */
+    public int invalidateAllWithReason(String reason) {
+        assertOwnerThread();
+        invalidateEpoch++;
+        int removed = 0;
+        for (String id : new HashSet<>(moduleCache.keySet())) {
+            if (id.startsWith(BUILTIN_PREFIX)) continue;
+            if (moduleCache.remove(id) != null) {
+                caches.invalidateModule(id);
+                bumpVersion(id);
+                removed++;
+            }
+        }
+        forwardDeps.clear();
+        reverseDeps.clear();
+        if (removed > 0) log.info("[lua] invalidated all user modules ({}): {}", removed, reason);
+        return removed;
+    }
+
     public int invalidateAll() {
         return invalidateAllWithReason("invalidateAll");
     }
@@ -876,104 +898,83 @@ public final class ScriptRuntime implements Closeable {
 
     public int invalidatePrefixWithReason(String prefix, String reason) {
         assertOwnerThread();
-        nextInvalidateEpoch();
-
-        String p = normalizeId(prefix);
-        if (p.isEmpty()) return 0;
-
-        if (p.startsWith(BUILTIN_PREFIX)) return 0;
-
-        Set<String> keys = new HashSet<>();
-        keys.addAll(moduleCache.keySet());
-        keys.addAll(forwardDeps.keySet());
-        keys.addAll(reverseDeps.keySet());
-
-        int total = 0;
+        invalidateEpoch++;
+        String canonicalPrefix = PathNorm.normalizeId(prefix);
+        if (canonicalPrefix.isBlank() || canonicalPrefix.startsWith(BUILTIN_PREFIX)) return 0;
         Set<String> visited = new HashSet<>();
-        for (String id : keys) {
-            if (id != null && id.startsWith(p) && !id.startsWith(BUILTIN_PREFIX)) {
-                total += removeModuleAndDependents(id, visited);
+        int removed = 0;
+        Set<String> ids = new HashSet<>(moduleCache.keySet());
+        ids.addAll(forwardDeps.keySet());
+        ids.addAll(reverseDeps.keySet());
+        for (String id : ids) {
+            if (id.startsWith(canonicalPrefix)) {
+                removed += removeModuleAndDependents(id, visited);
             }
         }
+        if (removed > 0) log.debug("[lua] invalidated prefix {} ({}): {}", canonicalPrefix, removed, reason);
+        return removed;
+    }
 
-        if (total > 0) {
-            log.debug("[script] invalidatePrefix '{}' removed={} reason={}", p, total, reason);
-        }
-        return total;
+    private List<String> canonicalIds(String moduleId) {
+        String id = PathNorm.normalizeId(moduleId);
+        if (id.isBlank()) return List.of();
+        if (PathNorm.hasExtension(id)) return List.of(id);
+        return new ArrayList<>(PathNorm.expandCandidates(id));
     }
 
     private int removeModuleAndDependents(String id, Set<String> visited) {
         if (!visited.add(id)) return 0;
         int removed = 0;
-
         if (moduleCache.remove(id) != null) {
-            removed++;
             caches.invalidateModule(id);
             bumpVersion(id);
+            removed++;
         }
 
         Set<String> dependents = reverseDeps.remove(id);
         if (dependents != null) {
-            for (String dep : dependents) {
-                removed += removeModuleAndDependents(dep, visited);
+            for (String dependent : new HashSet<>(dependents)) {
+                removed += removeModuleAndDependents(dependent, visited);
             }
         }
 
-        Set<String> deps = forwardDeps.remove(id);
-        if (deps != null) {
-            for (String d : deps) {
-                Set<String> rev = reverseDeps.get(d);
-                if (rev != null) {
-                    rev.remove(id);
-                    if (rev.isEmpty()) reverseDeps.remove(d);
+        Set<String> dependencies = forwardDeps.remove(id);
+        if (dependencies != null) {
+            for (String dependency : dependencies) {
+                Set<String> reverse = reverseDeps.get(dependency);
+                if (reverse != null) {
+                    reverse.remove(id);
+                    if (reverse.isEmpty()) reverseDeps.remove(dependency);
                 }
             }
         }
-
         return removed;
     }
 
-    private void bumpVersion(String moduleId) {
-        moduleVersions.computeIfAbsent(moduleId, k -> new AtomicLong(0L)).incrementAndGet();
+    private void bumpVersion(String id) {
+        moduleVersions.computeIfAbsent(id, ignored -> new AtomicLong()).incrementAndGet();
     }
-
-    private long nextInvalidateEpoch() {
-        return ++invalidateEpoch;
-    }
-
-    // ---------------------------------------------------------------------
-    // Reset / Close
-    // ---------------------------------------------------------------------
 
     public void reset() {
         assertOwnerThread();
         invalidateAllWithReason("reset");
         jobs.clear();
         caches.invalidateAll();
-        aliasResolver.setAliases(Map.of());
         builtinsInitialized = false;
-        // Keep lastAttachedEngineApi as-is (optional), so first require can bootstrap again.
     }
 
     @Override
     public void close() {
+        if (closing) return;
         closing = true;
-        log.info("Closing ScriptRuntime");
-        try {
-            reset();
-        } catch (Exception e) {
-            log.warn("Error during ScriptRuntime reset", e);
-        }
-        try {
-            ctx.close(true);
-        } catch (Exception e) {
-            log.warn("Error closing Graal context", e);
-        }
+        reset();
+        log.info("Closed Lua ScriptRuntime");
     }
 
-    // ---------------------------------------------------------------------
-    // Internal module record
-    // ---------------------------------------------------------------------
+    @FunctionalInterface
+    public interface ModuleStreamProvider {
+        InputStream openStream(String moduleId) throws Exception;
+    }
 
     private enum ModuleState {
         NEW,
@@ -982,45 +983,15 @@ public final class ScriptRuntime implements Closeable {
         FAILED
     }
 
-    /**
-     * Legacy text provider (kept for compatibility).
-     * Prefer {@link ModuleStreamProvider} for builtins/resources/files.
-     */
-    @FunctionalInterface
-    public interface ModuleSourceProvider {
-        String loadText(String moduleId) throws Exception;
-    }
-
-    /**
-     * Stream provider. MUST return a fresh InputStream each call.
-     * Caller closes the stream.
-     *
-     * @return stream or null if module not found.
-     */
-    @FunctionalInterface
-    public interface ModuleStreamProvider {
-        InputStream openStream(String moduleId) throws Exception;
-    }
-
     private static final class ModuleRecord {
         final String id;
+        LuaValue moduleValue = new LuaTable();
+        ModuleState state = ModuleState.NEW;
+        long failedAtEpoch = -1L;
+        Throwable lastError;
 
-        final Value moduleObj;
-        Value exportsObj;
-
-        volatile boolean loaded;
-        volatile ModuleState state = ModuleState.NEW;
-
-        volatile long failedAtEpoch = -1L;
-        volatile String lastErrorMessage = null;
-        volatile Throwable lastError = null;
-
-        ModuleRecord(String id, Context ctx) {
+        ModuleRecord(String id) {
             this.id = id;
-
-            Value module = ctx.eval("js", "({ exports: {} })");
-            this.moduleObj = module;
-            this.exportsObj = module.getMember("exports");
         }
     }
 }

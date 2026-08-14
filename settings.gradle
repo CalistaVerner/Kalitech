@@ -4,6 +4,24 @@ include(
         'kalitech-core',
         'kalitech-engine',
         'kalitech-neural',
-        'kalitech-demo'
+        'kalitech-demo',
+        'CameraModule',
+        'HudModule',
+        'InputModule',
+        'MaterialModule',
+        'ParticlesModule',
+        'PhysicsModule',
+        'RenderModule',
+        'SoundModule',
+        'TerrainModule'
 )
-include 'InputModule'
+
+project(':CameraModule').projectDir = file('modulesSrc/CameraModule')
+project(':HudModule').projectDir = file('modulesSrc/HudModule')
+project(':InputModule').projectDir = file('modulesSrc/InputModule')
+project(':MaterialModule').projectDir = file('modulesSrc/MaterialModule')
+project(':ParticlesModule').projectDir = file('modulesSrc/ParticlesModule')
+project(':PhysicsModule').projectDir = file('modulesSrc/PhysicsModule')
+project(':RenderModule').projectDir = file('modulesSrc/RenderModule')
+project(':SoundModule').projectDir = file('modulesSrc/SoundModule')
+project(':TerrainModule').projectDir = file('modulesSrc/TerrainModule')

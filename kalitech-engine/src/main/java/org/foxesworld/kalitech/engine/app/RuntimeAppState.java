@@ -13,11 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.foxesworld.kalitech.engine.api.EngineApiImpl;
 import org.foxesworld.kalitech.engine.ecs.EcsWorld;
+import org.foxesworld.kalitech.engine.script.ScriptFailureBoundary;
 import org.foxesworld.kalitech.engine.script.ScriptRuntime;
 import org.foxesworld.kalitech.engine.script.events.ScriptEventBus;
 import org.foxesworld.kalitech.engine.script.hotreload.HotReloadWatcher;
 import org.foxesworld.kalitech.engine.world.systems.SystemContext;
-import org.graalvm.polyglot.Value;
+import org.foxesworld.kalitech.engine.script.lua.LuaValueRef;
 
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -52,6 +53,8 @@ public final class RuntimeAppState extends BaseAppState {
     private SystemContext appCtx;
 
     private boolean dirty = true;
+    private boolean appQuarantined;
+    private String appQuarantineReason;
     private float reloadCooldown = 0.25f;
     private float cooldown = 0f;
 
@@ -63,38 +66,32 @@ public final class RuntimeAppState extends BaseAppState {
         this.runtime = new ScriptRuntime();
     }
 
-    private static Value resolveApp(Value module) {
+    private static LuaValueRef resolveApp(LuaValueRef module) {
         if (module == null || module.isNull()) return null;
 
-        try {
-            if (module.hasMember("create")) {
-                Value c = module.getMember("create");
-                if (c != null && c.canExecute()) {
-                    Value app = c.execute();
-                    if (app != null && !app.isNull()) return app;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-
-        try {
-            if (module.hasMember("app")) {
-                Value app = module.getMember("app");
+        if (module.hasMember("create")) {
+            LuaValueRef create = module.getMember("create");
+            if (create != null && create.canExecute()) {
+                LuaValueRef app = module.invokeMemberLifecycle("app.create", "create");
                 if (app != null && !app.isNull()) return app;
             }
-        } catch (Throwable ignored) {
+        }
+
+        if (module.hasMember("app")) {
+            LuaValueRef app = module.getMember("app");
+            if (app != null && !app.isNull()) return app;
         }
 
         return module;
     }
 
-    private static String normalizeJsModuleId(String moduleId) {
+    private static String normalizeLuaModuleId(String moduleId) {
         String id = (moduleId == null) ? "" : moduleId.trim();
         if (id.isEmpty()) return "";
         id = id.replace('\\', '/');
         while (id.startsWith("./")) id = id.substring(2);
         while (id.startsWith("/")) id = id.substring(1);
-        if (!id.endsWith(".js")) id += ".js";
+        if (!id.endsWith(".lua") && !id.endsWith(".json")) id += ".lua";
         return id;
     }
 
@@ -135,7 +132,7 @@ public final class RuntimeAppState extends BaseAppState {
         //runtime = new ScriptRuntime();
 
         // CRITICAL: providers MUST be set BEFORE any require() or builtins init
-        runtime.setModuleStreamProvider(this::openJsModuleStream);
+        runtime.setModuleStreamProvider(this::openLuaModuleStream);
 
         // Builtins must be initialized AFTER engineApi exists
         runtime.initBuiltIns(engineApi);
@@ -162,6 +159,8 @@ public final class RuntimeAppState extends BaseAppState {
         );
 
         dirty = true;
+        appQuarantined = false;
+        appQuarantineReason = null;
         cooldown = 0f;
 
         log.info("[Runtime] started entry={} watchRoot={}", entry, watchRoot.toAbsolutePath());
@@ -175,6 +174,7 @@ public final class RuntimeAppState extends BaseAppState {
         try {
             if (engineApi != null) engineApi.__updateTime(tpf);
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
         }
 
         // Hot reload
@@ -185,14 +185,18 @@ public final class RuntimeAppState extends BaseAppState {
                 try {
                     runtime.invalidateMany(changed);
                 } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 }
 
                 dirty = true;
+                appQuarantined = false;
+                appQuarantineReason = null;
                 cooldown = reloadCooldown;
 
                 try {
                     bus.emit("hotreload:changed", changed);
                 } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
                 }
             }
         }
@@ -205,6 +209,7 @@ public final class RuntimeAppState extends BaseAppState {
         try {
             if (engineApi != null) engineApi.input().endFrame();
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
         }
     }
 
@@ -219,37 +224,46 @@ public final class RuntimeAppState extends BaseAppState {
             try {
                 if (engineApi != null) engineApi.physics().__clearAll();
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             }
 
             try {
                 rt.invalidate(entry);
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             }
 
-            Value main = rt.require(entry);
-            Value appObj = resolveApp(main);
+            LuaValueRef main = rt.require(entry);
+            LuaValueRef appObj = resolveApp(main);
 
             if (appObj != null && !appObj.isNull() && appObj.hasMember("start")) {
-                Value start = appObj.getMember("start");
+                LuaValueRef start = appObj.getMember("start");
                 if (start != null && start.canExecute()) {
-                    start.execute(ctx);
+                    start.executeLifecycle("app.start", ctx);
                 }
             }
 
             try {
                 bus.emit("app:started", null);
             } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             }
 
+            appQuarantined = false;
+            appQuarantineReason = null;
             log.info("[Runtime] app started");
-        } catch (Throwable t) {
-            log.error("[Runtime] app start failed", t);
+        } catch (Throwable failure) {
+            ScriptFailureBoundary.rethrowIfFatal(failure);
+            appQuarantined = true;
+            appQuarantineReason = ScriptFailureBoundary.summary(failure);
+            log.error("[Runtime] application Lua script quarantined; engine remains active; "
+                    + "recovery=hot reload", failure);
         }
     }
 
-    private InputStream openJsModuleStream(String moduleId) {
+    private InputStream openLuaModuleStream(String moduleId) {
         try {
-            String id = normalizeJsModuleId(moduleId);
+            String id = normalizeLuaModuleId(moduleId);
             if (id.isEmpty()) return null;
 
             AssetManager am = (app != null) ? app.getAssetManager() : null;
@@ -258,6 +272,7 @@ public final class RuntimeAppState extends BaseAppState {
             var ai = am.locateAsset(new AssetKey<>(id));
             return (ai != null) ? ai.openStream() : null;
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             return null;
         }
     }
@@ -269,6 +284,7 @@ public final class RuntimeAppState extends BaseAppState {
             if (am == null) return null;
             return am.loadAsset(new AssetKey<>(path));
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
             return null;
         }
     }
@@ -278,6 +294,7 @@ public final class RuntimeAppState extends BaseAppState {
         try {
             if (this.app != null && bullet != null) this.app.getStateManager().detach(bullet);
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
         }
         bullet = null;
         physicsSpace = null;
@@ -285,16 +302,20 @@ public final class RuntimeAppState extends BaseAppState {
         try {
             if (watcher != null) watcher.close();
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
         }
         watcher = null;
 
         try {
             if (runtime != null) runtime.close();
         } catch (Throwable ignored) {
+            ScriptFailureBoundary.rethrowIfFatal(ignored);
         }
         runtime = null;
 
         appCtx = null;
+        appQuarantined = false;
+        appQuarantineReason = null;
         engineApi = null;
         this.app = null;
 
@@ -347,5 +368,13 @@ public final class RuntimeAppState extends BaseAppState {
 
     public SystemContext getAppContext() {
         return appCtx;
+    }
+
+    public boolean isAppQuarantined() {
+        return appQuarantined;
+    }
+
+    public String getAppQuarantineReason() {
+        return appQuarantineReason;
     }
 }
